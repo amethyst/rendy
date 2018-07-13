@@ -1,7 +1,7 @@
 
 # Rendy
 
-Yet another Vulkan based rendering engine.
+Yet another [`Vulkan`] based rendering engine.
 
 ## Features
 
@@ -62,3 +62,32 @@ struct Example {
 Rendy's framegraph allow writing rendering code in simple modular style. Making it much easier to composite complex frame from simple parts.
 User defines nodes which declare buffers and images it reads and writes. Framegraph takes responsibility to allocate resources and synchronize access to them.
 This way user is responsible only for internal synchronization.
+
+## Why another render?
+
+There is no fully-featured modern renderers written in Rust. So this project aims to be the one of the first.
+Once `rendy` will be able to render simple scenes it probably will be integrated as rendering engine into [`amethyst`].
+
+This render is made of collection of libraries I wrote for [`gfx-hal`] project:
+* [`gfx-memory`]
+* [`gfx-render`]
+* [`gfx-mesh`]
+* [`gfx-texture`]
+* [`xfg`]
+
+Yet actual code are rewritten from scratch it use same ideas that were used in crates above.
+
+Times have changed. [`gfx-hal`] now focuses on [`Vulkan`-portability].
+I decided to give [`ash`] a try. [`ash`] is a zero-cost rust wrapper over [`Vulkan`] API.
+It provides no additional safety or elegance to API and no overhead. [`ash`] functions are pointers to actual [`Vulkan`]s functions.
+
+[`ash`]: https://github.com/MaikKlein/ash
+[`gfx-hal`]: https://github.com/gfx-rs/gfx
+[`gfx-memory`]: https://github.com/gfx-rs/gfx-memory
+[`gfx-render`]: https://github.com/gfx-rs/gfx-render
+[`gfx-mesh`]: https://github.com/omni-viral/gfx-mesh
+[`gfx-texture`]: https://github.com/omni-viral/gfx-texture
+[`xfg`]: https://github.com/omni-viral/xfg-rs
+[`Vulkan`]: https://www.khronos.org/vulkan/
+[`Vulkan`-portability]: https://www.khronos.org/vulkan/portability-initiative
+[`amethyst`]: https://github.com/amethyst/amethyst
