@@ -1,0 +1,10 @@
+[package]
+name = "rendy-resource"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+crossbeam-channel = "*"
+gfx-hal = { path = "../gfx/hal" }
+rendy-memory = { path = "../memory" }
+relevant = "*"

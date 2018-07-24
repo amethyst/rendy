@@ -77,10 +77,6 @@ This render is made of collection of libraries I wrote for [`gfx-hal`] project:
 
 Yet actual code are rewritten from scratch it use same ideas that were used in crates above.
 
-Times have changed. [`gfx-hal`] now focuses on [`Vulkan`-portability].
-I decided to give [`ash`] a try. [`ash`] is a zero-cost rust wrapper over [`Vulkan`] API.
-It provides no additional safety or elegance to API and no overhead. [`ash`] functions are pointers to actual [`Vulkan`]s functions.
-
 [`ash`]: https://github.com/MaikKlein/ash
 [`gfx-hal`]: https://github.com/gfx-rs/gfx
 [`gfx-memory`]: https://github.com/gfx-rs/gfx-memory
