@@ -38,4 +38,12 @@ impl<T> Memory<T> {
             size,
         }
     }
+
+    pub fn cpu_visible(&self) -> bool {
+        self.properties.contains(hal::memory::Properties::CPU_VISIBLE)
+    }
+
+    pub fn coherent(&self) -> bool {
+        self.properties.contains(hal::memory::Properties::COHERENT)
+    }
 }

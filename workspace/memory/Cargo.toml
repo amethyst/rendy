@@ -5,3 +5,4 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
 gfx-hal = { path = "../gfx/hal" }
+failure = "*"
