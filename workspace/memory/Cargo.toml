@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-gfx-hal = { path = "../gfx/hal" }
+bitflags = "*"
 failure = "*"
+gfx-hal = { path = "../gfx/hal", optional = true }

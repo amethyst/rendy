@@ -1,5 +1,5 @@
 
-use hal::memory::Properties;
+use memory::Properties;
 
 /// Memory usage trait.
 pub trait Usage {
@@ -22,10 +22,10 @@ impl Usage for Data {
             None
         } else {
             Some(
-                ((!properties.contains(Properties::CPU_VISIBLE)) as u8) << 3 |
+                ((!properties.contains(Properties::HOST_VISIBLE)) as u8) << 3 |
                 ((!properties.contains(Properties::LAZILY_ALLOCATED)) as u8) << 2 |
-                ((!properties.contains(Properties::CPU_CACHED)) as u8) << 1 |
-                ((!properties.contains(Properties::COHERENT)) as u8) << 0 |
+                ((!properties.contains(Properties::HOST_CACHED)) as u8) << 1 |
+                ((!properties.contains(Properties::HOST_COHERENT)) as u8) << 0 |
                 0
             )
         }
@@ -41,14 +41,14 @@ impl Usage for Dynamic {
     type Key = u8;
 
     fn key(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::CPU_VISIBLE) {
+        if !properties.contains(Properties::HOST_VISIBLE) {
             None
         } else {
             assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
             Some(
                 (properties.contains(Properties::DEVICE_LOCAL) as u8) << 2 |
-                (properties.contains(Properties::COHERENT) as u8) << 1 |
-                ((!properties.contains(Properties::CPU_CACHED)) as u8) << 0 |
+                (properties.contains(Properties::HOST_COHERENT) as u8) << 1 |
+                ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0 |
                 0
             )
         }
@@ -64,14 +64,14 @@ impl Usage for Upload {
     type Key = u8;
 
     fn key(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::CPU_VISIBLE) {
+        if !properties.contains(Properties::HOST_VISIBLE) {
             None
         } else {
             assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
             Some(
                 ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2 |
-                ((!properties.contains(Properties::CPU_CACHED)) as u8) << 0 |
-                (properties.contains(Properties::COHERENT) as u8) << 1 |
+                ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0 |
+                (properties.contains(Properties::HOST_COHERENT) as u8) << 1 |
                 0
             )
         }
@@ -87,14 +87,14 @@ impl Usage for Download {
     type Key = u8;
 
     fn key(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::CPU_VISIBLE) {
+        if !properties.contains(Properties::HOST_VISIBLE) {
             None
         } else {
             assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
             Some(
                 ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2 |
-                (properties.contains(Properties::CPU_CACHED) as u8) << 1 |
-                (properties.contains(Properties::COHERENT) as u8) << 0 |
+                (properties.contains(Properties::HOST_CACHED) as u8) << 1 |
+                (properties.contains(Properties::HOST_COHERENT) as u8) << 0 |
                 0
             )
         }
@@ -120,5 +120,29 @@ impl Usage for Value {
             Value::Upload => Upload.key(properties),
             Value::Download => Download.key(properties),
         }
+    }
+}
+
+impl From<Data> for Value {
+    fn from(_: Data) -> Self {
+        Value::Data
+    }
+}
+
+impl From<Dynamic> for Value {
+    fn from(_: Dynamic) -> Self {
+        Value::Dynamic
+    }
+}
+
+impl From<Upload> for Value {
+    fn from(_: Upload) -> Self {
+        Value::Upload
+    }
+}
+
+impl From<Download> for Value {
+    fn from(_: Download) -> Self {
+        Value::Download
     }
 }

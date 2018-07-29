@@ -1,29 +1,24 @@
 //! GPU memory management
 
-extern crate gfx_hal as hal;
+#[macro_use]
+extern crate bitflags;
 
 #[macro_use]
 extern crate failure;
 
+#[cfg(feature = "gfx-hal")]
+extern crate gfx_hal as hal;
+
 mod allocator;
 mod block;
-mod device;
+mod heaps;
 mod memory;
-mod sub;
 mod usage;
+mod util;
 
-pub use allocator::Allocator;
-pub use block::{Block, MappingError};
-pub use device::{DeviceMemory, DeviceMemoryBlock};
-pub use memory::Memory;
-pub use sub::{SubAllocator, dedicated::{DedicatedAllocator, DedicatedBlock}};
+pub use block::Block;
+pub use heaps::{Heaps, HeapsBlock};
+pub use memory::{Memory, Device, MemoryError, MappingError, Properties};
+pub use allocator::{Allocator, dedicated::{DedicatedAllocator, DedicatedBlock}, arena::{ArenaAllocator, ArenaBlock}};
 pub use usage::{Usage, Value, Data, Dynamic, Upload, Download};
 
-
-/// Replace with something better.
-pub mod default {
-
-pub type Memory = ::DeviceMemory<::DedicatedAllocator>;
-pub type Block<B> = ::DeviceMemoryBlock<::DedicatedBlock<<B as ::hal::Backend>::Memory>>;
-
-}
