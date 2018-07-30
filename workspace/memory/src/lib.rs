@@ -5,6 +5,7 @@ extern crate bitflags;
 
 #[macro_use]
 extern crate failure;
+extern crate veclist;
 
 #[cfg(feature = "gfx-hal")]
 extern crate gfx_hal as hal;
@@ -19,6 +20,6 @@ mod util;
 pub use block::Block;
 pub use heaps::{Heaps, HeapsBlock};
 pub use memory::{Memory, Device, MemoryError, MappingError, Properties};
-pub use allocator::{Allocator, dedicated::{DedicatedAllocator, DedicatedBlock}, arena::{ArenaAllocator, ArenaBlock}};
+pub use allocator::{Allocator, dedicated::{DedicatedAllocator, DedicatedBlock}, arena::{ArenaAllocator, ArenaBlock}, chunk::{Chunker, ChunkBlock}};
 pub use usage::{Usage, Value, Data, Dynamic, Upload, Download};
 

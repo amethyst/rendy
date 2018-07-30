@@ -6,4 +6,5 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 [dependencies]
 bitflags = "*"
 failure = "*"
+veclist = "*"
 gfx-hal = { path = "../gfx/hal", optional = true }

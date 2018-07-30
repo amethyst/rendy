@@ -15,6 +15,23 @@ pub struct DedicatedBlock<T> {
     mapping: Option<(NonNull<u8>, Range<u64>)>,
 }
 
+impl<T> DedicatedBlock<T> {
+    /// Get inner memory.
+    /// Panics if mapped.
+    pub fn unwrap_memory(self) -> Memory<T> {
+        assert!(self.mapping.is_none());
+        self.memory
+    }
+
+    /// Make unmapped block.
+    pub fn from_memory(memory: Memory<T>) -> Self {
+        DedicatedBlock {
+            memory,
+            mapping: None,
+        }
+    }
+}
+
 impl<T> Block<T> for DedicatedBlock<T> {
     #[inline]
     fn properties(&self) -> Properties {

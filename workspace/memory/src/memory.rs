@@ -242,6 +242,12 @@ pub enum MappingError {
     /// Attempt to bound memory out of memory bounds.
     #[fail(display = "Mapping range is out of bound")]
     OutOfBounds,
+
+    /// Attempt to map memory that can't be safely mapped due to allocator limits.
+    /// User still may perform mapping manually.
+    /// Note that manual mapping is unsafe.
+    #[fail(display = "Memory can't be mapped safely due to allocator limits")]
+    MappingUnsafe,
 }
 
 
