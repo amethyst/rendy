@@ -20,6 +20,6 @@ mod util;
 pub use block::Block;
 pub use heaps::{Heaps, HeapsBlock};
 pub use memory::{Memory, Device, MemoryError, MappingError, Properties};
-pub use allocator::{Allocator, dedicated::{DedicatedAllocator, DedicatedBlock}, arena::{ArenaAllocator, ArenaBlock}, chunk::{Chunker, ChunkBlock}};
+pub use allocator::{Allocator, dedicated::{DedicatedAllocator, DedicatedBlock}, arena::{ArenaAllocator, ArenaBlock}, chunk::{ChunkAllocator, ChunkBlock}, dynamic::{DynamicAllocator, DynamicBlock}};
 pub use usage::{Usage, Value, Data, Dynamic, Upload, Download};
 

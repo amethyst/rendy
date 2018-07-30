@@ -1,6 +1,7 @@
 
 pub mod arena;
 pub mod dedicated;
+pub mod dynamic;
 pub mod chunk;
 
 use block::Block;

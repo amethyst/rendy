@@ -53,7 +53,7 @@ impl<T> Block<T> for ChunkBlock<T> {
 }
 
 /// Block allocated for chunk.
-enum SuperBlock<T> {
+enum Chunk<T> {
     /// Allocated from device.
     Dedicated(Box<Memory<T>>),
 
@@ -61,32 +61,24 @@ enum SuperBlock<T> {
     Chunk(ChunkBlock<T>),
 }
 
-impl<T> SuperBlock<T> {
+impl<T> Chunk<T> {
     fn shared_memory(&self) -> &Memory<T> {
         match self {
-            SuperBlock::Dedicated(boxed) => &*boxed,
-            SuperBlock::Chunk(chunk_block) => chunk_block.shared_memory(),
+            Chunk::Dedicated(boxed) => &*boxed,
+            Chunk::Chunk(chunk_block) => chunk_block.shared_memory(),
         }
     }
 
     fn range(&self) -> Range<u64> {
         match self {
-            SuperBlock::Dedicated(boxed) => 0 .. boxed.size(),
-            SuperBlock::Chunk(chunk_block) => chunk_block.range(),
+            Chunk::Dedicated(boxed) => 0 .. boxed.size(),
+            Chunk::Chunk(chunk_block) => chunk_block.range(),
         }
     }
 }
 
-/// Chunk of blocks with specific size.
-struct Chunk<T> {
-    /// Memory of the chunk.
-    /// It is allocated either from device
-    /// or from bigger chunk.
-    super_block: SuperBlock<T>,
-}
-
 /// List of chunks
-struct Chunks<T> {
+struct Size<T> {
     /// List of chunks.
     chunks: VecList<Chunk<T>>,
 
@@ -94,7 +86,7 @@ struct Chunks<T> {
     free: Vec<BlockInfo>,
 }
 
-pub struct Chunker<T> {
+pub struct ChunkAllocator<T> {
     /// Memory type that this allocator allocates.
     memory_type: u32,
 
@@ -110,15 +102,15 @@ pub struct Chunker<T> {
 
     /// List of chunk lists.
     /// Each index corresponds to `min_block_size << index` size.
-    chunks: Vec<Chunks<T>>,
+    sizes: Vec<Size<T>>,
 }
 
-impl<T> Chunker<T> {
+impl<T> ChunkAllocator<T> {
     /// Maximum block size.
     /// Any request bigger will be answered with `Err(MemoryError::OutOfDeviceMemory)`.
     pub fn max_block_size(&self) -> u64 {
-        debug_assert!(self.chunks.len() > 0, "Checked on construction");
-        self.min_block_size << (self.chunks.len() - 1)
+        debug_assert!(self.sizes.len() > 0, "Checked on construction");
+        self.min_block_size << (self.sizes.len() - 1)
     }
 
     /// Returns size index.
@@ -132,20 +124,20 @@ impl<T> Chunker<T> {
     }
 
     /// Allocate super-block to use as chunk memory.
-    fn super_alloc<D>(&mut self, device: &D, size_index: usize) -> Result<(SuperBlock<T>, u64), MemoryError>
+    fn alloc_chunk<D>(&mut self, device: &D, size_index: usize) -> Result<(Chunk<T>, u64), MemoryError>
     where
         D: Device<T>,
     {
-        if size_index >= self.chunks.len() {
+        if size_index >= self.sizes.len() {
             let size = self.block_size(size_index);
             let memory = unsafe { // Valid memory type specified.
                 let memory = device.allocate(self.memory_type, size)?;
                 Memory::from_raw(memory, size, self.memory_properties)
             };
-            Ok((SuperBlock::Dedicated(Box::new(memory)), size))
+            Ok((Chunk::Dedicated(Box::new(memory)), size))
         } else {
             let (chunk_block, allocated) = self.alloc_from_chunk(device, size_index)?;
-            Ok((SuperBlock::Chunk(chunk_block), allocated))
+            Ok((Chunk::Chunk(chunk_block), allocated))
         }
     }
 
@@ -154,19 +146,15 @@ impl<T> Chunker<T> {
     where
         D: Device<T>,
     {
-        let (block_info, allocated) = if self.chunks[size_index].free.is_empty() {
+        let (block_info, allocated) = if self.sizes[size_index].free.is_empty() {
             // Allocate new chunk.
             let chunk_size = self.block_size(size_index) * self.blocks_per_chunk as u64;
             let chunk_size_index = self.size_index(chunk_size);
-            let (super_block, allocated) = self.super_alloc(device, chunk_size_index)?;
-            let super_block_size = super_block.range().end - super_block.range().start;
-            debug_assert!(super_block_size >= chunk_size);
+            let (chunk, allocated) = self.alloc_chunk(device, chunk_size_index)?;
 
-            let chunk_index = self.chunks[size_index].chunks.push(Chunk {
-                super_block,
-            });
+            let chunk_index = self.sizes[size_index].chunks.push(chunk);
 
-            self.chunks[size_index].free.extend((1 .. self.blocks_per_chunk as usize).map(|block_index| {
+            self.sizes[size_index].free.extend((1 .. self.blocks_per_chunk as usize).map(|block_index| {
                 BlockInfo {
                     chunk_index,
                     block_index,
@@ -174,24 +162,24 @@ impl<T> Chunker<T> {
             }));
             (BlockInfo { chunk_index, block_index: 0 }, allocated)
         } else {
-            (self.chunks[size_index].free.pop().unwrap(), 0)
+            (self.sizes[size_index].free.pop().unwrap(), 0)
         };
 
         let block_size = self.block_size(size_index);
-        let ref super_block = self.chunks[size_index].chunks[block_info.chunk_index].super_block;
-        let super_block_range = super_block.range();
-        let block_range = super_block_range.start + block_info.block_index as u64 * block_size .. super_block_range.start + (block_info.block_index as u64 + 1) * block_size;
-        debug_assert!(block_range.end <= super_block_range.end);
+        let ref chunk = self.sizes[size_index].chunks[block_info.chunk_index];
+        let chunk_range = chunk.range();
+        let block_range = chunk_range.start + block_info.block_index as u64 * block_size .. chunk_range.start + (block_info.block_index as u64 + 1) * block_size;
+        debug_assert!(block_range.end <= chunk_range.end);
 
         Ok((ChunkBlock {
             range: block_range,
-            memory: super_block.shared_memory(),
+            memory: chunk.shared_memory(),
             info: block_info,
         }, allocated))
     }
 }
 
-impl<T> Allocator<T> for Chunker<T> {
+impl<T> Allocator<T> for ChunkAllocator<T> {
     type Block = ChunkBlock<T>;
 
     fn alloc<D>(&mut self, device: &D, size: u64, align: u64) -> Result<(ChunkBlock<T>, u64), MemoryError>
@@ -201,7 +189,7 @@ impl<T> Allocator<T> for Chunker<T> {
         use std::cmp::max;
         let size_index = self.size_index(max(size, align));
 
-        if size_index >= self.chunks.len() {
+        if size_index >= self.sizes.len() {
             // Too big block requested.
             Err(MemoryError::OutOfDeviceMemory)
         } else {
@@ -211,7 +199,7 @@ impl<T> Allocator<T> for Chunker<T> {
 
     fn free<D>(&mut self, _: &D, block: ChunkBlock<T>) -> u64 {
         let size_index = self.size_index(block.range.end - block.range.start);
-        self.chunks[size_index].free.push(block.info);
+        self.sizes[size_index].free.push(block.info);
         0
     }
 }
