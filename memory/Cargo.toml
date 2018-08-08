@@ -1,0 +1,15 @@
+[package]
+name = "rendy-memory"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+bitflags = "*"
+failure = "*"
+veclist = "*"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
+ash = { version = "*", optional = true }
+either = "*"
+
+[target.'cfg(not(features = "ash"))'.dependencies]
+smallvec = "*"

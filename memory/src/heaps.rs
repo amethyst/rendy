@@ -3,6 +3,9 @@ use std::ops::Range;
 
 use allocator::Allocator;
 use block::Block;
+use device::Device;
+use error::*;
+use map::*;
 use memory::*;
 use usage::Usage;
 
@@ -74,7 +77,7 @@ impl<A> Heaps<A> {
         let ref mut memory_heap = self.heaps[memory_type.heap_index as usize];
 
         if memory_heap.available() < size {
-            return Err(MemoryError::OutOfDeviceMemory);
+            return Err(OutOfMemoryError::OutOfDeviceMemory.into());
         }
 
         let (block, allocated) = memory_type.allocator.alloc(device, size, align)?;
@@ -98,7 +101,7 @@ impl<A> Heaps<A> {
             .filter(|(_, mt)| self.heaps[mt.heap_index as usize].available() > size + align)
             .filter_map(|(index, mt)| usage.key(mt.properties).map(move |key| (index, mt, key)))
             .max_by_key(|&(_, _, key)| key)
-            .ok_or(MemoryError::OutOfDeviceMemory)?;
+            .ok_or(OutOfMemoryError::OutOfDeviceMemory)?;
 
         self.allocate_from::<D, T>(device, memory_index as u32, size, align)
     }
@@ -140,7 +143,7 @@ where
         self.block.range()
     }
 
-    fn map<D>(&mut self, device: &D, range: Range<u64>) -> Result<&mut [u8], MappingError>
+    fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError>
     where
         D: Device<T>,
     {

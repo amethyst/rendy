@@ -1,8 +1,6 @@
 [workspace]
 
 members = [
-    "gfx/hal",
     "memory",
     "resource",
-    "transient",
 ]

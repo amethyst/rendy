@@ -1,7 +1,10 @@
 
 use std::{ops::Range, slice::from_raw_parts_mut, ptr::NonNull};
 use block::Block;
-use memory::{Memory, MemoryError, MappingError, Device, Properties};
+use device::Device;
+use error::*;
+use map::*;
+use memory::*;
 use allocator::Allocator;
 use util;
 
@@ -48,51 +51,47 @@ impl<T> Block<T> for DedicatedBlock<T> {
         0 .. self.memory.size()
     }
 
-    fn map<D>(&mut self, device: &D, range: Range<u64>) -> Result<&mut [u8], MappingError>
+    fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError>
     where
         D: Device<T>,
     {
+        let coherent = maybe_coherent(self.memory.host_coherent());
+
         if !self.memory.host_visible() {
             return Err(MappingError::HostInvisible);
         } else if !util::fits_in_usize(range.end - range.start) || range.end > self.memory.size() {
             return Err(MappingError::OutOfBounds);
-        } else if range.start == range.end {
-            return Ok(&mut [])
         } else if let Some(mapping) = self.mapping.clone() {
             debug_assert!(self.memory.host_visible());
 
             // Already mapped.
             if util::sub_range(mapping.1.clone(), range.clone()) {
-                // Mapping contains requested range.
-                if !self.memory.host_coherent() {
-                    unsafe {
-                        device.invalidate(Some((self.memory(), range.start .. range.end)));
+                return Ok(unsafe {
+                    MappedRange {
+                        ptr: NonNull::new_unchecked(mapping.0.as_ptr().add((range.start - mapping.1.start) as usize)),
+                        memory: self.memory.raw(),
+                        offset: range.start,
+                        length: (range.end - range.start) as usize,
+                        coherent,
                     }
-                }
-
-                return unsafe { // This pointer was created by successfully mapping with range bounds checked above.
-                    Ok(from_raw_parts_mut(mapping.0.as_ptr().add((range.start - mapping.1.start) as usize), (range.end - range.start) as usize))
-                };
+                });
             } else {
-                // Requested range is out of mapping bounds.
-                if !self.memory.host_coherent() {
-                    unsafe {
-                        device.flush(Some((self.memory(), mapping.1.clone())));
-                    }
-                }
                 self.mapping = None;
             }
         }
 
-        unsafe { // This pointer was created by successfully mapping specified range.
+        Ok(unsafe {
             let ptr = device.map(self.memory.raw(), range.start .. range.end)?;
-            if !self.memory.host_coherent() {
-                device.invalidate(Some((self.memory(), range.start .. range.end)));
-            }
-
             self.mapping = Some((ptr, range.clone()));
-            Ok(from_raw_parts_mut(ptr.as_ptr(), (range.end - range.start) as usize))
-        }
+
+            MappedRange {
+                ptr,
+                memory: self.memory.raw(),
+                offset: range.start,
+                length: (range.end - range.start) as usize,
+                coherent,
+            }
+        })
     }
 
     fn unmap<D>(&mut self, device: &D, range: Range<u64>)
@@ -101,11 +100,6 @@ impl<T> Block<T> for DedicatedBlock<T> {
     {
         if let Some(mapping) = self.mapping.take() {
             unsafe {
-                if !self.memory.host_coherent() {
-                    // Clamp to mapped range.
-                    let range = util::clamp_range(range, mapping.1.clone());
-                    device.flush(Some((self.memory(), range.start .. range.end)));
-                }
                 device.unmap(self.memory());
             }
         }

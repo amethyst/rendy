@@ -5,6 +5,9 @@ use veclist::VecList;
 
 use allocator::Allocator;
 use block::Block;
+use device::Device;
+use error::*;
+use map::*;
 use memory::*;
 
 pub struct ChunkBlock<T> {
@@ -41,7 +44,7 @@ impl<T> Block<T> for ChunkBlock<T> {
         self.range.clone()
     }
 
-    fn map<D>(&mut self, _: &D, _: Range<u64>) -> Result<&mut [u8], MappingError> {
+    fn map<'a, D>(&'a mut self, _: &D, _: Range<u64>) -> Result<MappedRange<'a, T>, MappingError> {
         if self.shared_memory().host_visible() {
             Err(MappingError::MappingUnsafe)
         } else {
@@ -107,7 +110,7 @@ pub struct ChunkAllocator<T> {
 
 impl<T> ChunkAllocator<T> {
     /// Maximum block size.
-    /// Any request bigger will be answered with `Err(MemoryError::OutOfDeviceMemory)`.
+    /// Any request bigger will be answered with `Err(OutOfMemoryError::OutOfDeviceMemory)`.
     pub fn max_block_size(&self) -> u64 {
         debug_assert!(self.sizes.len() > 0, "Checked on construction");
         self.min_block_size << (self.sizes.len() - 1)
@@ -191,7 +194,7 @@ impl<T> Allocator<T> for ChunkAllocator<T> {
 
         if size_index >= self.sizes.len() {
             // Too big block requested.
-            Err(MemoryError::OutOfDeviceMemory)
+            Err(OutOfMemoryError::OutOfDeviceMemory.into())
         } else {
             self.alloc_from_chunk(device, size_index)
         }

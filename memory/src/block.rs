@@ -1,6 +1,9 @@
 
 use std::{ops::Range};
-use memory::{Device, MappingError, Properties};
+use device::Device;
+use error::MappingError;
+use map::MappedRange;
+use memory::Properties;
 
 /// Block<T> owns a `Range` of the `Memory<T>`.
 /// It also provides a way to get mapping for the sub-range.
@@ -16,7 +19,7 @@ pub trait Block<T> {
 
     /// Get mapping for the buffer range.
     /// Memory writes to the region performed by device become available for the host.
-    fn map<D>(&mut self, device: &D, range: Range<u64>) -> Result<&mut [u8], MappingError>
+    fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError>
     where
         D: Device<T>,
     ;

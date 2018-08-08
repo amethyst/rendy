@@ -1,16 +1,21 @@
 
-use std::ops::Range;
+use std::{ops::Range, ptr::NonNull};
 use veclist::VecList;
 
 
 use allocator::Allocator;
 use block::Block;
+use device::Device;
+use error::*;
+use map::*;
 use memory::*;
+use util;
 
 pub struct DynamicBlock<T> {
-    memory: *const Memory<T>,
-    range: Range<u64>,
     index: usize,
+    memory: *const Memory<T>,
+    mapping: NonNull<u8>,
+    range: Range<u64>,
 }
 
 impl<T> DynamicBlock<T> {
@@ -34,19 +39,44 @@ impl<T> Block<T> for DynamicBlock<T> {
         self.range.clone()
     }
 
-    fn map<D>(&mut self, _: &D, _: Range<u64>) -> Result<&mut [u8], MappingError> {
-        unimplemented!()
+    fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError>
+    where
+        D: Device<T>,
+    {
+        // Check if specified range is not out of block bounds.
+        if range.end < range.start || range.end > (self.range.end - self.range.start) {
+            return Err(MappingError::OutOfBounds);
+        }
+
+        let start = range.start + self.range.start;
+        let end = range.end + self.range.start;
+
+        debug_assert!(util::fits_in_usize(start) && util::fits_in_usize(end), "Implied by check above because arena memory size must fit in usize");
+
+        let coherent = maybe_coherent(self.shared_memory().host_coherent());
+
+        Ok(unsafe {
+            MappedRange {
+                ptr: NonNull::new_unchecked(self.mapping.as_ptr().add(start as usize)),
+                memory: self.shared_memory().raw(),
+                offset: start,
+                length: (end - start) as usize,
+                coherent,
+            }
+        })
     }
 
-    fn unmap<D>(&mut self, _: &D, _: Range<u64>) {
-        unimplemented!()
+    fn unmap<D>(&mut self, device: &D, range: Range<u64>)
+    where
+        D: Device<T>,
+    {
     }
 }
 
 /// Block allocated for chunk.
 enum Chunk<T> {
     /// Allocated from device.
-    Dedicated(Box<Memory<T>>),
+    Dedicated(Box<Memory<T>>, NonNull<u8>),
 
     /// Allocated from chunk of bigger blocks.
     Dynamic(DynamicBlock<T>),
@@ -55,15 +85,22 @@ enum Chunk<T> {
 impl<T> Chunk<T> {
     fn shared_memory(&self) -> &Memory<T> {
         match self {
-            Chunk::Dedicated(boxed) => &*boxed,
+            Chunk::Dedicated(boxed, _) => &*boxed,
             Chunk::Dynamic(chunk_block) => chunk_block.shared_memory(),
         }
     }
 
     fn range(&self) -> Range<u64> {
         match self {
-            Chunk::Dedicated(boxed) => 0 .. boxed.size(),
+            Chunk::Dedicated(boxed, _) => 0 .. boxed.size(),
             Chunk::Dynamic(chunk_block) => chunk_block.range(),
+        }
+    }
+
+    fn mapping(&self) -> NonNull<u8> {
+        match self {
+            Chunk::Dedicated(_, mapping) => *mapping,
+            Chunk::Dynamic(chunk_block) => chunk_block.mapping,
         }
     }
 }
@@ -95,29 +132,29 @@ pub struct DynamicAllocator<T> {
 
     /// Minimal block size.
     /// Any request less than this will be answered with block of this size.
-    min_block_size: u64,
+    block_size_granularity: u64,
 
     /// List of chunk lists.
-    /// Each index corresponds to `min_block_size << index` size.
+    /// Each index corresponds to `block_size_granularity * index` size.
     sizes: Vec<Size<T>>,
 }
 
 impl<T> DynamicAllocator<T> {
     /// Maximum block size.
-    /// Any request bigger will be answered with `Err(MemoryError::OutOfDeviceMemory)`.
+    /// Any request bigger will be answered with `Err(OutOfMemoryError::OutOfDeviceMemory)`.
     pub fn max_block_size(&self) -> u64 {
-        debug_assert!(self.sizes.len() > 0, "Checked on construction");
-        self.min_block_size << (self.sizes.len() - 1)
+        self.block_size_granularity * self.sizes.len() as u64
     }
 
     /// Returns size index.
     fn size_index(&self, size: u64) -> usize {
-        64 - ((size - 1) / self.min_block_size).leading_zeros() as usize
+        assert!(size <= self.max_block_size());
+        ((size - 1) / self.block_size_granularity) as usize + 1
     }
 
-    /// Get block size for ther size index.
+    /// Get block size for the size index.
     fn block_size(&self, index: usize) -> u64 {
-        (self.min_block_size << index)
+        self.block_size_granularity * index as u64
     }
 
     /// Allocate super-block to use as chunk memory.
@@ -125,13 +162,23 @@ impl<T> DynamicAllocator<T> {
     where
         D: Device<T>,
     {
-        if size_index >= 4096 {
+        debug_assert!(self.memory_properties.host_visible());
+
+        if size_index >= self.sizes.len() {
             let size = self.block_size(size_index);
-            let memory = unsafe { // Valid memory type specified.
-                let memory = device.allocate(self.memory_type, size)?;
-                Memory::from_raw(memory, size, self.memory_properties)
+            let (memory, mapping) = unsafe { // Valid memory type specified.
+                let raw = device.allocate(self.memory_type, size)?;
+                let mapping = match device.map(&raw, 0 .. size) {
+                    Ok(mapping) => mapping,
+                    Err(error) => {
+                        device.free(raw);
+                        return Err(error.into())
+                    }
+                };
+                let memory = Memory::from_raw(raw, size, self.memory_properties);
+                (memory, mapping)
             };
-            Ok((Chunk::Dedicated(Box::new(memory)), size))
+            Ok((Chunk::Dedicated(Box::new(memory), mapping), size))
         } else {
             let (dynamic_block, allocated) = self.alloc_from_chunk(device, size_index)?;
             Ok((Chunk::Dynamic(dynamic_block), allocated))
@@ -144,9 +191,10 @@ impl<T> DynamicAllocator<T> {
         D: Device<T>,
     {
         match chunk {
-            Chunk::Dedicated(boxed) => {
+            Chunk::Dedicated(boxed, _) => {
                 let size = boxed.size();
                 unsafe {
+                    device.unmap(boxed.raw());
                     device.free(boxed.into_raw());
                 }
                 size
@@ -165,7 +213,7 @@ impl<T> DynamicAllocator<T> {
         let (ix, allocated) = if self.sizes[size_index].top_mask == 0 {
             if self.sizes[size_index].chunks_count == 4096 {
                 // Can't allocate more.
-                return Err(MemoryError::OutOfDeviceMemory);
+                return Err(OutOfMemoryError::OutOfDeviceMemory.into());
             }
 
             // Allocate new chunk.
@@ -209,7 +257,6 @@ impl<T> DynamicAllocator<T> {
             (ix, 0)
         };
 
-
         let ref chunk = self.sizes[size_index].chunks[ix.chunk_index];
         let chunk_range = chunk.range();
         let block_size = self.block_size(size_index);
@@ -221,6 +268,7 @@ impl<T> DynamicAllocator<T> {
             range: block_range,
             memory: chunk.shared_memory(),
             index: ix.block_index,
+            mapping: chunk.mapping(),
         }, allocated))
     }
 }
@@ -235,9 +283,9 @@ impl<T> Allocator<T> for DynamicAllocator<T> {
         use std::cmp::max;
         let size_index = self.size_index(max(size, align));
 
-        if size_index >= 4096 {
+        if size_index >= self.sizes.len() {
             // Too big block requested.
-            Err(MemoryError::OutOfDeviceMemory)
+            Err(OutOfMemoryError::OutOfDeviceMemory.into())
         } else {
             self.alloc_from_chunk(device, size_index)
         }

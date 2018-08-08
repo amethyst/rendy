@@ -5,7 +5,8 @@ pub mod dynamic;
 pub mod chunk;
 
 use block::Block;
-use memory::{Device, MemoryError};
+use device::Device;
+use error::MemoryError;
 
 /// Allocator trait implemented for various allocators.
 pub trait Allocator<T> {

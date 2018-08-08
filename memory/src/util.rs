@@ -1,14 +1,28 @@
 
 use std::ops::Range;
 
+/// usize is less than 64 bit
 #[cfg(any(target_pointer_width = "16", target_pointer_width = "32"))]
 pub(crate) fn fits_in_usize(value: u64) -> bool {
     value <= usize::max_value() as u64
 }
 
+/// usize is 64 bit or more
 #[cfg(not(any(target_pointer_width = "16", target_pointer_width = "32")))]
 pub(crate) fn fits_in_usize(_: u64) -> bool {
     true
+}
+
+/// usize is 64 bit or less
+#[cfg(any(target_pointer_width = "16", target_pointer_width = "32", target_pointer_width = "64"))]
+pub(crate) fn fits_in_u64(_: usize) -> bool {
+    true
+}
+
+/// usize is more than 64 bit
+#[cfg(not(any(target_pointer_width = "16", target_pointer_width = "32", target_pointer_width = "64")))]
+pub(crate) fn fits_in_u64(value: usize) -> bool {
+    value <= u64::max_value() as usize
 }
 
 pub(crate) fn aligned(value: u64, align: u64) -> u64 {
