@@ -1,6 +1,4 @@
 
-use std::{ops::Range, ptr::NonNull};
-
 /// Memory property flags.
 bitflags! {
     pub struct Properties: u32 {

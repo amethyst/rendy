@@ -12,13 +12,14 @@ pub enum OutOfMemoryError {
     OutOfDeviceMemory,
 }
 
+/// Possible cause of mapping failure.
 #[derive(Clone, Debug, Fail)]
 pub enum MappingError {
     /// Attempt to map memory without host-visible property.
     #[fail(display = "Memory is not HOST_VISIBLE and can't be mapped")]
     HostInvisible,
 
-    /// Attempt to bound memory out of memory bounds.
+    /// Attempt to map memory out of bounds.
     #[fail(display = "Mapping range is out of bound")]
     OutOfBounds,
 
@@ -34,6 +35,13 @@ pub enum MappingError {
 
     #[fail(display = "{}", _0)]
     OutOfMemoryError(OutOfMemoryError),
+
+    /// Attempt to interpret mapped range with wrong alignment.
+    #[fail(display = "Aligned {} required but offset value is {}", requirements, offset)]
+    Unaligned {
+        requirements: usize,
+        offset: usize,
+    }
 }
 
 impl From<OutOfMemoryError> for MappingError {
@@ -42,6 +50,7 @@ impl From<OutOfMemoryError> for MappingError {
     }
 }
 
+/// Possible cause of allocation failure.
 #[derive(Clone, Debug, Fail)]
 pub enum AllocationError {
     #[fail(display = "{}", _0)]

@@ -7,6 +7,8 @@ use hal::{self, Device as HalDevice};
 use device::Device;
 use error::*;
 use memory::*;
+use heaps::*;
+use util::*;
 
 impl From<hal::device::OutOfMemory> for OutOfMemoryError {
     fn from(_: hal::device::OutOfMemory) -> OutOfMemoryError {
@@ -75,36 +77,17 @@ impl From<hal::memory::Properties> for Properties {
     }
 }
 
-// impl Into<hal::memory::Properties> for Properties {
-//     fn into(self) -> hal::memory::Properties {
-//         assert!(!self.protected(), "Protected flag is not supported by gfx-hal");
-//         let mut result = hal::memory::Properties::empty();
-//         if self.device_local() {
-//             result |= hal::memory::Properties::DEVICE_LOCAL;
-//         }
-//         if self.host_coherent() {
-//             result |= hal::memory::Properties::COHERENT;
-//         }
-//         if self.host_cached() {
-//             result |= hal::memory::Properties::CPU_CACHED;
-//         }
-//         if self.host_visible() {
-//             result |= hal::memory::Properties::CPU_VISIBLE;
-//         }
-//         if self.lazily_allocated() {
-//             result |= hal::memory::Properties::LAZILY_ALLOCATED;
-//         }
-//         result
-//     }
-// }
-
-impl<D, B> Device<B::Memory> for (D, PhantomData<B>)
+impl<D, B> Device for (D, PhantomData<B>)
 where
     B: hal::Backend,
     D: Borrow<B::Device>,
 {
+    type Memory = B::Memory;
+
     unsafe fn allocate(&self, index: u32, size: u64) -> Result<B::Memory, AllocationError> {
-        Ok(self.0.borrow().allocate_memory(hal::MemoryTypeId(index as usize), size)?)
+        assert!(fits_usize(index), "Numbers of memory types can't exceed usize limit");
+        let index = index as usize;
+        Ok(self.0.borrow().allocate_memory(hal::MemoryTypeId(index), size)?)
     }
 
     unsafe fn free(&self, memory: B::Memory) {
@@ -130,4 +113,17 @@ where
         self.0.borrow().flush_mapped_memory_ranges(regions);
         Ok(())
     }
+}
+
+/// Fetch data necessary from `Backend::PhysicalDevice`
+pub unsafe fn heaps_from_physical_device<B>(physical: &B::PhysicalDevice, config: HeapsConfig) -> Heaps<B::Memory>
+where
+    B: hal::Backend,
+{
+    let memory_properties = ::hal::PhysicalDevice::memory_properties(physical);
+    Heaps::new(
+        memory_properties.memory_types.into_iter().map(|mt| (mt.properties.into(), mt.heap_index as u32)),
+        memory_properties.memory_heaps,
+        config,
+    )
 }

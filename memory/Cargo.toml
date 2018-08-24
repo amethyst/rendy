@@ -10,6 +10,6 @@ veclist = "*"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
 ash = { version = "*", optional = true }
 either = "*"
-
-[target.'cfg(not(features = "ash"))'.dependencies]
+serde = { version = "*", optional = true, features = ["derive"] }
 smallvec = "*"
+hibitset = "*"

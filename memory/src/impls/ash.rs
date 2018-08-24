@@ -52,11 +52,13 @@ impl From<ash::vk::Result> for MemoryError {
     }
 }
 
-impl<V> Device<ash::vk::DeviceMemory> for ash::Device<V>
+impl<V> Device for ash::Device<V>
 where
     V: FunctionPointers,
     ash::Device<V>: DeviceV1_0,
 {
+    type Memory = ash::vk::DeviceMemory;
+
     unsafe fn allocate(&self, index: u32, size: u64) -> Result<ash::vk::DeviceMemory, AllocationError> {
         Ok(self.allocate_memory(
             &ash::vk::MemoryAllocateInfo {

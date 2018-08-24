@@ -1,23 +1,31 @@
 
+use std::any::Any;
 use memory::Properties;
 
 /// Memory usage trait.
 pub trait Usage {
-    type Key: Copy + Ord;
-    /// Get comparable key for memory properties.
-    /// Should return `None` if memory not fit.
-    fn key(&self, properties: Properties) -> Option<Self::Key>;
+    type Fitness: Copy + Ord;
+
+    fn value(self) -> UsageValue;
+
+    /// Get comparable fitness value for memory properties.
+    /// Should return `None` if memory doesn't fit.
+    fn memory_fitness(&self, properties: Properties) -> Option<Self::Fitness>;
 }
 
 /// Full speed GPU access.
-/// Optimal for render targets and resourced memory.
-/// Requires `DEVICE_LOCAL` memory.
+/// Optimal for render targets and persistent resources.
+/// Avoid memory with host access.
 pub struct Data;
 
 impl Usage for Data {
-    type Key = u8;
+    type Fitness = u8;
 
-    fn key(&self, properties: Properties) -> Option<u8> {
+    #[inline]
+    fn value(self) -> UsageValue { UsageValue::Data }
+
+    #[inline]
+    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
         if !properties.contains(Properties::DEVICE_LOCAL) {
             None
         } else {
@@ -34,13 +42,18 @@ impl Usage for Data {
 
 /// CPU to GPU data flow with update commands.
 /// Used for dynamic buffer data, typically constant buffers.
-/// Requires `HOST_VISIBLE` memory with `DEVICE_LOCAL` preferable.
+/// Host access is guaranteed.
+/// Prefers memory with fast GPU access.
 pub struct Dynamic;
 
 impl Usage for Dynamic {
-    type Key = u8;
+    type Fitness = u8;
 
-    fn key(&self, properties: Properties) -> Option<u8> {
+    #[inline]
+    fn value(self) -> UsageValue { UsageValue::Dynamic }
+
+    #[inline]
+    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
         if !properties.contains(Properties::HOST_VISIBLE) {
             None
         } else {
@@ -56,14 +69,18 @@ impl Usage for Dynamic {
 }
 
 /// CPU to GPU data flow with mapping.
-/// Used for staging data before copying to the `DEVICE_LOCAL` memory.
-/// Requires `HOST_VISIBLE` memory.
+/// Used for staging data before copying to the `Data` memory.
+/// Host access is guaranteed.
 pub struct Upload;
 
 impl Usage for Upload {
-    type Key = u8;
+    type Fitness = u8;
 
-    fn key(&self, properties: Properties) -> Option<u8> {
+    #[inline]
+    fn value(self) -> UsageValue { UsageValue::Upload }
+
+    #[inline]
+    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
         if !properties.contains(Properties::HOST_VISIBLE) {
             None
         } else {
@@ -79,14 +96,18 @@ impl Usage for Upload {
 }
 
 /// GPU to CPU data flow with mapping.
-/// Used for copying data from `DEVICE_LOCAL` memory to be read by the host.
-/// Requires `HOST_VISIBLE` with `HOST_CACHED` preferable.
+/// Used for copying data from `Data` memory to be read by the host.
+/// Host access is guaranteed.
 pub struct Download;
 
 impl Usage for Download {
-    type Key = u8;
+    type Fitness = u8;
 
-    fn key(&self, properties: Properties) -> Option<u8> {
+    #[inline]
+    fn value(self) -> UsageValue { UsageValue::Download }
+
+    #[inline]
+    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
         if !properties.contains(Properties::HOST_VISIBLE) {
             None
         } else {
@@ -103,46 +124,26 @@ impl Usage for Download {
 
 /// Dynamic value that specify memory usage flags.
 #[derive(Copy, Clone, Debug)]
-pub enum Value {
+pub enum UsageValue {
     Data,
     Dynamic,
     Upload,
     Download,
 }
 
-impl Usage for Value {
-    type Key = u8;
+impl Usage for UsageValue {
+    type Fitness = u8;
 
-    fn key(&self, properties: Properties) -> Option<u8> {
+    #[inline]
+    fn value(self) -> UsageValue { self }
+
+    #[inline]
+    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
         match self {
-            Value::Data => Data.key(properties),
-            Value::Dynamic => Dynamic.key(properties),
-            Value::Upload => Upload.key(properties),
-            Value::Download => Download.key(properties),
+            UsageValue::Data => Data.memory_fitness(properties),
+            UsageValue::Dynamic => Dynamic.memory_fitness(properties),
+            UsageValue::Upload => Upload.memory_fitness(properties),
+            UsageValue::Download => Download.memory_fitness(properties),
         }
-    }
-}
-
-impl From<Data> for Value {
-    fn from(_: Data) -> Self {
-        Value::Data
-    }
-}
-
-impl From<Dynamic> for Value {
-    fn from(_: Dynamic) -> Self {
-        Value::Dynamic
-    }
-}
-
-impl From<Upload> for Value {
-    fn from(_: Upload) -> Self {
-        Value::Upload
-    }
-}
-
-impl From<Download> for Value {
-    fn from(_: Download) -> Self {
-        Value::Download
     }
 }

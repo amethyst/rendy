@@ -1,18 +1,14 @@
 
-use std::{ops::Range, slice::from_raw_parts_mut, ptr::NonNull};
+use std::{ops::Range, ptr::NonNull, marker::PhantomData};
 use block::Block;
 use device::Device;
 use error::*;
-use map::*;
+use mapping::{mapped_fitting_range, MappedRange};
 use memory::*;
 use allocator::Allocator;
-use util;
+use util::*;
 
-pub struct DedicatedAllocator {
-    memory_type: u32,
-    memory_properties: Properties,
-}
-
+#[derive(Debug)]
 pub struct DedicatedBlock<T> {
     memory: Memory<T>,
     mapping: Option<(NonNull<u8>, Range<u64>)>,
@@ -35,7 +31,10 @@ impl<T> DedicatedBlock<T> {
     }
 }
 
-impl<T> Block<T> for DedicatedBlock<T> {
+impl<T: 'static> Block for DedicatedBlock<T> {
+
+    type Memory = T;
+
     #[inline]
     fn properties(&self) -> Properties {
         self.memory.properties()
@@ -53,50 +52,30 @@ impl<T> Block<T> for DedicatedBlock<T> {
 
     fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError>
     where
-        D: Device<T>,
+        D: Device<Memory = T>,
     {
-        let coherent = maybe_coherent(self.memory.host_coherent());
+        assert!(range.start <= range.end, "Memory mapping region must have valid size");
 
-        if !self.memory.host_visible() {
-            return Err(MappingError::HostInvisible);
-        } else if !util::fits_in_usize(range.end - range.start) || range.end > self.memory.size() {
-            return Err(MappingError::OutOfBounds);
-        } else if let Some(mapping) = self.mapping.clone() {
-            debug_assert!(self.memory.host_visible());
-
-            // Already mapped.
-            if util::sub_range(mapping.1.clone(), range.clone()) {
-                return Ok(unsafe {
-                    MappedRange {
-                        ptr: NonNull::new_unchecked(mapping.0.as_ptr().add((range.start - mapping.1.start) as usize)),
-                        memory: self.memory.raw(),
-                        offset: range.start,
-                        length: (range.end - range.start) as usize,
-                        coherent,
-                    }
-                });
+        unsafe {
+            if let Some(ptr) = self.mapping
+                .clone()
+                .and_then(|mapping| mapped_fitting_range(mapping.0, mapping.1, range.clone()))
+            {
+                Ok(MappedRange::from_raw(&self.memory, ptr, range))
             } else {
-                self.mapping = None;
+                if self.mapping.take().is_some() {
+                    device.unmap(&self.memory.raw());
+                }
+                let mapping = MappedRange::new(&self.memory, device, range.clone())?;
+                self.mapping = Some((mapping.ptr(), mapping.range()));
+                Ok(mapping)
             }
         }
-
-        Ok(unsafe {
-            let ptr = device.map(self.memory.raw(), range.start .. range.end)?;
-            self.mapping = Some((ptr, range.clone()));
-
-            MappedRange {
-                ptr,
-                memory: self.memory.raw(),
-                offset: range.start,
-                length: (range.end - range.start) as usize,
-                coherent,
-            }
-        })
     }
 
     fn unmap<D>(&mut self, device: &D, range: Range<u64>)
     where
-        D: Device<T>,
+        D: Device<Memory = T>,
     {
         if let Some(mapping) = self.mapping.take() {
             unsafe {
@@ -106,13 +85,39 @@ impl<T> Block<T> for DedicatedBlock<T> {
     }
 }
 
-impl<T> Allocator<T> for DedicatedAllocator {
+pub struct DedicatedAllocator<T> {
+    memory_type: u32,
+    memory_properties: Properties,
+    pd: PhantomData<T>,
+}
+
+impl<T> DedicatedAllocator<T> {
+
+    pub fn properties_required() -> Properties {
+        Properties::empty()
+    }
+
+    pub fn new(
+        memory_type: u32,
+        memory_properties: Properties,
+    ) -> Self {
+        DedicatedAllocator {
+            memory_type,
+            memory_properties,
+            pd: PhantomData,
+        }
+    }
+}
+
+impl<T: 'static> Allocator for DedicatedAllocator<T> {
+
+    type Memory = T;
     type Block = DedicatedBlock<T>;
 
     #[inline]
     fn alloc<D>(&mut self, device: &D, size: u64, _align: u64) -> Result<(DedicatedBlock<T>, u64), MemoryError>
     where
-        D: Device<T>,
+        D: Device<Memory = T>,
     {
         let memory = unsafe {
             Memory::from_raw(device.allocate(self.memory_type, size)?, size, self.memory_properties)
@@ -126,7 +131,7 @@ impl<T> Allocator<T> for DedicatedAllocator {
     #[inline]
     fn free<D>(&mut self, device: &D, mut block: DedicatedBlock<T>) -> u64
     where
-        D: Device<T>,
+        D: Device<Memory = T>,
     {
         block.unmap(device, 0 .. u64::max_value());
         let size = block.memory.size();
