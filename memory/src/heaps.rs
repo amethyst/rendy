@@ -54,7 +54,7 @@ impl<T: 'static> Heaps<T> {
         }
     }
 
-    pub fn allocate<D, U>(&mut self, device: &D, mask: u32, usage: U, size: u64, align: u64) -> Result<SmartBlock<T>, MemoryError>
+    pub fn allocate<D, U>(&mut self, device: &D, mask: u32, usage: U, size: u64, align: u64) -> Result<MemoryBlock<T>, MemoryError>
     where
         D: Device<Memory = T>,
         U: Usage,
@@ -71,7 +71,7 @@ impl<T: 'static> Heaps<T> {
         self.allocate_from::<D, U>(device, memory_index as u32, usage, size, align)
     }
 
-    fn allocate_from<D, U>(&mut self, device: &D, memory_index: u32, usage: U, size: u64, align: u64) -> Result<SmartBlock<T>, MemoryError>
+    fn allocate_from<D, U>(&mut self, device: &D, memory_index: u32, usage: U, size: u64, align: u64) -> Result<MemoryBlock<T>, MemoryError>
     where
         D: Device<Memory = T>,
         U: Usage,
@@ -88,13 +88,13 @@ impl<T: 'static> Heaps<T> {
         let (block, allocated) = memory_type.alloc(device, usage, size, align)?;
         memory_heap.used += allocated;
 
-        Ok(SmartBlock {
+        Ok(MemoryBlock {
             block,
             memory_index,
         })
     }
 
-    pub fn free<D>(&mut self, device: &D, block: SmartBlock<T>)
+    pub fn free<D>(&mut self, device: &D, block: MemoryBlock<T>)
     where
         D: Device<Memory = T>,
     {
@@ -109,7 +109,7 @@ impl<T: 'static> Heaps<T> {
 }
 
 #[derive(Debug)]
-pub struct SmartBlock<T> {
+pub struct MemoryBlock<T> {
     block: BlockFlavor<T>,
     memory_index: u32,
 }
@@ -153,7 +153,7 @@ macro_rules! any_block {
     }};
 }
 
-impl<T: 'static> Block for SmartBlock<T> {
+impl<T: 'static> Block for MemoryBlock<T> {
 
     type Memory = T;
 

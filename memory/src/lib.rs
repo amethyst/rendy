@@ -31,7 +31,7 @@ pub mod mapping;
 pub use block::Block;
 pub use device::Device;
 pub use error::{AllocationError, OutOfMemoryError, MappingError, MemoryError};
-pub use heaps::{Heaps, SmartBlock, HeapsConfig};
+pub use heaps::{Heaps, MemoryBlock, HeapsConfig};
 pub use usage::Usage;
 
 #[cfg(feature = "gfx-hal")]

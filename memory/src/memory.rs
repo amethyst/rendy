@@ -1,15 +1,21 @@
 
 /// Memory property flags.
 bitflags! {
+    /// Bitmask specifying properties for a memory type.
+    /// See Vulkan docs for detailed info:
+    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkMemoryPropertyFlagBits.html
+    #[repr(transparent)]
     pub struct Properties: u32 {
         /// Specifies that memory allocated with this type is the most efficient for device access.
+        /// This property will be set if and only if the memory type belongs to a heap with the DEVICE_LOCAL bit set.
         const DEVICE_LOCAL = 0x00000001;
 
-        /// Specifies that memory allocated with this type can be mapped for host access.
+        /// Specifies that memory allocated with this type can be mapped for host access using `Device::map`.
         const HOST_VISIBLE = 0x00000002;
 
-        /// Specifies that the host cache management commands `Device::flush` and `Device::invalidate`
-        /// are not needed to flush host writes to the device or make device writes visible to the host, respectively.
+        /// Specifies that the host cache management commands
+        /// `Device::flush` and `Device::invalidate` are not needed
+        /// to flush host writes to the device or make device writes visible to the host, respectively.
         const HOST_COHERENT = 0x00000004;
 
         /// Specifies that memory allocated with this type is cached on the host.
@@ -19,14 +25,12 @@ bitflags! {
 
         /// Specifies that the memory type only allows device access to the memory.
         /// Memory types must not have both `LAZILY_ALLOCATED` and `HOST_VISIBLE` set.
-        /// Additionally, the object’s backing memory may be provided by the implementation lazily
-        /// as specified in (https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#memory-device-lazy_allocation)[Lazily Allocated Memory].
+        /// Additionally, the object’s backing memory may be provided by the implementation lazily as specified in [Lazily Allocated Memory](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#memory-device-lazy_allocation).
         const LAZILY_ALLOCATED = 0x00000010;
 
         /// Specifies that the memory type only allows device access to the memory,
         /// and allows protected queue operations to access the memory.
-        /// Memory types must not have `PROTECTED` set and any of `HOST_VISIBLE` set,
-        /// or `HOST_COHERENT` set, or `HOST_CACHED` set.
+        /// Memory types must not have `PROTECTED` bit set and any of `HOST_VISIBLE` bit set, or `HOST_COHERENT` bit set, or `HOST_CACHED` bit set.
         const PROTECTED = 0x00000020;
     }
 }

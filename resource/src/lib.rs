@@ -12,14 +12,14 @@ pub mod buffer;
 pub mod image;
 pub mod device;
 
-mod escape;
+pub mod escape;
 
 use std::{cmp::max, marker::PhantomData};
 
 use relevant::Relevant;
-use memory::{Block, MemoryError, Heaps, SmartBlock};
+use memory::{Block, MemoryError, Heaps, MemoryBlock};
 
-use device::Device;
+pub use device::Device;
 use escape::Escape;
 
 /// Sharing mode.

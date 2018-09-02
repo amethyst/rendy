@@ -1,9 +1,9 @@
 
 
-pub mod usage;
+mod usage;
 
-pub use self::usage::Flags;
-use memory::SmartBlock;
+pub use self::usage::UsageFlags;
+use memory::MemoryBlock;
 use relevant::Relevant;
 
 use device::Device;
@@ -13,7 +13,7 @@ use SharingMode;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CreateInfo {
     pub size: u64,
-    pub usage: Flags,
+    pub usage: UsageFlags,
     pub sharing: SharingMode,
 }
 
@@ -25,7 +25,7 @@ pub struct Buffer<T, B> {
 
 #[derive(Debug)]
 pub struct Inner<T, B> {
-    pub(super) block: SmartBlock<T>,
+    pub(super) block: MemoryBlock<T>,
     pub(super) raw: B,
     pub(super) relevant: Relevant,
 }

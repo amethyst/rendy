@@ -14,6 +14,9 @@ pub struct DedicatedBlock<T> {
     mapping: Option<(NonNull<u8>, Range<u64>)>,
 }
 
+unsafe impl<T: Send> Send for DedicatedBlock<T> {}
+unsafe impl<T: Sync> Sync for DedicatedBlock<T> {}
+
 impl<T> DedicatedBlock<T> {
     /// Get inner memory.
     /// Panics if mapped.

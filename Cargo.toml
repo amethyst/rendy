@@ -1,6 +1,8 @@
 [workspace]
 
 members = [
+    "chain",
     "memory",
     "resource",
+    "command",
 ]

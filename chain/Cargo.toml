@@ -1,0 +1,10 @@
+[package]
+name = "rendy-chain"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+bitflags = "*"
+fnv = "*"
+failure = "*"
+rendy-resource = { path = "../resource" }

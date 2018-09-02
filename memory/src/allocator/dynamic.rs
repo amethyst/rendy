@@ -19,6 +19,9 @@ pub struct DynamicBlock<T> {
     range: Range<u64>,
 }
 
+unsafe impl<T: Send> Send for DynamicBlock<T> {}
+unsafe impl<T: Sync> Sync for DynamicBlock<T> {}
+
 impl<T> DynamicBlock<T> {
     fn shared_memory(&self) -> &Memory<T> {
         // Memory won't be freed until last block created from it deallocated.
@@ -315,6 +318,9 @@ enum Chunk<T> {
     /// Allocated from chunk of bigger blocks.
     Dynamic(DynamicBlock<T>),
 }
+
+unsafe impl<T: Send> Send for Chunk<T> {}
+unsafe impl<T: Sync> Sync for Chunk<T> {}
 
 impl<T: 'static> Chunk<T> {
     fn shared_memory(&self) -> &Memory<T> {

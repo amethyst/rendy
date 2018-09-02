@@ -20,6 +20,9 @@ pub struct ArenaBlock<T> {
     range: Range<u64>,
 }
 
+unsafe impl<T: Send> Send for ArenaBlock<T> {}
+unsafe impl<T: Sync> Sync for ArenaBlock<T> {}
+
 impl<T> ArenaBlock<T> {
     fn shared_memory(&self) -> &Memory<T> {
         // Memory won't be freed until last block created from it deallocated.
@@ -87,6 +90,9 @@ struct Arena<T> {
     memory: Box<Memory<T>>,
     ptr: NonNull<u8>,
 }
+
+unsafe impl<T: Send> Send for Arena<T> {}
+unsafe impl<T: Sync> Sync for Arena<T> {}
 
 impl<T: 'static> ArenaAllocator<T> {
 
