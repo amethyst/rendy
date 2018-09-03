@@ -4,13 +4,21 @@ use rendy_resource::{buffer, image};
 
 use access::AccessFlags;
 
+/// Abstracts resource types that uses different usage flags and layouts types.
 pub trait Resource: 'static {
+    /// Usage flags type for the resource.
     type Usage: Copy + Debug + BitOr<Output = Self::Usage> + BitOrAssign + 'static;
+
+    /// Layout type for the resource.
     type Layout: Copy + Debug + 'static;
 
+    /// Empty usage.
     fn no_usage() -> Self::Usage;
 
+    /// Layout suitable for specified accesses.
     fn layout_for(access: AccessFlags) -> Self::Layout;
+
+    /// Check if all usage flags required for access are set.
     fn valid_usage(access: AccessFlags, usage: Self::Usage) -> bool;
 }
 
@@ -25,8 +33,10 @@ const BUFFER_ACCESSES: [AccessFlags; 8] = [
     AccessFlags::TRANSFER_WRITE,
 ];
 
+/// Buffer resource type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Buffer;
+
 impl Resource for Buffer {
     type Usage = buffer::UsageFlags;
     type Layout = ();
@@ -66,10 +76,13 @@ const IMAGE_ACCESSES: [AccessFlags; 9] = [
     AccessFlags::TRANSFER_WRITE,
 ];
 
+/// Image resource type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Image;
+
 impl Resource for Image {
     type Usage = image::UsageFlags;
+
     type Layout = image::Layout;
 
     fn no_usage() -> Self::Usage {

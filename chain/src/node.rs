@@ -10,9 +10,16 @@ use Id;
 /// State in which node uses resource and usage flags.
 #[derive(Clone, Copy, Debug)]
 pub struct State<R: Resource> {
+    /// Access performed by the node.
     pub access: AccessFlags,
+
+    /// Optional layout in which node can use resource.
     pub layout: R::Layout,
+
+    /// Stages at which resource is accessed.
     pub stages: PipelineStageFlags,
+
+    /// Usage flags required for resource.
     pub usage: R::Usage,
 }
 

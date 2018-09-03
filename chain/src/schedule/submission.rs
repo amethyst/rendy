@@ -6,7 +6,10 @@ use Id;
 /// Submission id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SubmissionId {
+    /// Queue id of the submission.
     pub queue: QueueId,
+
+    /// Index of the queue.
     pub index: usize,
 }
 

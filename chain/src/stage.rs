@@ -90,17 +90,40 @@ bitflags! {
 /// Graphics pipeline stage.
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub enum GraphicsPipelineStage {
+    /// Pseudo-stage that comes before any operations.
     TopOfPipe,
+
+    /// Indirect buffer reading stage.
     DrawIndirect,
+
+    /// Vertex input consuming stage.
     VertexInput,
+
+    /// Vertex shader execution stage.
     VertexShader,
+
+    /// ???
     TessellationControlShader,
+
+    /// ???
     TessellationEvaluationShader,
+
+    /// Geometry shader execution stage.
     GeometryShader,
+
+    /// First fragment depth-testing stage.
     EarlyFragmentTests,
+
+    /// Fragment shader execution stage.
     FragmentShader,
+
+    /// Last fragment depth-testing stage.
     LateFragmentTests,
+
+    /// Color attachment writing stage.
     ColorAttachmentOutput,
+
+    /// Pseudo-stage that comes after all operations.
     BottomOfPipe,
 }
 
@@ -126,9 +149,16 @@ impl From<GraphicsPipelineStage> for PipelineStageFlags {
 /// Compute pipeline stage.
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub enum ComputePipelineStage {
+    /// Pseudo-stage that comes before any operations.
     TopOfPipe,
+
+    /// Indirect buffer reading stage.
     DrawIndirect,
+
+    /// Compute shader execution stage.
     ComputeShader,
+
+    /// Pseudo-stage that comes after all operations.
     BottomOfPipe,
 }
 
@@ -146,8 +176,13 @@ impl From<ComputePipelineStage> for PipelineStageFlags {
 /// Transfer pipeline stage.
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub enum TransferPipelineStage {
+    /// Pseudo-stage that comes before any operations.
     TopOfPipe,
+
+    /// Transfer operation execution stage.
     Transfer,
+
+    /// Pseudo-stage that comes after all operations.
     BottomOfPipe,
 }
 
@@ -161,6 +196,7 @@ impl From<TransferPipelineStage> for PipelineStageFlags {
     }
 }
 
+/// Pseudo-stage in which host operations are performed.
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct HostStage;
 

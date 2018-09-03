@@ -1,9 +1,7 @@
-//!
-//! This crates provide functions for find all required synchronizations (barriers and semaphores).
+//! This module provide functions for find all required synchronizations (barriers and semaphores).
 //!
 
 use fnv::FnvHashMap;
-use std::cmp::Ordering;
 use std::ops::{Range, RangeFrom, RangeTo};
 
 use access::AccessFlags;
@@ -11,21 +9,9 @@ use chain::{Chain, Link};
 use collect::{Chains, Unsynchronized};
 use node::State;
 use resource::{Buffer, Image, Resource};
-use schedule::{FamilyId, QueueId, Queue, Schedule, SubmissionId};
+use schedule::{QueueId, Queue, Schedule, SubmissionId};
 use stage::PipelineStageFlags;
 use Id;
-
-/// Side of the submission. `Acquire` or `Release`.
-#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
-enum Side {
-    /// Acquire side of the submission.
-    /// Synchronization commands from this side must be recorded before main commands of submission.
-    Acquire,
-
-    /// Release side of the submission.
-    /// Synchronization commands from this side must be recorded after main commands of submission.
-    Release,
-}
 
 /// Semaphore identifier.
 /// It allows to distinguish different semaphores to be later replaced in `Signal`s and `Wait`s
@@ -210,14 +196,6 @@ impl<S, W> SyncData<S, W> {
         }
     }
 
-    /// Get mutable reference to `Guard` by `Side`.
-    fn get_mut(&mut self, side: Side) -> &mut Guard {
-        match side {
-            Side::Acquire => &mut self.acquire,
-            Side::Release => &mut self.release,
-        }
-    }
-
     fn convert_signal<F, T>(self, mut f: F) -> SyncData<T, W>
     where
         F: FnMut(S) -> T,
@@ -373,7 +351,6 @@ fn generate_semaphore_pair<R: Resource>(
     id: Id,
     link: &Link<R>,
     range: Range<SubmissionId>,
-    sides: Range<Side>,
 ) {
     if range.start.queue() != range.end.queue() {
         let semaphore = Semaphore::new(id, range.clone());
@@ -414,7 +391,6 @@ where
                         uid,
                         link,
                         signal_sid..head,
-                        Side::Release..Side::Acquire,
                     );
                 }
             } else {
@@ -428,7 +404,6 @@ where
                         uid,
                         link,
                         tail..wait_sid,
-                        Side::Release..Side::Acquire,
                     );
                 }
 
@@ -439,19 +414,7 @@ where
                     .insert(id, Barrier::new(prev_link.state()..link.state()));
 
                 if !link.single_queue() {
-                    // Delay other queues in the link until the barrier finishes
-                    for (queue_id, queue) in link.queues() {
-                        if queue_id != wait_sid.queue() {
-                            let head = SubmissionId::new(queue_id, queue.first);
-                            generate_semaphore_pair(
-                                sync,
-                                uid,
-                                link,
-                                wait_sid..head,
-                                Side::Acquire..Side::Acquire,
-                            );
-                        }
-                    }
+                    unimplemented!("This case is unimplemented");
                 }
             }
         } else {
@@ -459,19 +422,7 @@ where
             let wait_sid = earliest(link, schedule);
 
             if !prev_link.single_queue() {
-                // Delay the last submission in the queue until other queues finish
-                for (queue_id, queue) in prev_link.queues() {
-                    if queue_id != signal_sid.queue() {
-                        let tail = SubmissionId::new(queue_id, queue.last);
-                        generate_semaphore_pair(
-                            sync,
-                            uid,
-                            prev_link,
-                            tail..signal_sid,
-                            Side::Release..Side::Release,
-                        );
-                    }
-                }
+                unimplemented!("This case is unimplemented");                
             }
 
             // Generate a semaphore between the signal and wait sides of the transfer.
@@ -480,7 +431,6 @@ where
                 uid,
                 link,
                 signal_sid..wait_sid,
-                Side::Release..Side::Acquire,
             );
 
             // Generate barriers to transfer the resource to another queue.
@@ -502,19 +452,7 @@ where
             );
 
             if !link.single_queue() {
-                // Delay other queues in the link until the barrier finishes
-                for (queue_id, queue) in link.queues() {
-                    if queue_id != wait_sid.queue() {
-                        let head = SubmissionId::new(queue_id, queue.first);
-                        generate_semaphore_pair(
-                            sync,
-                            uid,
-                            link,
-                            wait_sid..head,
-                            Side::Acquire..Side::Acquire,
-                        );
-                    }
-                }
+                unimplemented!("This case is unimplemented");
             }
         }
     }

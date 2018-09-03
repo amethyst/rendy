@@ -7,7 +7,10 @@ use super::{
 /// Queue id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QueueId {
+    /// Family id of the queue.
     pub family: FamilyId,
+
+    /// Index of the queue.
     pub index: usize,
 }
 

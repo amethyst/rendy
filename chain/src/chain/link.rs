@@ -7,7 +7,7 @@ use node::State;
 
 /// State of the link associated with queue.
 /// Contains submissions range, combined access and stages bits by submissions from the range.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct LinkQueueState {
     pub first: usize,
     pub last: usize,
@@ -61,8 +61,13 @@ pub struct Link<R: Resource> {
     family: FamilyId,
 }
 
+/// Node for the link.
+#[derive(Debug)]
 pub struct LinkNode<R: Resource> {
+    /// Submission id of the node.
     pub sid: SubmissionId,
+
+    /// Resource state of the node.
     pub state: State<R>,
 }
 
