@@ -1,5 +1,5 @@
 [package]
-name = "rendy-render"
+name = "rendy-command"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
@@ -9,6 +9,7 @@ failure = "*"
 relevant = "*"
 rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
+rendy-chain = { path = "../chain" }
 gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
 ash = { version = "*", optional = true }
 share = "*"
