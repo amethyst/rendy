@@ -3,8 +3,8 @@
 bitflags! {
     /// Pipeline stages flags.
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1/html/vkspec.html#synchronization-pipeline-stages
-    /// Man page: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPipelineStageFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1/html/vkspec.html#synchronization-pipeline-stages>
+    /// Man page: <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkPipelineStageFlagBits.html>
     #[repr(transparent)]
     pub struct PipelineStageFlags: u32 {
         /// Specifies the stage of the pipeline where any commands are initially received by the queue.

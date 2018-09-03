@@ -1,6 +1,6 @@
 
+pub(crate) mod write;
 mod range;
-mod write;
 
 use std::{
     fmt::Debug,
@@ -13,19 +13,23 @@ use error::{MappingError, MemoryError};
 use memory::Memory;
 use util::fits_usize;
 
-pub use self::range::{mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range};
-pub use self::write::Write;
-use self::write::{WriteFlush, WriteCoherent};
+pub(crate) use self::{range::{mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range}};
+use self::write::{WriteFlush, Write};
 
 /// Non-coherent marker.
+#[derive(Clone, Copy, Debug)]
 pub struct NonCoherent;
 
 /// Coherent marker.
+#[derive(Clone, Copy, Debug)]
 pub struct Coherent;
 
 /// Value that contains either coherent marker or non-coherent marker.
+#[derive(Clone, Copy, Debug)]
 pub struct MaybeCoherent(bool);
 
+/// Represents range of the memory mapped to the host.
+/// Provides methods for safer host access to the memory.
 #[derive(Debug)]
 pub struct MappedRange<'a, T: 'static, C = MaybeCoherent> {
     /// Memory object that is mapped.

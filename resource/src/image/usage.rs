@@ -3,7 +3,7 @@
 bitflags! {
     /// Bitmask specifying intended usage of an image.
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageUsageFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageUsageFlagBits.html>
     #[repr(transparent)]
     pub struct UsageFlags: u32 {
         /// Specifies that the image can be used as the source of a transfer command.
@@ -26,7 +26,7 @@ bitflags! {
         const DEPTH_STENCIL_ATTACHMENT = 0x00000020;
 
         /// Specifies that the memory bound to this image will have been allocated with the VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
-        /// (see https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#memory for more detail).
+        /// (see <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#memory> for more detail).
         /// This bit can be set for any image that can be used to create a `ImageView` suitable for use as a color, resolve, depth/stencil, or input attachment.
         const TRANSIENT_ATTACHMENT = 0x00000040;
 

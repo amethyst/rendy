@@ -1,7 +1,7 @@
 
 
 /// Typical memory error - out of available memory.
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Copy, Debug, Fail)]
 pub enum OutOfMemoryError {
     /// Host memory exhausted.
     #[fail(display = "Out of host memory")]
@@ -13,7 +13,7 @@ pub enum OutOfMemoryError {
 }
 
 /// Possible cause of mapping failure.
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Copy, Debug, Fail)]
 pub enum MappingError {
     /// Attempt to map memory without host-visible property.
     #[fail(display = "Memory is not HOST_VISIBLE and can't be mapped")]
@@ -33,13 +33,17 @@ pub enum MappingError {
     #[fail(display = "Virtual memory allocation failed")]
     MappingFailed,
 
+    /// Out of either host or device memory.
     #[fail(display = "{}", _0)]
     OutOfMemoryError(OutOfMemoryError),
 
     /// Attempt to interpret mapped range with wrong alignment.
-    #[fail(display = "Aligned {} required but offset value is {}", requirements, offset)]
+    #[fail(display = "Offset {} doesn't satisfy alignment requirements {}", offset, align)]
     Unaligned {
-        requirements: usize,
+        /// Alignment requirements.
+        align: usize,
+
+        /// Offset that doesn't satisfy alignment.
         offset: usize,
     }
 }
@@ -51,11 +55,13 @@ impl From<OutOfMemoryError> for MappingError {
 }
 
 /// Possible cause of allocation failure.
-#[derive(Clone, Debug, Fail)]
+#[derive(Clone, Copy, Debug, Fail)]
 pub enum AllocationError {
+    /// Out of either host or device memory.
     #[fail(display = "{}", _0)]
     OutOfMemoryError(OutOfMemoryError),
 
+    /// Vulkan implementation doesn't allow to create too many objects.
     #[fail(display = "Can't allocate more memory objects")]
     TooManyObjects,
 }
@@ -66,14 +72,18 @@ impl From<OutOfMemoryError> for AllocationError {
     }
 }
 
-#[derive(Clone, Debug, Fail)]
+/// Generic memory error.
+#[derive(Clone, Copy, Debug, Fail)]
 pub enum MemoryError {
+    /// Out of either host or device memory.
     #[fail(display = "{}", _0)]
     OutOfMemoryError(OutOfMemoryError),
 
+    /// Error occurred during mapping operation.
     #[fail(display = "{}", _0)]
     MappingError(MappingError),
 
+    /// Error occurred during allocation.
     #[fail(display = "{}", _0)]
     AllocationError(AllocationError),
 }

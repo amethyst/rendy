@@ -6,8 +6,8 @@ use error::*;
 use mapping::{mapped_fitting_range, MappedRange};
 use memory::*;
 use allocator::Allocator;
-use util::*;
 
+/// Memory block allocated from `DedicatedAllocator`
 #[derive(Debug)]
 pub struct DedicatedBlock<T> {
     memory: Memory<T>,
@@ -81,6 +81,7 @@ impl<T: 'static> Block for DedicatedBlock<T> {
         D: Device<Memory = T>,
     {
         if let Some(mapping) = self.mapping.take() {
+            assert!(mapped_fitting_range(mapping.0, mapping.1, range).is_some());
             unsafe {
                 device.unmap(self.memory());
             }
@@ -88,6 +89,14 @@ impl<T: 'static> Block for DedicatedBlock<T> {
     }
 }
 
+/// Dummy memory allocator that uses memory object per allocation requested.
+/// 
+/// This allocator suites best huge allocations.
+/// From 32 MiB when GPU has 4-8 GiB memory total.
+/// 
+/// `Heaps` use this allocator when none of sub-allocators bound to the memory type
+/// can handle size required.
+#[derive(Debug)]
 pub struct DedicatedAllocator<T> {
     memory_type: u32,
     memory_properties: Properties,
@@ -96,10 +105,13 @@ pub struct DedicatedAllocator<T> {
 
 impl<T> DedicatedAllocator<T> {
 
+    /// Get properties required by the allocator.
     pub fn properties_required() -> Properties {
         Properties::empty()
     }
 
+    /// Create new `ArenaAllocator`
+    /// for `memory_type` with `memory_properties` specified
     pub fn new(
         memory_type: u32,
         memory_properties: Properties,

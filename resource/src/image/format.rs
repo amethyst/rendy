@@ -1,9 +1,9 @@
-
+//! This module defines formats of the image supported by the implementation.
 
 pub use self::Format::*;
 
 /// Image format.
-#[allow(bad_style)]
+#[allow(bad_style, missing_docs)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
     UNDEFINED = 0,

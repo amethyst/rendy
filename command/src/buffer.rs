@@ -78,7 +78,7 @@ pub struct RenderPassContinue;
 bitflags!{
     /// Bitmask specifying usage behavior for command buffer
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkCommandBufferUsageFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkCommandBufferUsageFlagBits.html>
     #[repr(transparent)]
     pub struct UsageFlags: u32 {
         /// Specifies that each recording of the command buffer will only be submitted once,

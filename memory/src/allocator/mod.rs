@@ -1,15 +1,21 @@
+//! This module provides `Allocator` trait and few allocators that implements the trait.
 
 use std::any::Any;
 
-pub mod arena;
-pub mod dedicated;
-pub mod dynamic;
-// pub mod chunk;
+mod arena;
+mod dedicated;
+mod dynamic;
+// mod chunk;
 
 use block::Block;
 use device::Device;
 use error::MemoryError;
-use memory::Properties;
+
+pub use self::{
+    arena::{ArenaAllocator, ArenaBlock, ArenaConfig},
+    dynamic::{DynamicAllocator, DynamicBlock, DynamicConfig},
+    dedicated::{DedicatedAllocator, DedicatedBlock},
+};
 
 /// Allocator trait implemented for various allocators.
 pub trait Allocator {

@@ -1,16 +1,9 @@
 
-use std::ops::Range;
-
-pub fn aligned(value: u64, align: u64) -> u64 {
+pub(crate) fn aligned(value: u64, align: u64) -> u64 {
     1u64 + (value - 1u64) | (align - 1u64)
 }
 
-pub fn clamp_range(values: Range<u64>, range: Range<u64>) -> Range<u64> {
-    use std::cmp::{min, max};
-    min(range.end, max(range.start, values.start)) .. min(range.end, max(range.start, values.end))
-}
-
-pub trait IntegerFitting {
+pub(crate) trait IntegerFitting {
     fn fits_usize(self) -> bool;
     fn fits_isize(self) -> bool;
 
@@ -116,19 +109,19 @@ impl IntegerFitting for u32 {
     }
 }
 
-pub fn fits_usize<T: IntegerFitting>(value: T) -> bool {
+pub(crate) fn fits_usize<T: IntegerFitting>(value: T) -> bool {
     value.fits_usize()
 }
 
-pub fn fits_isize<T: IntegerFitting>(value: T) -> bool {
-    value.fits_isize()
-}
+// pub(crate) fn fits_isize<T: IntegerFitting>(value: T) -> bool {
+//     value.fits_isize()
+// }
 
-pub fn fits_u64(value: usize) -> bool {
-    u64::usize_fits(value)
-}
+// pub(crate) fn fits_u64(value: usize) -> bool {
+//     u64::usize_fits(value)
+// }
 
-pub fn fits_u32(value: usize) -> bool {
+pub(crate) fn fits_u32(value: usize) -> bool {
     u32::usize_fits(value)
 }
 

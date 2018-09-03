@@ -1,13 +1,7 @@
 
 use std::ops::Range;
 
-use allocator::{
-    Allocator,
-    dedicated::*,
-    arena::*,
-    dynamic::*,
-    // chunk::*,
-};
+use allocator::*;
 
 use block::Block;
 use device::Device;
@@ -17,15 +11,20 @@ use memory::*;
 use usage::{Usage, UsageValue};
 use util::*;
 
+/// Config for `Heaps` allocator.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HeapsConfig {
+    /// Config for arena sub-allocator.
     pub arena: Option<ArenaConfig>,
+
+    /// Config for dynamic sub-allocator.
     pub dynamic: Option<DynamicConfig>,
     // chunk: Option<ChunkConfig>,
 }
 
 /// Heaps available on particular physical device.
+#[derive(Debug)]
 pub struct Heaps<T> {
     types: Vec<MemoryType<T>>,
     heaps: Vec<MemoryHeap>,
@@ -54,6 +53,11 @@ impl<T: 'static> Heaps<T> {
         }
     }
 
+    /// Allocate memory block
+    /// from one of memory types specified by `mask`,
+    /// for intended `usage`,
+    /// with `size`
+    /// and `align` requirements.
     pub fn allocate<D, U>(&mut self, device: &D, mask: u32, usage: U, size: u64, align: u64) -> Result<MemoryBlock<T>, MemoryError>
     where
         D: Device<Memory = T>,
@@ -71,6 +75,11 @@ impl<T: 'static> Heaps<T> {
         self.allocate_from::<D, U>(device, memory_index as u32, usage, size, align)
     }
 
+    /// Allocate memory block
+    /// from `memory_index` specified,
+    /// for intended `usage`,
+    /// with `size`
+    /// and `align` requirements.
     fn allocate_from<D, U>(&mut self, device: &D, memory_index: u32, usage: U, size: u64, align: u64) -> Result<MemoryBlock<T>, MemoryError>
     where
         D: Device<Memory = T>,
@@ -94,6 +103,9 @@ impl<T: 'static> Heaps<T> {
         })
     }
 
+    /// Free memory block.
+    /// 
+    /// Memory block must be allocated from this heap.
     pub fn free<D>(&mut self, device: &D, block: MemoryBlock<T>)
     where
         D: Device<Memory = T>,
@@ -108,6 +120,7 @@ impl<T: 'static> Heaps<T> {
     }
 }
 
+/// Memory block allocated from `Heaps`.
 #[derive(Debug)]
 pub struct MemoryBlock<T> {
     block: BlockFlavor<T>,
@@ -188,6 +201,7 @@ impl<T: 'static> Block for MemoryBlock<T> {
 }
 
 
+#[derive(Debug)]
 struct MemoryHeap {
     size: u64,
     used: u64,
@@ -206,6 +220,7 @@ impl MemoryHeap {
     }
 }
 
+#[derive(Debug)]
 struct MemoryType<T> {
     heap_index: usize,
     properties: Properties,

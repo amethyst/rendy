@@ -1,9 +1,11 @@
 
-use std::{ops::Range, ptr::NonNull, fmt::Debug, any::Any};
+use std::{ops::Range, ptr::NonNull, any::Any};
 use error::*;
 
 /// Trait for memory allocation and mapping.
 pub trait Device {
+
+    /// Memory type that can be used with this device.
     type Memory: Any;
 
     /// Allocate memory object.

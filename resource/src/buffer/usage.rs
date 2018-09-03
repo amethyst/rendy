@@ -1,8 +1,10 @@
 
+use memory::usage::{Data, Dynamic, Upload, Download, UsageValue, Usage as MemoryUsage};
+
 bitflags! {
     /// Bitmask specifying allowed usage of a buffer.
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkBufferUsageFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkBufferUsageFlagBits.html>
     #[repr(transparent)]
     pub struct UsageFlags: u32 {
         /// Specifies that the buffer can be used as the source of a transfer command.
@@ -36,60 +38,118 @@ bitflags! {
     }
 }
 
+/// Usage trait that must implemented by usage types.
+/// This trait provides a way to convert type-level usage to the value-level flags.
 pub trait Usage {
+    /// Suggested memory usage type.
+    type MemoryUsage: MemoryUsage;
+
+    /// Convert usage to the flags.
     fn flags(&self) -> UsageFlags;
+
+    /// Get suggested memory usage.
+    fn memory(&self) -> Self::MemoryUsage;
 }
 
-#[derive(Debug)]
-pub struct UsageValue(UsageFlags);
+impl Usage for (UsageFlags, UsageValue) {
 
-impl Usage for UsageValue {
+    type MemoryUsage = UsageValue;
+
     fn flags(&self) -> UsageFlags {
         self.0
     }
+
+    fn memory(&self) -> UsageValue {
+        self.1
+    }
 }
 
-#[derive(Debug)]
+/// Type that specify that buffer is intended to be used as vertex buffer.
+/// It implies `TRANSFER_DST` because device-local, host-invisible memory should be used
+/// and transfer is left the only way to fill the buffer.
+#[derive(Clone, Copy, Debug)]
 pub struct VertexBuffer;
 
 impl Usage for VertexBuffer {
+
+    type MemoryUsage = Data;
+
     fn flags(&self) -> UsageFlags {
         UsageFlags::TRANSFER_DST | UsageFlags::VERTEX_BUFFER
     }
+
+    fn memory(&self) -> Data {
+        Data
+    }
 }
 
-#[derive(Debug)]
+/// Type that specify that buffer is intended to be used as index buffer.
+/// It implies `TRANSFER_DST` because device-local, host-invisible memory should be used
+/// and transfer is left the only way to fill the buffer.
+#[derive(Clone, Copy, Debug)]
 pub struct IndexBuffer;
 
 impl Usage for IndexBuffer {
+
+    type MemoryUsage = Data;
+
     fn flags(&self) -> UsageFlags {
         UsageFlags::TRANSFER_DST | UsageFlags::INDEX_BUFFER
     }
+
+    fn memory(&self) -> Data {
+        Data
+    }
 }
 
-#[derive(Debug)]
+/// Type that specify that buffer is intended to be used as uniform buffer.
+/// Host visible memory required and device-local preferred.
+#[derive(Clone, Copy, Debug)]
 pub struct UniformBuffer;
 
 impl Usage for UniformBuffer {
+
+    type MemoryUsage = Dynamic;
+
     fn flags(&self) -> UsageFlags {
         UsageFlags::UNIFORM_BUFFER
     }
-}
 
-#[derive(Debug)]
-pub struct UploadBuffer;
-
-impl Usage for UploadBuffer {
-    fn flags(&self) -> UsageFlags {
-        UsageFlags::TRANSFER_SRC
+    fn memory(&self) -> Dynamic {
+        Dynamic
     }
 }
 
-#[derive(Debug)]
+/// Type that specify that buffer is intended to be used as staging buffer for data uploads.
+#[derive(Clone, Copy, Debug)]
+pub struct UploadBuffer;
+
+impl Usage for UploadBuffer {
+
+    type MemoryUsage = Upload;
+
+    fn flags(&self) -> UsageFlags {
+        UsageFlags::TRANSFER_SRC
+    }
+
+    fn memory(&self) -> Upload {
+        Upload
+    }
+}
+
+/// Type that specify that buffer is intended to be used as staging buffer for data downloads.
+#[derive(Clone, Copy, Debug)]
 pub struct DownloadBuffer;
 
 impl Usage for DownloadBuffer {
+
+    type MemoryUsage = Download;
+
     fn flags(&self) -> UsageFlags {
         UsageFlags::TRANSFER_DST
+    }
+
+    fn memory(&self) -> Download {
+        Download
     }
 }

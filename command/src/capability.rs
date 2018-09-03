@@ -6,7 +6,7 @@ use chain::stage::PipelineStageFlags;
 bitflags! {
     /// Bitmask specifying capabilities of queues in a queue family.
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkQueueFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkQueueFlagBits.html>
     #[repr(transparent)]
     pub struct CapabilityFlags: u32 {
         /// Queues from families with this capability flag set are able to perform graphics commands.

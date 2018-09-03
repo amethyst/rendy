@@ -8,9 +8,20 @@ use MemoryRequirements;
 
 /// Trait for resource creation, memory allocation and mapping.
 pub trait Device: memory::Device {
+    /// Buffer type that can be used with this device.
+    /// `UnboundedBuffer` can be converted to `Buffer` by `bind_buffer`.
     type Buffer: Any;
+
+    /// Unbounded buffer type that can be used with this device.
+    /// `UnboundBuffer` hasn't been associated with memory yet.
     type UnboundBuffer: Any;
+
+    /// Memory type that can be used with this device.
+    /// `UnboundedImage` can be converted to `Image` by `bind_image`.
     type Image: Any;
+
+    /// Unbounded image type that can be used with this device.
+    /// `UnboundImage` hasn't been associated with memory yet.
     type UnboundImage: Any;
 
     /// Create new unbound buffer object.

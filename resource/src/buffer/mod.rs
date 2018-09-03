@@ -1,31 +1,42 @@
-
+//! Buffer usage, creation-info and wrappers.
 
 mod usage;
 
-pub use self::usage::UsageFlags;
+pub use self::usage::*;
 use memory::MemoryBlock;
 use relevant::Relevant;
 
-use device::Device;
 use escape::Escape;
 use SharingMode;
 
+/// Contains information required to create a buffer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CreateInfo {
+    /// Size of the buffer required.
     pub size: u64,
+
+    /// Intended usage flags. Limits memory types suitable for the buffer.
     pub usage: UsageFlags,
+
+    /// Specifies command queues from which families can access the buffer.
     pub sharing: SharingMode,
 }
 
+/// Generic buffer object wrapper.
+/// 
+/// # Parameters
+/// 
+/// `T` - type of the memory object of memory block.
+/// `B` - raw buffer type.
 #[derive(Debug)]
 pub struct Buffer<T, B> {
-    pub(super) inner: Escape<Inner<T, B>>,
-    pub(super) info: CreateInfo,
+    pub(crate) inner: Escape<Inner<T, B>>,
+    pub(crate) info: CreateInfo,
 }
 
 #[derive(Debug)]
-pub struct Inner<T, B> {
-    pub(super) block: MemoryBlock<T>,
-    pub(super) raw: B,
-    pub(super) relevant: Relevant,
+pub(crate) struct Inner<T, B> {
+    pub(crate) block: MemoryBlock<T>,
+    pub(crate) raw: B,
+    pub(crate) relevant: Relevant,
 }

@@ -1,8 +1,5 @@
-//! Fast sub-allocator for short-living allocations.
-//! Typically used for staging buffers.
-//! This allocator allocate memory directly from device and maps whole range.
 
-use std::{collections::VecDeque, ops::Range, slice::from_raw_parts_mut, ptr::NonNull};
+use std::{collections::VecDeque, ops::Range, ptr::NonNull};
 
 use allocator::Allocator;
 use block::Block;
@@ -12,6 +9,7 @@ use mapping::*;
 use memory::*;
 use util::*;
 
+/// Memory block allocated from `ArenaAllocator`
 #[derive(Debug)]
 pub struct ArenaBlock<T> {
     memory: *const Memory<T>,
@@ -55,19 +53,28 @@ impl<T: 'static> Block for ArenaBlock<T> {
 
     #[inline]
     fn map<'a, D>(&'a mut self, _device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError> {
+        assert!(range.start <= range.end, "Memory mapping region must have valid size");
         debug_assert!(self.shared_memory().host_visible());
-        let mapping = unsafe {
-            MappedRange::from_raw(self.shared_memory(), self.ptr, self.range.clone())
-        };
-        Ok(mapping)
+
+        if let Some((ptr, range)) = mapped_sub_range(self.ptr, self.range.clone(), range) {
+            let mapping = unsafe {
+                MappedRange::from_raw(self.shared_memory(), ptr, range)
+            };
+            Ok(mapping)
+        } else {
+            Err(MappingError::OutOfBounds)
+        }
     }
 
     #[inline]
     fn unmap<D>(&mut self, _device: &D, range: Range<u64>) {
+        assert!(range.start <= range.end, "Memory mapping region must have valid size");
+        assert!(range.end <= self.range.end - self.range.start);
         debug_assert!(self.shared_memory().host_visible());
     }
 }
 
+/// Config for `DynamicAllocator`.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ArenaConfig {
@@ -76,6 +83,16 @@ pub struct ArenaConfig {
     pub arena_size: u64,
 }
 
+/// Linear allocator that return memory from chunk sequentially.
+/// It keeps only number of bytes allocated from each chunk.
+/// Once chunk is exhausted it is placed into list.
+/// When all blocks allocated from head of that list are freed,
+/// head is freed as well.
+/// 
+/// This allocator suites best short-lived types of allocations.
+/// Allocation strategy requires minimal overhead and implementation is fast.
+/// But holding single block will completely stop memory recycling.
+#[derive(Debug)]
 pub struct ArenaAllocator<T> {
     memory_type: u32,
     memory_properties: Properties,
@@ -84,6 +101,7 @@ pub struct ArenaAllocator<T> {
     arenas: VecDeque<Arena<T>>,
 }
 
+#[derive(Debug)]
 struct Arena<T> {
     used: u64,
     free: u64,
@@ -96,14 +114,19 @@ unsafe impl<T: Sync> Sync for Arena<T> {}
 
 impl<T: 'static> ArenaAllocator<T> {
 
+    /// Get properties required by the allocator.
     pub fn properties_required() -> Properties {
         Properties::HOST_VISIBLE
     }
 
+    /// Maximum allocation size.
     pub fn max_allocation(&self) -> u64 {
         self.arena_size / 2
     }
 
+    /// Create new `ArenaAllocator`
+    /// for `memory_type` with `memory_properties` specified,
+    /// with `ArenaConfig` provided.
     pub fn new(
         memory_type: u32,
         memory_properties: Properties,

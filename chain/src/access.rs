@@ -2,7 +2,7 @@
 bitflags! {
     /// Bitmask specifying memory access types that will participate in a memory dependency.
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkAccessFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkAccessFlagBits.html>
     #[repr(transparent)]
     pub struct AccessFlags: u32 {
         const INDIRECT_COMMAND_READ = 0x00000001;

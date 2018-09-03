@@ -1,6 +1,5 @@
 //! Crate level docs.
 
-
 #![forbid(overflowing_literals)]
 
 #![deny(missing_copy_implementations)]
@@ -19,11 +18,6 @@
 #![deny(future_incompatible)]
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
-
-#![warn(unreachable_pub)]
-#![warn(unused_extern_crates)]
-#![warn(unused_import_braces)]
-
 
 // TODO: Cleanup the code and remove.
 #![allow(dead_code, unreachable_code, unused_variables)]

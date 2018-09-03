@@ -2,13 +2,15 @@
 use std::{ops::Range, ptr::copy_nonoverlapping};
 use device::Device;
 
+
+/// Trait for memory region suitable for host writes.
 pub trait Write<U: Copy> {
     /// Get mutable slice of `U` bound to mapped range.
     /// 
     /// # Safety
     /// 
     /// Slice returned by this function could be hazardous.
-    /// User must ensure that bit patterns represents valid values of `U`
+    /// User must ensure that bit actual patterns represents valid values of `U`
     /// or not attempt to read them.
     unsafe fn slice(&mut self) -> &mut [U];
 
@@ -26,6 +28,7 @@ pub trait Write<U: Copy> {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct WriteFlush<'a, U: 'a, T: 'static, D: Device<Memory = T> + 'a> {
     pub(super) slice: &'a mut [U],
     pub(super) flush: Option<(&'a D, &'a T, Range<u64>)>,
@@ -57,6 +60,8 @@ where
     }
 }
 
+#[warn(dead_code)]
+#[derive(Debug)]
 pub(super) struct WriteCoherent<'a, U: 'a> {
     pub(super) slice: &'a mut [U],
 }

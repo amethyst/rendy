@@ -11,6 +11,7 @@ use mapping::*;
 use memory::*;
 use util::*;
 
+/// Memory block allocated from `DynamicAllocator`
 #[derive(Debug)]
 pub struct DynamicBlock<T> {
     index: u32,
@@ -54,24 +55,32 @@ impl<T: 'static> Block for DynamicBlock<T> {
 
     #[inline]
     fn map<'a, D>(&'a mut self, _device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError> {
+        assert!(range.start <= range.end, "Memory mapping region must have valid size");
         debug_assert!(self.shared_memory().host_visible());
-        if let Some(ptr) = self.ptr.clone() {
-            let mapping = unsafe {
-                MappedRange::from_raw(self.shared_memory(), ptr, self.range.clone())
-            };
-            Ok(mapping)
+
+        if let Some(ptr) = self.ptr {
+            if let Some((ptr, range)) = mapped_sub_range(ptr, self.range.clone(), range) {
+                let mapping = unsafe {
+                    MappedRange::from_raw(self.shared_memory(), ptr, range)
+                };
+                Ok(mapping)
+            } else {
+                Err(MappingError::OutOfBounds)
+            }
         } else {
-            assert!(!self.shared_memory().host_visible());
-            Err(MappingError::HostInvisible)
+            Err(MappingError::MappingUnsafe)
         }
     }
 
     #[inline]
     fn unmap<D>(&mut self, _device: &D, range: Range<u64>) {
+        assert!(range.start <= range.end, "Memory mapping region must have valid size");
+        assert!(range.end <= self.range.end - self.range.start);
         debug_assert!(self.shared_memory().host_visible());
     }
 }
 
+/// Config for `DynamicAllocator`.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DynamicConfig {
@@ -86,6 +95,12 @@ pub struct DynamicConfig {
     pub max_block_size: u64,
 }
 
+/// Low-fragmentation allocator.
+/// Suitable for any type of small allocations.
+/// Have up to `block_size_granularity - 1` memory overhead.
+/// Every freed block can be recycled independently.
+/// Memory objects can be returned to the system if whole memory object become unused (not implemented yet).
+#[derive(Debug)]
 pub struct DynamicAllocator<T> {
     /// Memory type that this allocator allocates.
     memory_type: u32,
@@ -105,6 +120,7 @@ pub struct DynamicAllocator<T> {
 }
 
 /// List of chunks
+#[derive(Debug)]
 struct Size<T> {
     /// List of chunks.
     chunks: VecList<Chunk<T>>,
@@ -117,14 +133,20 @@ struct Size<T> {
 }
 
 impl<T: 'static> DynamicAllocator<T> {
+
+    /// Get properties required by the allocator.
     pub fn properties_required() -> Properties {
         Properties::HOST_VISIBLE
     }
 
+    /// Maximum allocation size.
     pub fn max_allocation(&self) -> u64 {
         self.max_block_size()
     }
 
+    /// Create new `ArenaAllocator`
+    /// for `memory_type` with `memory_properties` specified,
+    /// with `ArenaConfig` provided.
     pub fn new(
         memory_type: u32,
         memory_properties: Properties,
@@ -138,7 +160,7 @@ impl<T: 'static> DynamicAllocator<T> {
         }
         assert_eq!(config.max_block_size % config.block_size_granularity, 0, "Max block size must be multiple of granularity");
 
-        let sizes = (config.max_block_size / config.block_size_granularity);
+        let sizes = config.max_block_size / config.block_size_granularity;
         assert!(fits_usize(sizes), "Number of possible must fit usize");
         let sizes = sizes as usize;
 
@@ -210,6 +232,7 @@ impl<T: 'static> DynamicAllocator<T> {
     }
 
     /// Allocate super-block to use as chunk memory.
+    #[warn(dead_code)]
     fn free_chunk<D>(&mut self, device: &D, chunk: Chunk<T>) -> u64
     where
         D: Device<Memory = T>,
@@ -254,7 +277,7 @@ impl<T: 'static> DynamicAllocator<T> {
                     let old = self.sizes[size_index].blocks.add(block_index);
                     debug_assert!(!old);
                 }
-                (block_index_start, chunk_size)
+                (block_index_start, allocated)
             }
         };
 
@@ -306,11 +329,13 @@ impl<T: 'static> Allocator for DynamicAllocator<T> {
         debug_assert!(!old);
 
         // TODO: Free chunks.
+        let _ = device;
         0
     }
 }
 
 /// Block allocated for chunk.
+#[derive(Debug)]
 enum Chunk<T> {
     /// Allocated from device.
     Dedicated(Box<Memory<T>>, Option<NonNull<u8>>),

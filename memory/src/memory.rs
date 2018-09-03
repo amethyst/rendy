@@ -3,7 +3,7 @@
 bitflags! {
     /// Bitmask specifying properties for a memory type.
     /// See Vulkan docs for detailed info:
-    /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkMemoryPropertyFlagBits.html
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkMemoryPropertyFlagBits.html>
     #[repr(transparent)]
     pub struct Properties: u32 {
         /// Specifies that memory allocated with this type is the most efficient for device access.
@@ -36,21 +36,40 @@ bitflags! {
 }
 
 impl Properties {
+    /// Check if memory with this properties local for device.
+    /// Implies fast access by the device.
     pub fn device_local(self) -> bool {
         self.contains(Self::DEVICE_LOCAL)
     }
+
+    /// Check if memory with this properties visible to host.
+    /// Can be mapped to the host memory.
     pub fn host_visible(self) -> bool {
         self.contains(Self::HOST_VISIBLE)
     }
+
+    /// Check if host access to the mapped range of the memory with this properties is coherent.
+    /// Mapped range of the non-coherent memory must be:
+    /// * invalidated to make device writes available to the host
+    /// * flushed to make host writes available to the device
     pub fn host_coherent(self) -> bool {
         self.contains(Self::HOST_COHERENT)
     }
+
+    /// Check if host access to the mapped region of the memory with this properties is done through cache.
+    /// Cached read can be faster for the host to perform.
+    /// Prefer cached memory for 'device to host' data flow.
     pub fn host_cached(self) -> bool {
         self.contains(Self::HOST_CACHED)
     }
+
+    /// Check if memory with this properties allow lazy allocation.
+    /// Lazy memory could be used for transient attachments.
     pub fn lazily_allocated(self) -> bool {
         self.contains(Self::LAZILY_ALLOCATED)
     }
+
+    /// Check if protected queue operations allowed to access memory with this properties.
     pub fn protected(self) -> bool {
         self.contains(Self::PROTECTED)
     }
