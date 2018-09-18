@@ -1,20 +1,17 @@
-
-pub(crate) mod write;
 mod range;
+pub(crate) mod write;
 
-use std::{
-    fmt::Debug,
-    ops::Range,
-    ptr::NonNull,
-};
+use std::{fmt::Debug, ops::Range, ptr::NonNull};
 
 use device::Device;
 use error::{MappingError, MemoryError};
 use memory::Memory;
 use util::fits_usize;
 
-pub(crate) use self::{range::{mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range}};
-use self::write::{WriteFlush, Write};
+pub(crate) use self::range::{
+    mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range,
+};
+use self::write::{Write, WriteFlush};
 
 /// Non-coherent marker.
 #[derive(Clone, Copy, Debug)]
@@ -53,12 +50,22 @@ impl<'a, T: 'static> MappedRange<'a, T, MaybeCoherent> {
     /// Only one range for the given memory object can be mapped.
     /// Memory object must be not mapped.
     /// Memory object must be created with device specified.
-    pub unsafe fn new<D>(memory: &'a Memory<T>, device: &D, range: Range<u64>) -> Result<Self, MappingError>
+    pub unsafe fn new<D>(
+        memory: &'a Memory<T>,
+        device: &D,
+        range: Range<u64>,
+    ) -> Result<Self, MappingError>
     where
         D: Device<Memory = T>,
     {
-        assert!(range.start <= range.end, "Memory mapping region must have valid size");
-        assert!(fits_usize(range.end - range.start), "Range length must fit in usize");
+        assert!(
+            range.start <= range.end,
+            "Memory mapping region must have valid size"
+        );
+        assert!(
+            fits_usize(range.end - range.start),
+            "Range length must fit in usize"
+        );
         assert!(memory.host_visible());
 
         let ptr = device.map(memory.raw(), range.clone())?;
@@ -94,19 +101,24 @@ impl<'a, T: 'static> MappedRange<'a, T, MaybeCoherent> {
     /// Invalidating range if memory is not coherent.
     /// `range.end - range.start` must be multiple of `size_of::<T>()`.
     /// `mapping offset + range.start` must be multiple of `align_of::<T>()`.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Caller must ensure that device won't write to the memory region for until the borrow ends.
     /// `T` Must be plain-old-data type with memory layout compatible with data written by the device.
-    pub unsafe fn read<'b, D, U>(&'b mut self, device: &D, range: Range<u64>) -> Result<&'b [U], MemoryError>
+    pub unsafe fn read<'b, D, U>(
+        &'b mut self,
+        device: &D,
+        range: Range<u64>,
+    ) -> Result<&'b [U], MemoryError>
     where
         'a: 'b,
         D: Device<Memory = T>,
         T: Debug + 'static,
         U: Copy,
     {
-        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range).ok_or_else(|| MappingError::OutOfBounds)?;
+        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
+            .ok_or_else(|| MappingError::OutOfBounds)?;
 
         if self.coherent.0 {
             device.invalidate(Some((self.memory, range.clone())))?;
@@ -118,18 +130,23 @@ impl<'a, T: 'static> MappedRange<'a, T, MaybeCoherent> {
 
     /// Fetch writer to the sub-region.
     /// This writer will flush data on drop if written at least once.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Caller must ensure that device won't write to or read from the memory region.
-    pub unsafe fn write<'b, D, U>(&'b mut self, device: &'b D, range: Range<u64>) -> Result<impl Write<U> + 'b, MappingError>
+    pub unsafe fn write<'b, D, U>(
+        &'b mut self,
+        device: &'b D,
+        range: Range<u64>,
+    ) -> Result<impl Write<U> + 'b, MappingError>
     where
         'a: 'b,
         D: Device<Memory = T>,
         T: Debug + 'static,
         U: Copy,
     {
-        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range).ok_or_else(|| MappingError::OutOfBounds)?;
+        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
+            .ok_or_else(|| MappingError::OutOfBounds)?;
 
         if self.coherent.0 {
             device.invalidate(Some((self.memory, range.clone())))?;
@@ -139,10 +156,11 @@ impl<'a, T: 'static> MappedRange<'a, T, MaybeCoherent> {
 
         Ok(WriteFlush {
             slice,
-            flush: if self.coherent.0 { Some((device, self.memory, range)) } else { None }
+            flush: if self.coherent.0 {
+                Some((device, self.memory, range))
+            } else {
+                None
+            },
         })
     }
 }
-
-
-

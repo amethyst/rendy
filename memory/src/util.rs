@@ -1,6 +1,11 @@
-
 pub(crate) fn aligned(value: u64, align: u64) -> u64 {
-    1u64 + (value - 1u64) | (align - 1u64)
+    debug_assert_ne!(align, 0);
+    debug_assert_eq!(align.count_ones(), 1);
+    if value == 0 {
+        0
+    } else {
+        1u64 + ((value - 1u64) | (align - 1u64))
+    }
 }
 
 pub(crate) trait IntegerFitting {
@@ -43,7 +48,9 @@ impl IntegerFitting for u64 {
     }
 }
 
-#[cfg(not(any(target_pointer_width = "16", target_pointer_width = "32", target_pointer_width = "64")))]
+#[cfg(
+    not(any(target_pointer_width = "16", target_pointer_width = "32", target_pointer_width = "64"))
+)]
 impl IntegerFitting for u64 {
     fn fits_usize(self) -> bool {
         true
@@ -58,8 +65,6 @@ impl IntegerFitting for u64 {
         value >= 0 && value <= u64::max_value() as isize
     }
 }
-
-
 
 #[cfg(target_pointer_width = "16")]
 impl IntegerFitting for u32 {
@@ -124,4 +129,3 @@ pub(crate) fn fits_usize<T: IntegerFitting>(value: T) -> bool {
 pub(crate) fn fits_u32(value: usize) -> bool {
     u32::usize_fits(value)
 }
-

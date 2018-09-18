@@ -1,9 +1,8 @@
-
-use std::{any::Any, ops::Range};
 use device::Device;
 use error::MappingError;
 use mapping::MappedRange;
 use memory::Properties;
+use std::{any::Any, ops::Range};
 
 /// Block that owns a `Range` of the `Memory`.
 /// Implementor must ensure that there can't be any other blocks
@@ -24,16 +23,17 @@ pub trait Block {
 
     /// Get mapping for the buffer range.
     /// Memory writes to the region performed by device become available for the host.
-    fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, Self::Memory>, MappingError>
+    fn map<'a, D>(
+        &'a mut self,
+        device: &D,
+        range: Range<u64>,
+    ) -> Result<MappedRange<'a, Self::Memory>, MappingError>
     where
-        D: Device<Memory = Self::Memory>,
-    ;
+        D: Device<Memory = Self::Memory>;
 
     /// Release memory mapping. Must be called after successful `map` call.
-    /// Memory writes to the region performed by host become available for the device.
-    /// Specified region must be sub-region of the mapped region.
-    fn unmap<D>(&mut self, device: &D, range: Range<u64>)
+    /// No-op if block is not mapped.
+    fn unmap<D>(&mut self, device: &D)
     where
-        D: Device<Memory = Self::Memory>,
-    ;
+        D: Device<Memory = Self::Memory>;
 }

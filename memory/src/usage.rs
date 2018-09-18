@@ -26,7 +26,9 @@ impl Usage for Data {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue { UsageValue::Data }
+    fn value(self) -> UsageValue {
+        UsageValue::Data
+    }
 
     #[inline]
     fn memory_fitness(&self, properties: Properties) -> Option<u8> {
@@ -34,11 +36,11 @@ impl Usage for Data {
             None
         } else {
             Some(
-                ((!properties.contains(Properties::HOST_VISIBLE)) as u8) << 3 |
-                ((!properties.contains(Properties::LAZILY_ALLOCATED)) as u8) << 2 |
-                ((!properties.contains(Properties::HOST_CACHED)) as u8) << 1 |
-                ((!properties.contains(Properties::HOST_COHERENT)) as u8) << 0 |
-                0
+                ((!properties.contains(Properties::HOST_VISIBLE)) as u8) << 3
+                    | ((!properties.contains(Properties::LAZILY_ALLOCATED)) as u8) << 2
+                    | ((!properties.contains(Properties::HOST_CACHED)) as u8) << 1
+                    | ((!properties.contains(Properties::HOST_COHERENT)) as u8) << 0
+                    | 0,
             )
         }
     }
@@ -55,7 +57,9 @@ impl Usage for Dynamic {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue { UsageValue::Dynamic }
+    fn value(self) -> UsageValue {
+        UsageValue::Dynamic
+    }
 
     #[inline]
     fn memory_fitness(&self, properties: Properties) -> Option<u8> {
@@ -64,10 +68,10 @@ impl Usage for Dynamic {
         } else {
             assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
             Some(
-                (properties.contains(Properties::DEVICE_LOCAL) as u8) << 2 |
-                (properties.contains(Properties::HOST_COHERENT) as u8) << 1 |
-                ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0 |
-                0
+                (properties.contains(Properties::DEVICE_LOCAL) as u8) << 2
+                    | (properties.contains(Properties::HOST_COHERENT) as u8) << 1
+                    | ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0
+                    | 0,
             )
         }
     }
@@ -83,7 +87,9 @@ impl Usage for Upload {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue { UsageValue::Upload }
+    fn value(self) -> UsageValue {
+        UsageValue::Upload
+    }
 
     #[inline]
     fn memory_fitness(&self, properties: Properties) -> Option<u8> {
@@ -92,10 +98,10 @@ impl Usage for Upload {
         } else {
             assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
             Some(
-                ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2 |
-                ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0 |
-                (properties.contains(Properties::HOST_COHERENT) as u8) << 1 |
-                0
+                ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2
+                    | ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0
+                    | (properties.contains(Properties::HOST_COHERENT) as u8) << 1
+                    | 0,
             )
         }
     }
@@ -111,7 +117,9 @@ impl Usage for Download {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue { UsageValue::Download }
+    fn value(self) -> UsageValue {
+        UsageValue::Download
+    }
 
     #[inline]
     fn memory_fitness(&self, properties: Properties) -> Option<u8> {
@@ -120,10 +128,10 @@ impl Usage for Download {
         } else {
             assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
             Some(
-                ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2 |
-                (properties.contains(Properties::HOST_CACHED) as u8) << 1 |
-                (properties.contains(Properties::HOST_COHERENT) as u8) << 0 |
-                0
+                ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2
+                    | (properties.contains(Properties::HOST_CACHED) as u8) << 1
+                    | (properties.contains(Properties::HOST_COHERENT) as u8) << 0
+                    | 0,
             )
         }
     }
@@ -146,7 +154,9 @@ impl Usage for UsageValue {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue { self }
+    fn value(self) -> UsageValue {
+        self
+    }
 
     #[inline]
     fn memory_fitness(&self, properties: Properties) -> Option<u8> {

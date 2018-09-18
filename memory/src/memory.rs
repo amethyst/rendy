@@ -1,6 +1,7 @@
+use relevant::Relevant;
 
-/// Memory property flags.
 bitflags! {
+    /// Memory property flags.
     /// Bitmask specifying properties for a memory type.
     /// See Vulkan docs for detailed info:
     /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkMemoryPropertyFlagBits.html>
@@ -77,11 +78,12 @@ impl Properties {
 
 /// Memory object wrapper.
 /// Contains size and properties of the memory.
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct Memory<T> {
-    pub(crate) raw: T,
-    pub(crate) size: u64,
-    pub(crate) properties: Properties,
+    raw: T,
+    size: u64,
+    properties: Properties,
+    relevant: Relevant,
 }
 
 impl<T> Memory<T> {
@@ -107,6 +109,7 @@ impl<T> Memory<T> {
 
     /// Convert into raw
     pub fn into_raw(self) -> T {
+        self.relevant.dispose();
         self.raw
     }
 
@@ -116,6 +119,7 @@ impl<T> Memory<T> {
             properties,
             raw,
             size,
+            relevant: Relevant,
         }
     }
 

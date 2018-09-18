@@ -1,7 +1,6 @@
 //! GPU memory management
-//! 
+//!
 #![forbid(overflowing_literals)]
-
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
@@ -12,7 +11,6 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
@@ -23,6 +21,9 @@
 extern crate bitflags;
 
 #[macro_use]
+extern crate derivative;
+
+#[macro_use]
 extern crate failure;
 extern crate veclist;
 
@@ -31,25 +32,33 @@ extern crate veclist;
 extern crate serde;
 
 extern crate hibitset;
+extern crate relevant;
+extern crate smallvec;
+
+#[cfg(test)]
+extern crate rand;
+
+#[cfg(test)]
+mod test;
 
 mod block;
 mod device;
 mod error;
 mod heaps;
+mod impls;
+mod mapping;
 mod memory;
 mod util;
-mod mapping;
-mod impls;
 
 pub mod allocator;
 pub mod usage;
 
 pub use block::Block;
 pub use device::Device;
-pub use error::{AllocationError, OutOfMemoryError, MappingError, MemoryError};
-pub use heaps::{Heaps, MemoryBlock, HeapsConfig};
-pub use mapping::{MappedRange, write::Write, NonCoherent, Coherent, MaybeCoherent};
-pub use memory::{Properties, Memory};
+pub use error::{AllocationError, MappingError, MemoryError, OutOfMemoryError};
+pub use heaps::{Config, Heaps, MemoryBlock};
+pub use mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent};
+pub use memory::{Memory, Properties};
 pub use usage::Usage;
 
 #[cfg(feature = "gfx-hal")]

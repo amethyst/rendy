@@ -12,3 +12,8 @@ ash = { version = "*", optional = true }
 serde = { version = "*", optional = true, features = ["derive"] }
 smallvec = "*"
 hibitset = "*"
+relevant = "*"
+derivative = "*"
+
+[dev-dependencies]
+rand = "*"

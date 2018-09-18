@@ -1,10 +1,13 @@
-
-use std::{ops::Range, ptr::{null, null_mut, NonNull}};
-use ash::{self, version::{DeviceV1_0, FunctionPointers}};
-use smallvec::SmallVec;
+use ash::{
+    self, version::{DeviceV1_0, FunctionPointers},
+};
 use device::Device;
 use error::*;
 use memory::*;
+use smallvec::SmallVec;
+use std::{
+    ops::Range, ptr::{null, null_mut, NonNull},
+};
 
 impl From<ash::vk::Result> for OutOfMemoryError {
     fn from(result: ash::vk::Result) -> OutOfMemoryError {
@@ -59,7 +62,11 @@ where
 {
     type Memory = ash::vk::DeviceMemory;
 
-    unsafe fn allocate(&self, index: u32, size: u64) -> Result<ash::vk::DeviceMemory, AllocationError> {
+    unsafe fn allocate(
+        &self,
+        index: u32,
+        size: u64,
+    ) -> Result<ash::vk::DeviceMemory, AllocationError> {
         Ok(self.allocate_memory(
             &ash::vk::MemoryAllocateInfo {
                 s_type: ash::vk::StructureType::MemoryAllocateInfo,
@@ -67,7 +74,7 @@ where
                 allocation_size: size,
                 memory_type_index: index,
             },
-            None
+            None,
         )?)
     }
 
@@ -75,8 +82,17 @@ where
         self.free_memory(memory, None);
     }
 
-    unsafe fn map(&self, memory: &ash::vk::DeviceMemory, range: Range<u64>) -> Result<NonNull<u8>, MappingError> {
-        let ptr = self.map_memory(*memory, range.start, range.end - range.start, ash::vk::MemoryMapFlags::empty())?;
+    unsafe fn map(
+        &self,
+        memory: &ash::vk::DeviceMemory,
+        range: Range<u64>,
+    ) -> Result<NonNull<u8>, MappingError> {
+        let ptr = self.map_memory(
+            *memory,
+            range.start,
+            range.end - range.start,
+            ash::vk::MemoryMapFlags::empty(),
+        )?;
         debug_assert_ne!(ptr, null_mut());
         Ok(NonNull::new_unchecked(ptr as *mut u8))
     }
@@ -85,8 +101,12 @@ where
         self.unmap_memory(*memory)
     }
 
-    unsafe fn invalidate<'a>(&self, regions: impl IntoIterator<Item = (&'a ash::vk::DeviceMemory, Range<u64>)>) -> Result<(), OutOfMemoryError> {
-        let ranges = regions.into_iter()
+    unsafe fn invalidate<'a>(
+        &self,
+        regions: impl IntoIterator<Item = (&'a ash::vk::DeviceMemory, Range<u64>)>,
+    ) -> Result<(), OutOfMemoryError> {
+        let ranges = regions
+            .into_iter()
             .map(|(memory, range)| ash::vk::MappedMemoryRange {
                 s_type: ash::vk::StructureType::MappedMemoryRange,
                 p_next: null(),
@@ -99,8 +119,12 @@ where
         Ok(())
     }
 
-    unsafe fn flush<'a>(&self, regions: impl IntoIterator<Item = (&'a ash::vk::DeviceMemory, Range<u64>)>) -> Result<(), OutOfMemoryError> {
-        let ranges = regions.into_iter()
+    unsafe fn flush<'a>(
+        &self,
+        regions: impl IntoIterator<Item = (&'a ash::vk::DeviceMemory, Range<u64>)>,
+    ) -> Result<(), OutOfMemoryError> {
+        let ranges = regions
+            .into_iter()
             .map(|(memory, range)| ash::vk::MappedMemoryRange {
                 s_type: ash::vk::StructureType::MappedMemoryRange,
                 p_next: null(),

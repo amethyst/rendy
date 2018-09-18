@@ -1,14 +1,12 @@
-
-use std::{ops::Range, ptr::copy_nonoverlapping};
 use device::Device;
-
+use std::{ops::Range, ptr::copy_nonoverlapping};
 
 /// Trait for memory region suitable for host writes.
 pub trait Write<U: Copy> {
     /// Get mutable slice of `U` bound to mapped range.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Slice returned by this function could be hazardous.
     /// User must ensure that bit actual patterns represents valid values of `U`
     /// or not attempt to read them.
@@ -43,7 +41,9 @@ where
     fn drop(&mut self) {
         if let Some((device, memory, range)) = self.flush.take() {
             unsafe {
-                device.flush(Some((memory, range))).expect("Should flush successfully");
+                device
+                    .flush(Some((memory, range)))
+                    .expect("Should flush successfully");
             }
         }
     }

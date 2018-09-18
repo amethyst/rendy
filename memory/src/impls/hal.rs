@@ -1,13 +1,12 @@
 //! Adapter for gfx-hal
 
-
-use std::{borrow::Borrow, marker::PhantomData, ops::Range, ptr::NonNull};
 use hal::{self, Device as HalDevice};
+use std::{borrow::Borrow, marker::PhantomData, ops::Range, ptr::NonNull};
 
 use device::Device;
 use error::*;
-use memory::*;
 use heaps::*;
+use memory::*;
 use util::*;
 
 impl From<hal::device::OutOfMemory> for OutOfMemoryError {
@@ -54,7 +53,6 @@ impl From<hal::mapping::Error> for MemoryError {
     }
 }
 
-
 impl From<hal::memory::Properties> for Properties {
     fn from(value: hal::memory::Properties) -> Self {
         let mut result = Properties::empty();
@@ -85,16 +83,26 @@ where
     type Memory = B::Memory;
 
     unsafe fn allocate(&self, index: u32, size: u64) -> Result<B::Memory, AllocationError> {
-        assert!(fits_usize(index), "Numbers of memory types can't exceed usize limit");
+        assert!(
+            fits_usize(index),
+            "Numbers of memory types can't exceed usize limit"
+        );
         let index = index as usize;
-        Ok(self.0.borrow().allocate_memory(hal::MemoryTypeId(index), size)?)
+        Ok(self
+            .0
+            .borrow()
+            .allocate_memory(hal::MemoryTypeId(index), size)?)
     }
 
     unsafe fn free(&self, memory: B::Memory) {
         self.0.borrow().free_memory(memory)
     }
 
-    unsafe fn map(&self, memory: &B::Memory, range: Range<u64>) -> Result<NonNull<u8>, MappingError> {
+    unsafe fn map(
+        &self,
+        memory: &B::Memory,
+        range: Range<u64>,
+    ) -> Result<NonNull<u8>, MappingError> {
         let ptr = self.0.borrow().map_memory(memory, range)?;
         debug_assert!(!ptr.is_null());
         Ok(NonNull::new_unchecked(ptr))
@@ -104,25 +112,37 @@ where
         self.0.borrow().unmap_memory(memory)
     }
 
-    unsafe fn invalidate<'a>(&self, regions: impl IntoIterator<Item = (&'a B::Memory, Range<u64>)>) -> Result<(), OutOfMemoryError> {
+    unsafe fn invalidate<'a>(
+        &self,
+        regions: impl IntoIterator<Item = (&'a B::Memory, Range<u64>)>,
+    ) -> Result<(), OutOfMemoryError> {
         self.0.borrow().invalidate_mapped_memory_ranges(regions);
         Ok(())
     }
 
-    unsafe fn flush<'a>(&self, regions: impl IntoIterator<Item = (&'a B::Memory, Range<u64>)>) -> Result<(), OutOfMemoryError> {
+    unsafe fn flush<'a>(
+        &self,
+        regions: impl IntoIterator<Item = (&'a B::Memory, Range<u64>)>,
+    ) -> Result<(), OutOfMemoryError> {
         self.0.borrow().flush_mapped_memory_ranges(regions);
         Ok(())
     }
 }
 
 /// Fetch data necessary from `Backend::PhysicalDevice`
-pub unsafe fn heaps_from_physical_device<B>(physical: &B::PhysicalDevice, config: HeapsConfig) -> Heaps<B::Memory>
+pub unsafe fn heaps_from_physical_device<B>(
+    physical: &B::PhysicalDevice,
+    config: HeapsConfig,
+) -> Heaps<B::Memory>
 where
     B: hal::Backend,
 {
     let memory_properties = ::hal::PhysicalDevice::memory_properties(physical);
     Heaps::new(
-        memory_properties.memory_types.into_iter().map(|mt| (mt.properties.into(), mt.heap_index as u32)),
+        memory_properties
+            .memory_types
+            .into_iter()
+            .map(|mt| (mt.properties.into(), mt.heap_index as u32)),
         memory_properties.memory_heaps,
         config,
     )

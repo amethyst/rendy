@@ -1,4 +1,4 @@
-
+use usage::UsageValue;
 
 /// Typical memory error - out of available memory.
 #[derive(Clone, Copy, Debug, Fail)]
@@ -10,6 +10,10 @@ pub enum OutOfMemoryError {
     /// Device memory exhausted.
     #[fail(display = "Out of device memory")]
     OutOfDeviceMemory,
+
+    /// Allocator detects that all suitable heaps are exhausted.
+    #[fail(display = "All suitable heaps are exhausted")]
+    HeapsExhausted,
 }
 
 /// Possible cause of mapping failure.
@@ -45,7 +49,7 @@ pub enum MappingError {
 
         /// Offset that doesn't satisfy alignment.
         offset: usize,
-    }
+    },
 }
 
 impl From<OutOfMemoryError> for MappingError {
@@ -64,6 +68,10 @@ pub enum AllocationError {
     /// Vulkan implementation doesn't allow to create too many objects.
     #[fail(display = "Can't allocate more memory objects")]
     TooManyObjects,
+
+    /// No memory types for specified mask and usage were found.
+    #[fail(display = "No suitable memory types for mask: ({}) and usage: ({:?})", _0, _1)]
+    NoSuitableMemory(u32, UsageValue),
 }
 
 impl From<OutOfMemoryError> for AllocationError {

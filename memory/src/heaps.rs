@@ -1,7 +1,7 @@
-
 use std::ops::Range;
 
 use allocator::*;
+use smallvec::SmallVec;
 
 use block::Block;
 use device::Device;
@@ -14,7 +14,7 @@ use util::*;
 /// Config for `Heaps` allocator.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct HeapsConfig {
+pub struct Config {
     /// Config for arena sub-allocator.
     pub arena: Option<ArenaConfig>,
 
@@ -32,24 +32,35 @@ pub struct Heaps<T> {
 
 impl<T: 'static> Heaps<T> {
     /// This must be called with `Properties` fetched from physical device.
-    pub unsafe fn new<P, H>(types: P, heaps: H, config: HeapsConfig) -> Self
+    pub unsafe fn new<P, H>(types: P, heaps: H) -> Self
     where
-        P: IntoIterator<Item = (Properties, u32)>,
+        P: IntoIterator<Item = (Properties, u32, Config)>,
         H: IntoIterator<Item = u64>,
-    {        
+    {
+        let heaps = heaps
+            .into_iter()
+            .map(|size| MemoryHeap::new(size))
+            .collect::<Vec<_>>();
         Heaps {
-            heaps: heaps.into_iter()
-                .map(|size| MemoryHeap::new(size))
-                .collect(),
-            types: types.into_iter()
+            types: types
+                .into_iter()
                 .enumerate()
-                .map(|(index, (properties, heap_index))| {
-                    debug_assert!(fits_u32(index), "Number of memory types must fit in u32 limit");
-                    debug_assert!(fits_usize(heap_index), "Number of memory types must fit in u32 limit");
+                .map(|(index, (properties, heap_index, config))| {
+                    assert!(
+                        fits_u32(index),
+                        "Number of memory types must fit in u32 limit"
+                    );
+                    assert!(
+                        fits_usize(heap_index),
+                        "Number of memory types must fit in u32 limit"
+                    );
                     let memory_type = index as u32;
-                    MemoryType::new(memory_type, heap_index as usize, properties, config)
+                    let heap_index = heap_index as usize;
+                    assert!(heap_index < heaps.len());
+                    MemoryType::new(memory_type, heap_index, properties, config)
                 })
                 .collect(),
+            heaps,
         }
     }
 
@@ -58,19 +69,43 @@ impl<T: 'static> Heaps<T> {
     /// for intended `usage`,
     /// with `size`
     /// and `align` requirements.
-    pub fn allocate<D, U>(&mut self, device: &D, mask: u32, usage: U, size: u64, align: u64) -> Result<MemoryBlock<T>, MemoryError>
+    pub fn allocate<D, U>(
+        &mut self,
+        device: &D,
+        mask: u32,
+        usage: U,
+        size: u64,
+        align: u64,
+    ) -> Result<MemoryBlock<T>, MemoryError>
     where
         D: Device<Memory = T>,
         U: Usage,
     {
         debug_assert!(fits_u32(self.types.len()));
-        let (memory_index, _, _) = self.types.iter()
-            .enumerate()
-            .filter(|(index, _)| (mask & (1u32 << index)) != 0)
-            .filter(|(_, mt)| self.heaps[mt.heap_index].available() > size + align)
-            .filter_map(|(index, mt)| usage.memory_fitness(mt.properties).map(move |fitness| (index, mt, fitness)))
-            .max_by_key(|&(_, _, fitness)| fitness)
-            .ok_or(OutOfMemoryError::OutOfDeviceMemory)?;
+
+        let (memory_index, _, _) = {
+            let suitable_types = self
+                .types
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| (mask & (1u32 << index)) != 0)
+                .filter_map(|(index, mt)| {
+                    usage
+                        .memory_fitness(mt.properties)
+                        .map(move |fitness| (index, mt, fitness))
+                })
+                .collect::<SmallVec<[_; 64]>>();
+
+            if suitable_types.is_empty() {
+                return Err(AllocationError::NoSuitableMemory(mask, usage.value()).into());
+            }
+
+            suitable_types
+                .into_iter()
+                .filter(|(_, mt, _)| self.heaps[mt.heap_index].available() > size + align)
+                .max_by_key(|&(_, _, fitness)| fitness)
+                .ok_or(OutOfMemoryError::HeapsExhausted)?
+        };
 
         self.allocate_from::<D, U>(device, memory_index as u32, usage, size, align)
     }
@@ -80,7 +115,14 @@ impl<T: 'static> Heaps<T> {
     /// for intended `usage`,
     /// with `size`
     /// and `align` requirements.
-    fn allocate_from<D, U>(&mut self, device: &D, memory_index: u32, usage: U, size: u64, align: u64) -> Result<MemoryBlock<T>, MemoryError>
+    fn allocate_from<D, U>(
+        &mut self,
+        device: &D,
+        memory_index: u32,
+        usage: U,
+        size: u64,
+        align: u64,
+    ) -> Result<MemoryBlock<T>, MemoryError>
     where
         D: Device<Memory = T>,
         U: Usage,
@@ -91,7 +133,7 @@ impl<T: 'static> Heaps<T> {
         let ref mut memory_heap = self.heaps[memory_type.heap_index];
 
         if memory_heap.available() < size {
-            return Err(OutOfMemoryError::OutOfDeviceMemory.into());
+            return Err(OutOfMemoryError::HeapsExhausted.into());
         }
 
         let (block, allocated) = memory_type.alloc(device, usage, size, align)?;
@@ -104,7 +146,7 @@ impl<T: 'static> Heaps<T> {
     }
 
     /// Free memory block.
-    /// 
+    ///
     /// Memory block must be allocated from this heap.
     pub fn free<D>(&mut self, device: &D, block: MemoryBlock<T>)
     where
@@ -118,6 +160,18 @@ impl<T: 'static> Heaps<T> {
         let freed = memory_type.free(device, block.block);
         memory_heap.used -= freed;
     }
+
+    /// Dispose of allocator.
+    /// Cleanup allocators before dropping.
+    /// Will panic if memory instances are left allocated.
+    pub fn dispose<D>(self, device: &D)
+    where
+        D: Device<Memory = T>,
+    {
+        for mt in self.types {
+            mt.dispose(device)
+        }
+    }
 }
 
 /// Memory block allocated from `Heaps`.
@@ -125,6 +179,13 @@ impl<T: 'static> Heaps<T> {
 pub struct MemoryBlock<T> {
     block: BlockFlavor<T>,
     memory_index: u32,
+}
+
+impl<T> MemoryBlock<T> {
+    /// Get memory type id.
+    pub fn memory_type(&self) -> u32 {
+        self.memory_index
+    }
 }
 
 #[derive(Debug)]
@@ -135,9 +196,8 @@ enum BlockFlavor<T> {
     // Chunk(ChunkBlock<T>),
 }
 
-
 macro_rules! any_block {
-    ($self:ident.$block:ident => $expr:expr) => {{
+    ($self:ident. $block:ident => $expr:expr) => {{
         use self::BlockFlavor::*;
         match $self.$block {
             Dedicated($block) => $expr,
@@ -146,7 +206,7 @@ macro_rules! any_block {
             // Chunk($block) => $expr,
         }
     }};
-    (&$self:ident.$block:ident => $expr:expr) => {{
+    (& $self:ident. $block:ident => $expr:expr) => {{
         use self::BlockFlavor::*;
         match &$self.$block {
             Dedicated($block) => $expr,
@@ -155,7 +215,7 @@ macro_rules! any_block {
             // Chunk($block) => $expr,
         }
     }};
-    (&mut $self:ident.$block:ident => $expr:expr) => {{
+    (&mut $self:ident. $block:ident => $expr:expr) => {{
         use self::BlockFlavor::*;
         match &mut $self.$block {
             Dedicated($block) => $expr,
@@ -167,7 +227,6 @@ macro_rules! any_block {
 }
 
 impl<T: 'static> Block for MemoryBlock<T> {
-
     type Memory = T;
 
     #[inline]
@@ -185,21 +244,24 @@ impl<T: 'static> Block for MemoryBlock<T> {
         any_block!(&self.block => block.range())
     }
 
-    fn map<'a, D>(&'a mut self, device: &D, range: Range<u64>) -> Result<MappedRange<'a, T>, MappingError>
+    fn map<'a, D>(
+        &'a mut self,
+        device: &D,
+        range: Range<u64>,
+    ) -> Result<MappedRange<'a, T>, MappingError>
     where
         D: Device<Memory = T>,
     {
         any_block!(&mut self.block => block.map(device, range))
     }
 
-    fn unmap<D>(&mut self, device: &D, range: Range<u64>)
+    fn unmap<D>(&mut self, device: &D)
     where
         D: Device<Memory = T>,
     {
-        any_block!(&mut self.block => block.unmap(device, range))
+        any_block!(&mut self.block => block.unmap(device))
     }
 }
-
 
 #[derive(Debug)]
 struct MemoryHeap {
@@ -209,10 +271,7 @@ struct MemoryHeap {
 
 impl MemoryHeap {
     fn new(size: u64) -> Self {
-        MemoryHeap {
-            size,
-            used: 0,
-        }
+        MemoryHeap { size, used: 0 }
     }
 
     fn available(&self) -> u64 {
@@ -231,18 +290,22 @@ struct MemoryType<T> {
 }
 
 impl<T: 'static> MemoryType<T> {
-    fn new(memory_type: u32, heap_index: usize, properties: Properties, config: HeapsConfig) -> Self {
+    fn new(memory_type: u32, heap_index: usize, properties: Properties, config: Config) -> Self {
         MemoryType {
             properties,
             heap_index,
             dedicated: DedicatedAllocator::new(memory_type, properties),
             arena: if properties.contains(ArenaAllocator::<T>::properties_required()) {
-                config.arena.map(|config| ArenaAllocator::new(memory_type, properties, config))
+                config
+                    .arena
+                    .map(|config| ArenaAllocator::new(memory_type, properties, config))
             } else {
                 None
             },
             dynamic: if properties.contains(DynamicAllocator::<T>::properties_required()) {
-                config.dynamic.map(|config| DynamicAllocator::new(memory_type, properties, config))
+                config
+                    .dynamic
+                    .map(|config| DynamicAllocator::new(memory_type, properties, config))
             } else {
                 None
             },
@@ -254,22 +317,39 @@ impl<T: 'static> MemoryType<T> {
         }
     }
 
-    fn alloc<D, U>(&mut self, device: &D, usage: U, size: u64, align: u64) -> Result<(BlockFlavor<T>, u64), MemoryError>
+    fn alloc<D, U>(
+        &mut self,
+        device: &D,
+        usage: U,
+        size: u64,
+        align: u64,
+    ) -> Result<(BlockFlavor<T>, u64), MemoryError>
     where
         D: Device<Memory = T>,
         U: Usage,
     {
         match (usage.value(), self.arena.as_mut(), self.dynamic.as_mut()) {
-            (UsageValue::Upload, Some(ref mut arena), _) | (UsageValue::Download, Some(ref mut arena), _) if size <= arena.max_allocation() => {
-                arena.alloc(device, size, align).map(|(block, allocated)| (BlockFlavor::Arena(block), allocated))
-            },
+            (UsageValue::Upload, Some(ref mut arena), _)
+            | (UsageValue::Download, Some(ref mut arena), _) if size <= arena.max_allocation() =>
+            {
+                arena
+                    .alloc(device, size, align)
+                    .map(|(block, allocated)| (BlockFlavor::Arena(block), allocated))
+            }
             (UsageValue::Dynamic, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
-                dynamic.alloc(device, size, align).map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
-            },
+                dynamic
+                    .alloc(device, size, align)
+                    .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
+            }
             (UsageValue::Data, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
-                dynamic.alloc(device, size, align).map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
-            },
-            _ => self.dedicated.alloc(device, size, align).map(|(block, allocated)| (BlockFlavor::Dedicated(block), allocated)),
+                dynamic
+                    .alloc(device, size, align)
+                    .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
+            }
+            _ => self
+                .dedicated
+                .alloc(device, size, align)
+                .map(|(block, allocated)| (BlockFlavor::Dedicated(block), allocated)),
         }
     }
 
@@ -282,6 +362,15 @@ impl<T: 'static> MemoryType<T> {
             BlockFlavor::Arena(block) => self.arena.as_mut().unwrap().free(device, block),
             BlockFlavor::Dynamic(block) => self.dynamic.as_mut().unwrap().free(device, block),
             // BlockFlavor::Chunk(block) => self.chunk.free(device, block),
+        }
+    }
+
+    fn dispose<D>(self, device: &D)
+    where
+        D: Device<Memory = T>,
+    {
+        if let Some(arena) = self.arena {
+            arena.dispose(device);
         }
     }
 }
