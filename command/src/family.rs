@@ -6,7 +6,7 @@ use queue::Queue;
 
 /// Unique family index.
 #[derive(Clone, Copy, Debug)]
-pub struct FamilyId(u32);
+pub struct FamilyId(pub u32);
 
 /// Family of the command queues.
 /// Queues from one family can share resources and execute command buffers associated with the family.

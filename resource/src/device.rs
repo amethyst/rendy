@@ -1,28 +1,36 @@
 
-use std::any::Any;
-
 use memory;
 use buffer;
 use image;
 use MemoryRequirements;
 
 /// Trait for resource creation, memory allocation and mapping.
-pub trait Device: memory::Device {
+pub trait Device: memory::Device + Sized {
+
+    /// Image sampler.
+    type Sampler: 'static;
+
     /// Buffer type that can be used with this device.
     /// `UnboundedBuffer` can be converted to `Buffer` by `bind_buffer`.
-    type Buffer: Any;
+    type Buffer: 'static;
 
     /// Unbounded buffer type that can be used with this device.
     /// `UnboundBuffer` hasn't been associated with memory yet.
-    type UnboundBuffer: Any;
+    type UnboundBuffer: 'static;
+
+    /// View to the buffer.
+    type BufferView: 'static;
 
     /// Memory type that can be used with this device.
     /// `UnboundedImage` can be converted to `Image` by `bind_image`.
-    type Image: Any;
+    type Image: 'static;
 
     /// Unbounded image type that can be used with this device.
     /// `UnboundImage` hasn't been associated with memory yet.
-    type UnboundImage: Any;
+    type UnboundImage: 'static;
+
+    /// View to the image.
+    type ImageView: 'static;
 
     /// Create new unbound buffer object.
     fn create_buffer(&self, info: buffer::CreateInfo) -> Result<Self::UnboundBuffer, memory::OutOfMemoryError>;

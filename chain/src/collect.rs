@@ -192,9 +192,7 @@ impl<I: Hash + Eq + Copy> LookupBuilder<I> {
             backward: Vec::new(),
         }
     }
-    fn get(&mut self, id: I) -> Option<usize> {
-        self.forward.get(&id).cloned()
-    }
+
     fn forward(&mut self, id: I) -> usize {
         if let Some(&id_num) = self.forward.get(&id) {
             id_num
@@ -249,14 +247,7 @@ where
         // We set these manually, and notably, do *not* touch rev_deps.
         reified_nodes[id].id = id;
         reified_nodes[id].family = node.family;
-        reified_nodes[id].queues = if let Some(queue) = node.queue {
-            let id = queues
-                .get(QueueId::new(family, queue))
-                .expect("Requested queue out of range!");
-            id..id + 1
-        } else {
-            family_full[&family].clone()
-        };
+        reified_nodes[id].queues = family_full[&family].clone();
         reified_nodes[id].buffers = node
             .buffers
             .into_iter()

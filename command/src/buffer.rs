@@ -1,10 +1,12 @@
 //! Buffer module docs.
 
+use std::fmt::Debug;
 use relevant::Relevant;
 
 use device::CommandBuffer;
 use encoder::Encoder;
 use family::FamilyId;
+use frame::Frame;
 
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug)]
@@ -150,22 +152,27 @@ impl<B, C, R> Buffer<B, C, InitialState, PrimaryLevel, R> {
 
 /// Structure contains command buffer ready for submission.
 #[derive(Debug)]
-pub struct Submit<B, C> {
-    raw: B,
-    capability: C,
+pub struct Submit<S> {
+    raw: S,
     family: FamilyId,
 }
 
-impl<B, C, R> Buffer<B, C, ExecutableState<OneShot>, PrimaryLevel, R> {
+impl<B, C, R> Buffer<B, C, ExecutableState<OneShot>, PrimaryLevel, R>
+where
+    B: CommandBuffer,
+{
     /// produce `Submit` object that can be used to populate submission.
-    pub fn submit_once(self) -> (Submit<B, C>, Buffer<B, C, PendingState<InvalidState>, PrimaryLevel, R>) {
+    pub fn submit_once(self) -> (Submit<B::Submit>, Buffer<B, C, PendingState<InvalidState>, PrimaryLevel, R>) {
         unimplemented!()
     }
 }
 
-impl<B, C, S, R> Buffer<B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R> {
+impl<B, C, S, R> Buffer<B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R>
+where
+    B: CommandBuffer,
+{
     /// Produce `Submit` object that can be used to populate submission.
-    pub fn submit(self) -> (Submit<B, C>, Buffer<B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>) {
+    pub fn submit(self) -> (Submit<B::Submit>, Buffer<B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>) {
         unimplemented!()
     }
 }
@@ -210,21 +217,47 @@ impl<B, C, U, L, R> Encoder<C> for Buffer<B, C, RecordingState<U>, L, R>
 where
     B: CommandBuffer,
 {
-    type Raw = B;
+    type Buffer = B;
 
-    unsafe fn raw(&mut self) -> &mut B {
+    unsafe fn buffer(&mut self) -> &mut B {
         &mut self.inner
     }
 }
 
-impl<'a, B: 'a, S, L, C> Buffer<&'a mut B, C, S, L, C>
+/// Buffer borrowed from pool bound to frame.
+#[derive(Debug)]
+pub struct FrameBoundBuffer<'a, 'b, B: 'a, F: 'b> {
+    buffer: &'a mut B,
+    frame: &'b Frame<F>,
+}
+
+/// Submittable object bound to frame.
+#[derive(Debug)]
+pub struct FrameBoundSubmit<'a, S, F: 'a> {
+    submit: S,
+    frame: &'a Frame<F>,
+}
+
+impl<'a, 'b, B: 'a, F: 'b> CommandBuffer for FrameBoundBuffer<'a, 'b, B, F>
 where
-    S: Resettable,
+    B: CommandBuffer,
+    F: Debug,
 {
+    type Submit = FrameBoundSubmit<'b, B::Submit, F>;
+
+    unsafe fn submit(&self) -> FrameBoundSubmit<'b, B::Submit, F> {
+        FrameBoundSubmit {
+            submit: self.buffer.submit(),
+            frame: self.frame,
+        }
+    }
+}
+
+impl<'a, 'b, B: 'a, F: 'b, S, L, C> Buffer<FrameBoundBuffer<'a, 'b, B, F>, C, S, L, C> {
     /// Release borrowed buffer. This allows to acquire next buffer from pool.
-    /// Whatever state this buffer was in it will be reset after associated frame is complete.
+    /// Whatever state this buffer was in it will be reset only after bounded frame is complete.
+    /// This allows safely to release borrowed buffer in pending state.
     pub fn release(self) {
         unimplemented!()
     }
 }
-

@@ -1,13 +1,18 @@
 //! Encoder module docs. 
+//! 
 
-use capability::CapabilityFlags;
+mod clear;
+
+pub use self::clear::*;
+
+use capability::{CapabilityFlags};
 use device::CommandBuffer;
 
 /// Encoder allow command recording in safe-ish abstract manner.
 pub trait Encoder<C = CapabilityFlags> {
 
-    /// Raw command buffer.
-    type Raw: CommandBuffer;
+    /// Get command buffer.
+    type Buffer: CommandBuffer;
 
     /// Get inner raw command buffer.
     /// 
@@ -17,7 +22,7 @@ pub trait Encoder<C = CapabilityFlags> {
     /// Yet this method is unsafe because:
     /// * Moving out raw buffer is very unsafe and should be avoided.
     /// * Creating copies can be safe only if copies don't outlive encoder instance.
-    unsafe fn raw(&mut self) -> &mut Self::Raw;
+    unsafe fn buffer(&mut self) -> &mut Self::Buffer;
 }
 
 

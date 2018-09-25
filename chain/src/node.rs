@@ -32,11 +32,8 @@ pub struct Node {
     /// Family required to execute the node.
     pub family: FamilyId,
 
-    /// Specific queue for the node. Or `None` if irrelevant.
-    pub queue: Option<usize>,
-
     /// Dependencies of the node.
-    /// Those are indices of other nodees in array.
+    /// Those are indices of other nodes in array.
     pub dependencies: Vec<usize>,
 
     /// Buffer category ids and required state.
@@ -52,12 +49,7 @@ impl Node {
         self.family
     }
 
-    /// Get queue to which this node assigned. Or `None`.
-    pub fn queue(&self) -> Option<usize> {
-        self.queue
-    }
-
-    /// Get indices of nodees this node depends on.
+    /// Get indices of nodes this node depends on.
     pub fn dependencies(&self) -> &[usize] {
         &self.dependencies
     }

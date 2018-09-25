@@ -109,6 +109,72 @@ impl Capability for General {
     }
 }
 
+/// Check if capability supported.
+pub trait Supports<C> {
+    /// Check runtime capability.
+    fn supports(&self) -> bool;
+}
+
+impl Supports<Transfer> for Transfer {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Transfer> for Compute {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Transfer> for Graphics {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Transfer> for General {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Execute> for Compute {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Execute> for Graphics {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Execute> for General {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Compute> for Compute {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Compute> for General {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Graphics> for Graphics {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Graphics> for General {
+    fn supports(&self) -> bool { true }
+}
+
+impl Supports<Transfer> for CapabilityFlags {
+    fn supports(&self) -> bool { Transfer::from_flags(*self).is_some() }
+}
+
+impl Supports<Execute> for CapabilityFlags {
+    fn supports(&self) -> bool { Execute::from_flags(*self).is_some() }
+}
+
+impl Supports<Compute> for CapabilityFlags {
+    fn supports(&self) -> bool { Compute::from_flags(*self).is_some() }
+}
+
+impl Supports<Graphics> for CapabilityFlags {
+    fn supports(&self) -> bool { Graphics::from_flags(*self).is_some() }
+}
+
 /// Get capabilities required by pipeline stages.
 pub fn required_queue_capability(stages: PipelineStageFlags) -> CapabilityFlags {
     let mut capability = CapabilityFlags::empty();

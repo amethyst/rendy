@@ -39,10 +39,10 @@ impl<Q, C> Queue<Q, C> {
         Q: CommandQueue,
         I: IntoIterator<Item = Submission<WI, BI, SI>>,
         WI: IntoIterator<Item = W>,
-        BI: IntoIterator<Item = Submit<B, C>>,
+        BI: IntoIterator<Item = Submit<B>>,
         SI: IntoIterator<Item = S>,
         W: Borrow<Q::Semaphore>,
-        B: Borrow<Q::CommandBuffer>,
+        B: Borrow<Q::Submit>,
         S: Borrow<Q::Semaphore>,
         F: Borrow<Q::Fence>,
     {
