@@ -2,7 +2,6 @@
 
 use chain::stage::PipelineStageFlags;
 
-
 bitflags! {
     /// Bitmask specifying capabilities of queues in a queue family.
     /// See Vulkan docs for detailed info:
@@ -112,85 +111,141 @@ impl Capability for General {
 /// Check if capability supported.
 pub trait Supports<C> {
     /// Check runtime capability.
-    fn supports(&self) -> bool;
+    fn supports(&self) -> Option<C>;
 }
 
 impl Supports<Transfer> for Transfer {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Transfer> {
+        Some(Transfer)
+    }
 }
 
 impl Supports<Transfer> for Compute {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Transfer> {
+        Some(Transfer)
+    }
 }
 
 impl Supports<Transfer> for Graphics {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Transfer> {
+        Some(Transfer)
+    }
 }
 
 impl Supports<Transfer> for General {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Transfer> {
+        Some(Transfer)
+    }
 }
 
 impl Supports<Execute> for Compute {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Execute> {
+        Some(Execute)
+    }
 }
 
 impl Supports<Execute> for Graphics {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Execute> {
+        Some(Execute)
+    }
 }
 
 impl Supports<Execute> for General {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Execute> {
+        Some(Execute)
+    }
 }
 
 impl Supports<Compute> for Compute {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Compute> {
+        Some(Compute)
+    }
 }
 
 impl Supports<Compute> for General {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Compute> {
+        Some(Compute)
+    }
 }
 
 impl Supports<Graphics> for Graphics {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Graphics> {
+        Some(Graphics)
+    }
 }
 
 impl Supports<Graphics> for General {
-    fn supports(&self) -> bool { true }
+    fn supports(&self) -> Option<Graphics> {
+        Some(Graphics)
+    }
 }
 
 impl Supports<Transfer> for CapabilityFlags {
-    fn supports(&self) -> bool { Transfer::from_flags(*self).is_some() }
+    fn supports(&self) -> Option<Transfer> {
+        Transfer::from_flags(*self)
+    }
 }
 
 impl Supports<Execute> for CapabilityFlags {
-    fn supports(&self) -> bool { Execute::from_flags(*self).is_some() }
+    fn supports(&self) -> Option<Execute> {
+        Execute::from_flags(*self)
+    }
 }
 
 impl Supports<Compute> for CapabilityFlags {
-    fn supports(&self) -> bool { Compute::from_flags(*self).is_some() }
+    fn supports(&self) -> Option<Compute> {
+        Compute::from_flags(*self)
+    }
 }
 
 impl Supports<Graphics> for CapabilityFlags {
-    fn supports(&self) -> bool { Graphics::from_flags(*self).is_some() }
+    fn supports(&self) -> Option<Graphics> {
+        Graphics::from_flags(*self)
+    }
 }
 
 /// Get capabilities required by pipeline stages.
 pub fn required_queue_capability(stages: PipelineStageFlags) -> CapabilityFlags {
     let mut capability = CapabilityFlags::empty();
-    if stages.contains(PipelineStageFlags::DRAW_INDIRECT) { capability |= CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE; }
-    if stages.contains(PipelineStageFlags::VERTEX_INPUT) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::VERTEX_SHADER) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::TESSELLATION_CONTROL_SHADER) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::TESSELLATION_EVALUATION_SHADER) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::GEOMETRY_SHADER) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::FRAGMENT_SHADER) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::EARLY_FRAGMENT_TESTS) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::LATE_FRAGMENT_TESTS) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT) { capability |= CapabilityFlags::GRAPHICS; }
-    if stages.contains(PipelineStageFlags::COMPUTE_SHADER) { capability |= CapabilityFlags::COMPUTE; }
-    if stages.contains(PipelineStageFlags::TRANSFER) { capability |= CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE | CapabilityFlags::TRANSFER; }
-    if stages.contains(PipelineStageFlags::ALL_GRAPHICS) { capability |= CapabilityFlags::GRAPHICS; }
+    if stages.contains(PipelineStageFlags::DRAW_INDIRECT) {
+        capability |= CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE;
+    }
+    if stages.contains(PipelineStageFlags::VERTEX_INPUT) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::VERTEX_SHADER) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::TESSELLATION_CONTROL_SHADER) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::TESSELLATION_EVALUATION_SHADER) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::GEOMETRY_SHADER) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::FRAGMENT_SHADER) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::EARLY_FRAGMENT_TESTS) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::LATE_FRAGMENT_TESTS) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
+    if stages.contains(PipelineStageFlags::COMPUTE_SHADER) {
+        capability |= CapabilityFlags::COMPUTE;
+    }
+    if stages.contains(PipelineStageFlags::TRANSFER) {
+        capability |=
+            CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE | CapabilityFlags::TRANSFER;
+    }
+    if stages.contains(PipelineStageFlags::ALL_GRAPHICS) {
+        capability |= CapabilityFlags::GRAPHICS;
+    }
     capability
 }
-

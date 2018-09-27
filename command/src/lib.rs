@@ -1,7 +1,6 @@
 //! Crate level docs.
 
 #![forbid(overflowing_literals)]
-
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
@@ -12,13 +11,11 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
-
 // TODO: Cleanup the code and remove.
 #![allow(dead_code, unreachable_code, unused_variables)]
 
@@ -28,18 +25,18 @@ extern crate bitflags;
 extern crate failure;
 extern crate relevant;
 
-extern crate rendy_resource as resource;
 extern crate rendy_chain as chain;
+extern crate rendy_resource as resource;
 
+pub mod device;
 pub mod error;
 pub mod frame;
-pub mod device;
 
-pub mod capability;
 pub mod buffer;
+pub mod capability;
 pub mod encoder;
+pub mod family;
 pub mod pool;
 pub mod queue;
-pub mod family;
 
 pub use device::{CommandBuffer, Device};

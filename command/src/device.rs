@@ -8,22 +8,28 @@ use resource;
 /// It inherits methods to allocate memory and create resources.
 pub trait Device: resource::Device {
     /// Semaphore type that can be used with this device.
-    type Semaphore: Debug;
+    type Semaphore: Debug + 'static;
 
     /// Fence type that can be used with this device.
-    type Fence: Debug;
+    type Fence: Debug + 'static;
 
     /// Finished command buffer that can be submitted to the queues of this device.
-    type Submit: Debug;
+    type Submit: Debug + 'static;
 
     /// Command pool type that can be used with this device.
-    type CommandPool;
+    type CommandPool: Debug + 'static;
 
     /// Command buffer type that can be used with this device.
-    type CommandBuffer: CommandBuffer<Submit = Self::Submit> + Debug;
+    type CommandBuffer: CommandBuffer<Submit = Self::Submit> + Debug + 'static;
 
     /// Command queue type that can be used with this device.
-    type CommandQueue: CommandQueue<Semaphore = Self::Semaphore, Fence = Self::Fence, Submit = Self::Submit> + Debug;
+    type CommandQueue: CommandQueue<
+            Semaphore = Self::Semaphore,
+            Fence = Self::Fence,
+            Submit = Self::Submit,
+        >
+        + Debug
+        + 'static;
 }
 
 /// Abstract command buffer.
@@ -53,13 +59,13 @@ where
 /// It defines methods for submitting command buffers along with semaphores and fences.
 pub trait CommandQueue {
     /// Semaphore type that can be used with this device.
-    type Semaphore: Debug;
+    type Semaphore: Debug + 'static;
 
     /// Fence type that can be used with this device.
-    type Fence: Debug;
+    type Fence: Debug + 'static;
 
     /// Finished command buffer that can be submitted to the queue.
-    type Submit: Debug;
+    type Submit: Debug + 'static;
 }
 
 impl<'a, Q: 'a> CommandQueue for &'a mut Q

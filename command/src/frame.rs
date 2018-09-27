@@ -19,9 +19,9 @@ pub struct Frame<F> {
 
 impl<F> Frame<F> {
     /// Create new frame instance.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Index must be unique.
     pub unsafe fn new(index: FrameIndex) -> Self {
         Frame {
@@ -36,7 +36,7 @@ impl<F> Frame<F> {
     }
 
     /// Takes slice of fences associated with this frame.
-    /// 
+    ///
     pub unsafe fn fences(&self) -> &[F] {
         &self.fences
     }
@@ -60,6 +60,11 @@ pub struct PendingFrame<F> {
 }
 
 impl<F> PendingFrame<F> {
+    /// Get frame index.
+    pub fn index(&self) -> FrameIndex {
+        self.index
+    }
+
     /// Check if frame is complete on device.
     pub fn is_complete<D>(&self, device: &D) -> bool {
         unimplemented!("Check the fences")
@@ -96,3 +101,58 @@ pub struct CompleteFrame<F> {
     fences: Vec<F>,
 }
 
+impl<F> CompleteFrame<F> {
+    /// Get frame index.
+    pub fn index(&self) -> FrameIndex {
+        self.index
+    }
+}
+
+/// Frame bound instance.
+#[derive(Clone, Copy, Debug)]
+pub struct FrameBound<'a, F: 'a, T> {
+    frame: &'a Frame<F>,
+    value: T,
+}
+
+impl<'a, F: 'a, T> FrameBound<'a, F, T> {
+    /// Bind value to frame
+    pub fn bind(value: T, frame: &'a Frame<F>) -> Self {
+        FrameBound { frame, value }
+    }
+
+    /// Get reference to bound value.
+    ///
+    /// # Safety
+    ///
+    /// Unbound value usage must not break frame-binding semantics.
+    ///
+    pub unsafe fn inner_ref(&self) -> &T {
+        &self.value
+    }
+
+    /// Get mutable reference to bound value.
+    ///
+    /// # Safety
+    ///
+    /// Unbound value usage must not break frame-binding semantics.
+    ///
+    pub unsafe fn inner_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+
+    /// Unbind value from frame.
+    ///
+    /// # Safety
+    ///
+    /// Unbound value usage must not break frame-binding semantics.
+    ///
+    pub unsafe fn unbind(self) -> T {
+        self.value
+    }
+
+    /// Get frame this value bound to.
+    pub fn frame(&self) -> &'a Frame<F> {
+        self.frame
+    }
+}

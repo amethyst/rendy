@@ -23,17 +23,17 @@ pub struct Queue<Q, C> {
 
 impl<Q, C> Queue<Q, C> {
     /// Submit command buffers to the queue.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// This function panics if a command buffer in submission was created from
     /// command pool associated with another queue family.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// User must ensure that for each semaphore to wait there must be queued signal of that semaphore.
     /// [See Vulkan spec for details](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#commandbuffers-submission-progress)
-    /// 
+    ///
     pub unsafe fn submit<I, WI, BI, SI, W, B, S, F>(&mut self, submission: I, fence: Option<F>)
     where
         Q: CommandQueue,
@@ -49,6 +49,3 @@ impl<Q, C> Queue<Q, C> {
         unimplemented!()
     }
 }
-
-
-

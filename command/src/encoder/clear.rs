@@ -1,5 +1,3 @@
-
-
 /// Value to clear color.
 #[derive(Clone, Copy, Debug)]
 pub enum ClearColor {
@@ -44,4 +42,3 @@ impl From<ClearDepthStencil> for ClearValue {
         ClearValue::DepthStencil(value)
     }
 }
-
