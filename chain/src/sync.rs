@@ -9,7 +9,7 @@ use chain::{Chain, Link};
 use collect::{Chains, Unsynchronized};
 use node::State;
 use resource::{Buffer, Image, Resource};
-use schedule::{QueueId, Queue, Schedule, SubmissionId};
+use schedule::{Queue, QueueId, Schedule, SubmissionId};
 use stage::PipelineStageFlags;
 use Id;
 
@@ -88,14 +88,27 @@ where
     fn new(states: Range<State<R>>) -> Self {
         Barrier {
             queues: None,
-            states: (states.start.access, states.start.layout, states.start.stages) .. (states.end.access, states.end.layout, states.end.stages),
+            states: (
+                states.start.access,
+                states.start.layout,
+                states.start.stages,
+            )..(states.end.access, states.end.layout, states.end.stages),
         }
     }
 
     fn transfer(queues: Range<QueueId>, states: Range<(AccessFlags, R::Layout)>) -> Self {
         Barrier {
             queues: Some(queues),
-            states: (states.start.0, states.start.1, PipelineStageFlags::TOP_OF_PIPE) .. (states.end.0, states.end.1, PipelineStageFlags::BOTTOM_OF_PIPE),
+            states: (
+                states.start.0,
+                states.start.1,
+                PipelineStageFlags::TOP_OF_PIPE,
+            )
+                ..(
+                    states.end.0,
+                    states.end.1,
+                    PipelineStageFlags::BOTTOM_OF_PIPE,
+                ),
         }
     }
 
@@ -106,13 +119,7 @@ where
     ) -> Self {
         Self::transfer(
             queues,
-            (
-                AccessFlags::empty(),
-                left.start,
-            )..(
-                right.end.0,
-                right.end.1,
-            )
+            (AccessFlags::empty(), left.start)..(right.end.0, right.end.1),
         )
     }
 
@@ -123,13 +130,7 @@ where
     ) -> Self {
         Self::transfer(
             queues,
-            (
-                left.start.0,
-                left.start.1,
-            ) .. (
-                AccessFlags::empty(),
-                right.end,
-            ),
+            (left.start.0, left.start.1)..(AccessFlags::empty(), right.end),
         )
     }
 }
@@ -163,8 +164,13 @@ impl Guard {
 
     fn pick<R: Resource>(&mut self) -> &mut Barriers<R> {
         use std::any::Any;
-        let Guard { ref mut buffers, ref mut images } = *self;
-        Any::downcast_mut(buffers).or_else(move || Any::downcast_mut(images)).expect("`R` should be `Buffer` or `Image`")
+        let Guard {
+            ref mut buffers,
+            ref mut images,
+        } = *self;
+        Any::downcast_mut(buffers)
+            .or_else(move || Any::downcast_mut(images))
+            .expect("`R` should be `Buffer` or `Image`")
     }
 }
 
@@ -359,10 +365,7 @@ fn generate_semaphore_pair<R: Resource>(
             .push(Signal::new(semaphore.clone()));
         sync.get_sync(range.end)
             .wait
-            .push(Wait::new(
-                semaphore,
-                link.queue(range.end.queue()).stages,
-            ));
+            .push(Wait::new(semaphore, link.queue(range.end.queue()).stages));
     }
 }
 
@@ -386,12 +389,7 @@ where
                 // Generate semaphores between queues in the previous link and the current one.
                 for (queue_id, queue) in link.queues() {
                     let head = SubmissionId::new(queue_id, queue.first);
-                    generate_semaphore_pair(
-                        sync,
-                        uid,
-                        link,
-                        signal_sid..head,
-                    );
+                    generate_semaphore_pair(sync, uid, link, signal_sid..head);
                 }
             } else {
                 let wait_sid = earliest(link, schedule);
@@ -399,12 +397,7 @@ where
                 // Generate semaphores between queues in the previous link and the current one.
                 for (queue_id, queue) in prev_link.queues() {
                     let tail = SubmissionId::new(queue_id, queue.last);
-                    generate_semaphore_pair(
-                        sync,
-                        uid,
-                        link,
-                        tail..wait_sid,
-                    );
+                    generate_semaphore_pair(sync, uid, link, tail..wait_sid);
                 }
 
                 // Generate barrier in next link's first submission.
@@ -422,16 +415,11 @@ where
             let wait_sid = earliest(link, schedule);
 
             if !prev_link.single_queue() {
-                unimplemented!("This case is unimplemented");                
+                unimplemented!("This case is unimplemented");
             }
 
             // Generate a semaphore between the signal and wait sides of the transfer.
-            generate_semaphore_pair(
-                sync,
-                uid,
-                link,
-                signal_sid..wait_sid,
-            );
+            generate_semaphore_pair(sync, uid, link, signal_sid..wait_sid);
 
             // Generate barriers to transfer the resource to another queue.
             sync.get_sync(signal_sid).release.pick::<R>().insert(
@@ -465,7 +453,8 @@ fn optimize_submission(
 ) {
     let mut to_remove = Vec::new();
     if let Some(sync_data) = sync.0.get_mut(&sid) {
-        sync_data.wait
+        sync_data
+            .wait
             .sort_unstable_by_key(|wait| (wait.stage(), wait.semaphore().points.end.index()));
         sync_data.wait.retain(|wait| {
             let start = wait.semaphore().points.start;
@@ -487,11 +476,7 @@ fn optimize_submission(
 
     for semaphore in to_remove.drain(..) {
         // Delete signal as well.
-        let ref mut signal = sync
-            .0
-            .get_mut(&semaphore.points.start)
-            .unwrap()
-            .signal;
+        let ref mut signal = sync.0.get_mut(&semaphore.points.start).unwrap().signal;
         let index = signal
             .iter()
             .position(|signal| signal.0 == semaphore)

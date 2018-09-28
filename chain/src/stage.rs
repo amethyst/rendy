@@ -1,5 +1,3 @@
-
-
 bitflags! {
     /// Pipeline stages flags.
     /// See Vulkan docs for detailed info:
@@ -47,7 +45,7 @@ bitflags! {
 
         /// Specifies the execution of a compute shader.
         const COMPUTE_SHADER = 0x00000800;
-        
+
         /// Specifies the execution of copy commands.
         /// This includes the operations resulting from all copy commands, clear commands
         /// (with the exception of vkCmdClearAttachments), and vkCmdCopyQueryPoolResults.
@@ -135,7 +133,9 @@ impl From<GraphicsPipelineStage> for PipelineStageFlags {
             GraphicsPipelineStage::VertexInput => Self::VERTEX_INPUT,
             GraphicsPipelineStage::VertexShader => Self::VERTEX_SHADER,
             GraphicsPipelineStage::TessellationControlShader => Self::TESSELLATION_CONTROL_SHADER,
-            GraphicsPipelineStage::TessellationEvaluationShader => Self::TESSELLATION_EVALUATION_SHADER,
+            GraphicsPipelineStage::TessellationEvaluationShader => {
+                Self::TESSELLATION_EVALUATION_SHADER
+            }
             GraphicsPipelineStage::GeometryShader => Self::GEOMETRY_SHADER,
             GraphicsPipelineStage::EarlyFragmentTests => Self::EARLY_FRAGMENT_TESTS,
             GraphicsPipelineStage::FragmentShader => Self::FRAGMENT_SHADER,

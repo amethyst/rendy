@@ -1,0 +1,13 @@
+[package]
+name = "rendy-layout"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+bitflags = "*"
+failure = "*"
+serde = { version = "*", optional = true, features = ["derive"] }
+smallvec = "*"
+rendy-memory = { path = "../memory" }
+rendy-resource = { path = "../resource" }
+

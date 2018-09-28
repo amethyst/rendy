@@ -2,7 +2,6 @@
 //! for the dependency chain of the whole execution graph.
 
 #![forbid(overflowing_literals)]
-
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
@@ -13,7 +12,6 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
@@ -27,7 +25,6 @@ extern crate fnv;
 
 extern crate rendy_resource;
 
-
 /// Unique resource id.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub u64);
@@ -37,14 +34,14 @@ pub mod access;
 /// ???
 pub mod chain;
 /// ???
+pub mod collect;
+/// ???
 pub mod node;
 /// ???
 pub mod resource;
 /// ???
-pub mod stage;
-/// ???
 pub mod schedule;
 /// ???
-pub mod collect;
+pub mod stage;
 /// ???
 pub mod sync;

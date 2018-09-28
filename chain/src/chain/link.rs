@@ -1,9 +1,8 @@
-
 use access::AccessFlags;
-use resource::{Resource};
-use stage::PipelineStageFlags;
-use schedule::{FamilyId, QueueId, SubmissionId};
 use node::State;
+use resource::Resource;
+use schedule::{FamilyId, QueueId, SubmissionId};
+use stage::PipelineStageFlags;
 
 /// State of the link associated with queue.
 /// Contains submissions range, combined access and stages bits by submissions from the range.
@@ -192,7 +191,14 @@ where
     /// Iterate over queues.
     pub fn queues(&self) -> impl Iterator<Item = (QueueId, &LinkQueueState)> {
         let family = self.family;
-        self.queues.iter().enumerate().filter_map(move |(index, queue)| queue.as_ref().map(move |queue| (QueueId::new(family, index), queue)))
+        self.queues
+            .iter()
+            .enumerate()
+            .filter_map(move |(index, queue)| {
+                queue
+                    .as_ref()
+                    .map(move |queue| (QueueId::new(family, index), queue))
+            })
     }
 
     /// Get particular queue
@@ -201,4 +207,3 @@ where
         self.queues[qid.index()].as_ref().unwrap()
     }
 }
-

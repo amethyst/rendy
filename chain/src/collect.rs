@@ -1,4 +1,3 @@
-
 use std::cmp::max;
 use std::hash::Hash;
 use std::ops::Range;
@@ -299,14 +298,20 @@ fn fitness(
     // Collect minimal waits required and resource transfers count.
     for &(id, _) in &node.buffers {
         let chain = &buffers[id];
-        if chain.current_family.map_or(false, |family| family != node.family) {
+        if chain
+            .current_family
+            .map_or(false, |family| family != node.family)
+        {
             transfers += 1;
         }
         wait_factor_from_chains = max(wait_factor_from_chains, chain.last_link_wait_factor);
     }
     for &(id, _) in &node.images {
         let chain = &images[id];
-        if chain.current_family.map_or(false, |family| family != node.family) {
+        if chain
+            .current_family
+            .map_or(false, |family| family != node.family)
+        {
             transfers += 1;
         }
         wait_factor_from_chains = max(wait_factor_from_chains, chain.last_link_wait_factor);
@@ -342,7 +347,9 @@ fn schedule_node<'a>(
 ) {
     let ref mut queue_data = schedule[queue];
     queue_data.wait_factor = max(queue_data.wait_factor, wait_factor + 1);
-    let sid = queue_data.queue.add_submission(wait_factor, submitted, Unsynchronized);
+    let sid = queue_data
+        .queue
+        .add_submission(wait_factor, submitted, Unsynchronized);
     let submission = queue_data.queue.submission_mut(sid).unwrap();
 
     for &(id, state) in &node.buffers {
@@ -384,10 +391,7 @@ fn add_to_chain<R, S>(
 ) where
     R: Resource,
 {
-    let node = LinkNode {
-        sid,
-        state,
-    };
+    let node = LinkNode { sid, state };
 
     chain_data.current_family = Some(family);
     chain_data.current_link_wait_factor = max(

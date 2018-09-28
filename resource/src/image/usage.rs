@@ -1,5 +1,3 @@
-
-
 bitflags! {
     /// Bitmask specifying intended usage of an image.
     /// See Vulkan docs for detailed info:

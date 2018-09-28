@@ -15,9 +15,7 @@ mod submission;
 use std::ops::{Index, IndexMut};
 
 pub use self::{
-    family::{FamilyId, Family},
-    queue::{Queue, QueueId},
-    submission::{Submission, SubmissionId},
+    family::{Family, FamilyId}, queue::{Queue, QueueId}, submission::{Submission, SubmissionId},
 };
 
 use fnv::FnvHashMap;
@@ -45,7 +43,9 @@ impl<S> Schedule<S> {
             ref ordered,
         } = *self;
 
-        ordered.iter().map(move |&sid| map[&sid.family()].submission(sid).unwrap())
+        ordered
+            .iter()
+            .map(move |&sid| map[&sid.family()].submission(sid).unwrap())
     }
 
     /// The number of families in this schedule.
@@ -148,5 +148,3 @@ impl<S> IndexMut<SubmissionId> for Schedule<S> {
         self.submission_mut(sid).unwrap()
     }
 }
-
-

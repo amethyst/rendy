@@ -1,4 +1,3 @@
-
 bitflags! {
     /// Bitmask specifying memory access types that will participate in a memory dependency.
     /// See Vulkan docs for detailed info:
@@ -62,29 +61,29 @@ impl AccessFlags {
     /// Check if flags contains at least on write flag.
     pub fn is_write(&self) -> bool {
         self.intersects(
-            AccessFlags::SHADER_WRITE|
-            AccessFlags::COLOR_ATTACHMENT_WRITE|
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE|
-            AccessFlags::TRANSFER_WRITE|
-            AccessFlags::HOST_WRITE|
-            AccessFlags::MEMORY_WRITE
+            AccessFlags::SHADER_WRITE
+                | AccessFlags::COLOR_ATTACHMENT_WRITE
+                | AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE
+                | AccessFlags::TRANSFER_WRITE
+                | AccessFlags::HOST_WRITE
+                | AccessFlags::MEMORY_WRITE,
         )
     }
 
     /// Check if flags contains at least on read flag.
     pub fn is_read(&self) -> bool {
         self.intersects(
-            AccessFlags::INDIRECT_COMMAND_READ|
-            AccessFlags::INDEX_READ|
-            AccessFlags::VERTEX_ATTRIBUTE_READ|
-            AccessFlags::UNIFORM_READ|
-            AccessFlags::INPUT_ATTACHMENT_READ|
-            AccessFlags::SHADER_READ|
-            AccessFlags::COLOR_ATTACHMENT_READ|
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ|
-            AccessFlags::TRANSFER_READ|
-            AccessFlags::HOST_READ|
-            AccessFlags::MEMORY_READ
+            AccessFlags::INDIRECT_COMMAND_READ
+                | AccessFlags::INDEX_READ
+                | AccessFlags::VERTEX_ATTRIBUTE_READ
+                | AccessFlags::UNIFORM_READ
+                | AccessFlags::INPUT_ATTACHMENT_READ
+                | AccessFlags::SHADER_READ
+                | AccessFlags::COLOR_ATTACHMENT_READ
+                | AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ
+                | AccessFlags::TRANSFER_READ
+                | AccessFlags::HOST_READ
+                | AccessFlags::MEMORY_READ,
         )
     }
 }

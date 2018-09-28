@@ -160,7 +160,11 @@ impl<T: 'static> ArenaAllocator<T> {
         D: Device<Memory = T>,
     {
         self.cleanup(device, 0);
-        assert!(self.arenas.is_empty(), "Arenas are not empty during allocator disposal. Arenas: {:#?}", self.arenas);
+        assert!(
+            self.arenas.is_empty(),
+            "Arenas are not empty during allocator disposal. Arenas: {:#?}",
+            self.arenas
+        );
     }
 
     fn cleanup<D>(&mut self, device: &D, off: usize) -> u64
@@ -215,7 +219,7 @@ impl<T: 'static> Allocator for ArenaAllocator<T> {
                 let (ptr, range) =
                     mapped_sub_range(arena.ptr, 0..self.arena_size, aligned..aligned + size)
                         .expect("This sub-range must fit in arena mapping");
-                        
+
                 return Ok((
                     ArenaBlock {
                         arena_index: self.offset + count - 1,

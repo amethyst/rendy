@@ -1,5 +1,4 @@
-
-use memory::usage::{Data, Dynamic, Upload, Download, UsageValue, Usage as MemoryUsage};
+use memory::usage::{Data, Download, Dynamic, Upload, Usage as MemoryUsage, UsageValue};
 
 bitflags! {
     /// Bitmask specifying allowed usage of a buffer.
@@ -52,7 +51,6 @@ pub trait Usage {
 }
 
 impl Usage for (UsageFlags, UsageValue) {
-
     type MemoryUsage = UsageValue;
 
     fn flags(&self) -> UsageFlags {
@@ -71,7 +69,6 @@ impl Usage for (UsageFlags, UsageValue) {
 pub struct VertexBuffer;
 
 impl Usage for VertexBuffer {
-
     type MemoryUsage = Data;
 
     fn flags(&self) -> UsageFlags {
@@ -90,7 +87,6 @@ impl Usage for VertexBuffer {
 pub struct IndexBuffer;
 
 impl Usage for IndexBuffer {
-
     type MemoryUsage = Data;
 
     fn flags(&self) -> UsageFlags {
@@ -108,7 +104,6 @@ impl Usage for IndexBuffer {
 pub struct UniformBuffer;
 
 impl Usage for UniformBuffer {
-
     type MemoryUsage = Dynamic;
 
     fn flags(&self) -> UsageFlags {
@@ -125,7 +120,6 @@ impl Usage for UniformBuffer {
 pub struct UploadBuffer;
 
 impl Usage for UploadBuffer {
-
     type MemoryUsage = Upload;
 
     fn flags(&self) -> UsageFlags {
@@ -142,7 +136,6 @@ impl Usage for UploadBuffer {
 pub struct DownloadBuffer;
 
 impl Usage for DownloadBuffer {
-
     type MemoryUsage = Download;
 
     fn flags(&self) -> UsageFlags {

@@ -2,7 +2,6 @@
 //! Primarily focus on buffers and images.
 
 #![forbid(overflowing_literals)]
-
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
@@ -13,7 +12,6 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
@@ -24,11 +22,11 @@
 extern crate bitflags;
 
 extern crate crossbeam_channel;
-extern crate rendy_memory as memory;
 extern crate relevant;
+extern crate rendy_memory as memory;
 
-mod escape;
 mod device;
+mod escape;
 mod resources;
 
 pub mod buffer;

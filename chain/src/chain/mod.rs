@@ -6,8 +6,8 @@
 
 mod link;
 
-use std::ops::BitOr;
 use fnv::FnvHashMap;
+use std::ops::BitOr;
 
 pub use self::link::{Link, LinkNode};
 use resource::{Buffer, Image, Resource};

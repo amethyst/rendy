@@ -23,9 +23,9 @@ pub struct CreateInfo {
 }
 
 /// Generic buffer object wrapper.
-/// 
+///
 /// # Parameters
-/// 
+///
 /// `T` - type of the memory object of memory block.
 /// `B` - raw buffer type.
 #[derive(Debug)]

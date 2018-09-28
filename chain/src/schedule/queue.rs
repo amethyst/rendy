@@ -1,7 +1,5 @@
-
 use super::{
-    family::FamilyId,
-    submission::{Submission, SubmissionId},
+    family::FamilyId, submission::{Submission, SubmissionId},
 };
 
 /// Queue id.
@@ -113,16 +111,25 @@ impl<S> Queue<S> {
 
     /// Add `Submission` instance to the end of queue.
     /// Returns id of the added submission.
-    pub fn add_submission(&mut self, wait_factor: usize, submit_order: usize, sync: S) -> SubmissionId {
+    pub fn add_submission(
+        &mut self,
+        wait_factor: usize,
+        submit_order: usize,
+        sync: S,
+    ) -> SubmissionId {
         let sid = SubmissionId::new(self.id, self.submissions.len());
-        self.submissions.push(Submission::new(wait_factor, submit_order, sid, sync));
+        self.submissions
+            .push(Submission::new(wait_factor, submit_order, sid, sync));
         sid
     }
 
     /// Add `Submission` instance to the end of queue.
     /// Returns id of the added submission.
     pub fn add_submission_checked(&mut self, submission: Submission<S>) {
-        assert_eq!(submission.id(), SubmissionId::new(self.id, self.submissions.len()));
+        assert_eq!(
+            submission.id(),
+            SubmissionId::new(self.id, self.submissions.len())
+        );
         self.submissions.push(submission);
     }
 }

@@ -4,10 +4,7 @@
 //! Users are encouraged to dispose of the values manually while `Escape` be just a safety net.
 
 use std::{
-    iter::repeat,
-    mem::{forget, ManuallyDrop},
-    ops::{Deref, DerefMut},
-    ptr::read,
+    iter::repeat, mem::{forget, ManuallyDrop}, ops::{Deref, DerefMut}, ptr::read,
 };
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -52,8 +49,7 @@ impl<T> DerefMut for Escape<T> {
 impl<T> Drop for Escape<T> {
     fn drop(&mut self) {
         let value = unsafe { read(&mut *self.value) };
-        self.sender
-            .send(value)
+        self.sender.send(value)
     }
 }
 

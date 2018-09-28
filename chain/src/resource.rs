@@ -1,6 +1,7 @@
-
-use std::{fmt::Debug, ops::{BitOr, BitOrAssign}};
 use rendy_resource::{buffer, image};
+use std::{
+    fmt::Debug, ops::{BitOr, BitOrAssign},
+};
 
 use access::AccessFlags;
 
@@ -54,8 +55,14 @@ impl Resource for Buffer {
                 AccessFlags::INDEX_READ => buffer::UsageFlags::INDEX_BUFFER,
                 AccessFlags::VERTEX_ATTRIBUTE_READ => buffer::UsageFlags::VERTEX_BUFFER,
                 AccessFlags::UNIFORM_READ => buffer::UsageFlags::UNIFORM_BUFFER,
-                AccessFlags::SHADER_READ => buffer::UsageFlags::STORAGE_BUFFER | buffer::UsageFlags::UNIFORM_TEXEL_BUFFER | buffer::UsageFlags::STORAGE_TEXEL_BUFFER,
-                AccessFlags::SHADER_WRITE => buffer::UsageFlags::STORAGE_BUFFER | buffer::UsageFlags::STORAGE_TEXEL_BUFFER,
+                AccessFlags::SHADER_READ => {
+                    buffer::UsageFlags::STORAGE_BUFFER
+                        | buffer::UsageFlags::UNIFORM_TEXEL_BUFFER
+                        | buffer::UsageFlags::STORAGE_TEXEL_BUFFER
+                }
+                AccessFlags::SHADER_WRITE => {
+                    buffer::UsageFlags::STORAGE_BUFFER | buffer::UsageFlags::STORAGE_TEXEL_BUFFER
+                }
                 AccessFlags::TRANSFER_READ => buffer::UsageFlags::TRANSFER_SRC,
                 AccessFlags::TRANSFER_WRITE => buffer::UsageFlags::TRANSFER_DST,
                 _ => unreachable!(),
@@ -90,29 +97,44 @@ impl Resource for Image {
     }
 
     fn layout_for(access: AccessFlags) -> image::Layout {
-        IMAGE_ACCESSES.iter().fold(None, |acc, &access_bit| {
-            if access.contains(access_bit) {
-                let layout = match access_bit {
-                    AccessFlags::INPUT_ATTACHMENT_READ => image::Layout::ShaderReadOnlyOptimal,
-                    AccessFlags::COLOR_ATTACHMENT_READ => image::Layout::ColorAttachmentOptimal,
-                    AccessFlags::COLOR_ATTACHMENT_WRITE => image::Layout::ColorAttachmentOptimal,
-                    AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => image::Layout::DepthStencilReadOnlyOptimal,
-                    AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => image::Layout::DepthStencilAttachmentOptimal,
-                    AccessFlags::TRANSFER_READ => image::Layout::TransferSrcOptimal,
-                    AccessFlags::TRANSFER_WRITE => image::Layout::TransferDstOptimal,
-                    _ => unreachable!(),
-                };
-                Some(match (acc, layout) {
-                    (None, layout) => layout,
-                    (Some(left), right) if left == right => left,
-                    (Some(image::Layout::DepthStencilReadOnlyOptimal), image::Layout::DepthStencilAttachmentOptimal) => image::Layout::DepthStencilAttachmentOptimal,
-                    (Some(image::Layout::DepthStencilAttachmentOptimal), image::Layout::DepthStencilReadOnlyOptimal) => image::Layout::DepthStencilAttachmentOptimal,
-                    (Some(_), _) => image::Layout::General,
-                })
-            } else {
-                acc
-            }
-        }).unwrap_or(image::Layout::General)
+        IMAGE_ACCESSES
+            .iter()
+            .fold(None, |acc, &access_bit| {
+                if access.contains(access_bit) {
+                    let layout = match access_bit {
+                        AccessFlags::INPUT_ATTACHMENT_READ => image::Layout::ShaderReadOnlyOptimal,
+                        AccessFlags::COLOR_ATTACHMENT_READ => image::Layout::ColorAttachmentOptimal,
+                        AccessFlags::COLOR_ATTACHMENT_WRITE => {
+                            image::Layout::ColorAttachmentOptimal
+                        }
+                        AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => {
+                            image::Layout::DepthStencilReadOnlyOptimal
+                        }
+                        AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => {
+                            image::Layout::DepthStencilAttachmentOptimal
+                        }
+                        AccessFlags::TRANSFER_READ => image::Layout::TransferSrcOptimal,
+                        AccessFlags::TRANSFER_WRITE => image::Layout::TransferDstOptimal,
+                        _ => unreachable!(),
+                    };
+                    Some(match (acc, layout) {
+                        (None, layout) => layout,
+                        (Some(left), right) if left == right => left,
+                        (
+                            Some(image::Layout::DepthStencilReadOnlyOptimal),
+                            image::Layout::DepthStencilAttachmentOptimal,
+                        ) => image::Layout::DepthStencilAttachmentOptimal,
+                        (
+                            Some(image::Layout::DepthStencilAttachmentOptimal),
+                            image::Layout::DepthStencilReadOnlyOptimal,
+                        ) => image::Layout::DepthStencilAttachmentOptimal,
+                        (Some(_), _) => image::Layout::General,
+                    })
+                } else {
+                    acc
+                }
+            })
+            .unwrap_or(image::Layout::General)
     }
 
     fn valid_usage(access: AccessFlags, usage: image::UsageFlags) -> bool {
@@ -121,8 +143,12 @@ impl Resource for Image {
                 AccessFlags::INPUT_ATTACHMENT_READ => image::UsageFlags::INPUT_ATTACHMENT,
                 AccessFlags::COLOR_ATTACHMENT_READ => image::UsageFlags::COLOR_ATTACHMENT,
                 AccessFlags::COLOR_ATTACHMENT_WRITE => image::UsageFlags::COLOR_ATTACHMENT,
-                AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => image::UsageFlags::DEPTH_STENCIL_ATTACHMENT,
-                AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => image::UsageFlags::DEPTH_STENCIL_ATTACHMENT,
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => {
+                    image::UsageFlags::DEPTH_STENCIL_ATTACHMENT
+                }
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => {
+                    image::UsageFlags::DEPTH_STENCIL_ATTACHMENT
+                }
                 AccessFlags::TRANSFER_READ => image::UsageFlags::TRANSFER_SRC,
                 AccessFlags::TRANSFER_WRITE => image::UsageFlags::TRANSFER_DST,
                 _ => unreachable!(),

@@ -164,7 +164,13 @@ impl Allocation {
         let block = heaps.allocate(device, self.mask, self.usage, self.size, self.align)?;
 
         assert!(block.range().end - block.range().start >= self.size);
-        assert_eq!(block.range().start % self.align, 0, "Block: {:#?} allocated without requested align {}", block, self.align);
+        assert_eq!(
+            block.range().start % self.align,
+            0,
+            "Block: {:#?} allocated without requested align {}",
+            block,
+            self.align
+        );
         assert!(self.usage.memory_fitness(block.properties()).is_some());
         assert_ne!((1 << block.memory_type()) & self.mask, 0);
         Ok(block)

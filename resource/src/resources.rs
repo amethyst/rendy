@@ -1,13 +1,12 @@
-
 use std::cmp::max;
 
+use memory::{Block, Heaps, MemoryError, Usage as MemoryUsage};
 use relevant::Relevant;
-use memory::{Block, MemoryError, Heaps, Usage as MemoryUsage};
 
-use device::Device;
 use buffer;
-use image;
+use device::Device;
 use escape::{Escape, Terminal};
+use image;
 
 /// Resource manager.
 /// It can be used to create and destroy resources such as buffers and images.
@@ -33,11 +32,15 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
     {
         let ubuf = device.create_buffer(info)?;
         let reqs = device.buffer_requirements(&ubuf);
-        let block = heaps.allocate(device, reqs.mask, memory_usage, reqs.size, max(reqs.align, align))?;
+        let block = heaps.allocate(
+            device,
+            reqs.mask,
+            memory_usage,
+            reqs.size,
+            max(reqs.align, align),
+        )?;
 
-        let buf = unsafe {
-            device.bind_buffer(ubuf, block.memory(), block.range().start)?
-        };
+        let buf = unsafe { device.bind_buffer(ubuf, block.memory(), block.range().start)? };
 
         Ok(buffer::Buffer {
             inner: self.buffers.escape(buffer::Inner {
@@ -81,11 +84,15 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
     {
         let uimg = device.create_image(info)?;
         let reqs = device.image_requirements(&uimg);
-        let block = heaps.allocate(device, reqs.mask, memory_usage, reqs.size, max(reqs.align, align))?;
+        let block = heaps.allocate(
+            device,
+            reqs.mask,
+            memory_usage,
+            reqs.size,
+            max(reqs.align, align),
+        )?;
 
-        let img = unsafe {
-            device.bind_image(uimg, block.memory(), block.range().start)?
-        };
+        let img = unsafe { device.bind_image(uimg, block.memory(), block.range().start)? };
 
         Ok(image::Image {
             inner: self.images.escape(image::Inner {
@@ -106,7 +113,7 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
         Self::destroy_image_inner(Escape::into_inner(image.inner), device, heaps)
     }
 
-    unsafe fn destroy_image_inner<D>(inner: image::Inner<T, I>, device: &D, heaps: &mut Heaps<T>,)
+    unsafe fn destroy_image_inner<D>(inner: image::Inner<T, I>, device: &D, heaps: &mut Heaps<T>)
     where
         D: Device<Memory = T, Image = I>,
     {
@@ -130,4 +137,3 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
         }
     }
 }
-

@@ -3,8 +3,8 @@
 pub mod format;
 mod usage;
 
-pub use self::usage::*;
 pub use self::format::Format;
+pub use self::usage::*;
 
 use memory::MemoryBlock;
 use relevant::Relevant;
@@ -156,9 +156,9 @@ pub struct CreateInfo {
 }
 
 /// Generic image object wrapper.
-/// 
+///
 /// # Parameters
-/// 
+///
 /// `T` - type of the memory object of memory block.
 /// `B` - raw image type.
 #[derive(Debug)]

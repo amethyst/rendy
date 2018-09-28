@@ -5,4 +5,7 @@ members = [
     "memory",
     "resource",
     "command",
+    "layout",
+    "layout-derive",
+    "graph",
 ]

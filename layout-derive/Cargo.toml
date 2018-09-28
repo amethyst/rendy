@@ -1,0 +1,12 @@
+[package]
+name = "rendy-layout-derive"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "*"
+quote = "*"
+

@@ -1,9 +1,8 @@
-
 use std::collections::hash_map::{HashMap, Iter as HashMapIter};
 
-use schedule::FamilyId;
 use access::AccessFlags;
 use resource::{Buffer, Image, Resource};
+use schedule::FamilyId;
 use stage::PipelineStageFlags;
 use Id;
 
