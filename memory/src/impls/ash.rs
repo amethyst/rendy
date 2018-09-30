@@ -3,7 +3,6 @@ use ash::{
 };
 use device::Device;
 use error::*;
-use memory::*;
 use smallvec::SmallVec;
 use std::{
     ops::Range, ptr::{null, null_mut, NonNull},

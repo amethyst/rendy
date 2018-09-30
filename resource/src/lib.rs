@@ -18,6 +18,10 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 
+
+#[macro_use]
+extern crate failure;
+
 #[macro_use]
 extern crate bitflags;
 
@@ -25,15 +29,24 @@ extern crate crossbeam_channel;
 extern crate relevant;
 extern crate rendy_memory as memory;
 
+#[cfg(feature = "hal")]
+extern crate gfx_hal as hal;
+
+#[cfg(feature = "ash")]
+extern crate ash;
+
 mod device;
 mod escape;
 mod resources;
+mod impls;
+mod error;
 
 pub mod buffer;
 pub mod image;
 
 pub use device::Device;
 pub use resources::Resources;
+pub use error::{ResourceError, ImageCreationError};
 
 /// Sharing mode.
 /// Resources created with sharing mode `Exclusive`

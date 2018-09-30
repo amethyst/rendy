@@ -17,3 +17,7 @@ derivative = "*"
 
 [dev-dependencies]
 rand = "*"
+
+[features]
+hal = ["gfx-hal"]
+vulkan = ["ash"]

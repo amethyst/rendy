@@ -5,6 +5,7 @@ use relevant::Relevant;
 
 use buffer;
 use device::Device;
+use error::ResourceError;
 use escape::{Escape, Terminal};
 use image;
 
@@ -40,7 +41,11 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
             max(reqs.align, align),
         )?;
 
-        let buf = unsafe { device.bind_buffer(ubuf, block.memory(), block.range().start)? };
+        let buf = unsafe {
+            device
+                .bind_buffer(ubuf, block.memory(), block.range().start)
+                .unwrap()
+        };
 
         Ok(buffer::Buffer {
             inner: self.buffers.escape(buffer::Inner {
@@ -77,7 +82,7 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
         info: image::CreateInfo,
         align: u64,
         memory_usage: M,
-    ) -> Result<image::Image<T, I>, MemoryError>
+    ) -> Result<image::Image<T, I>, ResourceError>
     where
         D: Device<Memory = T, Image = I>,
         M: MemoryUsage,

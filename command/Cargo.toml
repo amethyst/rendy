@@ -13,3 +13,7 @@ rendy-chain = { path = "../chain" }
 gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
 ash = { version = "*", optional = true }
 share = "*"
+
+[features]
+hal = ["gfx-hal", "rendy-memory/hal", "rendy-resource/hal"]
+vulkan = ["ash", "rendy-memory/vulkan", "rendy-resource/vulkan"]
