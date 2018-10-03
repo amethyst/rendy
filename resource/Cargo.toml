@@ -8,3 +8,10 @@ bitflags = "*"
 crossbeam-channel = "*"
 rendy-memory = { path = "../memory" }
 relevant = "*"
+failure = "*"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
+ash = { version = "*", optional = true }
+
+[features]
+hal = ["gfx-hal", "rendy-memory/hal"]
+vulkan = ["ash", "rendy-memory/vulkan"]

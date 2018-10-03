@@ -130,9 +130,10 @@ where
 }
 
 /// Fetch data necessary from `Backend::PhysicalDevice`
-pub unsafe fn heaps_from_physical_device<B>(
+#[allow(unused)]
+unsafe fn heaps_from_physical_device<B>(
     physical: &B::PhysicalDevice,
-    config: HeapsConfig,
+    config: Config,
 ) -> Heaps<B::Memory>
 where
     B: hal::Backend,
@@ -142,8 +143,7 @@ where
         memory_properties
             .memory_types
             .into_iter()
-            .map(|mt| (mt.properties.into(), mt.heap_index as u32)),
+            .map(|mt| (mt.properties.into(), mt.heap_index as u32, config)),
         memory_properties.memory_heaps,
-        config,
     )
 }

@@ -28,6 +28,14 @@ extern crate relevant;
 extern crate rendy_chain as chain;
 extern crate rendy_resource as resource;
 
+#[cfg(feature = "hal")]
+extern crate gfx_hal as hal;
+
+#[cfg(feature = "ash")]
+extern crate ash;
+
+mod impls;
+
 pub mod device;
 pub mod error;
 pub mod frame;

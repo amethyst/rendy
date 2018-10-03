@@ -1,6 +1,7 @@
 use buffer;
 use image;
 use memory;
+use error;
 use MemoryRequirements;
 
 /// Trait for resource creation, memory allocation and mapping.
@@ -52,7 +53,7 @@ pub trait Device: memory::Device + Sized {
         buffer: Self::UnboundBuffer,
         memory: &Self::Memory,
         offset: u64,
-    ) -> Result<Self::Buffer, memory::OutOfMemoryError>;
+    ) -> Result<Self::Buffer, error::BindError>;
 
     /// Destroy buffer object.
     unsafe fn destroy_buffer(&self, buffer: Self::Buffer);
@@ -61,7 +62,7 @@ pub trait Device: memory::Device + Sized {
     fn create_image(
         &self,
         info: image::CreateInfo,
-    ) -> Result<Self::UnboundImage, memory::OutOfMemoryError>;
+    ) -> Result<Self::UnboundImage, error::ImageCreationError>;
 
     /// Fetch image memory requirements.
     fn image_requirements(&self, image: &Self::UnboundImage) -> MemoryRequirements;
@@ -79,7 +80,7 @@ pub trait Device: memory::Device + Sized {
         image: Self::UnboundImage,
         memory: &Self::Memory,
         offset: u64,
-    ) -> Result<Self::Image, memory::OutOfMemoryError>;
+    ) -> Result<Self::Image, error::BindError>;
 
     /// Destroy image object.
     unsafe fn destroy_image(&self, image: Self::Image);

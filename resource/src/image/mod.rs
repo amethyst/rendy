@@ -28,9 +28,12 @@ pub enum Kind {
 /// Image size. Unused dimensions must have size `1`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Extent3D {
-    width: u32,
-    height: u32,
-    depth: u32,
+    /// The width of the extent
+    pub width: u32,
+    /// The height of the extent
+    pub height: u32,
+    /// The depth of the extent
+    pub depth: u32,
 }
 
 bitflags! {
@@ -124,35 +127,53 @@ pub enum Layout {
     SharedPresentSrc = 1000111000,
 }
 
+bitflags! {
+    /// Bitmask specifying capabilities to create views into an image.
+    /// See Vulkan docs for details:
+    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VkImageCreateFlagBits>
+    #[repr(transparent)]
+    pub struct ImageCreateFlags: u32 {
+        /// Specifies that the image can be used to create a view with a different format from the image.
+        const IMAGE_CREATE_MUTABLE_FORMAT = 0x00000008;
+        /// Specifies that the image can be used to create a cube or cube array view.
+        const IMAGE_CREATE_CUBE_COMPATIBLE = 0x00000010;
+        /// Specifies that the image can be used to create a 2D array view.
+        const IMAGE_CREATE_2D_ARRAY_COMPATIBLE = 0x00000020;
+    }
+}
+
 /// Contains information required to create an image.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CreateInfo {
     /// Image dimensionality.
-    kind: Kind,
+    pub kind: Kind,
 
     /// Image format.
-    format: Format,
+    pub format: Format,
 
     /// Image size.
-    extent: Extent3D,
+    pub extent: Extent3D,
 
     /// Number of mip levels to generate.
-    mips: u32,
+    pub mips: u32,
 
     /// Number of image layers.
-    array: u32,
+    pub array: u32,
 
     /// Number of samples per texel.
-    samples: SampleCountFlags,
+    pub samples: SampleCountFlags,
 
     /// Tiling of the image.
-    tiling: ImageTiling,
+    pub tiling: ImageTiling,
 
     /// Intended usage flags. Limits memory types suitable for the image.
-    usage: UsageFlags,
+    pub usage: UsageFlags,
 
     /// Specifies command queues from which families can access the image.
-    sharing: SharingMode,
+    pub sharing: SharingMode,
+
+    /// Specifies what kind of views can be created from the image.
+    pub flags: ImageCreateFlags,
 }
 
 /// Generic image object wrapper.

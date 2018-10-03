@@ -66,6 +66,3 @@ extern crate gfx_hal as hal;
 
 #[cfg(feature = "ash")]
 extern crate ash;
-
-#[cfg(feature = "ash")]
-extern crate smallvec;
