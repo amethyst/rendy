@@ -5,7 +5,7 @@ use std::{borrow::Borrow, marker::PhantomData, ops::Range, ptr::NonNull};
 
 use device::Device;
 use error::*;
-//use heaps::*;
+use heaps::*;
 use memory::*;
 use util::*;
 
@@ -129,20 +129,21 @@ where
     }
 }
 
-///// Fetch data necessary from `Backend::PhysicalDevice`
-//pub unsafe fn heaps_from_physical_device<B>(
-//    physical: &B::PhysicalDevice,
-//    config: Config,
-//) -> Heaps<B::Memory>
-//where
-//    B: hal::Backend,
-//{
-//    let memory_properties = ::hal::PhysicalDevice::memory_properties(physical);
-//    Heaps::new(
-//        memory_properties
-//            .memory_types
-//            .into_iter()
-//            .map(|mt| (mt.properties.into(), mt.heap_index as u32)),
-//        (memory_properties, config),
-//    )
-//}
+/// Fetch data necessary from `Backend::PhysicalDevice`
+#[allow(unused)]
+unsafe fn heaps_from_physical_device<B>(
+    physical: &B::PhysicalDevice,
+    config: Config,
+) -> Heaps<B::Memory>
+where
+    B: hal::Backend,
+{
+    let memory_properties = ::hal::PhysicalDevice::memory_properties(physical);
+    Heaps::new(
+        memory_properties
+            .memory_types
+            .into_iter()
+            .map(|mt| (mt.properties.into(), mt.heap_index as u32, config)),
+        memory_properties.memory_heaps,
+    )
+}
