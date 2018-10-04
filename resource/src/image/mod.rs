@@ -183,14 +183,14 @@ pub struct CreateInfo {
 /// `T` - type of the memory object of memory block.
 /// `B` - raw image type.
 #[derive(Debug)]
-pub struct Image<T, I> {
-    pub(super) inner: Escape<Inner<T, I>>,
+pub struct Image<M, I> {
+    pub(super) inner: Escape<Inner<M, I>>,
     pub(super) info: CreateInfo,
 }
 
 #[derive(Debug)]
-pub(super) struct Inner<T, I> {
-    pub(super) block: MemoryBlock<T>,
+pub(super) struct Inner<M, I> {
+    pub(super) block: MemoryBlock<M>,
     pub(super) raw: I,
     pub(super) relevant: Relevant,
 }

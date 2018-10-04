@@ -29,14 +29,14 @@ pub struct CreateInfo {
 /// `T` - type of the memory object of memory block.
 /// `B` - raw buffer type.
 #[derive(Debug)]
-pub struct Buffer<T, B> {
-    pub(crate) inner: Escape<Inner<T, B>>,
+pub struct Buffer<M, B> {
+    pub(crate) inner: Escape<Inner<M, B>>,
     pub(crate) info: CreateInfo,
 }
 
 #[derive(Debug)]
-pub(crate) struct Inner<T, B> {
-    pub(crate) block: MemoryBlock<T>,
+pub(crate) struct Inner<M, B> {
+    pub(crate) block: MemoryBlock<M>,
     pub(crate) raw: B,
     pub(crate) relevant: Relevant,
 }
