@@ -1,12 +1,22 @@
+//! Defines node - building block for framegraph.
+//!
+
 use chain::{
-    access::AccessFlags, node::State, resource::{Buffer, Image}, Id,
+    node::State,
+    resource::{Buffer, Image},
+    Id,
 };
 use command::{
-    buffer::Submit, capability::{Capability, CapabilityFlags}, device::Device, family::FamilyId,
-    frame::{Frame, FrameBound}, pool::FramePool,
+    buffer::Submit,
+    capability::{Capability, CapabilityFlags},
+    device::Device,
+    family::FamilyId,
+    frame::{Frame, FrameBound},
+    pool::FramePool,
 };
-use resource::{buffer, image};
+// use resource::{buffer, image};
 
+#[doc(hidden)]
 pub trait FrameBoundSubmits<'a, D: Device + ?Sized> {
     type Submits: IntoIterator<Item = Submit<FrameBound<'a, D::Fence, D::Submit>>>;
 }
@@ -53,12 +63,15 @@ pub trait Node<D: Device + ?Sized, T: ?Sized>:
 /// Wraps resources requested by the node.
 /// This wrapper guarantees that lifetime of resources is bound to the node lifetime.
 /// Also it automatically inserts synchronization required to make access declared by node correct.
+#[derive(Clone, Debug)]
 pub struct Resources<'a, B: 'a, I: 'a> {
     buffers: Vec<&'a B>,
     images: Vec<&'a I>,
     barriers: Barriers,
 }
 
+/// Set of barriers the node must insert before and after commands.
+#[derive(Clone, Copy, Debug)]
 pub struct Barriers;
 
 /// Builder of the node.
@@ -97,7 +110,7 @@ pub trait NodeDesc<D: Device + ?Sized, T: ?Sized>: Sized + 'static {
         device: &D,
         aux: &mut T,
         pool: FramePool<D::CommandPool, D::CommandBuffer, <Self::Node as Node<D, T>>::Capability>,
-        resources: Resources<D::Buffer, D::Image>,
+        resources: Resources<'_, D::Buffer, D::Image>,
     ) -> Self::Node;
 }
 
@@ -138,13 +151,18 @@ where
     }
 }
 
+/// Trait-object safe `NodeDesc`.
 pub trait AnyNodeDesc<D: Device + ?Sized, T: ?Sized> {
+    /// Find family suitable for the node.
+    fn family(&self, families: &[(CapabilityFlags, FamilyId)]) -> Option<FamilyId>;
+
+    /// Build the node.
     fn build(
         &self,
         device: &D,
         aux: &mut T,
         pool: FramePool<D::CommandPool, D::CommandBuffer, CapabilityFlags>,
-        resources: Resources<D::Buffer, D::Image>,
+        resources: Resources<'_, D::Buffer, D::Image>,
     ) -> Box<dyn AnyNode<D, T>>;
 }
 
@@ -154,18 +172,26 @@ where
     T: ?Sized,
     N: NodeDesc<D, T>,
 {
+    fn family(&self, families: &[(CapabilityFlags, FamilyId)]) -> Option<FamilyId> {
+        families
+            .iter()
+            .find(|&(cap, _)| <N::Node as Node<D, T>>::Capability::from_flags(*cap).is_some())
+            .map(|&(_, id)| id)
+    }
+
     fn build(
         &self,
         device: &D,
         aux: &mut T,
         pool: FramePool<D::CommandPool, D::CommandBuffer, CapabilityFlags>,
-        resources: Resources<D::Buffer, D::Image>,
+        resources: Resources<'_, D::Buffer, D::Image>,
     ) -> Box<dyn AnyNode<D, T>> {
         let node = NodeDesc::build(
             self,
             device,
             aux,
             pool.cast_capability()
+                .map_err(|_| ())
                 .expect("Must have correct capability"),
             resources,
         );
@@ -173,8 +199,10 @@ where
     }
 }
 
+/// Builder for the node.
+#[allow(missing_debug_implementations)]
 pub struct NodeBuilder<D: Device + ?Sized, T: ?Sized> {
-    pub(crate) desc: Box<AnyNodeDesc<D, T>>,
+    pub(crate) desc: Box<dyn AnyNodeDesc<D, T>>,
     pub(crate) buffers: Vec<Id>,
     pub(crate) images: Vec<Id>,
     pub(crate) dependencies: Vec<usize>,
@@ -185,6 +213,7 @@ where
     D: Device + ?Sized,
     T: ?Sized,
 {
+    /// Create new builder.
     pub fn new<N>() -> Self
     where
         N: Node<D, T>,
@@ -198,33 +227,57 @@ where
         }
     }
 
+    /// Add buffer to the node.
+    /// This method must be called for each buffer node uses.
     pub fn add_buffer(&mut self, buffer: Id) -> &mut Self {
         self.buffers.push(buffer);
         self
     }
 
+    /// Add image to the node.
+    /// This method must be called for each image node uses.
     pub fn add_image(&mut self, image: Id) -> &mut Self {
         self.images.push(image);
         self
     }
 
+    /// Add dependency.
+    /// Node will be placed after its dependencies.
     pub fn add_dependency(&mut self, dependency: usize) -> &mut Self {
         self.dependencies.push(dependency);
         self
     }
 
+    /// Add buffer to the node.
+    /// This method must be called for each buffer node uses.
     pub fn with_buffer(mut self, buffer: Id) -> Self {
         self.add_buffer(buffer);
         self
     }
 
+    /// Add image to the node.
+    /// This method must be called for each image node uses.
     pub fn with_image(mut self, image: Id) -> Self {
         self.add_image(image);
         self
     }
 
+    /// Add dependency.
+    /// Node will be placed after its dependencies.
     pub fn with_dependency(mut self, dependency: usize) -> Self {
         self.add_dependency(dependency);
         self
+    }
+
+    /// Build node from this.
+    #[allow(unused)]
+    pub(crate) fn build(
+        &self,
+        device: &D,
+        aux: &mut T,
+        pool: FramePool<D::CommandPool, D::CommandBuffer, CapabilityFlags>,
+        resources: Resources<'_, D::Buffer, D::Image>,
+    ) -> Box<dyn AnyNode<D, T>> {
+        self.desc.build(device, aux, pool, resources)
     }
 }

@@ -49,7 +49,13 @@ impl IntegerFitting for u64 {
 }
 
 #[cfg(
-    not(any(target_pointer_width = "16", target_pointer_width = "32", target_pointer_width = "64"))
+    not(
+        any(
+            target_pointer_width = "16",
+            target_pointer_width = "32",
+            target_pointer_width = "64"
+        )
+    )
 )]
 impl IntegerFitting for u64 {
     fn fits_usize(self) -> bool {

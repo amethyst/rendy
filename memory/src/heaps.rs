@@ -58,8 +58,7 @@ impl<T: 'static> Heaps<T> {
                     let heap_index = heap_index as usize;
                     assert!(heap_index < heaps.len());
                     MemoryType::new(memory_type, heap_index, properties, config)
-                })
-                .collect(),
+                }).collect(),
             heaps,
         }
     }
@@ -93,8 +92,7 @@ impl<T: 'static> Heaps<T> {
                     usage
                         .memory_fitness(mt.properties)
                         .map(move |fitness| (index, mt, fitness))
-                })
-                .collect::<SmallVec<[_; 64]>>();
+                }).collect::<SmallVec<[_; 64]>>();
 
             if suitable_types.is_empty() {
                 return Err(AllocationError::NoSuitableMemory(mask, usage.value()).into());
@@ -330,7 +328,8 @@ impl<T: 'static> MemoryType<T> {
     {
         match (usage.value(), self.arena.as_mut(), self.dynamic.as_mut()) {
             (UsageValue::Upload, Some(ref mut arena), _)
-            | (UsageValue::Download, Some(ref mut arena), _) if size <= arena.max_allocation() =>
+            | (UsageValue::Download, Some(ref mut arena), _)
+                if size <= arena.max_allocation() =>
             {
                 arena
                     .alloc(device, size, align)

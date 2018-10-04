@@ -1,7 +1,7 @@
 use buffer;
+use error;
 use image;
 use memory;
-use error;
 use MemoryRequirements;
 
 /// Trait for resource creation, memory allocation and mapping.

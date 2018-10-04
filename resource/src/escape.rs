@@ -4,7 +4,10 @@
 //! Users are encouraged to dispose of the values manually while `Escape` be just a safety net.
 
 use std::{
-    iter::repeat, mem::{forget, ManuallyDrop}, ops::{Deref, DerefMut}, ptr::read,
+    iter::repeat,
+    mem::{forget, ManuallyDrop},
+    ops::{Deref, DerefMut},
+    ptr::read,
 };
 
 use crossbeam_channel::{unbounded, Receiver, Sender};

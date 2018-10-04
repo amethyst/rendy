@@ -196,8 +196,7 @@ impl<T: 'static> DynamicAllocator<T> {
                     chunks: VecList::new(),
                     blocks: BitSet::new(),
                     total_chunks: 0,
-                })
-                .collect(),
+                }).collect(),
         }
     }
 

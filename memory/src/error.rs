@@ -42,7 +42,11 @@ pub enum MappingError {
     OutOfMemoryError(OutOfMemoryError),
 
     /// Attempt to interpret mapped range with wrong alignment.
-    #[fail(display = "Offset {} doesn't satisfy alignment requirements {}", offset, align)]
+    #[fail(
+        display = "Offset {} doesn't satisfy alignment requirements {}",
+        offset,
+        align
+    )]
     Unaligned {
         /// Alignment requirements.
         align: usize,
@@ -70,7 +74,11 @@ pub enum AllocationError {
     TooManyObjects,
 
     /// No memory types for specified mask and usage were found.
-    #[fail(display = "No suitable memory types for mask: ({}) and usage: ({:?})", _0, _1)]
+    #[fail(
+        display = "No suitable memory types for mask: ({}) and usage: ({:?})",
+        _0,
+        _1
+    )]
     NoSuitableMemory(u32, UsageValue),
 }
 

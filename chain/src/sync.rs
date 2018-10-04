@@ -331,8 +331,7 @@ where
         .map(|(qid, queue)| {
             let sid = SubmissionId::new(qid, queue.last);
             (schedule[sid].submit_order(), sid)
-        })
-        .max_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
+        }).max_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
         .unwrap();
     sid
 }
@@ -346,8 +345,7 @@ where
         .map(|(qid, queue)| {
             let sid = SubmissionId::new(qid, queue.first);
             (schedule[sid].submit_order(), sid)
-        })
-        .min_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
+        }).min_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
         .unwrap();
     sid
 }

@@ -18,7 +18,6 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 
-
 #[macro_use]
 extern crate failure;
 
@@ -36,17 +35,17 @@ extern crate gfx_hal as hal;
 extern crate ash;
 
 mod device;
-mod escape;
-mod resources;
-mod impls;
 mod error;
+mod escape;
+mod impls;
+mod resources;
 
 pub mod buffer;
 pub mod image;
 
 pub use device::Device;
+pub use error::{ImageCreationError, ResourceError};
 pub use resources::Resources;
-pub use error::{ResourceError, ImageCreationError};
 
 /// Sharing mode.
 /// Resources created with sharing mode `Exclusive`

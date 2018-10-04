@@ -1,6 +1,7 @@
 use rendy_resource::{buffer, image};
 use std::{
-    fmt::Debug, ops::{BitOr, BitOrAssign},
+    fmt::Debug,
+    ops::{BitOr, BitOrAssign},
 };
 
 use access::AccessFlags;
@@ -133,8 +134,7 @@ impl Resource for Image {
                 } else {
                     acc
                 }
-            })
-            .unwrap_or(image::Layout::General)
+            }).unwrap_or(image::Layout::General)
     }
 
     fn valid_usage(access: AccessFlags, usage: image::UsageFlags) -> bool {

@@ -1,5 +1,6 @@
 use super::{
-    family::FamilyId, submission::{Submission, SubmissionId},
+    family::FamilyId,
+    submission::{Submission, SubmissionId},
 };
 
 /// Queue id.

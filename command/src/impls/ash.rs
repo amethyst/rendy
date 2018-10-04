@@ -7,9 +7,9 @@ use ash::{
 use device::{CommandBuffer, CommandQueue, Device};
 
 impl<V> Device for ash::Device<V>
-    where
-        V: FunctionPointers,
-        ash::Device<V>: DeviceV1_0,
+where
+    V: FunctionPointers,
+    ash::Device<V>: DeviceV1_0,
 {
     type Semaphore = vk::Semaphore;
     type Fence = vk::Fence;

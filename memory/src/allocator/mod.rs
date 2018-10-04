@@ -46,7 +46,7 @@ pub trait Allocator {
 
 fn memory_ptr_fmt<T: fmt::Debug>(
     memory: &*const Memory<T>,
-    fmt: &mut fmt::Formatter,
+    fmt: &mut fmt::Formatter<'_>,
 ) -> Result<(), fmt::Error> {
     unsafe {
         if fmt.alternate() {

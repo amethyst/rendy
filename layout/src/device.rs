@@ -2,7 +2,7 @@ use memory::OutOfMemoryError;
 use resource;
 use std::{borrow::Borrow, fmt::Debug};
 
-use descriptor::*;
+use descriptor::RawDescriptorWrite;
 use pipeline::*;
 use set::*;
 
@@ -44,5 +44,7 @@ pub trait Device: resource::Device + Sized {
         P::Item: Borrow<PushConstantRange>;
 
     /// Write descriptor set.
-    unsafe fn write_descriptor_set<'a>(&self, write: RawDescriptorSetWrite<'a, Self>);
+    unsafe fn write_descriptor_set<'a, W>(&self, write: RawDescriptorSetWrite<'_, Self, W>)
+    where
+        W: IntoIterator<Item = RawDescriptorWrite<'a, Self>>;
 }

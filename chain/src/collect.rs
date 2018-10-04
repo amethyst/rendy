@@ -143,8 +143,7 @@ where
                 .map(|(index, &node)| {
                     let (fitness, qid) = fitness(node, &mut images, &mut buffers, &mut schedule);
                     (fitness, qid, index)
-                })
-                .min()
+                }).min()
                 .unwrap();
 
             let node = ready_nodes.swap_remove(index);

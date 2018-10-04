@@ -1,5 +1,8 @@
 use std::{
-    mem::{align_of, size_of}, ops::Range, ptr::NonNull, slice::{from_raw_parts, from_raw_parts_mut},
+    mem::{align_of, size_of},
+    ops::Range,
+    ptr::NonNull,
+    slice::{from_raw_parts, from_raw_parts_mut},
 };
 
 use error::MappingError;

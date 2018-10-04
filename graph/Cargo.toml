@@ -5,6 +5,7 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
 bitflags = "*"
+derivative = "*"
 failure = "*"
 serde = { version = "*", optional = true, features = ["derive"] }
 smallvec = "*"

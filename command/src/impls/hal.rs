@@ -19,9 +19,9 @@ where
 }
 
 impl<C, B> CommandBuffer for (C, PhantomData<B>)
-    where
-        B: hal::Backend,
-        C: Borrow<B::CommandBuffer>,
+where
+    B: hal::Backend,
+    C: Borrow<B::CommandBuffer>,
 {
     type Submit = B::CommandBuffer;
 
@@ -31,9 +31,9 @@ impl<C, B> CommandBuffer for (C, PhantomData<B>)
 }
 
 impl<C, B> CommandQueue for (C, PhantomData<B>)
-    where
-        B: hal::Backend,
-        C: Borrow<B::CommandQueue>,
+where
+    B: hal::Backend,
+    C: Borrow<B::CommandQueue>,
 {
     type Semaphore = B::Semaphore;
     type Fence = B::Fence;

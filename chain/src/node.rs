@@ -54,12 +54,12 @@ impl Node {
     }
 
     /// Get iterator to buffer states this node accesses.
-    pub fn buffers(&self) -> HashMapIter<Id, State<Buffer>> {
+    pub fn buffers(&self) -> HashMapIter<'_, Id, State<Buffer>> {
         self.buffers.iter()
     }
 
     /// Get iterator to image states this node accesses.
-    pub fn images(&self) -> HashMapIter<Id, State<Image>> {
+    pub fn images(&self) -> HashMapIter<'_, Id, State<Image>> {
         self.images.iter()
     }
 }

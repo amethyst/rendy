@@ -15,7 +15,9 @@ mod submission;
 use std::ops::{Index, IndexMut};
 
 pub use self::{
-    family::{Family, FamilyId}, queue::{Queue, QueueId}, submission::{Submission, SubmissionId},
+    family::{Family, FamilyId},
+    queue::{Queue, QueueId},
+    submission::{Submission, SubmissionId},
 };
 
 use fnv::FnvHashMap;

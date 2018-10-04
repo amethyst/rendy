@@ -7,7 +7,7 @@
 
 use device::Device;
 use resource::image;
-use std::{borrow::Borrow, ops::Range};
+use std::ops::Range;
 
 /// Type of the descriptor.
 /// Every descriptor has a type.
@@ -50,7 +50,7 @@ pub enum DescriptorType {
 }
 
 #[doc(hidden)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum RawDescriptorWrite<'a, D: Device> {
     Sampler(&'a D::Sampler),
     CombinedImageSampler(&'a D::Sampler, &'a D::ImageView, image::Layout),
@@ -68,10 +68,11 @@ pub enum RawDescriptorWrite<'a, D: Device> {
 #[doc(hidden)]
 pub trait Descriptor<D: Device, T> {
     fn descriptor_type() -> DescriptorType;
-    fn write(&self) -> RawDescriptorWrite<D>;
+    fn write(&self) -> RawDescriptorWrite<'_, D>;
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct SamplerDescriptor;
 
 impl<D> Descriptor<D, SamplerDescriptor> for D::Sampler
@@ -82,12 +83,13 @@ where
         DescriptorType::Sampler
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::Sampler(self)
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct CombinedImageSamplerDescriptor;
 
 impl<D> Descriptor<D, CombinedImageSamplerDescriptor> for (D::Sampler, D::ImageView, image::Layout)
@@ -98,12 +100,13 @@ where
         DescriptorType::CombinedImageSampler
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::CombinedImageSampler(&self.0, &self.1, self.2)
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct SampledImageDescriptor;
 
 impl<D> Descriptor<D, SampledImageDescriptor> for (D::ImageView, image::Layout)
@@ -114,12 +117,13 @@ where
         DescriptorType::SampledImage
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::SampledImage(&self.0, self.1)
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct StorageImageDescriptor;
 
 impl<D> Descriptor<D, StorageImageDescriptor> for (D::ImageView, image::Layout)
@@ -130,12 +134,13 @@ where
         DescriptorType::StorageImage
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::StorageImage(&self.0, self.1)
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct UniformTexelBufferDescriptor;
 
 impl<D> Descriptor<D, UniformTexelBufferDescriptor> for D::BufferView
@@ -146,12 +151,13 @@ where
         DescriptorType::UniformTexelBuffer
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::UniformTexelBuffer(self)
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct StorageTexelBufferDescriptor;
 
 impl<D> Descriptor<D, StorageTexelBufferDescriptor> for D::BufferView
@@ -162,12 +168,13 @@ where
         DescriptorType::StorageTexelBuffer
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::StorageTexelBuffer(self)
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct UniformBufferDescriptor;
 
 impl<D> Descriptor<D, UniformBufferDescriptor> for (D::Buffer, Range<u64>)
@@ -178,12 +185,13 @@ where
         DescriptorType::UniformBuffer
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::UniformBuffer(&self.0, self.1.clone())
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct StorageBufferDescriptor;
 
 impl<D> Descriptor<D, StorageBufferDescriptor> for (D::Buffer, Range<u64>)
@@ -194,12 +202,13 @@ where
         DescriptorType::StorageBuffer
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::StorageBuffer(&self.0, self.1.clone())
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct UniformBufferDynamicDescriptor;
 
 impl<D> Descriptor<D, UniformBufferDynamicDescriptor> for (D::Buffer, Range<u64>)
@@ -210,12 +219,13 @@ where
         DescriptorType::UniformBufferDynamic
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::UniformBufferDynamic(&self.0, self.1.clone())
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct StorageBufferDynamicDescriptor;
 
 impl<D> Descriptor<D, StorageBufferDynamicDescriptor> for (D::Buffer, Range<u64>)
@@ -226,12 +236,13 @@ where
         DescriptorType::StorageBufferDynamic
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::StorageBufferDynamic(&self.0, self.1.clone())
     }
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
 pub struct InputAttachmentDescriptor;
 
 impl<D> Descriptor<D, InputAttachmentDescriptor> for (D::ImageView, image::Layout)
@@ -242,7 +253,7 @@ where
         DescriptorType::InputAttachment
     }
 
-    fn write(&self) -> RawDescriptorWrite<D> {
+    fn write(&self) -> RawDescriptorWrite<'_, D> {
         RawDescriptorWrite::InputAttachment(&self.0, self.1)
     }
 }

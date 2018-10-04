@@ -1,11 +1,13 @@
 use ash::{
-    self, version::{DeviceV1_0, FunctionPointers},
+    self,
+    version::{DeviceV1_0, FunctionPointers},
 };
 use device::Device;
 use error::*;
 use smallvec::SmallVec;
 use std::{
-    ops::Range, ptr::{null, null_mut, NonNull},
+    ops::Range,
+    ptr::{null, null_mut, NonNull},
 };
 
 impl From<ash::vk::Result> for OutOfMemoryError {
@@ -112,8 +114,7 @@ where
                 memory: *memory,
                 offset: range.start,
                 size: range.end - range.start,
-            })
-            .collect::<SmallVec<[_; 32]>>();
+            }).collect::<SmallVec<[_; 32]>>();
         self.invalidate_mapped_memory_ranges(&ranges)?;
         Ok(())
     }
@@ -130,8 +131,7 @@ where
                 memory: *memory,
                 offset: range.start,
                 size: range.end - range.start,
-            })
-            .collect::<SmallVec<[_; 32]>>();
+            }).collect::<SmallVec<[_; 32]>>();
         self.flush_mapped_memory_ranges(&ranges)?;
         Ok(())
     }

@@ -13,11 +13,11 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-// #![deny(unused)]
+#![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
 #![deny(rust_2018_compatibility)]
-// #![deny(rust_2018_idioms)]
+#![deny(rust_2018_idioms)]
 
 //!
 //! #[derive(PipelineDesc)]
@@ -48,5 +48,7 @@ mod pipeline;
 mod set;
 mod shaders;
 
+pub use descriptor::*;
 pub use device::Device;
+pub use set::*;
 pub use shaders::ShaderStageFlags;
