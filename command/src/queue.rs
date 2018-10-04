@@ -9,13 +9,18 @@ use device::CommandQueue;
 /// together with semaphores to wait and semaphores signal.
 #[derive(Clone, Copy, Debug)]
 pub struct Submission<W, L, S> {
-    wait: W,
-    buffers: L,
-    signal: S,
+    /// Semaphores to wait before executing commands.
+    pub waits: W,
+
+    /// Buffers with commands to execute.
+    pub buffers: L,
+
+    /// Semaphores to signal after executing commands.
+    pub signals: S,
 }
 
 /// Command queue with known capabilities.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Queue<Q, C> {
     inner: Q,
     capability: C,

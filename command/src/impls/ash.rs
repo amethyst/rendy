@@ -5,6 +5,13 @@ use ash::{
 };
 
 use device::{CommandBuffer, CommandQueue, Device};
+use fence;
+
+impl From<fence::FenceCreateFlags> for vk::FenceCreateFlags {
+    fn from(flags: fence::FenceCreateFlags) -> Self {
+        Self::from_flags(flags.bits()).expect("Unsupported flags")
+    }
+}
 
 impl<V> Device for ash::Device<V>
 where
@@ -17,6 +24,16 @@ where
     type CommandPool = (vk::DeviceFnV1_0, vk::CommandBuffer);
     type CommandBuffer = (vk::DeviceFnV1_0, vk::CommandBuffer);
     type CommandQueue = vk::Queue;
+
+    unsafe fn create_fence(&self, info: fence::FenceCreateInfo) -> Self::Fence {
+        use std::ptr::null;
+
+        DeviceV1_0::create_fence(self, &vk::FenceCreateInfo {
+            s_type: vk::StructureType::FenceCreateInfo,
+            p_next: null(),
+            flags: info.flags.into(),
+        }, None).unwrap()
+    }
 }
 
 impl CommandBuffer for (vk::DeviceFnV1_0, vk::CommandBuffer) {

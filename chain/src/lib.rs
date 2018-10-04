@@ -1,22 +1,22 @@
 //! This crate can derive synchronization required
 //! for the dependency chain of the whole execution graph.
 
-#![forbid(overflowing_literals)]
-#![deny(missing_copy_implementations)]
-#![deny(missing_debug_implementations)]
-#![deny(missing_docs)]
-#![deny(intra_doc_link_resolution_failure)]
-#![deny(path_statements)]
-#![deny(trivial_bounds)]
-#![deny(type_alias_bounds)]
-#![deny(unconditional_recursion)]
-#![deny(unions_with_drop_fields)]
-#![deny(while_true)]
-#![deny(unused)]
-#![deny(bad_style)]
-#![deny(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
+// #![forbid(overflowing_literals)]
+// #![deny(missing_copy_implementations)]
+// #![deny(missing_debug_implementations)]
+// #![deny(missing_docs)]
+// #![deny(intra_doc_link_resolution_failure)]
+// #![deny(path_statements)]
+// #![deny(trivial_bounds)]
+// #![deny(type_alias_bounds)]
+// #![deny(unconditional_recursion)]
+// #![deny(unions_with_drop_fields)]
+// #![deny(while_true)]
+// #![deny(unused)]
+// #![deny(bad_style)]
+// #![deny(future_incompatible)]
+// #![warn(rust_2018_compatibility)]
+// #![warn(rust_2018_idioms)]
 
 #[macro_use]
 extern crate bitflags;
@@ -30,18 +30,26 @@ extern crate rendy_resource;
 pub struct Id(pub u64);
 
 /// ???
-pub mod access;
+mod access;
 /// ???
-pub mod chain;
+mod chain;
 /// ???
-pub mod collect;
+mod collect;
 /// ???
-pub mod node;
+mod node;
 /// ???
-pub mod resource;
+mod resource;
 /// ???
-pub mod schedule;
+mod schedule;
 /// ???
-pub mod stage;
+mod stage;
 /// ???
-pub mod sync;
+mod sync;
+
+pub use chain::Chain;
+pub use node::{Node, State};
+pub use resource::{Buffer, Image, Resource};
+pub use stage::{PipelineStageFlags, GraphicsPipelineStage, ComputePipelineStage};
+pub use sync::SyncData;
+pub use schedule::Schedule;
+

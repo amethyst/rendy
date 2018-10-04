@@ -7,6 +7,34 @@ use error::DeviceLost;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FrameIndex(u64);
 
+/// Generate `Frame`s.
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
+pub struct FrameGen(u64);
+
+impl FrameGen {
+    /// Only one `FrameGen` should be used.
+    pub unsafe fn new() -> Self {
+        FrameGen(0)
+    }
+
+    /// Generate next `Frame`.
+    pub fn next<F>(&mut self) -> Frame<F> {
+        self.0 += 1;
+        unsafe {
+            Frame::new(FrameIndex(self.0))
+        }
+    }
+
+    /// Generate next `Frame`, fences included.
+    pub fn next_with_fences<F>(&mut self, fences: Vec<F>) -> Frame<F> {
+        self.0 += 1;
+        unsafe {
+            Frame::with_fences(FrameIndex(self.0), fences)
+        }
+    }
+}
+
 /// Single frame rendering task.
 /// Command buffers can be submitted as part of the `Frame`.
 /// Internally frame is just an index and fences.
@@ -27,6 +55,17 @@ impl<F> Frame<F> {
         Frame {
             index,
             fences: Vec::new(),
+        }
+    }
+    /// Create new frame instance.
+    ///
+    /// # Safety
+    ///
+    /// Index must be unique.
+    pub unsafe fn with_fences(index: FrameIndex, fences: Vec<F>) -> Self {
+        Frame {
+            index,
+            fences,
         }
     }
 

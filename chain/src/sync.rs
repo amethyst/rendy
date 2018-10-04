@@ -320,7 +320,7 @@ where
     result
 }
 
-// submit_order creates a consistant direction in which semaphores are generated, avoiding issues
+// submit_order creates a consistent direction in which semaphores are generated, avoiding issues
 // with deadlocks.
 fn latest<R, S>(link: &Link<R>, schedule: &Schedule<S>) -> SubmissionId
 where

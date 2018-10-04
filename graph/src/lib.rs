@@ -11,7 +11,7 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-#![deny(unused)]
+// #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
 #![warn(rust_2018_compatibility)]
@@ -19,6 +19,12 @@
 
 extern crate rendy_chain as chain;
 extern crate rendy_command as command;
-// extern crate rendy_resource as resource;
+extern crate rendy_resource as resource;
+extern crate smallvec;
 
-pub mod node;
+mod node;
+mod graph;
+
+
+pub use node::{Node, NodeDesc, NodeBuilder};
+pub use graph::Graph;

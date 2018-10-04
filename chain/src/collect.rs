@@ -348,7 +348,7 @@ fn schedule_node<'a>(
     queue_data.wait_factor = max(queue_data.wait_factor, wait_factor + 1);
     let sid = queue_data
         .queue
-        .add_submission(wait_factor, submitted, Unsynchronized);
+        .add_submission(node.id, wait_factor, submitted, Unsynchronized);
     let submission = queue_data.queue.submission_mut(sid).unwrap();
 
     for &(id, state) in &node.buffers {
