@@ -94,6 +94,15 @@ Once `rendy` will be able to render simple scenes it probably will be integrated
 
 Those libraries can be seen as draft for `rendy`.
 
+## License
+
+Licensed under either of
+
+* Apache License, Version 2.0, ([license/APACHE](license/APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([license/MIT](license/MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
 [`ash`]: https://github.com/MaikKlein/ash
 [`gfx-hal`]: https://github.com/gfx-rs/gfx
 [`gfx-memory`]: https://github.com/gfx-rs/gfx-memory
