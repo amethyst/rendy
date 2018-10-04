@@ -12,24 +12,24 @@ use image;
 /// Resource manager.
 /// It can be used to create and destroy resources such as buffers and images.
 #[derive(Debug)]
-pub struct Resources<T, B, I> {
-    buffers: Terminal<buffer::Inner<T, B>>,
-    images: Terminal<image::Inner<T, I>>,
+pub struct Resources<M, B, I> {
+    buffers: Terminal<buffer::Inner<M, B>>,
+    images: Terminal<image::Inner<M, I>>,
 }
 
-impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
+impl<M: 'static, B: 'static, I: 'static> Resources<M, B, I> {
     /// Create a buffer and bind to the memory that support intended usage.
-    pub fn create_buffer<D, M>(
+    pub fn create_buffer<D, U>(
         &mut self,
         device: &D,
-        heaps: &mut Heaps<T>,
+        heaps: &mut Heaps<M>,
         info: buffer::CreateInfo,
         align: u64,
-        memory_usage: M,
-    ) -> Result<buffer::Buffer<T, B>, MemoryError>
+        memory_usage: U,
+    ) -> Result<buffer::Buffer<M, B>, MemoryError>
     where
-        D: Device<Memory = T, Buffer = B>,
-        M: MemoryUsage,
+        D: Device<Memory = M, Buffer = B>,
+        U: MemoryUsage,
     {
         let ubuf = device.create_buffer(info)?;
         let reqs = device.buffer_requirements(&ubuf);
@@ -59,33 +59,33 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_buffer<D>(buffer: buffer::Buffer<T, B>, device: &D, heaps: &mut Heaps<T>)
+    pub unsafe fn destroy_buffer<D>(buffer: buffer::Buffer<M, B>, device: &D, heaps: &mut Heaps<M>)
     where
-        D: Device<Memory = T, Buffer = B>,
+        D: Device<Memory = M, Buffer = B>,
     {
         Self::destroy_buffer_inner(Escape::into_inner(buffer.inner), device, heaps)
     }
 
-    unsafe fn destroy_buffer_inner<D>(inner: buffer::Inner<T, B>, device: &D, heaps: &mut Heaps<T>)
+    unsafe fn destroy_buffer_inner<D>(inner: buffer::Inner<M, B>, device: &D, heaps: &mut Heaps<M>)
     where
-        D: Device<Memory = T, Buffer = B>,
+        D: Device<Memory = M, Buffer = B>,
     {
         device.destroy_buffer(inner.raw);
         heaps.free(device, inner.block);
     }
 
     /// Create an image and bind to the memory that support intended usage.
-    pub fn create_image<D, M>(
+    pub fn create_image<D, U>(
         &mut self,
         device: &D,
-        heaps: &mut Heaps<T>,
+        heaps: &mut Heaps<M>,
         info: image::CreateInfo,
         align: u64,
-        memory_usage: M,
-    ) -> Result<image::Image<T, I>, ResourceError>
+        memory_usage: U,
+    ) -> Result<image::Image<M, I>, ResourceError>
     where
-        D: Device<Memory = T, Image = I>,
-        M: MemoryUsage,
+        D: Device<Memory = M, Image = I>,
+        U: MemoryUsage,
     {
         let uimg = device.create_image(info)?;
         let reqs = device.image_requirements(&uimg);
@@ -111,25 +111,25 @@ impl<T: 'static, B: 'static, I: 'static> Resources<T, B, I> {
 
     /// Destroy image.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_image<D>(image: image::Image<T, I>, device: &D, heaps: &mut Heaps<T>)
+    pub unsafe fn destroy_image<D>(image: image::Image<M, I>, device: &D, heaps: &mut Heaps<M>)
     where
-        D: Device<Memory = T, Image = I>,
+        D: Device<Memory = M, Image = I>,
     {
         Self::destroy_image_inner(Escape::into_inner(image.inner), device, heaps)
     }
 
-    unsafe fn destroy_image_inner<D>(inner: image::Inner<T, I>, device: &D, heaps: &mut Heaps<T>)
+    unsafe fn destroy_image_inner<D>(inner: image::Inner<M, I>, device: &D, heaps: &mut Heaps<M>)
     where
-        D: Device<Memory = T, Image = I>,
+        D: Device<Memory = M, Image = I>,
     {
         device.destroy_image(inner.raw);
         heaps.free(device, inner.block);
     }
 
     /// Recycle dropped resources.
-    pub unsafe fn cleanup<D>(&mut self, device: &D, heaps: &mut Heaps<T>)
+    pub unsafe fn cleanup<D>(&mut self, device: &D, heaps: &mut Heaps<M>)
     where
-        D: Device<Memory = T, Buffer = B, Image = I>,
+        D: Device<Memory = M, Buffer = B, Image = I>,
     {
         for buffer in self.buffers.drain() {
             device.destroy_buffer(buffer.raw);
