@@ -14,8 +14,8 @@
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
-#![deny(rust_2018_compatibility)]
-#![deny(rust_2018_idioms)]
+#![warn(rust_2018_compatibility)]
+#![warn(rust_2018_idioms)]
 // TODO: Cleanup the code and remove.
 #![allow(dead_code, unreachable_code, unused_variables)]
 

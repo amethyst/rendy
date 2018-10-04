@@ -20,8 +20,8 @@
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
-#![deny(rust_2018_compatibility)]
-#![deny(rust_2018_idioms)]
+#![warn(rust_2018_compatibility)]
+#![warn(rust_2018_idioms)]
 
 extern crate proc_macro;
 // extern crate syn;
