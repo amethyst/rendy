@@ -11,13 +11,12 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-#![deny(unused)]
+// #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
 #![warn(rust_2018_compatibility)]
 #![warn(rust_2018_idioms)]
-// TODO: Cleanup the code and remove.
-#![allow(dead_code, unreachable_code, unused_variables)]
+
 
 #[macro_use]
 extern crate bitflags;
@@ -36,15 +35,23 @@ extern crate ash;
 
 mod impls;
 
-pub mod device;
-pub mod error;
-pub mod frame;
+mod device;
+mod error;
+mod family;
+mod fence;
+mod frame;
+mod buffer;
+mod capability;
+mod encoder;
+mod pool;
+mod queue;
 
-pub mod buffer;
-pub mod capability;
-pub mod encoder;
-pub mod family;
-pub mod pool;
-pub mod queue;
-
+pub use buffer::{Buffer, Submit};
+pub use capability::{Capability, CapabilityFlags};
 pub use device::{CommandBuffer, Device};
+pub use encoder::Encoder;
+pub use family::{Family, FamilyId, Families};
+pub use fence::{FenceCreateInfo, FenceCreateFlags};
+pub use frame::{Frame, FrameBound, FrameIndex, CompleteFrame, FrameGen};
+pub use pool::{Pool, OwningPool, FramePool};
+pub use queue::{Submission, Queue};

@@ -38,6 +38,7 @@ impl SubmissionId {
 /// This type corresponds to commands that should be recorded into single primary command buffer.
 #[derive(Clone, Debug)]
 pub struct Submission<S> {
+    node: usize,
     id: SubmissionId,
     resource_links: FnvHashMap<Id, usize>,
     wait_factor: usize,
@@ -46,6 +47,11 @@ pub struct Submission<S> {
 }
 
 impl<S> Submission<S> {
+    /// Get id of the `Node`.
+    pub fn node(&self) -> usize {
+        self.node
+    }
+
     /// Get synchronization for `Submission`.
     pub fn id(&self) -> SubmissionId {
         self.id
@@ -72,8 +78,9 @@ impl<S> Submission<S> {
     }
 
     /// Create new submission with specified pass.
-    pub(crate) fn new(wait_factor: usize, submit_order: usize, id: SubmissionId, sync: S) -> Self {
+    pub(crate) fn new(node: usize, wait_factor: usize, submit_order: usize, id: SubmissionId, sync: S) -> Self {
         Submission {
+            node,
             resource_links: FnvHashMap::default(),
             id,
             wait_factor,
@@ -85,6 +92,7 @@ impl<S> Submission<S> {
     /// Set synchronization to the `Submission`.
     pub(crate) fn set_sync<T>(&self, sync: T) -> Submission<T> {
         Submission {
+            node: self.node,
             resource_links: self.resource_links.clone(),
             id: self.id,
             wait_factor: self.wait_factor,

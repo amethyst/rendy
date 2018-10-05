@@ -1,8 +1,9 @@
 //! Device module docs.
 
-use std::fmt::Debug;
+use std::{borrow::Borrow, fmt::Debug};
 
 use resource;
+use fence::FenceCreateInfo;
 
 /// Abstract logical device.
 /// It inherits methods to allocate memory and create resources.
@@ -28,6 +29,23 @@ pub trait Device: resource::Device {
             Fence = Self::Fence,
             Submit = Self::Submit,
         > + 'static;
+
+    /// Create new fence.
+    unsafe fn create_fence(&self, info: FenceCreateInfo) -> Self::Fence;
+
+    /// Reset fence.
+    unsafe fn reset_fence(&self, fence: &Self::Fence) {
+        self.reset_fences(Some(fence))
+    }
+
+    /// Reset multiple fences at once.
+    unsafe fn reset_fences<F>(&self, fences: F)
+    where
+        F: IntoIterator,
+        F::Item: Borrow<Self::Fence>,
+    {
+        fences.into_iter().for_each(|fence| self.reset_fence(fence.borrow()));
+    }
 }
 
 /// Abstract command buffer.

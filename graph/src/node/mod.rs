@@ -2,17 +2,21 @@
 //!
 
 use chain::{
-    node::State,
-    resource::{Buffer, Image},
+    State,
+    Buffer,
+    Image,
     Id,
 };
+
 use command::{
-    buffer::Submit,
-    capability::{Capability, CapabilityFlags},
-    device::Device,
-    family::FamilyId,
-    frame::{Frame, FrameBound},
-    pool::FramePool,
+    Submit,
+    Capability,
+    CapabilityFlags,
+    Device,
+    FamilyId,
+    Frame,
+    FrameBound,
+    FramePool,
 };
 // use resource::{buffer, image};
 

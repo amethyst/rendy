@@ -1,6 +1,6 @@
 //! Capability module docs.
 
-use chain::stage::PipelineStageFlags;
+use chain::PipelineStageFlags;
 
 bitflags! {
     /// Bitmask specifying capabilities of queues in a queue family.

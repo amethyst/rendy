@@ -1,5 +1,6 @@
 //! Family module docs.
 
+use capability::CapabilityFlags;
 use device::Device;
 use pool::Pool;
 use queue::Queue;
@@ -11,7 +12,7 @@ pub struct FamilyId(pub u32);
 /// Family of the command queues.
 /// Queues from one family can share resources and execute command buffers associated with the family.
 /// All queues of the family have same capabilities.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Family<Q, C> {
     index: FamilyId,
     queues: Vec<Queue<Q, C>>,
@@ -32,4 +33,10 @@ impl<Q, C> Family<Q, C> {
     {
         unimplemented!()
     }
+}
+
+/// Collection of all families.
+#[derive(Clone, Debug)]
+pub struct Families<Q> {
+    families: Vec<Family<Q, CapabilityFlags>>,
 }

@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use hal;
 
 use device::{CommandBuffer, CommandQueue, Device};
+use fence;
 
 impl<D, B> Device for (D, PhantomData<B>)
 where
@@ -16,6 +17,10 @@ where
     type CommandPool = B::CommandPool;
     type CommandBuffer = (B::CommandBuffer, PhantomData<B>);
     type CommandQueue = (B::CommandQueue, PhantomData<B>);
+
+    unsafe fn create_fence(&self, info: fence::FenceCreateInfo) -> Self::Fence {
+        hal::Device::create_fence(self.0.borrow(), info.flags.contains(fence::FenceCreateFlags::CREATE_SIGNALED))
+    }
 }
 
 impl<C, B> CommandBuffer for (C, PhantomData<B>)

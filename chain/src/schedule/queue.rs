@@ -73,10 +73,10 @@ impl<S> Queue<S> {
     //     }
     // }
 
-    // /// Get the number of submissions in queue.
-    // pub fn len(&self) -> usize {
-    //     self.submissions.len()
-    // }
+    /// Get the number of submissions in queue.
+    pub fn len(&self) -> usize {
+        self.submissions.len()
+    }
 
     /// Get reference to `Submission` instance by id.
     ///
@@ -114,18 +114,19 @@ impl<S> Queue<S> {
     /// Returns id of the added submission.
     pub fn add_submission(
         &mut self,
+        node: usize,
         wait_factor: usize,
         submit_order: usize,
         sync: S,
     ) -> SubmissionId {
         let sid = SubmissionId::new(self.id, self.submissions.len());
         self.submissions
-            .push(Submission::new(wait_factor, submit_order, sid, sync));
+            .push(Submission::new(node, wait_factor, submit_order, sid, sync));
         sid
     }
 
     /// Add `Submission` instance to the end of queue.
-    /// Returns id of the added submission.
+    /// Check that submission has correct id.
     pub fn add_submission_checked(&mut self, submission: Submission<S>) {
         assert_eq!(
             submission.id(),
