@@ -9,3 +9,8 @@ matrix:
   fast_finish: true
 script:
   - cargo test --verbose --all --all-features
+branches:
+  only:
+    - staging
+    - trying
+    - master
