@@ -4,13 +4,13 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-bitflags = "*"
-crossbeam-channel = "*"
+bitflags = "1.0"
+crossbeam-channel = "0.2"
 rendy-memory = { path = "../memory" }
-relevant = "*"
-failure = "*"
+relevant = "0.2"
+failure = "0.1"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
-ash = { version = "*", optional = true }
+ash = { version = "0.24", optional = true }
 
 [features]
 hal = ["gfx-hal", "rendy-memory/hal"]

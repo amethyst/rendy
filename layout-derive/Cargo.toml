@@ -7,6 +7,6 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 proc-macro = true
 
 [dependencies]
-syn = "*"
-quote = "*"
+syn = "0.15"
+quote = "0.6"
 

@@ -4,19 +4,19 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-bitflags = "*"
-failure = "*"
-veclist = "*"
+bitflags = "1.0"
+failure = "0.1"
+veclist = "0.1"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
-ash = { version = "*", optional = true }
-serde = { version = "*", optional = true, features = ["derive"] }
-smallvec = "*"
-hibitset = "*"
-relevant = "*"
-derivative = "*"
+ash = { version = "0.24", optional = true }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+smallvec = "0.6"
+hibitset = "0.5"
+relevant = "0.2"
+derivative = "1.0"
 
 [dev-dependencies]
-rand = "*"
+rand = "0.5"
 
 [features]
 hal = ["gfx-hal"]

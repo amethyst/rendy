@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-bitflags = "*"
-fnv = "*"
-failure = "*"
+bitflags = "1.0"
+fnv = "1.0"
+failure = "0.1"
 rendy-resource = { path = "../resource" }
