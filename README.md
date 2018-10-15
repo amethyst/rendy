@@ -119,6 +119,12 @@ Licensed under either of
 
 at your option.
 
+## API overview
+
+This is draft version.
+
+<img src="docs/public_api_overview.svg">
+
 [`ash`]: https://github.com/MaikKlein/ash
 [`gfx-hal`]: https://github.com/gfx-rs/gfx
 [`gfx-memory`]: https://github.com/gfx-rs/gfx-memory
