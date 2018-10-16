@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::default::Default;
 
 use memory::{Block, Heaps, MemoryError, Usage as MemoryUsage};
 use relevant::Relevant;
@@ -11,13 +12,19 @@ use image;
 
 /// Resource manager.
 /// It can be used to create and destroy resources such as buffers and images.
-#[derive(Debug)]
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct Resources<M, B, I> {
     buffers: Terminal<buffer::Inner<M, B>>,
     images: Terminal<image::Inner<M, I>>,
 }
 
 impl<M: 'static, B: 'static, I: 'static> Resources<M, B, I> {
+    /// Create new Resource
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Create a buffer and bind to the memory that support intended usage.
     pub fn create_buffer<D, U>(
         &mut self,

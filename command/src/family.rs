@@ -40,3 +40,12 @@ impl<Q, C> Family<Q, C> {
 pub struct Families<Q> {
     families: Vec<Family<Q, CapabilityFlags>>,
 }
+
+impl<Q> Families<Q> {
+    /// Create a new Families collection that is empty
+    pub fn new() -> Self {
+        Families {
+            families: Vec::new(),
+        }
+    }
+}

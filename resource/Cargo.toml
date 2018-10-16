@@ -9,6 +9,7 @@ crossbeam-channel = "0.2"
 rendy-memory = { path = "../memory" }
 relevant = "0.2"
 failure = "0.1"
+derivative = "1.0"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
 ash = { version = "0.24", optional = true }
 

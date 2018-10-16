@@ -1,0 +1,10 @@
+[package]
+name = "rendy"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+rendy-memory = { path = "../memory" }
+rendy-resource = { path = "../resource" }
+rendy-command = { path = "../command" }
+derivative = "1.0"
