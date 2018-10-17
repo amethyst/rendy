@@ -6,12 +6,13 @@
 
 mod link;
 
-use fnv::FnvHashMap;
 use std::ops::BitOr;
+use fnv::FnvHashMap;
 
-pub use self::link::{Link, LinkNode};
 use resource::{Buffer, Image, Resource};
 use Id;
+
+pub(crate) use self::link::{Link, LinkNode};
 
 /// This type corresponds to resource category.
 /// All resources from the same category must be accessed as permitted by links of the chain.
@@ -25,59 +26,59 @@ where
     R: Resource,
 {
     /// Get links slice
-    pub fn links(&self) -> &[Link<R>] {
+    pub(crate) fn links(&self) -> &[Link<R>] {
         &self.links
     }
 
     /// Create new empty `Chain`
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Chain { links: Vec::new() }
     }
 
     /// Get links slice
-    pub fn last_link_mut(&mut self) -> Option<&mut Link<R>> {
+    pub(crate) fn last_link_mut(&mut self) -> Option<&mut Link<R>> {
         self.links.last_mut()
     }
 
     /// Add new link to the chain.
-    pub fn add_link(&mut self, link: Link<R>) -> &mut Link<R> {
+    pub(crate) fn add_link(&mut self, link: Link<R>) -> &mut Link<R> {
         self.links.push(link);
         self.links.last_mut().unwrap()
     }
 
-    /// Get link by index.
-    pub fn link(&self, index: usize) -> &Link<R> {
-        &self.links[index]
-    }
+    // /// Get link by index.
+    // pub(crate) fn link(&self, index: usize) -> &Link<R> {
+    //     &self.links[index]
+    // }
 
-    /// Get link by index.
-    pub fn link_mut(&mut self, index: usize) -> &mut Link<R> {
-        &mut self.links[index]
-    }
+    // /// Get link by index.
+    // pub(crate) fn link_mut(&mut self, index: usize) -> &mut Link<R> {
+    //     &mut self.links[index]
+    // }
 
-    /// Get link by index.
-    pub fn next_link(&self, index: usize) -> &Link<R> {
-        let index = (index + 1) % self.links.len();
-        self.link(index)
-    }
+    // /// Get link by index.
+    // pub(crate) fn next_link(&self, index: usize) -> &Link<R> {
+    //     let index = (index + 1) % self.links.len();
+    //     self.link(index)
+    // }
 
-    /// Get link by index.
-    pub fn next_link_mut(&mut self, index: usize) -> &mut Link<R> {
-        let index = (index + 1) % self.links.len();
-        self.link_mut(index)
-    }
+    // /// Get link by index.
+    // pub(crate) fn next_link_mut(&mut self, index: usize) -> &mut Link<R> {
+    //     let index = (index + 1) % self.links.len();
+    //     self.link_mut(index)
+    // }
 
-    /// Get link by index.
-    pub fn prev_link(&self, index: usize) -> &Link<R> {
-        let index = (index + self.links.len() - 1) % self.links.len();
-        self.link(index)
-    }
+    // /// Get link by index.
+    // pub(crate) fn prev_link(&self, index: usize) -> &Link<R> {
+    //     let index = (index + self.links.len() - 1) % self.links.len();
+    //     self.link(index)
+    // }
 
-    /// Get link by index.
-    pub fn prev_link_mut(&mut self, index: usize) -> &mut Link<R> {
-        let index = (index + self.links.len() - 1) % self.links.len();
-        self.link_mut(index)
-    }
+    // /// Get link by index.
+    // pub(crate) fn prev_link_mut(&mut self, index: usize) -> &mut Link<R> {
+    //     let index = (index + self.links.len() - 1) % self.links.len();
+    //     self.link_mut(index)
+    // }
 
     /// Get total usage.
     pub fn usage(&self) -> R::Usage {
@@ -89,7 +90,7 @@ where
 }
 
 /// Type alias for map of chains by id for buffers.
-pub type BufferChains = FnvHashMap<Id, Chain<Buffer>>;
+pub(crate) type BufferChains = FnvHashMap<Id, Chain<Buffer>>;
 
 /// Type alias for map of chains by id for images.
-pub type ImageChains = FnvHashMap<Id, Chain<Image>>;
+pub(crate) type ImageChains = FnvHashMap<Id, Chain<Image>>;
