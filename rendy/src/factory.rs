@@ -1,18 +1,20 @@
-use rendy_command::Families;
-use rendy_memory::{Config as MemoryConfig, Heaps, MemoryError, Properties, Usage};
-use rendy_resource::{
+use command::Families;
+use memory::{Config as MemoryConfig, Heaps, MemoryError, Properties, Usage};
+use resource::{
     buffer::{self, Buffer},
     image::{self, Image},
     ResourceError, Resources, SharingMode,
 };
+use winit::Window;
 
-use config::Config;
+use config::{Config, RenderConfig};
 use device::Device;
-use physical_device::PhysicalDevice;
 use queue::QueuesPicker;
+use render::{Render, Target};
 
+/// The `Factory<D>` type represents the overall creation type for `rendy`.
 pub struct Factory<D: Device> {
-    device: D,
+    pub device: D,
     families: Families<D::CommandQueue>,
     heaps: Heaps<D::Memory>,
     resources: Resources<D::Memory, D::Buffer, D::Image>,
@@ -22,18 +24,15 @@ impl<D> Factory<D>
 where
     D: Device,
 {
-    pub fn new<P, H, Q>(config: Config<Q>, physical_device: P) -> Result<Self, ()>
+    /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesPicker`
+    /// from the specified `PhysicalDevice`.
+    pub fn new<P, Q>(config: Config<Q>) -> Result<Factory<D>, ()>
     where
-        P: PhysicalDevice<D>,
         Q: QueuesPicker,
     {
-        let (device, families) = {
-            let (family_id, count) = config.pick_queues()?;
-
-            physical_device.open(family_id, count)?
-        };
-
         let heaps = unimplemented!();
+        let device = unimplemented!();
+        let families = unimplemented!();
 
         Ok(Factory {
             device,
@@ -43,6 +42,7 @@ where
         })
     }
 
+    /// Creates a buffer that is managed with the specified properties.
     pub fn create_buffer<U>(
         &mut self,
         size: u64,
@@ -64,6 +64,7 @@ where
             .create_buffer(&self.device, &mut self.heaps, info, align, memory_usage)
     }
 
+    /// Creates an image that is mananged with the specified properties.
     pub fn create_image<U>(
         &mut self,
         kind: image::Kind,
@@ -98,4 +99,16 @@ where
         self.resources
             .create_image(&self.device, &mut self.heaps, info, align, memory_usage)
     }
+
+    // pub fn create_surface<R>(window: &Window) -> Target<D, R> {
+    //     unimplemented!()
+    // }
+
+    // /// Build a `Render<D, T>` from the `RenderBuilder` and a render info
+    // pub fn build_render<'a, R, T>(builder: RenderBuilder, render_config: RenderConfig) -> R
+    // where
+    //     R: Render<D, T>,
+    // {
+    //     unimplemented!()
+    // }
 }

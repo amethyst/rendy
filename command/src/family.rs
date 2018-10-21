@@ -48,4 +48,9 @@ impl<Q> Families<Q> {
             families: Vec::new(),
         }
     }
+
+    /// Add a family to the `Families<Q>` group
+    pub fn add_family<C>(&mut self, family: Family<Q, CapabilityFlags>) {
+        self.families.push(family);
+    }
 }
