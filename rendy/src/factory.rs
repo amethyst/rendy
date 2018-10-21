@@ -1,12 +1,15 @@
 use rendy_command::Families;
-use rendy_memory::{Config, Heaps, MemoryError, Properties, Usage};
+use rendy_memory::{Config as MemoryConfig, Heaps, MemoryError, Properties, Usage};
 use rendy_resource::{
     buffer::{self, Buffer},
     image::{self, Image},
     ResourceError, Resources, SharingMode,
 };
 
+use config::Config;
 use device::Device;
+use physical_device::PhysicalDevice;
+use queue::QueuesPicker;
 
 pub struct Factory<D: Device> {
     device: D,
@@ -19,22 +22,25 @@ impl<D> Factory<D>
 where
     D: Device,
 {
-    pub fn new<P, H>(device: D, types: P, heaps: H) -> Self
+    pub fn new<P, H, Q>(config: Config<Q>, physical_device: P) -> Result<Self, ()>
     where
-        P: IntoIterator<Item = (Properties, u32, Config)>,
-        H: IntoIterator<Item = u64>,
+        P: PhysicalDevice<D>,
+        Q: QueuesPicker,
     {
-        // TODO: make sure this is safe
-        let heaps = unsafe { Heaps::new(types, heaps) };
+        let (device, families) = {
+            let (family_id, count) = config.pick_queues()?;
 
-        let families = Families::new();
+            physical_device.open(family_id, count)?
+        };
 
-        Factory {
+        let heaps = unimplemented!();
+
+        Ok(Factory {
             device,
             families,
             heaps,
             resources: Resources::new(),
-        }
+        })
     }
 
     pub fn create_buffer<U>(

@@ -8,3 +8,14 @@ rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
 rendy-command = { path = "../command" }
 derivative = "1.0"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx", optional = true }
+ash = { version = "0.1", optional = true }
+
+[features]
+hal = ["gfx-hal"]
+# FIXME: find better feature name for ash
+ash-raw = ["ash"]
+
+[[example]]
+name = "basic"
+required-features = ["hal"]
