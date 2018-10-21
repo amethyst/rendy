@@ -23,7 +23,7 @@ fn main() -> Result<(), ()> {
     let render_config = RenderBuilder::new().with_window(window).build();
     let config = Config::new(vec![render_config], PickFirst);
 
-    // TODO: migrate example to ash
+    // TODO: migrate example to `ash`
     // let instance = backend::Instance::create("Rendy basic example", 1);
 
     // let adapter = instance.enumerate_adapters().remove(0);
