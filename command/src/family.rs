@@ -1,6 +1,6 @@
 //! Family module docs.
 
-use capability::CapabilityFlags;
+use capability::{Capability, CapabilityFlags};
 use device::Device;
 use pool::Pool;
 use queue::Queue;
@@ -35,6 +35,48 @@ impl<Q, C> Family<Q, C> {
     }
 }
 
+impl<Q, C> Family<Q, C>
+where
+    C: Capability,
+{
+    /// Convert from some `Family<Q, C>` where `C` is something that implements
+    /// `Capability`
+    pub fn from(family: Self) -> Family<Q, CapabilityFlags> {
+        Family {
+            index: family.index,
+            queues: family
+                .queues
+                .into_iter()
+                .map(|queue| Queue {
+                    inner: queue.inner,
+                    capability: queue.capability.into_flags(),
+                }).collect::<Vec<_>>(),
+            capability: family.capability.into_flags(),
+        }
+    }
+
+    /// Convert into a `Family<Q, C>` where `C` something that implements
+    /// `Capability`
+    pub fn into(family: Family<Q, CapabilityFlags>) -> Option<Self> {
+        if let Some(capability) = C::from_flags(family.capability) {
+            Some(Family {
+                index: family.index,
+                queues: family
+                    .queues
+                    .into_iter()
+                    .map(|queue| Queue {
+                        inner: queue.inner,
+                        capability: C::from_flags(queue.capability)
+                            .expect("Unable to convert queue capability to a CapabilityFlag"),
+                    }).collect::<Vec<_>>(),
+                capability,
+            })
+        } else {
+            None
+        }
+    }
+}
+
 /// Collection of all families.
 #[derive(Clone, Debug)]
 pub struct Families<Q> {
@@ -50,7 +92,10 @@ impl<Q> Families<Q> {
     }
 
     /// Add a family to the `Families<Q>` group
-    pub fn add_family<C>(&mut self, family: Family<Q, CapabilityFlags>) {
-        self.families.push(family);
+    pub fn add_family<C>(&mut self, family: Family<Q, C>)
+    where
+        C: Capability,
+    {
+        self.families.push(Family::from(family));
     }
 }

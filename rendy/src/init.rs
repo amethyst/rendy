@@ -9,7 +9,7 @@ pub use impls::hal::init;
 
 /// Initialize rendy
 #[cfg(not(feature = "hal"))]
-pub fn init<D, Q>(_config: Config<Q>) -> Result<(Factory<D>), ()>
+pub fn init<D, Q>(_config: Config, queue_picker: Q) -> Result<(Factory<D>), ()>
 where
     D: Device,
     Q: QueuesPicker,

@@ -26,7 +26,7 @@ where
 {
     /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesPicker`
     /// from the specified `PhysicalDevice`.
-    pub fn new<P, Q>(config: Config<Q>) -> Result<Factory<D>, ()>
+    pub fn new<P, Q>(config: Config, queue_picker: Q) -> Result<Factory<D>, ()>
     where
         Q: QueuesPicker,
     {

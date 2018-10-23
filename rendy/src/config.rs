@@ -1,36 +1,30 @@
 use winit::Window;
 
-use command::FamilyId;
-use queue::QueuesPicker;
-
 // TODO: figure out what these values should be
+#[derive(Debug, Clone, Default)]
 pub struct MemoryConfig {}
 
-pub struct Config<Q> {
+#[derive(Debug, Clone, Default)]
+pub struct Config {
     memory: MemoryConfig,
     renders: Vec<RenderConfig>,
-    queue_picker: Q,
 }
 
-impl<Q> Config<Q>
-where
-    Q: QueuesPicker,
-{
-    pub fn new(renders: Vec<RenderConfig>, queue_picker: Q) -> Self {
+impl Config {
+    pub fn new(renders: Vec<RenderConfig>) -> Self {
         Config {
             memory: MemoryConfig {},
             renders,
-            queue_picker,
         }
-    }
-
-    pub fn pick_queues(&self) -> Result<(FamilyId, u32), ()> {
-        self.queue_picker.pick_queues()
     }
 }
 
+#[derive(Debug, Clone, Derivative)]
+#[derivative(Default)]
 pub struct RenderConfig {
-    windows: Vec<Window>,
+    // #[derivative(Debug = "ignore")]
+    // windows: Vec<Window>,
+    #[derivative(Default(value = "3"))]
     image_count: u32,
 }
 
@@ -49,19 +43,23 @@ impl RenderBuilder {
     pub fn new() -> Self {
         RenderBuilder {
             windows: Vec::new(),
-            image_count: 0,
+            image_count: 3,
         }
     }
 
     pub fn with_window(mut self, window: Window) -> Self {
         self.windows.push(window);
-        self.image_count += 1;
         self
     }
 
-    pub fn build(mut self) -> RenderConfig {
+    pub fn with_image_count(mut self, image_count: u32) -> Self {
+        self.image_count = image_count;
+        self
+    }
+
+    pub fn build(self) -> RenderConfig {
         RenderConfig {
-            windows: self.windows,
+            //windows: self.windows,
             image_count: self.image_count,
         }
     }

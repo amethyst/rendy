@@ -6,6 +6,9 @@ pub extern crate rendy_resource as resource;
 
 extern crate winit;
 
+#[macro_use]
+extern crate derivative;
+
 #[cfg(feature = "hal")]
 pub extern crate gfx_hal as hal;
 

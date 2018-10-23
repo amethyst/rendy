@@ -1,6 +1,9 @@
-use command::{CapabilityFlags, FamilyId};
+use command::{CapabilityFlags, Families, Family};
 
 /// Trait that represents some method to select a queue family.
 pub trait QueuesPicker {
-    fn pick_queues(&self) -> Result<(FamilyId, u32), ()>;
+    fn pick_queues<Q>(
+        &self,
+        families: Vec<Families<Q>>,
+    ) -> Result<(Family<Q, CapabilityFlags>, u32), ()>;
 }
