@@ -20,7 +20,7 @@ where
 
 /// Initalize rendy
 #[cfg(feature = "hal")]
-pub fn init<D, Q, B>(config: Config<Q>) -> Result<(Factory<D>), ()>
+pub fn init<D, Q, B>(config: Config, queue_picker: Q) -> Result<(Factory<D>), ()>
 where
     D: Device,
     Q: QueuesPicker,

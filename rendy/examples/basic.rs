@@ -4,7 +4,7 @@ extern crate winit;
 
 use hal::{Adapter, Backend, Instance};
 use rendy::{
-    command::{Families, FamilyId},
+    command::{CapabilityFlags, Families, Family, FamilyId},
     Config, Device, Factory, QueuesPicker, RenderBuilder,
 };
 use winit::{EventsLoop, WindowBuilder};
@@ -21,7 +21,7 @@ fn main() -> Result<(), ()> {
         .unwrap();
 
     let render_config = RenderBuilder::new().with_window(window).build();
-    let config = Config::new(vec![render_config], PickFirst);
+    let config = Config::new(vec![render_config]);
 
     // TODO: migrate example to `ash`
     // let instance = backend::Instance::create("Rendy basic example", 1);
@@ -40,7 +40,10 @@ fn main() -> Result<(), ()> {
 
 struct PickFirst;
 impl QueuesPicker for PickFirst {
-    fn pick_queues(&self) -> Result<(FamilyId, u32), ()> {
-        Ok((FamilyId(0), 1))
+    fn pick_queues<Q>(
+        &self,
+        families: Vec<Families<Q>>,
+    ) -> Result<(Family<Q, CapabilityFlags>, u32), ()> {
+        unimplemented!()
     }
 }
