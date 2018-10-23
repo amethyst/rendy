@@ -50,11 +50,18 @@ pub trait Capability: Copy {
     /// Try to create capability instance from flags.
     /// Instance will be created if all required flags set.
     fn from_flags(flags: CapabilityFlags) -> Option<Self>;
+
+    /// Convert into `CapabilityFlags`
+    fn into_flags(self) -> CapabilityFlags;
 }
 
 impl Capability for CapabilityFlags {
     fn from_flags(flags: CapabilityFlags) -> Option<Self> {
         Some(flags)
+    }
+
+    fn into_flags(self) -> CapabilityFlags {
+        self
     }
 }
 
@@ -66,6 +73,10 @@ impl Capability for Transfer {
             None
         }
     }
+
+    fn into_flags(self) -> CapabilityFlags {
+        CapabilityFlags::TRANSFER
+    }
 }
 
 impl Capability for Execute {
@@ -75,6 +86,10 @@ impl Capability for Execute {
         } else {
             None
         }
+    }
+
+    fn into_flags(self) -> CapabilityFlags {
+        CapabilityFlags::COMPUTE | CapabilityFlags::GRAPHICS
     }
 }
 
@@ -86,6 +101,10 @@ impl Capability for Compute {
             None
         }
     }
+
+    fn into_flags(self) -> CapabilityFlags {
+        CapabilityFlags::COMPUTE
+    }
 }
 
 impl Capability for Graphics {
@@ -96,6 +115,10 @@ impl Capability for Graphics {
             None
         }
     }
+
+    fn into_flags(self) -> CapabilityFlags {
+        CapabilityFlags::GRAPHICS
+    }
 }
 
 impl Capability for General {
@@ -105,6 +128,10 @@ impl Capability for General {
         } else {
             None
         }
+    }
+
+    fn into_flags(self) -> CapabilityFlags {
+        CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE
     }
 }
 

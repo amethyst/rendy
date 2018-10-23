@@ -22,8 +22,8 @@ pub struct Submission<W, L, S> {
 /// Command queue with known capabilities.
 #[derive(Clone, Debug)]
 pub struct Queue<Q, C> {
-    inner: Q,
-    capability: C,
+    pub(super) inner: Q,
+    pub(super) capability: C,
 }
 
 impl<Q, C> Queue<Q, C> {

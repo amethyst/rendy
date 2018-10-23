@@ -24,6 +24,9 @@ extern crate failure;
 #[macro_use]
 extern crate bitflags;
 
+#[macro_use]
+extern crate derivative;
+
 extern crate crossbeam_channel;
 extern crate relevant;
 extern crate rendy_memory as memory;

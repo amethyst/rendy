@@ -8,4 +8,5 @@ members = [
     "layout",
     "layout-derive",
     "graph",
+    "rendy"
 ]

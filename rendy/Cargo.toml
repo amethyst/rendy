@@ -1,0 +1,21 @@
+[package]
+name = "rendy"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+rendy-memory = { path = "../memory" }
+rendy-resource = { path = "../resource" }
+rendy-command = { path = "../command" }
+derivative = "1.0"
+winit = "0.17"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx", optional = true }
+ash = { version = "0.24", optional = true }
+
+[features]
+hal = ["gfx-hal", "rendy-memory/hal", "rendy-resource/hal", "rendy-command/hal"]
+vulkan = ["ash", "rendy-memory/vulkan", "rendy-resource/vulkan", "rendy-command/vulkan"]
+
+[[example]]
+name = "basic"
+required-features = ["hal"]
