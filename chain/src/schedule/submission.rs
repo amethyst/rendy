@@ -52,7 +52,7 @@ impl<S> Submission<S> {
         self.node
     }
 
-    /// Get synchronization for `Submission`.
+    /// Get id of the `Submission`.
     pub fn id(&self) -> SubmissionId {
         self.id
     }
@@ -78,7 +78,13 @@ impl<S> Submission<S> {
     }
 
     /// Create new submission with specified pass.
-    pub(crate) fn new(node: usize, wait_factor: usize, submit_order: usize, id: SubmissionId, sync: S) -> Self {
+    pub(crate) fn new(
+        node: usize,
+        wait_factor: usize,
+        submit_order: usize,
+        id: SubmissionId,
+        sync: S,
+    ) -> Self {
         Submission {
             node,
             resource_links: FnvHashMap::default(),

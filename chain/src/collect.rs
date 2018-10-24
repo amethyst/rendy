@@ -18,9 +18,9 @@ pub struct Unsynchronized;
 
 /// Result of node scheduler.
 #[derive(Debug)]
-pub struct Chains<S = Unsynchronized> {
+pub struct Chains {
     /// Contains submissions for nodes spread among queue schedule.
-    pub schedule: Schedule<S>,
+    pub schedule: Schedule<Unsynchronized>,
 
     /// Contains all buffer chains.
     pub buffers: BufferChains,

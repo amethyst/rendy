@@ -1,10 +1,9 @@
-use rendy_resource::{buffer, image};
 use std::{
     fmt::Debug,
     ops::{BitOr, BitOrAssign},
 };
 
-use access::AccessFlags;
+use ash::vk::{AccessFlags, BufferUsageFlags, ImageUsageFlags, ImageLayout};
 
 /// Abstracts resource types that uses different usage flags and layouts types.
 pub trait Resource: 'static {
@@ -40,32 +39,32 @@ const BUFFER_ACCESSES: [AccessFlags; 8] = [
 pub struct Buffer;
 
 impl Resource for Buffer {
-    type Usage = buffer::UsageFlags;
+    type Usage = BufferUsageFlags;
     type Layout = ();
 
     fn no_usage() -> Self::Usage {
-        buffer::UsageFlags::empty()
+        BufferUsageFlags::empty()
     }
 
     fn layout_for(_access: AccessFlags) {}
 
-    fn valid_usage(access: AccessFlags, usage: buffer::UsageFlags) -> bool {
+    fn valid_usage(access: AccessFlags, usage: BufferUsageFlags) -> bool {
         BUFFER_ACCESSES.iter().all(|&access_bit| {
-            !access.contains(access_bit) || usage.intersects(match access_bit {
-                AccessFlags::INDIRECT_COMMAND_READ => buffer::UsageFlags::INDIRECT_BUFFER,
-                AccessFlags::INDEX_READ => buffer::UsageFlags::INDEX_BUFFER,
-                AccessFlags::VERTEX_ATTRIBUTE_READ => buffer::UsageFlags::VERTEX_BUFFER,
-                AccessFlags::UNIFORM_READ => buffer::UsageFlags::UNIFORM_BUFFER,
+            !access.subset(access_bit) || usage.intersects(match access_bit {
+                AccessFlags::INDIRECT_COMMAND_READ => BufferUsageFlags::INDIRECT_BUFFER,
+                AccessFlags::INDEX_READ => BufferUsageFlags::INDEX_BUFFER,
+                AccessFlags::VERTEX_ATTRIBUTE_READ => BufferUsageFlags::VERTEX_BUFFER,
+                AccessFlags::UNIFORM_READ => BufferUsageFlags::UNIFORM_BUFFER,
                 AccessFlags::SHADER_READ => {
-                    buffer::UsageFlags::STORAGE_BUFFER
-                        | buffer::UsageFlags::UNIFORM_TEXEL_BUFFER
-                        | buffer::UsageFlags::STORAGE_TEXEL_BUFFER
+                    BufferUsageFlags::STORAGE_BUFFER
+                        | BufferUsageFlags::UNIFORM_TEXEL_BUFFER
+                        | BufferUsageFlags::STORAGE_TEXEL_BUFFER
                 }
                 AccessFlags::SHADER_WRITE => {
-                    buffer::UsageFlags::STORAGE_BUFFER | buffer::UsageFlags::STORAGE_TEXEL_BUFFER
+                    BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::STORAGE_TEXEL_BUFFER
                 }
-                AccessFlags::TRANSFER_READ => buffer::UsageFlags::TRANSFER_SRC,
-                AccessFlags::TRANSFER_WRITE => buffer::UsageFlags::TRANSFER_DST,
+                AccessFlags::TRANSFER_READ => BufferUsageFlags::TRANSFER_SRC,
+                AccessFlags::TRANSFER_WRITE => BufferUsageFlags::TRANSFER_DST,
                 _ => unreachable!(),
             })
         })
@@ -89,68 +88,68 @@ const IMAGE_ACCESSES: [AccessFlags; 9] = [
 pub struct Image;
 
 impl Resource for Image {
-    type Usage = image::UsageFlags;
+    type Usage = ImageUsageFlags;
 
-    type Layout = image::Layout;
+    type Layout = ImageLayout;
 
     fn no_usage() -> Self::Usage {
-        image::UsageFlags::empty()
+        ImageUsageFlags::empty()
     }
 
-    fn layout_for(access: AccessFlags) -> image::Layout {
+    fn layout_for(access: AccessFlags) -> ImageLayout {
         IMAGE_ACCESSES
             .iter()
             .fold(None, |acc, &access_bit| {
-                if access.contains(access_bit) {
+                if access.subset(access_bit) {
                     let layout = match access_bit {
-                        AccessFlags::INPUT_ATTACHMENT_READ => image::Layout::ShaderReadOnlyOptimal,
-                        AccessFlags::COLOR_ATTACHMENT_READ => image::Layout::ColorAttachmentOptimal,
+                        AccessFlags::INPUT_ATTACHMENT_READ => ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                        AccessFlags::COLOR_ATTACHMENT_READ => ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                         AccessFlags::COLOR_ATTACHMENT_WRITE => {
-                            image::Layout::ColorAttachmentOptimal
+                            ImageLayout::COLOR_ATTACHMENT_OPTIMAL
                         }
                         AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => {
-                            image::Layout::DepthStencilReadOnlyOptimal
+                            ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL
                         }
                         AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => {
-                            image::Layout::DepthStencilAttachmentOptimal
+                            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
                         }
-                        AccessFlags::TRANSFER_READ => image::Layout::TransferSrcOptimal,
-                        AccessFlags::TRANSFER_WRITE => image::Layout::TransferDstOptimal,
+                        AccessFlags::TRANSFER_READ => ImageLayout::TRANSFER_SRC_OPTIMAL,
+                        AccessFlags::TRANSFER_WRITE => ImageLayout::TRANSFER_DST_OPTIMAL,
                         _ => unreachable!(),
                     };
                     Some(match (acc, layout) {
                         (None, layout) => layout,
                         (Some(left), right) if left == right => left,
                         (
-                            Some(image::Layout::DepthStencilReadOnlyOptimal),
-                            image::Layout::DepthStencilAttachmentOptimal,
-                        ) => image::Layout::DepthStencilAttachmentOptimal,
+                            Some(ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL),
+                            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                        ) => ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                         (
-                            Some(image::Layout::DepthStencilAttachmentOptimal),
-                            image::Layout::DepthStencilReadOnlyOptimal,
-                        ) => image::Layout::DepthStencilAttachmentOptimal,
-                        (Some(_), _) => image::Layout::General,
+                            Some(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL),
+                            ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                        ) => ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                        (Some(_), _) => ImageLayout::GENERAL,
                     })
                 } else {
                     acc
                 }
-            }).unwrap_or(image::Layout::General)
+            }).unwrap_or(ImageLayout::GENERAL)
     }
 
-    fn valid_usage(access: AccessFlags, usage: image::UsageFlags) -> bool {
+    fn valid_usage(access: AccessFlags, usage: ImageUsageFlags) -> bool {
         IMAGE_ACCESSES.iter().all(|&access_bit| {
-            !access.contains(access_bit) || usage.intersects(match access_bit {
-                AccessFlags::INPUT_ATTACHMENT_READ => image::UsageFlags::INPUT_ATTACHMENT,
-                AccessFlags::COLOR_ATTACHMENT_READ => image::UsageFlags::COLOR_ATTACHMENT,
-                AccessFlags::COLOR_ATTACHMENT_WRITE => image::UsageFlags::COLOR_ATTACHMENT,
+            !access.subset(access_bit) || usage.intersects(match access_bit {
+                AccessFlags::INPUT_ATTACHMENT_READ => ImageUsageFlags::INPUT_ATTACHMENT,
+                AccessFlags::COLOR_ATTACHMENT_READ => ImageUsageFlags::COLOR_ATTACHMENT,
+                AccessFlags::COLOR_ATTACHMENT_WRITE => ImageUsageFlags::COLOR_ATTACHMENT,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => {
-                    image::UsageFlags::DEPTH_STENCIL_ATTACHMENT
+                    ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT
                 }
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => {
-                    image::UsageFlags::DEPTH_STENCIL_ATTACHMENT
+                    ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT
                 }
-                AccessFlags::TRANSFER_READ => image::UsageFlags::TRANSFER_SRC,
-                AccessFlags::TRANSFER_WRITE => image::UsageFlags::TRANSFER_DST,
+                AccessFlags::TRANSFER_READ => ImageUsageFlags::TRANSFER_SRC,
+                AccessFlags::TRANSFER_WRITE => ImageUsageFlags::TRANSFER_DST,
                 _ => unreachable!(),
             })
         })

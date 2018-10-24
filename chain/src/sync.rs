@@ -1,16 +1,16 @@
 //! This module provide functions for find all required synchronizations (barriers and semaphores).
 //!
 
-use fnv::FnvHashMap;
 use std::ops::{Range, RangeFrom, RangeTo};
 
-use access::AccessFlags;
+use fnv::FnvHashMap;
+use ash::vk::{AccessFlags, PipelineStageFlags};
+
 use chain::{Chain, Link};
-use collect::{Chains, Unsynchronized};
+use collect::Chains;
 use node::State;
 use resource::{Buffer, Image, Resource};
 use schedule::{Queue, QueueId, Schedule, SubmissionId};
-use stage::PipelineStageFlags;
 use Id;
 
 /// Semaphore identifier.
@@ -255,10 +255,7 @@ impl SyncTemp {
 }
 
 /// Find required synchronization for all submissions in `Chains`.
-pub fn sync<F, S, W>(
-    chains: &Chains<Unsynchronized>,
-    mut new_semaphore: F,
-) -> Schedule<SyncData<S, W>>
+pub fn sync<F, S, W>(chains: &Chains, mut new_semaphore: F) -> Schedule<SyncData<S, W>>
 where
     F: FnMut() -> (S, W),
 {

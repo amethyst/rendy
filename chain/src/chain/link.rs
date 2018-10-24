@@ -1,8 +1,10 @@
-use access::AccessFlags;
+
+use ash::vk::{AccessFlags, PipelineStageFlags};
+
+use access::AccessFlagsExt;
 use node::State;
 use resource::Resource;
 use schedule::{FamilyId, QueueId, SubmissionId};
-use stage::PipelineStageFlags;
 
 /// State of the link associated with queue.
 /// Contains submissions range, combined access and stages bits by submissions from the range.
@@ -150,7 +152,7 @@ where
     /// If compatible then the submission can be associated with the link.
     pub(crate) fn compatible(&self, node: &LinkNode<R>) -> bool {
         // If queue the same and states are compatible.
-        self.family == node.sid.family() && !(self.access | node.state.access).is_write()
+        self.family == node.sid.family() && !(self.access | node.state.access).exclusive()
     }
 
     /// Insert submission with specified state to the link.

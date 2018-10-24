@@ -1,9 +1,9 @@
 use std::collections::hash_map::{HashMap, Iter as HashMapIter};
 
-use access::AccessFlags;
+use ash::vk::{AccessFlags, PipelineStageFlags};
+
 use resource::{Buffer, Image, Resource};
 use schedule::FamilyId;
-use stage::PipelineStageFlags;
 use Id;
 
 /// State in which node uses resource and usage flags.
