@@ -1,11 +1,13 @@
+
+use std::{ops::Range, ptr::NonNull};
+
+use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags, MemoryAllocateInfo, MemoryMapFlags}};
 use hibitset::{BitSet, BitSetLike};
 use relevant::Relevant;
-use std::{fmt::Debug, ops::Range, ptr::NonNull};
 use veclist::VecList;
 
 use allocator::Allocator;
 use block::Block;
-use device::Device;
 use error::*;
 use mapping::*;
 use memory::*;
@@ -14,21 +16,21 @@ use util::*;
 /// Memory block allocated from `DynamicAllocator`
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct DynamicBlock<T> {
+pub struct DynamicBlock {
     index: u32,
-    #[derivative(Debug(bound = "T: Debug", format_with = "super::memory_ptr_fmt"))]
-    memory: *const Memory<T>,
+    // #[derivative(Debug(format_with = "super::memory_ptr_fmt"))]
+    memory: *const Memory,
     ptr: Option<NonNull<u8>>,
     range: Range<u64>,
     #[derivative(Debug = "ignore")]
     relevant: Relevant,
 }
 
-unsafe impl<T: Send> Send for DynamicBlock<T> {}
-unsafe impl<T: Sync> Sync for DynamicBlock<T> {}
+unsafe impl Send for DynamicBlock {}
+unsafe impl Sync for DynamicBlock {}
 
-impl<T> DynamicBlock<T> {
-    fn shared_memory(&self) -> &Memory<T> {
+impl DynamicBlock {
+    fn shared_memory(&self) -> &Memory {
         // Memory won't be freed until last block created from it deallocated.
         unsafe { &*self.memory }
     }
@@ -42,16 +44,14 @@ impl<T> DynamicBlock<T> {
     }
 }
 
-impl<T: 'static> Block for DynamicBlock<T> {
-    type Memory = T;
-
+impl Block for DynamicBlock {
     #[inline]
-    fn properties(&self) -> Properties {
+    fn properties(&self) -> MemoryPropertyFlags {
         self.shared_memory().properties()
     }
 
     #[inline]
-    fn memory(&self) -> &T {
+    fn memory(&self) -> DeviceMemory {
         self.shared_memory().raw()
     }
 
@@ -61,11 +61,11 @@ impl<T: 'static> Block for DynamicBlock<T> {
     }
 
     #[inline]
-    fn map<'a, D>(
+    fn map<'a>(
         &'a mut self,
-        _device: &D,
+        _device: &impl DeviceV1_0,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, T>, MappingError> {
+    ) -> Result<MappedRange<'a>, MappingError> {
         assert!(
             range.start <= range.end,
             "Memory mapping region must have valid size"
@@ -87,7 +87,7 @@ impl<T: 'static> Block for DynamicBlock<T> {
     }
 
     #[inline]
-    fn unmap<D>(&mut self, _device: &D) {}
+    fn unmap(&mut self, _device: &impl DeviceV1_0) {}
 }
 
 /// Config for `DynamicAllocator`.
@@ -112,12 +112,12 @@ pub struct DynamicConfig {
 /// Every freed block can be recycled independently.
 /// Memory objects can be returned to the system if whole memory object become unused (not implemented yet).
 #[derive(Debug)]
-pub struct DynamicAllocator<T> {
+pub struct DynamicAllocator {
     /// Memory type that this allocator allocates.
     memory_type: u32,
 
     /// Memory properties of the memory type.
-    memory_properties: Properties,
+    memory_properties: MemoryPropertyFlags,
 
     /// Number of blocks per chunk.
     blocks_per_chunk: u32,
@@ -127,14 +127,14 @@ pub struct DynamicAllocator<T> {
 
     /// List of chunk lists.
     /// Each index corresponds to `block_size_granularity * index` size.
-    sizes: Vec<Size<T>>,
+    sizes: Vec<Size>,
 }
 
 /// List of chunks
 #[derive(Debug)]
-struct Size<T> {
+struct Size {
     /// List of chunks.
-    chunks: VecList<Chunk<T>>,
+    chunks: VecList<Chunk>,
 
     /// Total chunks count.
     total_chunks: u32,
@@ -143,10 +143,10 @@ struct Size<T> {
     blocks: BitSet,
 }
 
-impl<T: 'static> DynamicAllocator<T> {
+impl DynamicAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> Properties {
-        Properties::empty()
+    pub fn properties_required() -> MemoryPropertyFlags {
+        MemoryPropertyFlags::empty()
     }
 
     /// Maximum allocation size.
@@ -157,7 +157,7 @@ impl<T: 'static> DynamicAllocator<T> {
     /// Create new `ArenaAllocator`
     /// for `memory_type` with `memory_properties` specified,
     /// with `ArenaConfig` provided.
-    pub fn new(memory_type: u32, memory_properties: Properties, mut config: DynamicConfig) -> Self {
+    pub fn new(memory_type: u32, memory_properties: MemoryPropertyFlags, mut config: DynamicConfig) -> Self {
         // This is hack to simplify implementation of chunk cleaning.
         config.blocks_per_chunk = ::std::mem::size_of::<usize>() as u32 * 8;
 
@@ -170,7 +170,7 @@ impl<T: 'static> DynamicAllocator<T> {
             .max_block_size
             .checked_mul(config.blocks_per_chunk.into())
             .expect("Max chunk size must fit u64 to allocate it from Vulkan");
-        if memory_properties.host_visible() {
+        if memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
             assert!(
                 fits_usize(max_chunk_size),
                 "Max chunk size must fit usize for mapping"
@@ -223,21 +223,18 @@ impl<T: 'static> DynamicAllocator<T> {
     }
 
     /// Allocate super-block to use as chunk memory.
-    fn alloc_chunk<D>(&mut self, device: &D, size: u64) -> Result<(Chunk<T>, u64), MemoryError>
-    where
-        D: Device<Memory = T>,
-    {
+    fn alloc_chunk(&mut self, device: &impl DeviceV1_0, size: u64) -> Result<(Chunk, u64), MemoryError> {
         if size > self.max_block_size() {
             // Allocate from device.
             let (memory, mapping) = unsafe {
                 // Valid memory type specified.
-                let raw = device.allocate(self.memory_type, size)?;
+                let raw = device.allocate_memory(&MemoryAllocateInfo { memory_type_index: self.memory_type, allocation_size: size, ..Default::default() }, None)?;
 
-                let mapping = if self.memory_properties.host_visible() {
-                    match device.map(&raw, 0..size) {
-                        Ok(mapping) => Some(mapping),
+                let mapping = if self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
+                    match device.map_memory(raw, 0, size, MemoryMapFlags::empty()) {
+                        Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
                         Err(error) => {
-                            device.free(raw);
+                            device.free_memory(raw, None);
                             return Err(error.into());
                         }
                     }
@@ -257,16 +254,14 @@ impl<T: 'static> DynamicAllocator<T> {
 
     /// Allocate super-block to use as chunk memory.
     #[warn(dead_code)]
-    fn free_chunk<D>(&mut self, device: &D, chunk: Chunk<T>) -> u64
-    where
-        D: Device<Memory = T>,
-    {
+    fn free_chunk(&mut self, device: &impl DeviceV1_0, chunk: Chunk) -> u64 {
         match chunk {
             Chunk::Dedicated(boxed, _) => {
                 let size = boxed.size();
                 unsafe {
-                    device.unmap(boxed.raw());
-                    device.free(boxed.into_raw());
+                    device.unmap_memory(boxed.raw());
+                    device.free_memory(boxed.raw(), None);
+                    boxed.dispose();
                 }
                 size
             }
@@ -275,14 +270,11 @@ impl<T: 'static> DynamicAllocator<T> {
     }
 
     /// Allocate from chunk.
-    fn alloc_from_chunk<D>(
+    fn alloc_from_chunk(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         size: u64,
-    ) -> Result<(DynamicBlock<T>, u64), MemoryError>
-    where
-        D: Device<Memory = T>,
-    {
+    ) -> Result<(DynamicBlock, u64), MemoryError> {
         let size_index = self.size_index(size);
         let (block_index, allocated) = match (&self.sizes[size_index].blocks).iter().next() {
             Some(block_index) => {
@@ -332,19 +324,15 @@ impl<T: 'static> DynamicAllocator<T> {
     }
 }
 
-impl<T: 'static> Allocator for DynamicAllocator<T> {
-    type Memory = T;
-    type Block = DynamicBlock<T>;
+impl Allocator for DynamicAllocator {
+    type Block = DynamicBlock;
 
-    fn alloc<D>(
+    fn alloc(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         size: u64,
         align: u64,
-    ) -> Result<(DynamicBlock<T>, u64), MemoryError>
-    where
-        D: Device<Memory = T>,
-    {
+    ) -> Result<(DynamicBlock, u64), MemoryError> {
         use std::cmp::max;
         let size = max(size, align);
 
@@ -352,10 +340,7 @@ impl<T: 'static> Allocator for DynamicAllocator<T> {
         self.alloc_from_chunk(device, size)
     }
 
-    fn free<D>(&mut self, device: &D, block: DynamicBlock<T>) -> u64
-    where
-        D: Device<Memory = T>,
-    {
+    fn free(&mut self, device: &impl DeviceV1_0, block: DynamicBlock) -> u64 {
         let size_index = self.size_index(block.size());
         let block_index = block.index;
         block.dispose();
@@ -385,19 +370,19 @@ impl<T: 'static> Allocator for DynamicAllocator<T> {
 
 /// Block allocated for chunk.
 #[derive(Debug)]
-enum Chunk<T> {
+enum Chunk {
     /// Allocated from device.
-    Dedicated(Box<Memory<T>>, Option<NonNull<u8>>),
+    Dedicated(Box<Memory>, Option<NonNull<u8>>),
 
     /// Allocated from chunk of bigger blocks.
-    Dynamic(DynamicBlock<T>),
+    Dynamic(DynamicBlock),
 }
 
-unsafe impl<T: Send> Send for Chunk<T> {}
-unsafe impl<T: Sync> Sync for Chunk<T> {}
+unsafe impl Send for Chunk {}
+unsafe impl Sync for Chunk {}
 
-impl<T: 'static> Chunk<T> {
-    fn shared_memory(&self) -> &Memory<T> {
+impl Chunk {
+    fn shared_memory(&self) -> &Memory {
         match self {
             Chunk::Dedicated(boxed, _) => &*boxed,
             Chunk::Dynamic(chunk_block) => chunk_block.shared_memory(),

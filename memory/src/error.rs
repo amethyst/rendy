@@ -1,3 +1,5 @@
+
+use ash;
 use usage::UsageValue;
 
 /// Typical memory error - out of available memory.
@@ -119,5 +121,53 @@ impl From<AllocationError> for MemoryError {
 impl From<MappingError> for MemoryError {
     fn from(error: MappingError) -> Self {
         MemoryError::MappingError(error)
+    }
+}
+
+
+
+impl From<ash::vk::Result> for OutOfMemoryError {
+    fn from(result: ash::vk::Result) -> OutOfMemoryError {
+        match result {
+            ash::vk::Result::SUCCESS => panic!("Unexpected success"),
+            ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory,
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory,
+            _ => panic!("unexpected error"),
+        }
+    }
+}
+
+impl From<ash::vk::Result> for MappingError {
+    fn from(result: ash::vk::Result) -> MappingError {
+        match result {
+            ash::vk::Result::SUCCESS => panic!("Unexpected success"),
+            ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory.into(),
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory.into(),
+            ash::vk::Result::ERROR_MEMORY_MAP_FAILED => MappingError::MappingFailed,
+            _ => panic!("unexpected error"),
+        }
+    }
+}
+
+impl From<ash::vk::Result> for AllocationError {
+    fn from(result: ash::vk::Result) -> AllocationError {
+        match result {
+            ash::vk::Result::SUCCESS => panic!("Unexpected success"),
+            ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory.into(),
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory.into(),
+            _ => panic!("unexpected error"),
+        }
+    }
+}
+
+impl From<ash::vk::Result> for MemoryError {
+    fn from(result: ash::vk::Result) -> MemoryError {
+        match result {
+            ash::vk::Result::SUCCESS => panic!("Unexpected success"),
+            ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory.into(),
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory.into(),
+            ash::vk::Result::ERROR_MEMORY_MAP_FAILED => MappingError::MappingFailed.into(),
+            _ => panic!("unexpected error"),
+        }
     }
 }

@@ -1,10 +1,11 @@
-use std::{collections::VecDeque, fmt::Debug, ops::Range, ptr::NonNull};
+use std::{collections::VecDeque, ops::Range, ptr::NonNull};
+
+use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags, MemoryAllocateInfo, MemoryMapFlags}};
 
 use relevant::Relevant;
 
 use allocator::Allocator;
 use block::Block;
-use device::Device;
 use error::*;
 use mapping::*;
 use memory::*;
@@ -13,9 +14,9 @@ use util::*;
 /// Memory block allocated from `ArenaAllocator`
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub struct ArenaBlock<T> {
-    #[derivative(Debug(bound = "T: Debug", format_with = "super::memory_ptr_fmt"))]
-    memory: *const Memory<T>,
+pub struct ArenaBlock {
+    // #[derivative(Debug(format_with = "::memory::memory_ptr_fmt"))]
+    memory: *const Memory,
     arena_index: u64,
     ptr: NonNull<u8>,
     range: Range<u64>,
@@ -23,11 +24,11 @@ pub struct ArenaBlock<T> {
     relevant: Relevant,
 }
 
-unsafe impl<T: Send> Send for ArenaBlock<T> {}
-unsafe impl<T: Sync> Sync for ArenaBlock<T> {}
+unsafe impl Send for ArenaBlock {}
+unsafe impl Sync for ArenaBlock {}
 
-impl<T> ArenaBlock<T> {
-    fn shared_memory(&self) -> &Memory<T> {
+impl ArenaBlock {
+    fn shared_memory(&self) -> &Memory {
         // Memory won't be freed until last block created from it deallocated.
         unsafe { &*self.memory }
     }
@@ -41,16 +42,14 @@ impl<T> ArenaBlock<T> {
     }
 }
 
-impl<T: 'static> Block for ArenaBlock<T> {
-    type Memory = T;
-
+impl Block for ArenaBlock {
     #[inline]
-    fn properties(&self) -> Properties {
+    fn properties(&self) -> MemoryPropertyFlags {
         self.shared_memory().properties()
     }
 
     #[inline]
-    fn memory(&self) -> &T {
+    fn memory(&self) -> DeviceMemory {
         self.shared_memory().raw()
     }
 
@@ -60,11 +59,11 @@ impl<T: 'static> Block for ArenaBlock<T> {
     }
 
     #[inline]
-    fn map<'a, D>(
+    fn map<'a>(
         &'a mut self,
-        _device: &D,
+        _device: &impl DeviceV1_0,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, T>, MappingError> {
+    ) -> Result<MappedRange<'a>, MappingError> {
         assert!(
             range.start <= range.end,
             "Memory mapping region must have valid size"
@@ -80,7 +79,7 @@ impl<T: 'static> Block for ArenaBlock<T> {
     }
 
     #[inline]
-    fn unmap<D>(&mut self, _device: &D) {
+    fn unmap(&mut self, _device: &impl DeviceV1_0) {
         debug_assert!(self.shared_memory().host_visible());
     }
 }
@@ -104,31 +103,31 @@ pub struct ArenaConfig {
 /// Allocation strategy requires minimal overhead and implementation is fast.
 /// But holding single block will completely stop memory recycling.
 #[derive(Debug)]
-pub struct ArenaAllocator<T> {
+pub struct ArenaAllocator {
     memory_type: u32,
-    memory_properties: Properties,
+    memory_properties: MemoryPropertyFlags,
     arena_size: u64,
     offset: u64,
-    arenas: VecDeque<Arena<T>>,
+    arenas: VecDeque<Arena>,
 }
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-struct Arena<T> {
+struct Arena {
     used: u64,
     free: u64,
     #[derivative(Debug = "ignore")]
-    memory: Box<Memory<T>>,
+    memory: Box<Memory>,
     ptr: NonNull<u8>,
 }
 
-unsafe impl<T: Send> Send for Arena<T> {}
-unsafe impl<T: Sync> Sync for Arena<T> {}
+unsafe impl Send for Arena {}
+unsafe impl Sync for Arena {}
 
-impl<T: 'static> ArenaAllocator<T> {
+impl ArenaAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> Properties {
-        Properties::HOST_VISIBLE
+    pub fn properties_required() -> MemoryPropertyFlags {
+        MemoryPropertyFlags::HOST_VISIBLE
     }
 
     /// Maximum allocation size.
@@ -139,8 +138,8 @@ impl<T: 'static> ArenaAllocator<T> {
     /// Create new `ArenaAllocator`
     /// for `memory_type` with `memory_properties` specified,
     /// with `ArenaConfig` provided.
-    pub fn new(memory_type: u32, memory_properties: Properties, config: ArenaConfig) -> Self {
-        assert!(memory_properties.contains(Self::properties_required()));
+    pub fn new(memory_type: u32, memory_properties: MemoryPropertyFlags, config: ArenaConfig) -> Self {
+        assert!(memory_properties.subset(Self::properties_required()));
         assert!(
             fits_usize(config.arena_size),
             "Arena size must fit in both usize and u64"
@@ -155,10 +154,7 @@ impl<T: 'static> ArenaAllocator<T> {
     }
 
     /// Perform full cleanup of the memory allocated.
-    pub fn dispose<D>(mut self, device: &D)
-    where
-        D: Device<Memory = T>,
-    {
+    pub fn dispose(mut self, device: &impl DeviceV1_0) {
         self.cleanup(device, 0);
         assert!(
             self.arenas.is_empty(),
@@ -167,10 +163,7 @@ impl<T: 'static> ArenaAllocator<T> {
         );
     }
 
-    fn cleanup<D>(&mut self, device: &D, off: usize) -> u64
-    where
-        D: Device<Memory = T>,
-    {
+    fn cleanup(&mut self, device: &impl DeviceV1_0, off: usize) -> u64 {
         let mut freed = 0;
         while self.arenas.len() > off {
             if self.arenas[0].used > self.arenas[0].free {
@@ -180,31 +173,26 @@ impl<T: 'static> ArenaAllocator<T> {
             let arena = self.arenas.pop_front().unwrap();
 
             unsafe {
-                device.unmap(arena.memory.raw());
+                device.unmap_memory(arena.memory.raw());
 
                 freed += arena.memory.size();
-                device.free(arena.memory.into_raw());
+                device.free_memory(arena.memory.raw(), None);
             }
         }
         freed
     }
 }
 
-impl<T: 'static> Allocator for ArenaAllocator<T> {
-    type Memory = T;
+impl Allocator for ArenaAllocator {
+    type Block = ArenaBlock;
 
-    type Block = ArenaBlock<T>;
-
-    fn alloc<D>(
+    fn alloc(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         size: u64,
         align: u64,
-    ) -> Result<(ArenaBlock<T>, u64), MemoryError>
-    where
-        D: Device<Memory = T>,
-    {
-        debug_assert!(self.memory_properties.host_visible());
+    ) -> Result<(ArenaBlock, u64), MemoryError> {
+        debug_assert!(self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE));
 
         assert!(size <= self.arena_size);
         assert!(align <= self.arena_size);
@@ -234,12 +222,18 @@ impl<T: 'static> Allocator for ArenaAllocator<T> {
         }
 
         let (memory, ptr) = unsafe {
-            let raw = device.allocate(self.memory_type, self.arena_size)?;
+            let raw = device.allocate_memory(
+                &MemoryAllocateInfo::builder()
+                    .memory_type_index(self.memory_type)
+                    .allocation_size(self.arena_size)
+                    .build(),
+                None,
+            )?;
 
-            let ptr = match device.map(&raw, 0..self.arena_size) {
-                Ok(ptr) => ptr,
+            let ptr = match device.map_memory(raw, 0, self.arena_size, MemoryMapFlags::empty()) {
+                Ok(ptr) => NonNull::new_unchecked(ptr as *mut u8),
                 Err(error) => {
-                    device.free(raw);
+                    device.free_memory(raw, None);
                     return Err(error.into());
                 }
             };
@@ -271,10 +265,7 @@ impl<T: 'static> Allocator for ArenaAllocator<T> {
         Ok((block, self.arena_size))
     }
 
-    fn free<D>(&mut self, device: &D, block: Self::Block) -> u64
-    where
-        D: Device<Memory = T>,
-    {
+    fn free(&mut self, device: &impl DeviceV1_0, block: Self::Block) -> u64 {
         let index = block.arena_index - self.offset;
         assert!(
             fits_usize(index),

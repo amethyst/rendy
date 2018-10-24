@@ -1,7 +1,7 @@
 //! Defines usage types for memory bocks.
 //! See `Usage` and implementations for details.
 
-use memory::Properties;
+use ash::vk::MemoryPropertyFlags;
 
 /// Memory usage trait.
 pub trait Usage {
@@ -13,7 +13,7 @@ pub trait Usage {
 
     /// Get comparable fitness value for memory properties.
     /// Should return `None` if memory doesn't fit.
-    fn memory_fitness(&self, properties: Properties) -> Option<Self::Fitness>;
+    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<Self::Fitness>;
 }
 
 /// Full speed GPU access.
@@ -31,15 +31,15 @@ impl Usage for Data {
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::DEVICE_LOCAL) {
+    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
+        if !properties.subset(MemoryPropertyFlags::DEVICE_LOCAL) {
             None
         } else {
             Some(
-                ((!properties.contains(Properties::HOST_VISIBLE)) as u8) << 3
-                    | ((!properties.contains(Properties::LAZILY_ALLOCATED)) as u8) << 2
-                    | ((!properties.contains(Properties::HOST_CACHED)) as u8) << 1
-                    | ((!properties.contains(Properties::HOST_COHERENT)) as u8) << 0
+                ((!properties.subset(MemoryPropertyFlags::HOST_VISIBLE)) as u8) << 3
+                    | ((!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED)) as u8) << 2
+                    | ((!properties.subset(MemoryPropertyFlags::HOST_CACHED)) as u8) << 1
+                    | ((!properties.subset(MemoryPropertyFlags::HOST_COHERENT)) as u8) << 0
                     | 0,
             )
         }
@@ -62,15 +62,15 @@ impl Usage for Dynamic {
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::HOST_VISIBLE) {
+    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
+        if !properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
             None
         } else {
-            assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
+            assert!(!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED));
             Some(
-                (properties.contains(Properties::DEVICE_LOCAL) as u8) << 2
-                    | (properties.contains(Properties::HOST_COHERENT) as u8) << 1
-                    | ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0
+                (properties.subset(MemoryPropertyFlags::DEVICE_LOCAL) as u8) << 2
+                    | (properties.subset(MemoryPropertyFlags::HOST_COHERENT) as u8) << 1
+                    | ((!properties.subset(MemoryPropertyFlags::HOST_CACHED)) as u8) << 0
                     | 0,
             )
         }
@@ -92,15 +92,15 @@ impl Usage for Upload {
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::HOST_VISIBLE) {
+    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
+        if !properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
             None
         } else {
-            assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
+            assert!(!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED));
             Some(
-                ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2
-                    | ((!properties.contains(Properties::HOST_CACHED)) as u8) << 0
-                    | (properties.contains(Properties::HOST_COHERENT) as u8) << 1
+                ((!properties.subset(MemoryPropertyFlags::DEVICE_LOCAL)) as u8) << 2
+                    | ((!properties.subset(MemoryPropertyFlags::HOST_CACHED)) as u8) << 0
+                    | (properties.subset(MemoryPropertyFlags::HOST_COHERENT) as u8) << 1
                     | 0,
             )
         }
@@ -122,15 +122,15 @@ impl Usage for Download {
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
-        if !properties.contains(Properties::HOST_VISIBLE) {
+    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
+        if !properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
             None
         } else {
-            assert!(!properties.contains(Properties::LAZILY_ALLOCATED));
+            assert!(!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED));
             Some(
-                ((!properties.contains(Properties::DEVICE_LOCAL)) as u8) << 2
-                    | (properties.contains(Properties::HOST_CACHED) as u8) << 1
-                    | (properties.contains(Properties::HOST_COHERENT) as u8) << 0
+                ((!properties.subset(MemoryPropertyFlags::DEVICE_LOCAL)) as u8) << 2
+                    | (properties.subset(MemoryPropertyFlags::HOST_CACHED) as u8) << 1
+                    | (properties.subset(MemoryPropertyFlags::HOST_COHERENT) as u8) << 0
                     | 0,
             )
         }
@@ -159,7 +159,7 @@ impl Usage for UsageValue {
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: Properties) -> Option<u8> {
+    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
         match self {
             UsageValue::Data => Data.memory_fitness(properties),
             UsageValue::Dynamic => Dynamic.memory_fitness(properties),

@@ -17,8 +17,7 @@
 #![warn(rust_2018_compatibility)]
 #![warn(rust_2018_idioms)]
 
-#[macro_use]
-extern crate bitflags;
+extern crate ash;
 
 #[macro_use]
 extern crate derivative;
@@ -38,11 +37,7 @@ extern crate smallvec;
 #[cfg(test)]
 extern crate rand;
 
-#[cfg(test)]
-mod test;
-
 mod block;
-mod device;
 mod error;
 mod heaps;
 mod impls;
@@ -54,15 +49,9 @@ pub mod allocator;
 pub mod usage;
 
 pub use block::Block;
-pub use device::Device;
 pub use error::{AllocationError, MappingError, MemoryError, OutOfMemoryError};
 pub use heaps::{Config, Heaps, MemoryBlock};
 pub use mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent};
-pub use memory::{Memory, Properties};
+pub use memory::Memory;
 pub use usage::Usage;
 
-#[cfg(feature = "gfx-hal")]
-extern crate gfx_hal as hal;
-
-#[cfg(feature = "ash")]
-extern crate ash;

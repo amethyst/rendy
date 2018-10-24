@@ -1,32 +1,33 @@
-use std::{marker::PhantomData, ops::Range, ptr::NonNull};
+use std::{ops::Range, ptr::NonNull};
+
+use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags, MemoryAllocateInfo}};
 
 use allocator::Allocator;
 use block::Block;
-use device::Device;
 use error::*;
 use mapping::{mapped_fitting_range, MappedRange};
 use memory::*;
 
 /// Memory block allocated from `DedicatedAllocator`
 #[derive(Debug)]
-pub struct DedicatedBlock<T> {
-    memory: Memory<T>,
+pub struct DedicatedBlock {
+    memory: Memory,
     mapping: Option<(NonNull<u8>, Range<u64>)>,
 }
 
-unsafe impl<T: Send> Send for DedicatedBlock<T> {}
-unsafe impl<T: Sync> Sync for DedicatedBlock<T> {}
+unsafe impl Send for DedicatedBlock {}
+unsafe impl Sync for DedicatedBlock {}
 
-impl<T> DedicatedBlock<T> {
+impl DedicatedBlock {
     /// Get inner memory.
     /// Panics if mapped.
-    pub fn unwrap_memory(self) -> Memory<T> {
+    pub fn unwrap_memory(self) -> Memory {
         assert!(self.mapping.is_none());
         self.memory
     }
 
     /// Make unmapped block.
-    pub fn from_memory(memory: Memory<T>) -> Self {
+    pub fn from_memory(memory: Memory) -> Self {
         DedicatedBlock {
             memory,
             mapping: None,
@@ -34,16 +35,14 @@ impl<T> DedicatedBlock<T> {
     }
 }
 
-impl<T: 'static> Block for DedicatedBlock<T> {
-    type Memory = T;
-
+impl Block for DedicatedBlock {
     #[inline]
-    fn properties(&self) -> Properties {
+    fn properties(&self) -> MemoryPropertyFlags {
         self.memory.properties()
     }
 
     #[inline]
-    fn memory(&self) -> &T {
+    fn memory(&self) -> DeviceMemory {
         self.memory.raw()
     }
 
@@ -52,14 +51,11 @@ impl<T: 'static> Block for DedicatedBlock<T> {
         0..self.memory.size()
     }
 
-    fn map<'a, D>(
+    fn map<'a>(
         &'a mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, T>, MappingError>
-    where
-        D: Device<Memory = T>,
-    {
+    ) -> Result<MappedRange<'a>, MappingError> {
         assert!(
             range.start <= range.end,
             "Memory mapping region must have valid size"
@@ -73,9 +69,7 @@ impl<T: 'static> Block for DedicatedBlock<T> {
             {
                 Ok(MappedRange::from_raw(&self.memory, ptr, range))
             } else {
-                if self.mapping.take().is_some() {
-                    device.unmap(&self.memory.raw());
-                }
+                self.unmap(device);
                 let mapping = MappedRange::new(&self.memory, device, range.clone())?;
                 self.mapping = Some((mapping.ptr(), mapping.range()));
                 Ok(mapping)
@@ -83,13 +77,10 @@ impl<T: 'static> Block for DedicatedBlock<T> {
         }
     }
 
-    fn unmap<D>(&mut self, device: &D)
-    where
-        D: Device<Memory = T>,
-    {
+    fn unmap(&mut self, device: &impl DeviceV1_0) {
         if self.mapping.take().is_some() {
             unsafe {
-                device.unmap(self.memory());
+                device.unmap_memory(self.memory());
             }
         }
     }
@@ -103,48 +94,48 @@ impl<T: 'static> Block for DedicatedBlock<T> {
 /// `Heaps` use this allocator when none of sub-allocators bound to the memory type
 /// can handle size required.
 #[derive(Debug)]
-pub struct DedicatedAllocator<T> {
+pub struct DedicatedAllocator {
     memory_type: u32,
-    memory_properties: Properties,
+    memory_properties: MemoryPropertyFlags,
     used: u64,
-    pd: PhantomData<T>,
 }
 
-impl<T> DedicatedAllocator<T> {
+impl DedicatedAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> Properties {
-        Properties::empty()
+    pub fn properties_required() -> MemoryPropertyFlags {
+        MemoryPropertyFlags::empty()
     }
 
     /// Create new `ArenaAllocator`
     /// for `memory_type` with `memory_properties` specified
-    pub fn new(memory_type: u32, memory_properties: Properties) -> Self {
+    pub fn new(memory_type: u32, memory_properties: MemoryPropertyFlags) -> Self {
         DedicatedAllocator {
             memory_type,
             memory_properties,
             used: 0,
-            pd: PhantomData,
         }
     }
 }
 
-impl<T: 'static> Allocator for DedicatedAllocator<T> {
-    type Memory = T;
-    type Block = DedicatedBlock<T>;
+impl Allocator for DedicatedAllocator {
+    type Block = DedicatedBlock;
 
     #[inline]
-    fn alloc<D>(
+    fn alloc(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         size: u64,
         _align: u64,
-    ) -> Result<(DedicatedBlock<T>, u64), MemoryError>
-    where
-        D: Device<Memory = T>,
-    {
+    ) -> Result<(DedicatedBlock, u64), MemoryError> {
         let memory = unsafe {
             Memory::from_raw(
-                device.allocate(self.memory_type, size)?,
+                device.allocate_memory(
+                    &MemoryAllocateInfo::builder()
+                        .memory_type_index(self.memory_type)
+                        .allocation_size(size)
+                        .build(),
+                    None
+                )?,
                 size,
                 self.memory_properties,
             )
@@ -156,21 +147,18 @@ impl<T: 'static> Allocator for DedicatedAllocator<T> {
     }
 
     #[inline]
-    fn free<D>(&mut self, device: &D, mut block: DedicatedBlock<T>) -> u64
-    where
-        D: Device<Memory = T>,
-    {
+    fn free(&mut self, device: &impl DeviceV1_0, mut block: DedicatedBlock) -> u64 {
         block.unmap(device);
         let size = block.memory.size();
         self.used -= size;
         unsafe {
-            device.free(block.memory.into_raw());
+            device.free_memory(block.memory.raw(), None);
         }
         size
     }
 }
 
-impl<T> Drop for DedicatedAllocator<T> {
+impl Drop for DedicatedAllocator {
     fn drop(&mut self) {
         assert_eq!(self.used, 0);
     }

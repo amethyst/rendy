@@ -10,52 +10,6 @@ use std::{
     ptr::{null, null_mut, NonNull},
 };
 
-impl From<ash::vk::Result> for OutOfMemoryError {
-    fn from(result: ash::vk::Result) -> OutOfMemoryError {
-        match result {
-            ash::vk::Result::Success => panic!("Unexpected success"),
-            ash::vk::Result::ErrorOutOfHostMemory => OutOfMemoryError::OutOfHostMemory,
-            ash::vk::Result::ErrorOutOfDeviceMemory => OutOfMemoryError::OutOfDeviceMemory,
-            _ => panic!("unexpected error"),
-        }
-    }
-}
-
-impl From<ash::vk::Result> for MappingError {
-    fn from(result: ash::vk::Result) -> MappingError {
-        match result {
-            ash::vk::Result::Success => panic!("Unexpected success"),
-            ash::vk::Result::ErrorOutOfHostMemory => OutOfMemoryError::OutOfHostMemory.into(),
-            ash::vk::Result::ErrorOutOfDeviceMemory => OutOfMemoryError::OutOfDeviceMemory.into(),
-            ash::vk::Result::ErrorMemoryMapFailed => MappingError::MappingFailed,
-            _ => panic!("unexpected error"),
-        }
-    }
-}
-
-impl From<ash::vk::Result> for AllocationError {
-    fn from(result: ash::vk::Result) -> AllocationError {
-        match result {
-            ash::vk::Result::Success => panic!("Unexpected success"),
-            ash::vk::Result::ErrorOutOfHostMemory => OutOfMemoryError::OutOfHostMemory.into(),
-            ash::vk::Result::ErrorOutOfDeviceMemory => OutOfMemoryError::OutOfDeviceMemory.into(),
-            _ => panic!("unexpected error"),
-        }
-    }
-}
-
-impl From<ash::vk::Result> for MemoryError {
-    fn from(result: ash::vk::Result) -> MemoryError {
-        match result {
-            ash::vk::Result::Success => panic!("Unexpected success"),
-            ash::vk::Result::ErrorOutOfHostMemory => OutOfMemoryError::OutOfHostMemory.into(),
-            ash::vk::Result::ErrorOutOfDeviceMemory => OutOfMemoryError::OutOfDeviceMemory.into(),
-            ash::vk::Result::ErrorMemoryMapFailed => MappingError::MappingFailed.into(),
-            _ => panic!("unexpected error"),
-        }
-    }
-}
-
 impl<V> Device for ash::Device<V>
 where
     V: FunctionPointers,

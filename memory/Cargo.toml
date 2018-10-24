@@ -4,11 +4,9 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-bitflags = "1.0"
 failure = "0.1"
 veclist = "0.1"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
-ash = { version = "0.24", optional = true }
+ash = { git = "https://github.com/MatusT/ash.git", branch = "generator" }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 hibitset = "0.5"
@@ -17,7 +15,3 @@ derivative = "1.0"
 
 [dev-dependencies]
 rand = "0.5"
-
-[features]
-hal = ["gfx-hal"]
-vulkan = ["ash"]

@@ -124,14 +124,6 @@ pub(crate) fn fits_usize<T: IntegerFitting>(value: T) -> bool {
     value.fits_usize()
 }
 
-// pub(crate) fn fits_isize<T: IntegerFitting>(value: T) -> bool {
-//     value.fits_isize()
-// }
-
-// pub(crate) fn fits_u64(value: usize) -> bool {
-//     u64::usize_fits(value)
-// }
-
 pub(crate) fn fits_u32(value: usize) -> bool {
     u32::usize_fits(value)
 }

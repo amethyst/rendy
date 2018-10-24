@@ -56,19 +56,19 @@ impl From<hal::mapping::Error> for MemoryError {
 impl From<hal::memory::Properties> for Properties {
     fn from(value: hal::memory::Properties) -> Self {
         let mut result = Properties::empty();
-        if value.contains(hal::memory::Properties::DEVICE_LOCAL) {
+        if value.subset(hal::memory::Properties::DEVICE_LOCAL) {
             result |= Properties::DEVICE_LOCAL;
         }
-        if value.contains(hal::memory::Properties::COHERENT) {
+        if value.subset(hal::memory::Properties::COHERENT) {
             result |= Properties::HOST_COHERENT;
         }
-        if value.contains(hal::memory::Properties::CPU_CACHED) {
+        if value.subset(hal::memory::Properties::CPU_CACHED) {
             result |= Properties::HOST_CACHED;
         }
-        if value.contains(hal::memory::Properties::CPU_VISIBLE) {
+        if value.subset(hal::memory::Properties::CPU_VISIBLE) {
             result |= Properties::HOST_VISIBLE;
         }
-        if value.contains(hal::memory::Properties::LAZILY_ALLOCATED) {
+        if value.subset(hal::memory::Properties::LAZILY_ALLOCATED) {
             result |= Properties::LAZILY_ALLOCATED;
         }
         result
