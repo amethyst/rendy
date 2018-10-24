@@ -1,58 +1,46 @@
 use std::cmp::max;
-use std::default::Default;
 
+use ash::{version::DeviceV1_0, vk::{BufferCreateInfo, ImageCreateInfo}};
 use memory::{Block, Heaps, MemoryError, Usage as MemoryUsage};
 use relevant::Relevant;
 
 use buffer;
-use device::Device;
-use error::ResourceError;
 use escape::{Escape, Terminal};
 use image;
 
 /// Resource manager.
 /// It can be used to create and destroy resources such as buffers and images.
-#[derive(Debug, Derivative)]
-#[derivative(Default(bound = ""))]
-pub struct Resources<M, B, I> {
-    buffers: Terminal<buffer::Inner<M, B>>,
-    images: Terminal<image::Inner<M, I>>,
+#[derive(Debug, Default)]
+pub struct Resources {
+    buffers: Terminal<buffer::Inner>,
+    images: Terminal<image::Inner>,
 }
 
-impl<M: 'static, B: 'static, I: 'static> Resources<M, B, I> {
-    /// Create new Resource
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+impl Resources {
     /// Create a buffer and bind to the memory that support intended usage.
-    pub fn create_buffer<D, U>(
+    pub fn create_buffer(
         &mut self,
-        device: &D,
-        heaps: &mut Heaps<M>,
-        info: buffer::CreateInfo,
+        device: &impl DeviceV1_0,
+        heaps: &mut Heaps,
+        info: BufferCreateInfo,
         align: u64,
-        memory_usage: U,
-    ) -> Result<buffer::Buffer<M, B>, MemoryError>
-    where
-        D: Device<Memory = M, Buffer = B>,
-        U: MemoryUsage,
-    {
-        let ubuf = device.create_buffer(info)?;
-        let reqs = device.buffer_requirements(&ubuf);
+        memory_usage: impl MemoryUsage,
+    ) -> Result<buffer::Buffer, MemoryError> {
+        let buf = unsafe { device.create_buffer(&info, None)? };
+        let reqs = unsafe { device.get_buffer_memory_requirements(buf) };
         let block = heaps.allocate(
             device,
-            reqs.mask,
+            reqs.memory_type_bits,
             memory_usage,
             reqs.size,
-            max(reqs.align, align),
+            max(reqs.alignment, align),
         )?;
 
-        let buf = unsafe {
+        unsafe {
             device
-                .bind_buffer(ubuf, block.memory(), block.range().start)
+                .bind_buffer_memory(buf, block.memory(), block.range().start)
                 .unwrap()
-        };
+        }
 
         Ok(buffer::Buffer {
             inner: self.buffers.escape(buffer::Inner {
@@ -66,45 +54,38 @@ impl<M: 'static, B: 'static, I: 'static> Resources<M, B, I> {
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_buffer<D>(buffer: buffer::Buffer<M, B>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Buffer = B>,
-    {
+    pub unsafe fn destroy_buffer(buffer: buffer::Buffer, device: &impl DeviceV1_0, heaps: &mut Heaps) {
         Self::destroy_buffer_inner(Escape::into_inner(buffer.inner), device, heaps)
     }
 
-    unsafe fn destroy_buffer_inner<D>(inner: buffer::Inner<M, B>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Buffer = B>,
-    {
-        device.destroy_buffer(inner.raw);
+    unsafe fn destroy_buffer_inner(inner: buffer::Inner, device: &impl DeviceV1_0, heaps: &mut Heaps) {
+        device.destroy_buffer(inner.raw, None);
         heaps.free(device, inner.block);
     }
 
     /// Create an image and bind to the memory that support intended usage.
-    pub fn create_image<D, U>(
+    pub fn create_image(
         &mut self,
-        device: &D,
-        heaps: &mut Heaps<M>,
-        info: image::CreateInfo,
+        device: &impl DeviceV1_0,
+        heaps: &mut Heaps,
+        info: ImageCreateInfo,
         align: u64,
-        memory_usage: U,
-    ) -> Result<image::Image<M, I>, ResourceError>
-    where
-        D: Device<Memory = M, Image = I>,
-        U: MemoryUsage,
-    {
-        let uimg = device.create_image(info)?;
-        let reqs = device.image_requirements(&uimg);
+        memory_usage: impl MemoryUsage,
+    ) -> Result<image::Image, MemoryError> {
+        let img = unsafe { device.create_image(&info, None)? };
+        let reqs = unsafe { device.get_image_memory_requirements(img) };
         let block = heaps.allocate(
             device,
-            reqs.mask,
+            reqs.memory_type_bits,
             memory_usage,
             reqs.size,
-            max(reqs.align, align),
+            max(reqs.alignment, align),
         )?;
 
-        let img = unsafe { device.bind_image(uimg, block.memory(), block.range().start)? };
+        unsafe {
+            device.bind_image_memory(img, block.memory(), block.range().start)
+                .unwrap()
+        }
 
         Ok(image::Image {
             inner: self.images.escape(image::Inner {
@@ -118,33 +99,24 @@ impl<M: 'static, B: 'static, I: 'static> Resources<M, B, I> {
 
     /// Destroy image.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_image<D>(image: image::Image<M, I>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Image = I>,
-    {
+    pub unsafe fn destroy_image(image: image::Image, device: &impl DeviceV1_0, heaps: &mut Heaps) {
         Self::destroy_image_inner(Escape::into_inner(image.inner), device, heaps)
     }
 
-    unsafe fn destroy_image_inner<D>(inner: image::Inner<M, I>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Image = I>,
-    {
-        device.destroy_image(inner.raw);
+    unsafe fn destroy_image_inner(inner: image::Inner, device: &impl DeviceV1_0, heaps: &mut Heaps) {
+        device.destroy_image(inner.raw, None);
         heaps.free(device, inner.block);
     }
 
     /// Recycle dropped resources.
-    pub unsafe fn cleanup<D>(&mut self, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Buffer = B, Image = I>,
-    {
+    pub unsafe fn cleanup(&mut self, device: &impl DeviceV1_0, heaps: &mut Heaps) {
         for buffer in self.buffers.drain() {
-            device.destroy_buffer(buffer.raw);
+            device.destroy_buffer(buffer.raw, None);
             heaps.free(device, buffer.block);
         }
 
         for image in self.images.drain() {
-            device.destroy_image(image.raw);
+            device.destroy_image(image.raw, None);
             heaps.free(device, image.block);
         }
     }

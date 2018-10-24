@@ -4,15 +4,7 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-bitflags = "1.0"
+ash = { git = "https://github.com/MatusT/ash.git", branch = "generator" }
 crossbeam-channel = "0.2"
-rendy-memory = { path = "../memory" }
 relevant = "0.2"
-failure = "0.1"
-derivative = "1.0"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
-ash = { version = "0.24", optional = true }
-
-[features]
-hal = ["gfx-hal", "rendy-memory/hal"]
-vulkan = ["ash", "rendy-memory/vulkan"]
+rendy-memory = { path = "../memory" }

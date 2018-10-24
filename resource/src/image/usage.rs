@@ -1,35 +1,78 @@
-bitflags! {
-    /// Bitmask specifying intended usage of an image.
-    /// See Vulkan docs for detailed info:
-    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageUsageFlagBits.html>
-    #[repr(transparent)]
-    pub struct UsageFlags: u32 {
-        /// Specifies that the image can be used as the source of a transfer command.
-        const TRANSFER_SRC = 0x00000001;
 
-        /// Specifies that the image can be used as the destination of a transfer command.
-        const TRANSFER_DST = 0x00000002;
+use ash::vk::ImageUsageFlags;
+use memory::usage::{Data, Usage as MemoryUsage, UsageValue};
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for occupying a descriptor set slot either of
-        /// type `SAMPLED_IMAGE` or `COMBINED_IMAGE_SAMPLER`, and be sampled by a shader.
-        const SAMPLED = 0x00000004;
+/// Usage trait that must implemented by usage types.
+/// This trait provides a way to convert type-level usage to the value-level flags.
+pub trait Usage {
+    /// Suggested memory usage type.
+    type MemoryUsage: MemoryUsage;
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for occupying a descriptor set slot of type `STORAGE_IMAGE`.
-        const STORAGE = 0x00000008;
+    /// Convert usage to the flags.
+    fn flags(&self) -> ImageUsageFlags;
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for use as a color or resolve attachment in a `Framebuffer`.
-        const COLOR_ATTACHMENT = 0x00000010;
+    /// Get suggested memory usage.
+    fn memory(&self) -> Self::MemoryUsage;
+}
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for use as a depth/stencil attachment in a `Framebuffer`.
-        const DEPTH_STENCIL_ATTACHMENT = 0x00000020;
+impl Usage for (ImageUsageFlags, UsageValue) {
+    type MemoryUsage = UsageValue;
 
-        /// Specifies that the memory bound to this image will have been allocated with the VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
-        /// (see <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#memory> for more detail).
-        /// This bit can be set for any image that can be used to create a `ImageView` suitable for use as a color, resolve, depth/stencil, or input attachment.
-        const TRANSIENT_ATTACHMENT = 0x00000040;
+    fn flags(&self) -> ImageUsageFlags {
+        self.0
+    }
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for occupying descriptor set slot of type `INPUT_ATTACHMENT`;
-        /// be read from a shader as an input attachment; and be used as an input attachment in a framebuffer.
-        const INPUT_ATTACHMENT = 0x00000080;
+    fn memory(&self) -> UsageValue {
+        self.1
+    }
+}
+
+/// Type that specify that image is intended to be used as texture.
+/// It implies `TRANSFER_DST` because device-local, host-invisible memory should be used
+/// and transfer is left the only way to fill the buffer.
+#[derive(Clone, Copy, Debug)]
+pub struct Texture;
+
+impl Usage for Texture {
+    type MemoryUsage = Data;
+
+    fn flags(&self) -> ImageUsageFlags {
+        ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED
+    }
+
+    fn memory(&self) -> Data {
+        Data
+    }
+}
+
+/// Type that specify that image is intended to be used as render target and storage image.
+#[derive(Clone, Copy, Debug)]
+pub struct RenderTargetStorage;
+
+impl Usage for RenderTargetStorage {
+    type MemoryUsage = Data;
+
+    fn flags(&self) -> ImageUsageFlags {
+        ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::STORAGE
+    }
+
+    fn memory(&self) -> Data {
+        Data
+    }
+}
+
+/// Type that specify that image is intended to be used as render target and sampled image.
+#[derive(Clone, Copy, Debug)]
+pub struct RenderTargetSampled;
+
+impl Usage for RenderTargetSampled {
+    type MemoryUsage = Data;
+
+    fn flags(&self) -> ImageUsageFlags {
+        ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED
+    }
+
+    fn memory(&self) -> Data {
+        Data
     }
 }
