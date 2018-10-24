@@ -1,29 +1,7 @@
 //! Capability module docs.
 
-use chain::PipelineStageFlags;
+use ash::vk::{PipelineStageFlags, QueueFlags};
 
-bitflags! {
-    /// Bitmask specifying capabilities of queues in a queue family.
-    /// See Vulkan docs for detailed info:
-    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkQueueFlagBits.html>
-    #[repr(transparent)]
-    pub struct CapabilityFlags: u32 {
-        /// Queues from families with this capability flag set are able to perform graphics commands.
-        const GRAPHICS = 0x00000001;
-
-        /// Queues from families with this capability flag set are able to perform compute commands.
-        const COMPUTE = 0x00000002;
-
-        /// Queues from families with this capability flag set are able to perform transfer commands.
-        const TRANSFER = 0x00000004;
-
-        /// ???
-        const SPARSE_BINDING = 0x00000008;
-
-        /// ???
-        const PROTECTED = 0x00000010;
-    }
-}
 
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]
@@ -49,89 +27,89 @@ pub struct General;
 pub trait Capability: Copy {
     /// Try to create capability instance from flags.
     /// Instance will be created if all required flags set.
-    fn from_flags(flags: CapabilityFlags) -> Option<Self>;
+    fn from_flags(flags: QueueFlags) -> Option<Self>;
 
-    /// Convert into `CapabilityFlags`
-    fn into_flags(self) -> CapabilityFlags;
+    /// Convert into `QueueFlags`
+    fn into_flags(self) -> QueueFlags;
 }
 
-impl Capability for CapabilityFlags {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
+impl Capability for QueueFlags {
+    fn from_flags(flags: QueueFlags) -> Option<Self> {
         Some(flags)
     }
 
-    fn into_flags(self) -> CapabilityFlags {
+    fn into_flags(self) -> QueueFlags {
         self
     }
 }
 
 impl Capability for Transfer {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::TRANSFER) {
+    fn from_flags(flags: QueueFlags) -> Option<Self> {
+        if flags.subset(QueueFlags::TRANSFER) {
             Some(Transfer)
         } else {
             None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::TRANSFER
+    fn into_flags(self) -> QueueFlags {
+        QueueFlags::TRANSFER
     }
 }
 
 impl Capability for Execute {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.intersects(CapabilityFlags::COMPUTE | CapabilityFlags::GRAPHICS) {
+    fn from_flags(flags: QueueFlags) -> Option<Self> {
+        if flags.intersects(QueueFlags::COMPUTE | QueueFlags::GRAPHICS) {
             Some(Execute)
         } else {
             None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::COMPUTE | CapabilityFlags::GRAPHICS
+    fn into_flags(self) -> QueueFlags {
+        QueueFlags::COMPUTE | QueueFlags::GRAPHICS
     }
 }
 
 impl Capability for Compute {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::COMPUTE) {
+    fn from_flags(flags: QueueFlags) -> Option<Self> {
+        if flags.subset(QueueFlags::COMPUTE) {
             Some(Compute)
         } else {
             None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::COMPUTE
+    fn into_flags(self) -> QueueFlags {
+        QueueFlags::COMPUTE
     }
 }
 
 impl Capability for Graphics {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::GRAPHICS) {
+    fn from_flags(flags: QueueFlags) -> Option<Self> {
+        if flags.subset(QueueFlags::GRAPHICS) {
             Some(Graphics)
         } else {
             None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::GRAPHICS
+    fn into_flags(self) -> QueueFlags {
+        QueueFlags::GRAPHICS
     }
 }
 
 impl Capability for General {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE) {
+    fn from_flags(flags: QueueFlags) -> Option<Self> {
+        if flags.subset(QueueFlags::GRAPHICS | QueueFlags::COMPUTE) {
             Some(General)
         } else {
             None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE
+    fn into_flags(self) -> QueueFlags {
+        QueueFlags::GRAPHICS | QueueFlags::COMPUTE
     }
 }
 
@@ -207,72 +185,72 @@ impl Supports<Graphics> for General {
     }
 }
 
-impl Supports<Transfer> for CapabilityFlags {
+impl Supports<Transfer> for QueueFlags {
     fn supports(&self) -> Option<Transfer> {
         Transfer::from_flags(*self)
     }
 }
 
-impl Supports<Execute> for CapabilityFlags {
+impl Supports<Execute> for QueueFlags {
     fn supports(&self) -> Option<Execute> {
         Execute::from_flags(*self)
     }
 }
 
-impl Supports<Compute> for CapabilityFlags {
+impl Supports<Compute> for QueueFlags {
     fn supports(&self) -> Option<Compute> {
         Compute::from_flags(*self)
     }
 }
 
-impl Supports<Graphics> for CapabilityFlags {
+impl Supports<Graphics> for QueueFlags {
     fn supports(&self) -> Option<Graphics> {
         Graphics::from_flags(*self)
     }
 }
 
 /// Get capabilities required by pipeline stages.
-pub fn required_queue_capability(stages: PipelineStageFlags) -> CapabilityFlags {
-    let mut capability = CapabilityFlags::empty();
-    if stages.contains(PipelineStageFlags::DRAW_INDIRECT) {
-        capability |= CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE;
+pub fn required_queue_capability(stages: PipelineStageFlags) -> QueueFlags {
+    let mut capability = QueueFlags::empty();
+    if stages.subset(PipelineStageFlags::DRAW_INDIRECT) {
+        capability |= QueueFlags::GRAPHICS | QueueFlags::COMPUTE;
     }
-    if stages.contains(PipelineStageFlags::VERTEX_INPUT) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::VERTEX_INPUT) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::VERTEX_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::VERTEX_SHADER) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::TESSELLATION_CONTROL_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::TESSELLATION_CONTROL_SHADER) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::TESSELLATION_EVALUATION_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::TESSELLATION_EVALUATION_SHADER) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::GEOMETRY_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::GEOMETRY_SHADER) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::FRAGMENT_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::FRAGMENT_SHADER) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::EARLY_FRAGMENT_TESTS) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::EARLY_FRAGMENT_TESTS) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::LATE_FRAGMENT_TESTS) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::LATE_FRAGMENT_TESTS) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT) {
+        capability |= QueueFlags::GRAPHICS;
     }
-    if stages.contains(PipelineStageFlags::COMPUTE_SHADER) {
-        capability |= CapabilityFlags::COMPUTE;
+    if stages.subset(PipelineStageFlags::COMPUTE_SHADER) {
+        capability |= QueueFlags::COMPUTE;
     }
-    if stages.contains(PipelineStageFlags::TRANSFER) {
+    if stages.subset(PipelineStageFlags::TRANSFER) {
         capability |=
-            CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE | CapabilityFlags::TRANSFER;
+            QueueFlags::GRAPHICS | QueueFlags::COMPUTE | QueueFlags::TRANSFER;
     }
-    if stages.contains(PipelineStageFlags::ALL_GRAPHICS) {
-        capability |= CapabilityFlags::GRAPHICS;
+    if stages.subset(PipelineStageFlags::ALL_GRAPHICS) {
+        capability |= QueueFlags::GRAPHICS;
     }
     capability
 }

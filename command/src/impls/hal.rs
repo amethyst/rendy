@@ -19,7 +19,7 @@ where
     type CommandQueue = (B::CommandQueue, PhantomData<B>);
 
     unsafe fn create_fence(&self, info: fence::FenceCreateInfo) -> Self::Fence {
-        hal::Device::create_fence(self.0.borrow(), info.flags.contains(fence::FenceCreateFlags::CREATE_SIGNALED))
+        hal::Device::create_fence(self.0.borrow(), info.flags.subset(fence::FenceCreateFlags::CREATE_SIGNALED))
     }
 }
 

@@ -1,12 +1,11 @@
 //! Pool module docs.
 
-use std::fmt::Debug;
+use ash::{version::DeviceV1_0, vk::{CommandBuffer, QueueFlags}};
 
 use relevant::Relevant;
 
 use buffer::*;
 use capability::*;
-use device::{CommandBuffer, Device};
 use family::FamilyId;
 use frame::{CompleteFrame, Frame, FrameBound, FrameIndex};
 
@@ -14,7 +13,7 @@ use frame::{CompleteFrame, Frame, FrameBound, FrameIndex};
 /// Doesn't provide any guarantees.
 /// Wraps raw buffers into `Buffer`.
 #[derive(Debug)]
-pub struct Pool<P, C, R = ()> {
+pub struct Pool<P, C = QueueFlags, R = ()> {
     inner: P,
     capability: C,
     reset: R,
@@ -24,30 +23,22 @@ pub struct Pool<P, C, R = ()> {
 
 impl<P, C, R> Pool<P, C, R> {
     /// Allocate new buffer.
-    fn allocate_buffers<D, L>(
+    fn allocate_buffers<L: Level>(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         level: L,
         count: usize,
-    ) -> Vec<Buffer<D::CommandBuffer, C, InitialState, L, R>>
-    where
-        P: Debug,
-        D: Device<CommandPool = P>,
-    {
+    ) -> Vec<Buffer<CommandBuffer, C, InitialState, L, R>> {
         unimplemented!()
     }
 
     /// Free buffers.
     /// Buffers must be in droppable state.
-    fn free_buffers<D, L, S>(
+    fn free_buffers(
         &mut self,
-        device: &D,
-        buffers: Vec<Buffer<D::CommandBuffer, C, S, L, R>>,
-    ) where
-        P: Debug,
-        D: Device<CommandPool = P>,
-        S: Droppable,
-    {
+        device: &impl DeviceV1_0,
+        buffers: Vec<Buffer<CommandBuffer, C, impl Droppable, impl Level, R>>,
+    ) {
         unimplemented!()
     }
 
@@ -57,7 +48,7 @@ impl<P, C, R> Pool<P, C, R> {
     }
 }
 
-impl<P, R> Pool<P, CapabilityFlags, R> {
+impl<P, R> Pool<P, QueueFlags, R> {
     /// Convert capability level
     pub fn cast_capability<C>(self) -> Result<Pool<P, C, R>, Self>
     where
@@ -82,7 +73,7 @@ impl<P, R> Pool<P, CapabilityFlags, R> {
 /// All buffers will be reset together via pool.
 /// Prior reset user must ensure all buffers are complete.
 #[derive(Debug)]
-pub struct OwningPool<P, B, C, R = ()> {
+pub struct OwningPool<P, B, C = QueueFlags, R = ()> {
     inner: Pool<P, C, R>,
     buffers: Vec<B>,
     next: usize,
@@ -98,15 +89,11 @@ impl<P, B, C, R> OwningPool<P, B, C, R> {
     /// Acquire command buffer from pool.
     /// The command buffer could be submitted only as part of submission for associated frame.
     /// TODO: Check that buffer cannot be moved out.
-    pub fn acquire_buffer<D, L>(
+    pub fn acquire_buffer<L>(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         level: L,
-    ) -> Buffer<&mut B, C, InitialState, L>
-    where
-        B: CommandBuffer + Debug + 'static,
-        D: Device<CommandBuffer = B, Submit = B::Submit>,
-    {
+    ) -> Buffer<&mut CommandBuffer, C, InitialState, L> {
         unimplemented!()
     }
 
@@ -121,7 +108,7 @@ impl<P, B, C, R> OwningPool<P, B, C, R> {
     }
 }
 
-impl<P, B, R> OwningPool<P, B, CapabilityFlags, R> {
+impl<P, B, R> OwningPool<P, B, QueueFlags, R> {
     /// Convert capability level
     pub fn cast_capability<C>(self) -> Result<OwningPool<P, B, C, R>, Self>
     where
@@ -164,7 +151,7 @@ impl<P, B, C> FramePool<P, B, C> {
     ///
     /// This function will panic if pool is still bound to frame.
     ///
-    pub fn bind<'a, 'b, F>(&'a mut self, frame: &'b Frame<F>) -> FrameBound<'b, F, &'a mut Self> {
+    pub fn bind<'a, 'b, F>(&'a mut self, frame: &'b Frame) -> FrameBound<'b, &'a mut Self> {
         assert!(
             self.frame.is_none(),
             "`FramePool::reset` must be called before binding to another frame"
@@ -191,7 +178,7 @@ impl<P, B, C> FramePool<P, B, C> {
     }
 }
 
-impl<P, B> FramePool<P, B, CapabilityFlags> {
+impl<P, B> FramePool<P, B, QueueFlags> {
     /// Convert capability level
     pub fn cast_capability<C>(self) -> Result<FramePool<P, B, C>, Self>
     where
@@ -210,7 +197,7 @@ impl<P, B> FramePool<P, B, CapabilityFlags> {
     }
 }
 
-impl<'a, 'b, P: 'b, B: 'b, C: 'b, F: 'a> FrameBound<'a, F, &'b mut FramePool<P, B, C>> {
+impl<'a, 'b, P: 'b, B: 'b, C: 'b> FrameBound<'a, &'b mut FramePool<P, B, C>> {
     /// Reserve at least `count` buffers.
     /// Allocate if there are not enough unused buffers.
     pub fn reserve(&mut self, count: usize) {
@@ -222,13 +209,9 @@ impl<'a, 'b, P: 'b, B: 'b, C: 'b, F: 'a> FrameBound<'a, F, &'b mut FramePool<P, 
     /// TODO: Check that buffer cannot be moved out.
     pub fn acquire_buffer<D, L>(
         &mut self,
-        device: &D,
+        device: &impl DeviceV1_0,
         level: L,
-    ) -> Buffer<FrameBound<'b, &mut B, F>, C, InitialState, L>
-    where
-        B: CommandBuffer + Debug + 'static,
-        D: Device<CommandBuffer = B, Submit = B::Submit>,
-    {
+    ) -> Buffer<FrameBound<'b, &mut CommandBuffer>, C, InitialState, L> {
         unimplemented!()
     }
 }

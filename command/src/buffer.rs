@@ -1,9 +1,9 @@
 //! Buffer module docs.
 
+use std::{borrow::Borrow};
 use relevant::Relevant;
-use std::fmt::Debug;
+use ash::vk::{CommandBuffer, CommandBufferLevel, CommandBufferUsageFlags};
 
-use device::CommandBuffer;
 use encoder::Encoder;
 use family::FamilyId;
 use frame::FrameBound;
@@ -15,6 +15,29 @@ pub struct PrimaryLevel;
 /// Command buffers of this level can be executed as part of the primary buffers.
 #[derive(Clone, Copy, Debug)]
 pub struct SecondaryLevel;
+
+pub trait Level {
+    /// Get raw level value.
+    fn level(&self) -> CommandBufferLevel;
+}
+
+impl Level for PrimaryLevel {
+    fn level(&self) -> CommandBufferLevel {
+        CommandBufferLevel::PRIMARY
+    }
+}
+
+impl Level for SecondaryLevel {
+    fn level(&self) -> CommandBufferLevel {
+        CommandBufferLevel::SECONDARY
+    }
+}
+
+impl Level for CommandBufferLevel {
+    fn level(&self) -> CommandBufferLevel {
+        *self
+    }
+}
 
 /// This flag specify that buffer can be reset individually.
 /// Without this flag buffer can be reset only together with all other buffers from pool.
@@ -77,48 +100,27 @@ pub struct SimultaneousUse;
 #[derive(Clone, Copy, Debug)]
 pub struct RenderPassContinue;
 
-bitflags!{
-    /// Bitmask specifying usage behavior for command buffer
-    /// See Vulkan docs for detailed info:
-    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkCommandBufferUsageFlagBits.html>
-    #[repr(transparent)]
-    pub struct UsageFlags: u32 {
-        /// Specifies that each recording of the command buffer will only be submitted once,
-        /// and the command buffer will be reset and recorded again between each submission.
-        const ONE_TIME_SUBMIT = 0x00000001;
-
-        /// Specifies that a secondary command buffer is considered to be entirely inside a render pass.
-        /// If this is a primary command buffer, then this bit is ignored.
-        const RENDER_PASS_CONTINUE = 0x00000002;
-
-        /// Specifies that a command buffer can be resubmitted to a queue while it is in the pending state,
-        /// and recorded into multiple primary command buffers.
-        const SIMULTANEOUS_USE = 0x00000004;
-    }
-}
-
 /// Trait implemented by all usage types.
 pub trait Usage {
     /// State in which command buffer moves after completion.
-
-    fn flags(&self) -> UsageFlags;
+    fn flags(&self) -> CommandBufferUsageFlags;
 }
 
 impl Usage for OneShot {
-    fn flags(&self) -> UsageFlags {
-        UsageFlags::ONE_TIME_SUBMIT
+    fn flags(&self) -> CommandBufferUsageFlags {
+        CommandBufferUsageFlags::ONE_TIME_SUBMIT
     }
 }
 
 impl Usage for MultiShot {
-    fn flags(&self) -> UsageFlags {
-        UsageFlags::empty()
+    fn flags(&self) -> CommandBufferUsageFlags {
+        CommandBufferUsageFlags::empty()
     }
 }
 
 impl Usage for MultiShot<SimultaneousUse> {
-    fn flags(&self) -> UsageFlags {
-        UsageFlags::SIMULTANEOUS_USE
+    fn flags(&self) -> CommandBufferUsageFlags {
+        CommandBufferUsageFlags::SIMULTANEOUS_USE
     }
 }
 
@@ -152,32 +154,33 @@ impl<B, C, R> Buffer<B, C, InitialState, PrimaryLevel, R> {
 
 /// Structure contains command buffer ready for submission.
 #[derive(Debug)]
-pub struct Submit<S> {
-    raw: S,
+#[allow(missing_copy_implementations)]
+pub struct Submit {
+    raw: CommandBuffer,
     family: FamilyId,
 }
 
-impl<S> Submit<S> {
+impl Submit {
     /// Get family this submit is associated with.
     pub fn family(&self) -> FamilyId {
         self.family
     }
 
-    /// Unwrap inner submit value.
-    pub fn into_inner(self) -> S {
+    /// Get raw command buffer.
+    pub fn raw(&self) -> CommandBuffer {
         self.raw
     }
 }
 
 impl<B, C, R> Buffer<B, C, ExecutableState<OneShot>, PrimaryLevel, R>
 where
-    B: CommandBuffer,
+    B: Borrow<CommandBuffer>,
 {
     /// produce `Submit` object that can be used to populate submission.
     pub fn submit_once(
         self,
     ) -> (
-        Submit<B::Submit>,
+        Submit,
         Buffer<B, C, PendingState<InvalidState>, PrimaryLevel, R>,
     ) {
         unimplemented!()
@@ -186,13 +189,13 @@ where
 
 impl<B, C, S, R> Buffer<B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R>
 where
-    B: CommandBuffer,
+    B: Borrow<CommandBuffer>,
 {
     /// Produce `Submit` object that can be used to populate submission.
     pub fn submit(
         self,
     ) -> (
-        Submit<B::Submit>,
+        Submit,
         Buffer<B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
     ) {
         unimplemented!()
@@ -237,28 +240,25 @@ where
 
 impl<B, C, U, L, R> Encoder<C> for Buffer<B, C, RecordingState<U>, L, R>
 where
-    B: CommandBuffer,
+    B: Borrow<CommandBuffer>,
 {
-    type Buffer = B;
-
-    unsafe fn buffer(&mut self) -> &mut B {
-        &mut self.inner
+    unsafe fn raw(&mut self) -> CommandBuffer {
+        *self.inner.borrow()
     }
 }
 
-impl<'a, F: 'a, B> CommandBuffer for FrameBound<'a, F, B>
+impl<'a, B> Borrow<CommandBuffer> for FrameBound<'a, B>
 where
-    B: CommandBuffer,
-    F: Debug,
+    B: Borrow<CommandBuffer>,
 {
-    type Submit = FrameBound<'a, F, B::Submit>;
-
-    unsafe fn submit(&self) -> FrameBound<'a, F, B::Submit> {
-        FrameBound::bind(self.inner_ref().submit(), self.frame())
+    fn borrow(&self) -> &CommandBuffer {
+        unsafe { // Make it safe.
+            self.inner_ref().borrow()
+        }
     }
 }
 
-impl<'a, F: 'a, B, S, L, C> Buffer<FrameBound<'a, F, B>, C, S, L> {
+impl<'a, B, S, L, C> Buffer<FrameBound<'a, B>, C, S, L> {
     /// Release borrowed buffer. This allows to acquire next buffer from pool.
     /// Whatever state this buffer was in it will be reset only after bounded frame is complete.
     /// This allows safely to release borrowed buffer in pending state.

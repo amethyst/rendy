@@ -1,5 +1,4 @@
 //! Frame module docs.
-
 use error::DeviceLost;
 
 /// Unique index of the frame.
@@ -10,83 +9,39 @@ pub struct FrameIndex(u64);
 /// Generate `Frame`s.
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
-pub struct FrameGen(u64);
+pub struct FrameGen {
+    next: u64,
+}
 
 impl FrameGen {
     /// Only one `FrameGen` should be used.
     pub unsafe fn new() -> Self {
-        FrameGen(0)
-    }
-
-    /// Generate next `Frame`.
-    pub fn next<F>(&mut self) -> Frame<F> {
-        self.0 += 1;
-        unsafe {
-            Frame::new(FrameIndex(self.0))
+        FrameGen {
+            next: 0,
         }
     }
 
-    /// Generate next `Frame`, fences included.
-    pub fn next_with_fences<F>(&mut self, fences: Vec<F>) -> Frame<F> {
-        self.0 += 1;
-        unsafe {
-            Frame::with_fences(FrameIndex(self.0), fences)
+    /// Generate next `Frame`.
+    pub fn next(&mut self) -> Frame {
+        self.next += 1;
+        Frame {
+            index: self.next - 1,
         }
     }
 }
 
 /// Single frame rendering task.
 /// Command buffers can be submitted as part of the `Frame`.
-/// Internally frame is just an index and fences.
-/// But semantically it owns list of submissions submitted through it.
+#[allow(missing_copy_implementations)]
 #[derive(Debug)]
-pub struct Frame<F> {
-    index: FrameIndex,
-    fences: Vec<F>,
+pub struct Frame {
+    index: u64,
 }
 
-impl<F> Frame<F> {
-    /// Create new frame instance.
-    ///
-    /// # Safety
-    ///
-    /// Index must be unique.
-    pub unsafe fn new(index: FrameIndex) -> Self {
-        Frame {
-            index,
-            fences: Vec::new(),
-        }
-    }
-    /// Create new frame instance.
-    ///
-    /// # Safety
-    ///
-    /// Index must be unique.
-    pub unsafe fn with_fences(index: FrameIndex, fences: Vec<F>) -> Self {
-        Frame {
-            index,
-            fences,
-        }
-    }
-
+impl Frame {
     /// Get frame index.
     pub fn index(&self) -> FrameIndex {
-        self.index
-    }
-
-    /// Takes slice of fences associated with this frame.
-    ///
-    pub unsafe fn fences(&self) -> &[F] {
-        &self.fences
-    }
-
-    /// Finish frame.
-    /// Returned `PendingFrame` can be used to wait the frame to complete on device.
-    pub fn finish(self) -> PendingFrame<F> {
-        PendingFrame {
-            index: self.index,
-            fences: self.fences,
-        }
+        FrameIndex(self.index)
     }
 }
 
@@ -149,14 +104,14 @@ impl<F> CompleteFrame<F> {
 
 /// Frame bound instance.
 #[derive(Clone, Copy, Debug)]
-pub struct FrameBound<'a, F: 'a, T> {
-    frame: &'a Frame<F>,
+pub struct FrameBound<'a, T> {
+    frame: &'a Frame,
     value: T,
 }
 
-impl<'a, F: 'a, T> FrameBound<'a, F, T> {
+impl<'a, T> FrameBound<'a, T> {
     /// Bind value to frame
-    pub fn bind(value: T, frame: &'a Frame<F>) -> Self {
+    pub fn bind(value: T, frame: &'a Frame) -> Self {
         FrameBound { frame, value }
     }
 
@@ -191,7 +146,7 @@ impl<'a, F: 'a, T> FrameBound<'a, F, T> {
     }
 
     /// Get frame this value bound to.
-    pub fn frame(&self) -> &'a Frame<F> {
+    pub fn frame(&self) -> &'a Frame {
         self.frame
     }
 }
