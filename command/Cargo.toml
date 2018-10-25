@@ -7,3 +7,4 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 ash = { git = "https://github.com/MatusT/ash.git", branch = "generator" }
 failure = "0.1"
 relevant = "0.2"
+smallvec = "0.6"

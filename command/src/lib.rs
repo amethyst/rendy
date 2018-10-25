@@ -22,6 +22,7 @@ extern crate ash;
 #[macro_use]
 extern crate failure;
 extern crate relevant;
+extern crate smallvec;
 
 mod error;
 mod family;
@@ -35,6 +36,6 @@ pub use buffer::{Buffer, Submit};
 pub use capability::Capability;
 pub use encoder::Encoder;
 pub use family::{Family, FamilyId, Families};
-pub use frame::{Frame, FrameBound, FrameIndex, CompleteFrame, FrameGen};
+pub use frame::{Frame, Frames, FrameBound, FrameIndex, CompleteFrame, FrameGen};
 pub use pool::{Pool, OwningPool, FramePool};
 

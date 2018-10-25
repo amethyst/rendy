@@ -37,7 +37,7 @@ mod sync;
 pub use access::AccessFlagsExt;
 pub use chain::Chain;
 pub use collect::{collect, Chains, Unsynchronized};
-pub use node::{Node, State};
+pub use node::{Node, State, BufferState, ImageState};
 pub use resource::{Buffer, Image, Resource};
 pub use schedule::{Family, FamilyId, Queue, QueueId, Schedule, Submission, SubmissionId};
 pub use stage::{ComputePipelineStage, GraphicsPipelineStage};

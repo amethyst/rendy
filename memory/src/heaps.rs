@@ -14,7 +14,7 @@ use util::*;
 /// Config for `Heaps` allocator.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Config {
+pub struct HeapsConfig {
     /// Config for arena sub-allocator.
     pub arena: Option<ArenaConfig>,
 
@@ -33,7 +33,7 @@ impl Heaps {
     /// This must be called with `MemoryPropertyFlags` fetched from physical device.
     pub unsafe fn new<P, H>(types: P, heaps: H) -> Self
     where
-        P: IntoIterator<Item = (MemoryPropertyFlags, u32, Config)>,
+        P: IntoIterator<Item = (MemoryPropertyFlags, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
     {
         let heaps = heaps
@@ -265,7 +265,7 @@ struct MemoryType {
 }
 
 impl MemoryType {
-    fn new(memory_type: u32, heap_index: usize, properties: MemoryPropertyFlags, config: Config) -> Self {
+    fn new(memory_type: u32, heap_index: usize, properties: MemoryPropertyFlags, config: HeapsConfig) -> Self {
         MemoryType {
             properties,
             heap_index,

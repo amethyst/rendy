@@ -30,3 +30,5 @@ pub mod buffer;
 pub mod image;
 
 pub use resources::Resources;
+pub use buffer::Buffer;
+pub use image::Image;

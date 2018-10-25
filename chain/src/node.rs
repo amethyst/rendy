@@ -22,6 +22,12 @@ pub struct State<R: Resource> {
     pub usage: R::Usage,
 }
 
+/// Type alias for `State<Buffer>`
+pub type BufferState = State<Buffer>;
+
+/// Type alias for `State<Image>`
+pub type ImageState = State<Image>;
+
 /// Description of node.
 #[derive(Clone, Debug)]
 pub struct Node {

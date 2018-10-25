@@ -24,6 +24,7 @@ pub struct Graph<D: Device, T> {
     buffers: Vec<buffer::Buffer<D::Memory, D::Buffer>>,
     images: Vec<image::Image<D::Memory, D::Image>>,
     frame_gen: FrameGen,
+    fences: Vec<D::Fence>,
 }
 
 impl<D, T> Graph<D, T>
@@ -53,21 +54,20 @@ where
         mut queues: Q,
         device: &mut D,
         aux: &mut T,
-        mut fences: Vec<D::Fence>,
     ) -> Vec<D::Fence>
     where
         Q: FnMut(FamilyId, usize) -> Option<&'a mut Queue<D::CommandQueue, CapabilityFlags>>
     {
         unsafe {
-            device.reset_fences(&fences);
+            device.reset_fences(&self.fences);
         }
-        while fences.len() < self.schedule.queue_count() {
-            fences.push(unsafe { // ?
+        while self.fences.len() < self.schedule.queue_count() {
+            self.fences.push(unsafe { // ?
                 device.create_fence(Default::default())
             });
         }
 
-        let frame = self.frame_gen.next_with_fences(fences);
+        let frame = self.frame_gen.next_with_fences(::std::mem::replace(&mut self.fences, Vec::new()));
 
         let ref semaphores = self.semaphores;
 
@@ -86,14 +86,14 @@ where
             node.run(
                 device,
                 aux,
-                unimplemented!(),
+                &frame,
                 &mut node_submits,
             );
 
             let last_in_queue = sid.index() + 1 == self.schedule.queue(qid).unwrap().len();
             let fence = if last_in_queue {
                 fence_index += 1;
-                Some(&fences[fence_index - 1])
+                Some(&self.fences[fence_index - 1])
             } else {
                 None
             };

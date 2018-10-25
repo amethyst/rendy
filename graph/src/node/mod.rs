@@ -1,29 +1,24 @@
 //! Defines node - building block for framegraph.
 //!
 
+use std::any::Any;
+use ash::{version::DeviceV1_0, vk::{QueueFlags}};
+
 use chain::{
     State,
-    Buffer,
-    Image,
+    BufferState,
+    ImageState,
     Id,
 };
 
 use command::{
-    Submit,
+    Encoder,
     Capability,
-    CapabilityFlags,
-    Device,
     FamilyId,
-    Frame,
-    FrameBound,
-    FramePool,
+    Frames,
 };
-// use resource::{buffer, image};
 
-#[doc(hidden)]
-pub trait FrameBoundSubmits<'a, D: Device + ?Sized> {
-    type Submits: IntoIterator<Item = Submit<FrameBound<'a, D::Fence, D::Submit>>>;
-}
+use resource::{Buffer, Image};
 
 /// The node is building block of the framegraph.
 /// Node defines set of resources and operations to perform over them.
@@ -34,17 +29,15 @@ pub trait FrameBoundSubmits<'a, D: Device + ?Sized> {
 /// `D` - device type.
 /// `T` - auxiliary data type.
 ///
-pub trait Node<D: Device + ?Sized, T: ?Sized>:
-    for<'a> FrameBoundSubmits<'a, D> + Sized + 'static
-{
+pub trait Node<T: ?Sized>: Sized + Sync + Send + 'static {
     /// Capability required by node.
     /// Graph will execute this node on command queue that supports this capability level.
     type Capability: Capability;
 
     /// Description type to instantiate the node.
-    type Desc: NodeDesc<D, T, Node = Self>;
+    type Desc: NodeDesc<T, Node = Self>;
 
-    /// Builder creation.
+    /// Desc creation.
     /// Convenient method if builder implements `Default`.
     fn desc() -> Self::Desc
     where
@@ -53,48 +46,57 @@ pub trait Node<D: Device + ?Sized, T: ?Sized>:
         Default::default()
     }
 
+    /// Builder creation.
+    fn builder(self) -> NodeBuilder<T>
+    where
+        Self::Desc: Default,
+    {
+        Self::desc().builder()
+    }
+
     /// Record commands required by node.
     /// Returned submits are guaranteed to be submitted within specified frame.
-    fn run<'a>(
+    fn run<'a, E, F>(
         &mut self,
-        device: &D,
-        aux: &T,
-        frame: &'a Frame<D::Fence>,
-    ) -> <Self as FrameBoundSubmits<'a, D>>::Submits;
+        device: &impl DeviceV1_0,
+        aux: &mut T,
+        complete_frame: &'a CompleteFrame,
+        frames: &'a Frames,
+        encoder: E,
+    )
+    where
+        E: Encoder<Self::Capability>,
+    ;
 }
 
 /// Resources wrapper.
 /// Wraps resources requested by the node.
 /// This wrapper guarantees that lifetime of resources is bound to the node lifetime.
-/// Also it automatically inserts synchronization required to make access declared by node correct.
 #[derive(Clone, Debug)]
-pub struct Resources<'a, B: 'a, I: 'a> {
-    buffers: Vec<&'a B>,
-    images: Vec<&'a I>,
-    barriers: Barriers,
+pub struct Resources<'a> {
+    buffers: Vec<&'a Buffer>,
+    images: Vec<&'a Image>,
 }
-
-/// Set of barriers the node must insert before and after commands.
-#[derive(Clone, Copy, Debug)]
-pub struct Barriers;
 
 /// Builder of the node.
 /// Implementation of the builder type provide framegraph with static information about node
 /// that is used for building the node.
-pub trait NodeDesc<D: Device + ?Sized, T: ?Sized>: Sized + 'static {
+pub trait NodeDesc<T: ?Sized>: Sized + 'static {
     /// Node this builder builds.
-    type Node: Node<D, T>;
+    type Node: Node<T>;
 
-    /// Capability required by node.
-    /// Graph will execute this node on command queue that supports this capability level.
+    /// Builder creation.
+    fn builder(self) -> NodeBuilder<T> {
+        NodeBuilder::new(self)
+    }
 
     /// Get set or buffer resources the node uses.
-    fn buffers(&self) -> Vec<State<Buffer>> {
+    fn buffers(&self) -> Vec<BufferState> {
         Vec::new()
     }
 
     /// Get set or image resources the node uses.
-    fn images(&self) -> Vec<State<Image>> {
+    fn images(&self) -> Vec<ImageState> {
         Vec::new()
     }
 
@@ -111,85 +113,74 @@ pub trait NodeDesc<D: Device + ?Sized, T: ?Sized>: Sized + 'static {
     ///
     fn build(
         &self,
-        device: &D,
+        device: &impl DeviceV1_0,
         aux: &mut T,
-        pool: FramePool<D::CommandPool, D::CommandBuffer, <Self::Node as Node<D, T>>::Capability>,
-        resources: Resources<'_, D::Buffer, D::Image>,
+        resources: Resources<'_>,
     ) -> Self::Node;
 }
 
 /// Trait-object safe `Node`.
-pub trait AnyNode<D: Device + ?Sized, T: ?Sized> {
+pub unsafe trait AnyNode<T: ?Sized>: Any + Sync + Send {
     /// Record commands required by node.
     /// Recorded buffers go into `submits`.
     fn run(
         &mut self,
-        device: &D,
-        aux: &T,
+        device: &impl DeviceV1_0,
+        aux: &mut T,
         frame: &Frame<D::Fence>,
-        raw_submits: &mut Vec<D::Submit>,
+        encoder: &mut AnyEncoder<D>,
     );
 }
 
-impl<D, T, N> AnyNode<D, T> for N
+unsafe impl<T, N> AnyNode<T> for N
 where
-    D: Device + ?Sized,
     T: ?Sized,
-    N: Node<D, T>,
+    N: Node<T>,
 {
     fn run(
         &mut self,
-        device: &D,
-        aux: &T,
+        device: &impl DeviceV1_0,
+        aux: &mut T,
         frame: &Frame<D::Fence>,
-        raw_submits: &mut Vec<D::Submit>,
+        encoder: &mut AnyEncoder<D>,
     ) {
-        let submits = Node::run(self, device, aux, frame)
-            .into_iter()
-            .map(|submit| unsafe {
-                // Graph guarantee to submit those within frame to the correct queue.
-                submit.into_inner().unbind()
-            });
-
-        raw_submits.extend(submits);
+        Node::run(self, device, aux, frame, encoder.capability::<N::Capability>())
     }
 }
 
 /// Trait-object safe `NodeDesc`.
-pub trait AnyNodeDesc<D: Device + ?Sized, T: ?Sized> {
+pub unsafe trait AnyNodeDesc<T: ?Sized> {
     /// Find family suitable for the node.
     fn family(&self, families: &[(CapabilityFlags, FamilyId)]) -> Option<FamilyId>;
 
     /// Build the node.
     fn build(
         &self,
-        device: &D,
+        device: &impl DeviceV1_0,
         aux: &mut T,
-        pool: FramePool<D::CommandPool, D::CommandBuffer, CapabilityFlags>,
         resources: Resources<'_, D::Buffer, D::Image>,
-    ) -> Box<dyn AnyNode<D, T>>;
+    ) -> Box<dyn AnyNode<T>>;
 }
 
-impl<D, T, N> AnyNodeDesc<D, T> for N
+unsafe impl<T, N> AnyNodeDesc<T> for N
 where
-    D: Device + ?Sized,
     T: ?Sized,
-    N: NodeDesc<D, T>,
+    N: NodeDesc<T>,
 {
     fn family(&self, families: &[(CapabilityFlags, FamilyId)]) -> Option<FamilyId> {
         families
             .iter()
-            .find(|&(cap, _)| <N::Node as Node<D, T>>::Capability::from_flags(*cap).is_some())
+            .find(|&(cap, _)| <N::Node as Node<T>>::Capability::from_flags(*cap).is_some())
             .map(|&(_, id)| id)
     }
 
     fn build(
         &self,
-        device: &D,
+        device: &impl DeviceV1_0,
         aux: &mut T,
         pool: FramePool<D::CommandPool, D::CommandBuffer, CapabilityFlags>,
         resources: Resources<'_, D::Buffer, D::Image>,
-    ) -> Box<dyn AnyNode<D, T>> {
+    ) -> Box<dyn AnyNode<T>> {
         let node = NodeDesc::build(
             self,
             device,
@@ -205,26 +196,25 @@ where
 
 /// Builder for the node.
 #[allow(missing_debug_implementations)]
-pub struct NodeBuilder<D: Device + ?Sized, T: ?Sized> {
-    pub(crate) desc: Box<dyn AnyNodeDesc<D, T>>,
+pub struct NodeBuilder<T: ?Sized> {
+    pub(crate) desc: Box<dyn AnyNodeDesc<T>>,
     pub(crate) buffers: Vec<Id>,
     pub(crate) images: Vec<Id>,
     pub(crate) dependencies: Vec<usize>,
 }
 
-impl<D, T> NodeBuilder<D, T>
+impl<T> NodeBuilder<T>
 where
     D: Device + ?Sized,
     T: ?Sized,
 {
     /// Create new builder.
-    pub fn new<N>() -> Self
+    pub fn new<N>(desc: N) -> Self
     where
-        N: Node<D, T>,
-        N::Desc: Default,
+        N: NodeDesc<T>,
     {
         NodeBuilder {
-            desc: Box::new(N::desc()),
+            desc: Box::new(desc),
             buffers: Vec::new(),
             images: Vec::new(),
             dependencies: Vec::new(),
@@ -277,11 +267,14 @@ where
     #[allow(unused)]
     pub(crate) fn build(
         &self,
-        device: &D,
+        device: &impl DeviceV1_0,
         aux: &mut T,
-        pool: FramePool<D::CommandPool, D::CommandBuffer, CapabilityFlags>,
-        resources: Resources<'_, D::Buffer, D::Image>,
-    ) -> Box<dyn AnyNode<D, T>> {
-        self.desc.build(device, aux, pool, resources)
+        resources: Resources<'_, Buffer, Image>,
+    ) -> Box<dyn AnyNode<T>> {
+        self.desc.build(device, aux, resources)
     }
+}
+
+pub struct AnyEncoder {
+    
 }

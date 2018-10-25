@@ -168,7 +168,7 @@ impl<P, B, C> FramePool<P, B, C> {
     ///
     /// This function will panic if pool wasn't bound to the specified frame.
     ///
-    pub fn reset<F>(&mut self, complete: &CompleteFrame<F>) {
+    pub fn reset(&mut self, complete: &CompleteFrame) {
         assert_eq!(
             self.frame.take(),
             Some(complete.index()),

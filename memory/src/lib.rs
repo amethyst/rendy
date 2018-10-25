@@ -34,13 +34,9 @@ extern crate hibitset;
 extern crate relevant;
 extern crate smallvec;
 
-#[cfg(test)]
-extern crate rand;
-
 mod block;
 mod error;
 mod heaps;
-mod impls;
 mod mapping;
 mod memory;
 mod util;
@@ -50,7 +46,7 @@ pub mod usage;
 
 pub use block::Block;
 pub use error::{AllocationError, MappingError, MemoryError, OutOfMemoryError};
-pub use heaps::{Config, Heaps, MemoryBlock};
+pub use heaps::{HeapsConfig, Heaps, MemoryBlock};
 pub use mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent};
 pub use memory::Memory;
 pub use usage::Usage;

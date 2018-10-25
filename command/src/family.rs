@@ -1,6 +1,9 @@
 //! Family module docs.
 
-use ash::{version::DeviceV1_0, vk::{CommandPool, Queue, QueueFlags}};
+use ash::{version::DeviceV1_0, vk::{CommandPool, Queue, QueueFlags, Extent3D, QueueFamilyProperties}};
+
+use relevant::Relevant;
+
 use capability::Capability;
 use pool::Pool;
 
@@ -15,7 +18,33 @@ pub struct FamilyId(pub u32);
 pub struct Family<C = QueueFlags> {
     index: FamilyId,
     queues: Vec<Queue>,
+    min_image_transfer_granularity: Extent3D,
     capability: C,
+    relevant: Relevant,
+}
+
+impl Family {
+    /// Get queue family from device.
+    pub unsafe fn from_device(device: &impl DeviceV1_0, index: FamilyId, queues: u32, properties: &QueueFamilyProperties) -> Self {
+        Family {
+            index,
+            queues: (0..queues).map(|queue_index| device.get_device_queue(index.0, queue_index)).collect(),
+            min_image_transfer_granularity: properties.min_image_transfer_granularity,
+            capability: properties.queue_flags,
+            relevant: Relevant,
+        }
+    }
+
+    /// Dispose of queue family container.
+    pub fn dispose(self, device: &impl DeviceV1_0) {
+        for queue in self.queues {
+            unsafe {
+                let _ = device.queue_wait_idle(queue);
+            }
+        }
+
+        self.relevant.dispose();
+    }
 }
 
 impl<C> Family<C> {
@@ -41,7 +70,9 @@ where
         Family {
             index: self.index,
             queues: self.queues,
+            min_image_transfer_granularity: self.min_image_transfer_granularity,
             capability: self.capability.into_flags(),
+            relevant: self.relevant,
         }
     }
 
@@ -52,7 +83,9 @@ where
             Some(Family {
                 index: family.index,
                 queues: family.queues,
+                min_image_transfer_granularity: family.min_image_transfer_granularity,
                 capability,
+                relevant: family.relevant,
             })
         } else {
             None
@@ -80,5 +113,23 @@ impl Families {
         C: Capability,
     {
         self.families.push(family.into_flags());
+    }
+
+    /// Get queue families from device.
+    pub unsafe fn from_device(device: &impl DeviceV1_0, families: impl IntoIterator<Item = (FamilyId, u32)>, properties: &[QueueFamilyProperties]) -> Self {
+        Families {
+            families: families.into_iter().map(|(index, queues)| Family::from_device(device, index, queues, &properties[index.0 as usize])).collect()
+        }
+    }
+
+    /// Dispose of queue family containers.
+    pub fn dispose(self, device: &impl DeviceV1_0) {
+        for family in self.families {
+            family.dispose(device);
+        }
+
+        unsafe {
+            device.device_wait_idle();
+        }
     }
 }

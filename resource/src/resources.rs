@@ -17,6 +17,11 @@ pub struct Resources {
 }
 
 impl Resources {
+    /// Create new `Resources` instance.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Create a buffer and bind to the memory that support intended usage.
     pub fn create_buffer(
         &mut self,
