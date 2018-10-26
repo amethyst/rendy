@@ -24,11 +24,20 @@ extern crate serde;
 
 extern crate smallvec;
 
+#[cfg(target_os = "macos")]
+#[macro_use]
+extern crate objc;
+
+#[cfg(target_os = "macos")]
+extern crate cocoa;
+
 mod config;
 mod factory;
 mod queue;
-mod render;
+mod renderer;
+mod target;
+
 
 pub use config::{Config, QueuesConfigure, HeapsConfigure, OneGraphicsQueue, SavedQueueConfig, BasicHeapsConfigure, SavedHeapsConfig};
 pub use factory::Factory;
-pub use render::{Render, RenderBuilder};
+pub use renderer::{Renderer, RendererBuilder};

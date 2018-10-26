@@ -1,49 +1,38 @@
-// extern crate gfx_hal as hal;
-// extern crate rendy;
-// extern crate winit;
+extern crate ash;
+extern crate failure;
+extern crate rendy;
 
-// use hal::{Adapter, Backend, Instance};
-// use rendy::{
-//     command::{CapabilityFlags, Families, Family, FamilyId},
-//     Config, Device, Factory, QueuesPicker, RenderBuilder,
-// };
-// use winit::{EventsLoop, WindowBuilder};
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+extern crate winit;
+
+use ash::version::V1_0;
+
+use rendy::{
+    Factory, Config, BasicHeapsConfigure,
+};
+use winit::{EventsLoop, WindowBuilder};
 
 // use std::marker::PhantomData;
 
-fn main() -> Result<(), ()> {
-//     // Create a window with winit.
-//     let mut events_loop = EventsLoop::new();
-//     let window = WindowBuilder::new()
-//         .with_title("Part 00: Triangle")
-//         .with_dimensions((848, 480).into())
-//         .build(&events_loop)
-//         .unwrap();
+fn main() -> Result<(), failure::Error> {
+    env_logger::init();
 
-//     let render_config = RenderBuilder::new().with_window(window).build();
-//     let config = Config::new(vec![render_config]);
+    let config: Config = Default::default();
 
-//     // TODO: migrate example to `ash`
-//     // let instance = backend::Instance::create("Rendy basic example", 1);
+    let factory: Factory<V1_0> = Factory::new(config)?;
 
-//     // let adapter = instance.enumerate_adapters().remove(0);
+    let mut event_loop = EventsLoop::new();
 
-//     // type HalDevice = (
-//     //     <backend::Backend as Backend>::Device,
-//     //     PhantomData<backend::Backend>,
-//     // );
+    let window = WindowBuilder::new()
+        .with_title("Rendy example")
+        .build(&event_loop)?;
 
-//     //let _factory = rendy::init::<HalDevice, PickFirst, backend::Backend>(config);
+    event_loop.poll_events(|_| ());
 
+    let target = factory.create_surface(window);
+
+    factory.dispose();
     Ok(())
 }
-
-// struct PickFirst;
-// impl QueuesPicker for PickFirst {
-//     fn pick_queues<Q>(
-//         &self,
-//         families: Vec<Families<Q>>,
-//     ) -> Result<(Family<Q, CapabilityFlags>, u32), ()> {
-//         unimplemented!()
-//     }
-// }

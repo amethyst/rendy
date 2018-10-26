@@ -9,7 +9,7 @@ extern crate env_logger;
 use ash::version::V1_0;
 
 use rendy::{
-    Factory, Config, BasicHeapsConfigure,
+    Factory, Config,
 };
 // use winit::{EventsLoop, WindowBuilder};
 
@@ -21,6 +21,10 @@ fn main() -> Result<(), failure::Error> {
     let config: Config = Default::default();
 
     let factory: Factory<V1_0> = Factory::new(config)?;
+
+
+    
+
 
     factory.dispose();
     Ok(())

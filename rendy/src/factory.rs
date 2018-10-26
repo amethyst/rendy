@@ -35,14 +35,13 @@ use ash::{
         PhysicalDeviceType,
         DeviceCreateInfo,
         DeviceQueueCreateInfo,
+        PhysicalDeviceFeatures,
     },
 };
-
 use failure::Error;
-
 use relevant::Relevant;
-
 use smallvec::SmallVec;
+use winit::Window;
 
 use command::Families;
 use memory::{HeapsConfig, Heaps, MemoryError, Usage as MemoryUsage};
@@ -51,10 +50,10 @@ use resource::{
     image::Image,
     Resources,
 };
-use winit::Window;
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
-use render::Render;
+use renderer::{Renderer, RendererBuilder};
+use target::{NativeSurfaceCreator, Target, SurfaceCreator};
 
 #[derive(Debug, Fail)]
 #[fail(display = "{:#?}", _0)]
@@ -66,7 +65,8 @@ struct PhysicalDeviceInfo {
     properties: PhysicalDeviceProperties,
     memory: PhysicalDeviceMemoryProperties,
     queues: Vec<QueueFamilyProperties>,
-    // ext: Vec<ExtensionProperties>,
+    features: PhysicalDeviceFeatures,
+    extensions: Vec<ExtensionProperties>,
 }
 
 /// The `Factory<D>` type represents the overall creation type for `rendy`.
@@ -77,6 +77,7 @@ pub struct Factory<V: FunctionPointers> {
     families: Families,
     heaps: Heaps,
     resources: Resources,
+    surface_creator: NativeSurfaceCreator,
     relevant: Relevant,
 }
 
@@ -109,28 +110,37 @@ where
                             .application_version(config.app_version)
                             .build()
                     )
-                    .enabled_extension_names(&extensions_to_enable(&extensions))
+                    .enabled_extension_names(&extensions_to_enable(&extensions)?)
                     .build(),
                 None,
             )
         }?;
         trace!("Instance created");
 
-        let physicals = unsafe {
+        let surface_creator = <NativeSurfaceCreator as SurfaceCreator>::load(&entry, &instance)?;
+
+        let mut physicals = unsafe {
             instance.enumerate_physical_devices()?.into_iter().map(|p| PhysicalDeviceInfo {
                 handle: p,
                 properties: instance.get_physical_device_properties(p),
                 memory: instance.get_physical_device_memory_properties(p),
                 queues: instance.get_physical_device_queue_family_properties(p),
-                // ext: instance.enumerate_device_extension_properties(p).unwrap(),
+                features: instance.get_physical_device_features(p),
+                extensions: instance.enumerate_device_extension_properties(p).unwrap(),
             })
         }.collect::<Vec<_>>();
 
-        if physicals.is_empty() {
-            bail!("No physical devices found");
-        }
-
         info!("Physical devices:\n{:#?}", physicals);
+
+        physicals.retain(|p| {
+            match extensions_to_enable(&p.extensions) {
+                Ok(_) => true,
+                Err(missing) => {
+                    trace!("{:#?} missing extensions {:#?}", p, missing);
+                    false
+                }
+            }
+        });
 
         let physical = physicals.into_iter().min_by_key(|info| match info.properties.device_type {
             PhysicalDeviceType::DISCRETE_GPU => 0,
@@ -138,7 +148,7 @@ where
             PhysicalDeviceType::VIRTUAL_GPU => 2,
             PhysicalDeviceType::CPU => 3,
             _ => 4,
-        }).unwrap();
+        }).ok_or(format_err!("No suitable physical devices found"))?;
 
         let device_name = unsafe {
             CStr::from_ptr(&physical.properties.device_name[0]).to_string_lossy()
@@ -147,10 +157,6 @@ where
         info!("Physical device picked: {}", device_name);
 
         let families = config.queues.configure(&physical.queues);
-
-        let extensions = unsafe {
-            instance.enumerate_device_extension_properties(physical.handle)
-        }?;
 
         let (create_queues, get_queues): (SmallVec<[_; 32]>, SmallVec<[_; 32]>) = families.into_iter()
             .map(|(index, priorities)| {                
@@ -170,7 +176,8 @@ where
                 physical.handle,
                 &DeviceCreateInfo::builder()
                     .queue_create_infos(&create_queues)
-                    .enabled_extension_names(&extensions_to_enable(&extensions))
+                    .enabled_extension_names(&extensions_to_enable(&physical.extensions).unwrap())
+                    .enabled_features(&physical.features)
                     .build(),
                 None,
             )
@@ -197,6 +204,7 @@ where
             families,
             heaps,
             resources: Resources::new(),
+            surface_creator,
             relevant: Relevant,
         };
 
@@ -261,16 +269,17 @@ where
             .create_image(&self.device, &mut self.heaps, info, align, memory_usage)
     }
 
-    // pub fn create_surface<R>(window: &Window) -> Target<D, R> {
-    //     unimplemented!()
-    // }
+    /// Create surface
+    pub fn create_surface(&self, window: Window) -> Result<Target, Error> {
+        Target::create(window, &self.surface_creator)
+    }
 
-    // /// Build a `Render<D, T>` from the `RenderBuilder` and a render info
-    // pub fn build_render<'a, R, T>(builder: RenderBuilder, render_config: RenderConfig) -> R
+    // /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
+    // pub fn build_render<'a, R, T>(builder: RendererBuilder<R>) -> R
     // where
-    //     R: Render<D, T>,
+    //     R: Renderer<Self, T>,
     // {
-    //     unimplemented!()
+    //     builder.windows.into_iter()
     // }
 
     pub fn dispose(self)
@@ -288,20 +297,36 @@ where
     }
 }
 
-fn extensions_to_enable(_: &[ExtensionProperties]) -> Vec<*const c_char> {
-    const SURFACE_EXT: &'static [u8] = b"VK_KHR_surface\0";
-    const SWAPCHAIN_EXT: &'static [u8] = b"VK_KHR_swapchain\0";
+unsafe fn extension_name_cstr(e: &ExtensionProperties) -> &CStr {
+    CStr::from_ptr(e.extension_name[..].as_ptr())
+}
 
-    #[cfg(target_os = "macos")]
-    const MACOS_SURFACE_EXT: &'static [u8] = b"VK_MVK_macos_surface\0";
+fn extensions_to_enable(available: &[ExtensionProperties]) -> Result<Vec<*const c_char>, Error> {
+    let surface_ext_name: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"VK_KHR_surface\0") };
+    let swapchain_ext_name: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"VK_KHR_swapchain\0") };
 
-    let mut extensions = vec![
-        SURFACE_EXT.as_ptr() as *const c_char,
-        SWAPCHAIN_EXT.as_ptr() as *const c_char,
+    let mut names = vec![
+        surface_ext_name.as_ptr(),
+        swapchain_ext_name.as_ptr(),
+        NativeSurfaceCreator::name().as_ptr(),
     ];
 
-    #[cfg(target_os = "macos")]
-    extensions.push(MACOS_SURFACE_EXT.as_ptr() as *const c_char);
+    let not_found = unsafe {
+        names.iter().cloned()
+            .filter_map(|name| {
+                let cstr_name = CStr::from_ptr(name);
+                trace!("Look for {:?}", cstr_name);
+                if available.iter().find(|e| extension_name_cstr(e) == cstr_name).is_none() {
+                    Some(cstr_name)
+                } else {
+                    None
+                }
+            }).collect::<Vec<_>>()
+    };
 
-    extensions
+    if not_found.is_empty() {
+        Ok(names)
+    } else {
+        Err(format_err!("Extensions {:#?} are not available: {:#?}", not_found, available))
+    }    
 }

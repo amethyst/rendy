@@ -17,5 +17,9 @@ rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
 rendy-command = { path = "../command" }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+cocoa = "0.18"
+
 [dev-dependencies]
 env_logger = "0.5"
