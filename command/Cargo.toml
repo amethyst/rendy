@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-ash = { git = "https://github.com/MatusT/ash.git", branch = "generator" }
+ash = { path = "../../ash/ash" }
 failure = "0.1"
 relevant = "0.2"
 smallvec = "0.6"

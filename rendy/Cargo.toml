@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-ash = { git = "https://github.com/MatusT/ash.git", branch = "generator" }
+ash = { path = "../../ash/ash" }
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
@@ -23,3 +23,4 @@ cocoa = "0.18"
 
 [dev-dependencies]
 env_logger = "0.5"
+

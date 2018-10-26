@@ -21,7 +21,7 @@ pub trait Renderer<F, T> {
 pub trait RendererDesc<F, T> {
     type Renderer: Renderer<F, T>;
 
-    fn build(&mut self, targets: Vec<Target>, factory: &mut F, data: &mut T) -> Self::Renderer;
+    fn build(self, targets: Vec<Target>, factory: &mut F, data: &mut T) -> Self::Renderer;
 }
 
 #[derive(Derivative)]

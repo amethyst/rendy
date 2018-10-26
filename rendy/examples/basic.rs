@@ -31,7 +31,8 @@ fn main() -> Result<(), failure::Error> {
 
     event_loop.poll_events(|_| ());
 
-    let target = factory.create_surface(window);
+    let target = factory.create_target(window, 3)?;
+    factory.destroy_target(target);
 
     factory.dispose();
     Ok(())

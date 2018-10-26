@@ -1,11 +1,15 @@
 
-use std::{ffi::{CStr, CString}, os::raw::c_char};
+use std::{ffi::{CStr, CString}, os::raw::c_char, cmp::{max, min}};
 
 use ash::{
     Device,
     Instance,
     Entry,
     LoadingError,
+    extensions::{
+        Surface,
+        Swapchain,
+    },
     version::{
         DeviceV1_0,
         EntryV1_0,
@@ -36,6 +40,7 @@ use ash::{
         DeviceCreateInfo,
         DeviceQueueCreateInfo,
         PhysicalDeviceFeatures,
+        SwapchainCreateInfoKHR,
     },
 };
 use failure::Error;
@@ -52,8 +57,8 @@ use resource::{
 };
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
-use renderer::{Renderer, RendererBuilder};
-use target::{NativeSurfaceCreator, Target, SurfaceCreator};
+use renderer::{Renderer, RendererDesc, RendererBuilder};
+use target::{NativeSurface, Target};
 
 #[derive(Debug, Fail)]
 #[fail(display = "{:#?}", _0)]
@@ -77,7 +82,9 @@ pub struct Factory<V: FunctionPointers> {
     families: Families,
     heaps: Heaps,
     resources: Resources,
-    surface_creator: NativeSurfaceCreator,
+    surface: Surface,
+    swapchain: Swapchain,
+    native_surface: NativeSurface,
     relevant: Relevant,
 }
 
@@ -96,10 +103,10 @@ where
         let entry = Entry::<V>::new().map_err(EntryError)?;
 
         let layers = entry.enumerate_instance_layer_properties()?;
-        info!("Available layers:\n{:#?}", layers);
+        debug!("Available layers:\n{:#?}", layers);
 
         let extensions = entry.enumerate_instance_extension_properties()?;
-        info!("Available extensions:\n{:#?}", extensions);
+        debug!("Available extensions:\n{:#?}", extensions);
 
         let instance = unsafe {
             entry.create_instance(
@@ -117,7 +124,14 @@ where
         }?;
         trace!("Instance created");
 
-        let surface_creator = <NativeSurfaceCreator as SurfaceCreator>::load(&entry, &instance)?;
+        let surface = Surface::new(&entry, &instance)
+            .map_err(|missing| {
+                format_err!("{:#?} functions are missing", missing)
+            })?;
+        let native_surface = NativeSurface::new(&entry, &instance)
+            .map_err(|missing| {
+                format_err!("{:#?} functions are missing", missing)
+            })?;
 
         let mut physicals = unsafe {
             instance.enumerate_physical_devices()?.into_iter().map(|p| PhysicalDeviceInfo {
@@ -130,7 +144,7 @@ where
             })
         }.collect::<Vec<_>>();
 
-        info!("Physical devices:\n{:#?}", physicals);
+        debug!("Physical devices:\n{:#?}", physicals);
 
         physicals.retain(|p| {
             match extensions_to_enable(&p.extensions) {
@@ -154,7 +168,7 @@ where
             CStr::from_ptr(&physical.properties.device_name[0]).to_string_lossy()
         };
 
-        info!("Physical device picked: {}", device_name);
+        debug!("Physical device picked: {}", device_name);
 
         let families = config.queues.configure(&physical.queues);
 
@@ -169,7 +183,7 @@ where
             })
             .unzip();
 
-        info!("Queues: {:#?}", get_queues);
+        debug!("Queues: {:#?}", get_queues);
 
         let device = unsafe {
             instance.create_device(
@@ -183,11 +197,16 @@ where
             )
         }?;
 
+        let swapchain = Swapchain::new(&instance, &device)
+            .map_err(|missing| {
+                format_err!("{:#?} functions are missing", missing)
+            })?;
+
         let (types, heaps) = config.heaps.configure(&physical.memory);
         let heaps = heaps.into_iter().collect::<SmallVec<[_; 16]>>();
         let types = types.into_iter().collect::<SmallVec<[_; 32]>>();
 
-        info!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
+        debug!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
 
         let heaps = unsafe {
             Heaps::new(types, heaps)
@@ -204,7 +223,9 @@ where
             families,
             heaps,
             resources: Resources::new(),
-            surface_creator,
+            surface,
+            swapchain,
+            native_surface,
             relevant: Relevant,
         };
 
@@ -270,17 +291,56 @@ where
     }
 
     /// Create surface
-    pub fn create_surface(&self, window: Window) -> Result<Target, Error> {
-        Target::create(window, &self.surface_creator)
+    pub fn create_target(&self, window: Window, image_count: u32) -> Result<Target, Error> {
+        let surface = self.native_surface.create_surface(&window)?;
+
+        let swapchain = unsafe {
+            let present_modes = self.surface.get_physical_device_surface_present_modes_khr(self.physical.handle, surface)?;
+            debug!("Present modes: {:#?}", present_modes);
+
+            let formats = self.surface.get_physical_device_surface_formats_khr(self.physical.handle, surface)?;
+            debug!("Formats: {:#?}", formats);
+
+            let capabilities = self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, surface)?;
+            debug!("Capabilities: {:#?}", capabilities);
+
+            self.swapchain.create_swapchain_khr(
+                &SwapchainCreateInfoKHR::builder()
+                    .surface(surface)
+                    .min_image_count(max(min(image_count, capabilities.max_image_count), capabilities.min_image_count))
+                    .image_format(formats[0].format)
+                    .image_extent(capabilities.current_extent)
+                    .image_array_layers(1)
+                    .image_usage(capabilities.supported_usage_flags)
+                    .present_mode(present_modes[0])
+                    .build(),
+                None,
+            )
+        }?;
+
+        trace!("Target created");
+        Ok(Target::new(window, surface, swapchain))
     }
 
-    // /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
-    // pub fn build_render<'a, R, T>(builder: RendererBuilder<R>) -> R
-    // where
-    //     R: Renderer<Self, T>,
-    // {
-    //     builder.windows.into_iter()
-    // }
+    pub fn destroy_target(&self, target: Target) -> Window {
+        let (window, surface, swapchain) = target.dispose();
+        unsafe {
+            self.swapchain.destroy_swapchain_khr(swapchain, None);
+            self.surface.destroy_surface_khr(surface, None);
+        }
+        trace!("Target destroyed");
+        window
+    }
+
+    /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
+    pub fn build_render<'a, R, T>(&mut self, builder: RendererBuilder<R>, data: &mut T) -> Result<R::Renderer, Error>
+    where
+        R: RendererDesc<Self, T>,
+    {
+        let image_count = builder.image_count;
+        let targets = builder.windows.into_iter().map(|window| self.create_target(window, image_count)).collect::<Result<_, _>>()?;
+        Ok(builder.desc.build(targets, self, data))
+    }
 
     pub fn dispose(self)
     where
@@ -294,6 +354,7 @@ where
         }
 
         self.relevant.dispose();
+        trace!("Factory destroyed");
     }
 }
 
@@ -302,13 +363,10 @@ unsafe fn extension_name_cstr(e: &ExtensionProperties) -> &CStr {
 }
 
 fn extensions_to_enable(available: &[ExtensionProperties]) -> Result<Vec<*const c_char>, Error> {
-    let surface_ext_name: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"VK_KHR_surface\0") };
-    let swapchain_ext_name: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"VK_KHR_swapchain\0") };
-
     let mut names = vec![
-        surface_ext_name.as_ptr(),
-        swapchain_ext_name.as_ptr(),
-        NativeSurfaceCreator::name().as_ptr(),
+        Surface::name().as_ptr(),
+        Swapchain::name().as_ptr(),
+        NativeSurface::name().as_ptr(),
     ];
 
     let not_found = unsafe {
