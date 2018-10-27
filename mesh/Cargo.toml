@@ -1,0 +1,25 @@
+[package]
+name = "rendy-mesh"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+description = "Helper crate for gfx-hal to create and use meshes with vertex semantic"
+keywords = ["gfx", "gfx-hal", "graphics"]
+readme = "README.md"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/omni-viral/gfx-mesh.git"
+documentation = "https://docs.rs/crate/gfx-mesh/0.1.0/gfx-mesh"
+
+[dependencies]
+ash = { path = "../../ash/ash" }
+failure = "0.1"
+rendy-memory = { path = "../memory" }
+rendy-command = { path = "../command" }
+rendy-resource = { path = "../resource" }
+rendy-factory = { path = "../factory" }
+serde = { version = "1.0", optional = true }
+
+[target.'cfg(features = "serde")'.dependencies]
+smallvec = { version = "0.6", features = ["serde"] }
+
+[target.'cfg(not(features = "serde"))'.dependencies]
+smallvec = { version = "0.6" }

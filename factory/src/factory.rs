@@ -14,9 +14,10 @@ use ash::{
         DeviceV1_0,
         EntryV1_0,
         InstanceV1_0,
-        FunctionPointers
+        V1_0,
     },
     vk::{
+        AccessFlags,
         BufferUsageFlags,
         BufferCreateInfo,
         ImageCreateFlags,
@@ -48,8 +49,8 @@ use relevant::Relevant;
 use smallvec::SmallVec;
 use winit::Window;
 
-use command::Families;
-use memory::{HeapsConfig, Heaps, MemoryError, Usage as MemoryUsage};
+use command::{Families, FamilyId};
+use memory::{Heaps, MemoryError, MemoryUsage};
 use resource::{
     buffer::Buffer,
     image::Image,
@@ -57,8 +58,8 @@ use resource::{
 };
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
-use renderer::{Renderer, RendererDesc, RendererBuilder};
-use target::{NativeSurface, Target};
+use renderer::{RendererDesc, RendererBuilder};
+use wsi::{NativeSurface, Target};
 
 #[derive(Debug, Fail)]
 #[fail(display = "{:#?}", _0)]
@@ -75,10 +76,10 @@ struct PhysicalDeviceInfo {
 }
 
 /// The `Factory<D>` type represents the overall creation type for `rendy`.
-pub struct Factory<V: FunctionPointers> {
-    instance: Instance<V>,
+pub struct Factory {
+    instance: Instance<V1_0>,
     physical: PhysicalDeviceInfo,
-    device: Device<V>,
+    device: Device<V1_0>,
     families: Families,
     heaps: Heaps,
     resources: Resources,
@@ -88,19 +89,11 @@ pub struct Factory<V: FunctionPointers> {
     relevant: Relevant,
 }
 
-impl<V> Factory<V>
-where
-    V: FunctionPointers,
-    Device<V>: DeviceV1_0,
-{
+impl Factory {
     /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
     /// from the specified `PhysicalDevice`.
-    pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, Error>
-    where
-        Entry<V>: EntryV1_0<Fp = V>,
-        Instance<V>: InstanceV1_0<Fp = V>,
-    {
-        let entry = Entry::<V>::new().map_err(EntryError)?;
+    pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, Error> {
+        let entry = Entry::<V1_0>::new().map_err(EntryError)?;
 
         let layers = entry.enumerate_instance_layer_properties()?;
         debug!("Available layers:\n{:#?}", layers);
@@ -237,55 +230,33 @@ where
     /// Creates a buffer that is managed with the specified properties.
     pub fn create_buffer(
         &mut self,
-        size: u64,
-        usage: BufferUsageFlags,
-        sharing_mode: SharingMode,
+        info: BufferCreateInfo,
         align: u64,
         memory_usage: impl MemoryUsage,
     ) -> Result<Buffer, MemoryError> {
-        let info = BufferCreateInfo::builder()
-            .size(size)
-            .usage(usage)
-            .sharing_mode(sharing_mode)
-            .build()
-        ;
-
         self.resources
             .create_buffer(&self.device, &mut self.heaps, info, align, memory_usage)
+    }
+
+    /// Upload buffer data.
+    pub fn upload_buffer(
+        &mut self,
+        _buffer: &mut Buffer,
+        _offset: u64,
+        _data: &[u8],
+        _family: FamilyId,
+        _access: AccessFlags,
+    ) -> Result<(), Error> {
+        unimplemented!()
     }
 
     /// Creates an image that is mananged with the specified properties.
     pub fn create_image(
         &mut self,
-        image_type: ImageType,
-        format: Format,
-        extent: Extent3D,
-        mip_levels: u32,
-        array_layers: u32,
-        samples: SampleCountFlags,
-        tiling: ImageTiling,
-        usage: ImageUsageFlags,
-        flags: ImageCreateFlags,
-        sharing_mode: SharingMode,
+        info: ImageCreateInfo,
         align: u64,
         memory_usage: impl MemoryUsage,
-        initial_layout: ImageLayout,
     ) -> Result<Image, MemoryError> {
-        let info = ImageCreateInfo::builder()
-            .image_type(image_type)
-            .format(format)
-            .extent(extent)
-            .mip_levels(mip_levels)
-            .array_layers(array_layers)
-            .samples(samples)
-            .tiling(tiling)
-            .usage(usage)
-            .flags(flags)
-            .sharing_mode(sharing_mode)
-            .initial_layout(initial_layout)
-            .build()
-        ;
-
         self.resources
             .create_image(&self.device, &mut self.heaps, info, align, memory_usage)
     }
@@ -319,33 +290,30 @@ where
         }?;
 
         trace!("Target created");
-        Ok(Target::new(window, surface, swapchain))
+        Ok(unsafe {Target::new(window, surface, swapchain)})
     }
 
     pub fn destroy_target(&self, target: Target) -> Window {
-        let (window, surface, swapchain) = target.dispose();
         unsafe {
+            let (window, surface, swapchain) = target.dispose();
             self.swapchain.destroy_swapchain_khr(swapchain, None);
             self.surface.destroy_surface_khr(surface, None);
+            trace!("Target destroyed");
+            window
         }
-        trace!("Target destroyed");
-        window
     }
 
     /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
     pub fn build_render<'a, R, T>(&mut self, builder: RendererBuilder<R>, data: &mut T) -> Result<R::Renderer, Error>
     where
-        R: RendererDesc<Self, T>,
+        R: RendererDesc<T>,
     {
         let image_count = builder.image_count;
         let targets = builder.windows.into_iter().map(|window| self.create_target(window, image_count)).collect::<Result<_, _>>()?;
         Ok(builder.desc.build(targets, self, data))
     }
 
-    pub fn dispose(self)
-    where
-        Instance<V>: InstanceV1_0<Fp = V>,
-    {
+    pub fn dispose(self) {
         self.families.dispose(&self.device);
         self.heaps.dispose(&self.device);
         unsafe {
@@ -363,7 +331,7 @@ unsafe fn extension_name_cstr(e: &ExtensionProperties) -> &CStr {
 }
 
 fn extensions_to_enable(available: &[ExtensionProperties]) -> Result<Vec<*const c_char>, Error> {
-    let mut names = vec![
+    let names = vec![
         Surface::name().as_ptr(),
         Swapchain::name().as_ptr(),
         NativeSurface::name().as_ptr(),

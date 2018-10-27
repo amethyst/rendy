@@ -9,9 +9,7 @@ extern crate winit;
 
 use ash::version::V1_0;
 
-use rendy::{
-    Factory, Config, BasicHeapsConfigure,
-};
+use rendy::{factory::{Factory, Config, BasicHeapsConfigure}};
 use winit::{EventsLoop, WindowBuilder};
 
 // use std::marker::PhantomData;

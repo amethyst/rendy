@@ -1,12 +1,13 @@
 
 use command::Frames;
-use factory::Factory;
-use target::Target;
+use wsi::Target;
 use winit::Window;
 
-pub trait Renderer<F, T> {
+use factory::Factory;
 
-    type Desc: RendererDesc<F, T>;
+pub trait Renderer<T> {
+
+    type Desc: RendererDesc<T>;
 
     fn builder() -> RendererBuilder<Self::Desc>
     where
@@ -15,13 +16,13 @@ pub trait Renderer<F, T> {
         RendererBuilder::new(Self::Desc::default())
     }
 
-    fn run(&mut self, factory: &mut F, data: &mut T, frames: &mut Frames);
+    fn run(&mut self, factory: &mut Factory, data: &mut T, frames: &mut Frames);
 }
 
-pub trait RendererDesc<F, T> {
-    type Renderer: Renderer<F, T>;
+pub trait RendererDesc<T> {
+    type Renderer: Renderer<T>;
 
-    fn build(self, targets: Vec<Target>, factory: &mut F, data: &mut T) -> Self::Renderer;
+    fn build(self, targets: Vec<Target>, factory: &mut Factory, data: &mut T) -> Self::Renderer;
 }
 
 #[derive(Derivative)]

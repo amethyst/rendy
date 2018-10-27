@@ -4,12 +4,12 @@
 use ash::vk::MemoryPropertyFlags;
 
 /// Memory usage trait.
-pub trait Usage {
+pub trait MemoryUsage {
     /// Comparable fitness value.
     type Fitness: Copy + Ord;
 
     /// Get runtime usage value.
-    fn value(self) -> UsageValue;
+    fn value(self) -> MemoryUsageValue;
 
     /// Get comparable fitness value for memory properties.
     /// Should return `None` if memory doesn't fit.
@@ -22,12 +22,12 @@ pub trait Usage {
 #[derive(Clone, Copy, Debug)]
 pub struct Data;
 
-impl Usage for Data {
+impl MemoryUsage for Data {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue {
-        UsageValue::Data
+    fn value(self) -> MemoryUsageValue {
+        MemoryUsageValue::Data
     }
 
     #[inline]
@@ -53,12 +53,12 @@ impl Usage for Data {
 #[derive(Clone, Copy, Debug)]
 pub struct Dynamic;
 
-impl Usage for Dynamic {
+impl MemoryUsage for Dynamic {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue {
-        UsageValue::Dynamic
+    fn value(self) -> MemoryUsageValue {
+        MemoryUsageValue::Dynamic
     }
 
     #[inline]
@@ -83,12 +83,12 @@ impl Usage for Dynamic {
 #[derive(Clone, Copy, Debug)]
 pub struct Upload;
 
-impl Usage for Upload {
+impl MemoryUsage for Upload {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue {
-        UsageValue::Upload
+    fn value(self) -> MemoryUsageValue {
+        MemoryUsageValue::Upload
     }
 
     #[inline]
@@ -113,12 +113,12 @@ impl Usage for Upload {
 #[derive(Clone, Copy, Debug)]
 pub struct Download;
 
-impl Usage for Download {
+impl MemoryUsage for Download {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue {
-        UsageValue::Download
+    fn value(self) -> MemoryUsageValue {
+        MemoryUsageValue::Download
     }
 
     #[inline]
@@ -139,7 +139,7 @@ impl Usage for Download {
 
 /// Dynamic value that specify memory usage flags.
 #[derive(Clone, Copy, Debug)]
-pub enum UsageValue {
+pub enum MemoryUsageValue {
     /// Runtime counterpart for `Data`.
     Data,
     /// Runtime counterpart for `Dynamic`.
@@ -150,21 +150,21 @@ pub enum UsageValue {
     Download,
 }
 
-impl Usage for UsageValue {
+impl MemoryUsage for MemoryUsageValue {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> UsageValue {
+    fn value(self) -> MemoryUsageValue {
         self
     }
 
     #[inline]
     fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
         match self {
-            UsageValue::Data => Data.memory_fitness(properties),
-            UsageValue::Dynamic => Dynamic.memory_fitness(properties),
-            UsageValue::Upload => Upload.memory_fitness(properties),
-            UsageValue::Download => Download.memory_fitness(properties),
+            MemoryUsageValue::Data => Data.memory_fitness(properties),
+            MemoryUsageValue::Dynamic => Dynamic.memory_fitness(properties),
+            MemoryUsageValue::Upload => Upload.memory_fitness(properties),
+            MemoryUsageValue::Download => Download.memory_fitness(properties),
         }
     }
 }

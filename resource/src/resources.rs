@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 use ash::{version::DeviceV1_0, vk::{BufferCreateInfo, ImageCreateInfo}};
-use memory::{Block, Heaps, MemoryError, Usage as MemoryUsage};
+use memory::{Block, Heaps, MemoryError, MemoryUsage};
 use relevant::Relevant;
 
 use buffer;

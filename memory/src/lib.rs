@@ -49,5 +49,5 @@ pub use error::{AllocationError, MappingError, MemoryError, OutOfMemoryError};
 pub use heaps::{HeapsConfig, Heaps, MemoryBlock};
 pub use mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent};
 pub use memory::Memory;
-pub use usage::Usage;
+pub use usage::MemoryUsage;
 

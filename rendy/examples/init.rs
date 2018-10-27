@@ -8,9 +8,7 @@ extern crate env_logger;
 
 use ash::version::V1_0;
 
-use rendy::{
-    Factory, Config,
-};
+use rendy::{factory::{Factory, Config}};
 // use winit::{EventsLoop, WindowBuilder};
 
 // use std::marker::PhantomData;

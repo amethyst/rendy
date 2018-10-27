@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use block::Block;
 use error::*;
 use mapping::*;
-use usage::{Usage, UsageValue};
+use usage::{MemoryUsage, MemoryUsageValue};
 use util::*;
 
 /// Config for `Heaps` allocator.
@@ -71,7 +71,7 @@ impl Heaps {
         &mut self,
         device: &impl DeviceV1_0,
         mask: u32,
-        usage: impl Usage,
+        usage: impl MemoryUsage,
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock, MemoryError> {
@@ -112,7 +112,7 @@ impl Heaps {
         &mut self,
         device: &impl DeviceV1_0,
         memory_index: u32,
-        usage: impl Usage,
+        usage: impl MemoryUsage,
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock, MemoryError> {
@@ -290,25 +290,25 @@ impl MemoryType {
     fn alloc(
         &mut self,
         device: &impl DeviceV1_0,
-        usage: impl Usage,
+        usage: impl MemoryUsage,
         size: u64,
         align: u64,
     ) -> Result<(BlockFlavor, u64), MemoryError> {
         match (usage.value(), self.arena.as_mut(), self.dynamic.as_mut()) {
-            (UsageValue::Upload, Some(ref mut arena), _)
-            | (UsageValue::Download, Some(ref mut arena), _)
+            (MemoryUsageValue::Upload, Some(ref mut arena), _)
+            | (MemoryUsageValue::Download, Some(ref mut arena), _)
                 if size <= arena.max_allocation() =>
             {
                 arena
                     .alloc(device, size, align)
                     .map(|(block, allocated)| (BlockFlavor::Arena(block), allocated))
             }
-            (UsageValue::Dynamic, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
+            (MemoryUsageValue::Dynamic, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
                 dynamic
                     .alloc(device, size, align)
                     .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
             }
-            (UsageValue::Data, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
+            (MemoryUsageValue::Data, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
                 dynamic
                     .alloc(device, size, align)
                     .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))

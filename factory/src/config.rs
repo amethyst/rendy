@@ -7,7 +7,6 @@ use ash::vk::{
     MemoryPropertyFlags,
     PhysicalDeviceMemoryProperties,
 };
-use winit::Window;
 
 use command::FamilyId;
 use memory::{allocator, HeapsConfig};

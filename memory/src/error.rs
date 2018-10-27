@@ -1,6 +1,6 @@
 
 use ash;
-use usage::UsageValue;
+use usage::MemoryUsageValue;
 
 /// Typical memory error - out of available memory.
 #[derive(Clone, Copy, Debug, Fail)]
@@ -81,7 +81,7 @@ pub enum AllocationError {
         _0,
         _1
     )]
-    NoSuitableMemory(u32, UsageValue),
+    NoSuitableMemory(u32, MemoryUsageValue),
 }
 
 impl From<OutOfMemoryError> for AllocationError {
