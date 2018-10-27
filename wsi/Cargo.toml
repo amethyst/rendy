@@ -1,0 +1,15 @@
+[package]
+name = "rendy-wsi"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+ash = { path = "../../ash/ash" }
+failure = "0.1"
+log = "0.4"
+relevant = "0.2"
+winit = "0.17"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+cocoa = "0.18"
