@@ -263,34 +263,7 @@ impl Factory {
 
     /// Create surface
     pub fn create_target(&self, window: Window, image_count: u32) -> Result<Target, Error> {
-        let surface = self.native_surface.create_surface(&window)?;
-
-        let swapchain = unsafe {
-            let present_modes = self.surface.get_physical_device_surface_present_modes_khr(self.physical.handle, surface)?;
-            debug!("Present modes: {:#?}", present_modes);
-
-            let formats = self.surface.get_physical_device_surface_formats_khr(self.physical.handle, surface)?;
-            debug!("Formats: {:#?}", formats);
-
-            let capabilities = self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, surface)?;
-            debug!("Capabilities: {:#?}", capabilities);
-
-            self.swapchain.create_swapchain_khr(
-                &SwapchainCreateInfoKHR::builder()
-                    .surface(surface)
-                    .min_image_count(max(min(image_count, capabilities.max_image_count), capabilities.min_image_count))
-                    .image_format(formats[0].format)
-                    .image_extent(capabilities.current_extent)
-                    .image_array_layers(1)
-                    .image_usage(capabilities.supported_usage_flags)
-                    .present_mode(present_modes[0])
-                    .build(),
-                None,
-            )
-        }?;
-
-        trace!("Target created");
-        Ok(unsafe {Target::new(window, surface, swapchain)})
+        Target::new(window, image_count, self.physical.handle, &self.native_surface, &self.surface, &self.swapchain)
     }
 
     pub fn destroy_target(&self, target: Target) -> Window {
