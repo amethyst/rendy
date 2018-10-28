@@ -1,13 +1,13 @@
 //! Family module docs.
 
-use ash::{version::DeviceV1_0, vk::{CommandPool, Queue, QueueFlags, Extent3D, QueueFamilyProperties}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{CommandPool, Extent3D, Queue, QueueFamilyProperties, QueueFlags},
+};
 
 use relevant::Relevant;
 
-use crate::{
-    capability::Capability,
-    pool::Pool,
-};
+use crate::{capability::Capability, pool::Pool};
 
 /// Unique family index.
 #[derive(Clone, Copy, Debug)]
@@ -27,10 +27,17 @@ pub struct Family<C = QueueFlags> {
 
 impl Family {
     /// Get queue family from device.
-    pub unsafe fn from_device(device: &impl DeviceV1_0, index: FamilyId, queues: u32, properties: &QueueFamilyProperties) -> Self {
+    pub unsafe fn from_device(
+        device: &impl DeviceV1_0,
+        index: FamilyId,
+        queues: u32,
+        properties: &QueueFamilyProperties,
+    ) -> Self {
         Family {
             index,
-            queues: (0..queues).map(|queue_index| device.get_device_queue(index.0, queue_index)).collect(),
+            queues: (0..queues)
+                .map(|queue_index| device.get_device_queue(index.0, queue_index))
+                .collect(),
             min_image_transfer_granularity: properties.min_image_transfer_granularity,
             capability: properties.queue_flags,
             relevant: Relevant,
@@ -118,9 +125,17 @@ impl Families {
     }
 
     /// Get queue families from device.
-    pub unsafe fn from_device(device: &impl DeviceV1_0, families: impl IntoIterator<Item = (FamilyId, u32)>, properties: &[QueueFamilyProperties]) -> Self {
+    pub unsafe fn from_device(
+        device: &impl DeviceV1_0,
+        families: impl IntoIterator<Item = (FamilyId, u32)>,
+        properties: &[QueueFamilyProperties],
+    ) -> Self {
         Families {
-            families: families.into_iter().map(|(index, queues)| Family::from_device(device, index, queues, &properties[index.0 as usize])).collect()
+            families: families
+                .into_iter()
+                .map(|(index, queues)| {
+                    Family::from_device(device, index, queues, &properties[index.0 as usize])
+                }).collect(),
         }
     }
 

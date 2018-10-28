@@ -46,8 +46,7 @@ pub mod usage;
 
 pub use block::Block;
 pub use error::{AllocationError, MappingError, MemoryError, OutOfMemoryError};
-pub use heaps::{HeapsConfig, Heaps, MemoryBlock};
+pub use heaps::{Heaps, HeapsConfig, MemoryBlock};
 pub use mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent};
 pub use memory::Memory;
 pub use usage::MemoryUsage;
-

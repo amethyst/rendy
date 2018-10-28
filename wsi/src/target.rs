@@ -1,22 +1,9 @@
-
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 
 use ash::{
-    version::{
-        EntryV1_0,
-        InstanceV1_0,
-        DeviceV1_0,
-    },
-    extensions::{
-        Surface,
-        Swapchain,
-    },
-    vk::{
-        PhysicalDevice,
-        SurfaceKHR,
-        SwapchainKHR,
-        SwapchainCreateInfoKHR,
-    },
+    extensions::{Surface, Swapchain},
+    version::{DeviceV1_0, EntryV1_0, InstanceV1_0},
+    vk::{PhysicalDevice, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR},
 };
 
 use failure::Error;
@@ -43,21 +30,27 @@ impl Target {
     ) -> Result<Self, Error> {
         let surface_khr = native_surface.create_surface(&window)?;
 
-        let present_modes = unsafe { surface.get_physical_device_surface_present_modes_khr(physical, surface_khr) }?;
+        let present_modes = unsafe {
+            surface.get_physical_device_surface_present_modes_khr(physical, surface_khr)
+        }?;
         debug!("Present modes: {:#?}", present_modes);
 
-        let formats = unsafe { surface.get_physical_device_surface_formats_khr(physical, surface_khr) }?;
+        let formats =
+            unsafe { surface.get_physical_device_surface_formats_khr(physical, surface_khr) }?;
         debug!("Formats: {:#?}", formats);
 
-        let capabilities = unsafe { surface.get_physical_device_surface_capabilities_khr(physical, surface_khr) }?;
+        let capabilities =
+            unsafe { surface.get_physical_device_surface_capabilities_khr(physical, surface_khr) }?;
         debug!("Capabilities: {:#?}", capabilities);
 
         let swapchain_khr = unsafe {
             swapchain.create_swapchain_khr(
                 &SwapchainCreateInfoKHR::builder()
                     .surface(surface_khr)
-                    .min_image_count(max(min(image_count, capabilities.max_image_count), capabilities.min_image_count))
-                    .image_format(formats[0].format)
+                    .min_image_count(max(
+                        min(image_count, capabilities.max_image_count),
+                        capabilities.min_image_count,
+                    )).image_format(formats[0].format)
                     .image_extent(capabilities.current_extent)
                     .image_array_layers(1)
                     .image_usage(capabilities.supported_usage_flags)
@@ -68,7 +61,7 @@ impl Target {
         }?;
 
         trace!("Target created");
-        
+
         Ok(Target {
             window,
             surface: surface_khr,

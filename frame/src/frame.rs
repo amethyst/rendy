@@ -1,18 +1,14 @@
 //! Frame module docs.
 
-use std::borrow::Borrow;
 use ash::{
     version::DeviceV1_0,
-    vk::{
-        Fence,
-        CommandBuffer,
-        QueueFlags,
-    },
+    vk::{CommandBuffer, Fence, QueueFlags},
 };
-use smallvec::SmallVec;
 use failure::Error;
+use smallvec::SmallVec;
+use std::borrow::Borrow;
 
-use command::{Capability, OwningPool, Buffer, InitialState};
+use command::{Buffer, Capability, InitialState, OwningPool};
 
 /// Fences collection.
 pub type Fences = SmallVec<[Fence; 8]>;
@@ -34,9 +30,7 @@ pub struct FrameGen {
 impl FrameGen {
     /// Only one `FrameGen` should be used.
     pub unsafe fn new() -> Self {
-        FrameGen {
-            next: 0,
-        }
+        FrameGen { next: 0 }
     }
 
     /// Generate next `Frame`.
@@ -88,12 +82,7 @@ impl PendingFrame {
     /// Returns `Err(self)` otherwise.
     pub fn complete<D>(self, device: &D) -> Result<(CompleteFrame, Fences), Self> {
         if self.is_complete(device) {
-            Ok((
-                CompleteFrame {
-                    index: self.index,
-                },
-                self.fences,
-            ))
+            Ok((CompleteFrame { index: self.index }, self.fences))
         } else {
             Err(self)
         }
@@ -102,12 +91,7 @@ impl PendingFrame {
     /// Wait for the frame to complete and return `CompleteFrame` as a proof.
     pub fn wait<D>(self, device: &D) -> Result<(CompleteFrame, Fences), Error> {
         unimplemented!("Wait for the fences");
-        Ok((
-            CompleteFrame {
-                index: self.index,
-            },
-            self.fences,
-        ))
+        Ok((CompleteFrame { index: self.index }, self.fences))
     }
 }
 
@@ -178,7 +162,7 @@ impl<'a, T> FrameBound<'a, T> {
 #[derive(Debug)]
 pub struct Frames {
     pending: SmallVec<[PendingFrame; 5]>,
-    next: Frame, 
+    next: Frame,
 }
 
 impl Frames {
@@ -307,7 +291,8 @@ where
     B: Borrow<CommandBuffer>,
 {
     fn borrow(&self) -> &CommandBuffer {
-        unsafe { // Make it safe.
+        unsafe {
+            // Make it safe.
             self.inner_ref().borrow()
         }
     }

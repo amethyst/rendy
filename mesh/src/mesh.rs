@@ -7,21 +7,13 @@ use std::mem::size_of;
 
 use failure::Error;
 
-use ash::{
-    vk::{
-        AccessFlags,
-        BufferCreateInfo,
-        BufferUsageFlags,
-        IndexType,
-        PrimitiveTopology,
-    },
-};
+use ash::vk::{AccessFlags, BufferCreateInfo, BufferUsageFlags, IndexType, PrimitiveTopology};
 use smallvec::SmallVec;
 
 use command::FamilyId;
+use factory::Factory;
 use memory::usage::Data;
 use resource::Buffer;
-use factory::Factory;
 
 use utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key};
 use vertex::{AsVertex, VertexFormat};
@@ -172,11 +164,7 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new mesh.
-    pub fn build(
-        &self,
-        family: FamilyId,
-        factory: &mut Factory,
-    ) -> Result<Mesh, Error> {
+    pub fn build(&self, family: FamilyId, factory: &mut Factory) -> Result<Mesh, Error> {
         Ok(Mesh {
             vbufs: self
                 .vertices
@@ -188,8 +176,10 @@ impl<'a> MeshBuilder<'a> {
                             let mut buffer = factory.create_buffer(
                                 BufferCreateInfo::builder()
                                     .size(vertices.len() as _)
-                                    .usage(BufferUsageFlags::VERTEX_BUFFER | BufferUsageFlags::TRANSFER_DST)
-                                    .build(),
+                                    .usage(
+                                        BufferUsageFlags::VERTEX_BUFFER
+                                            | BufferUsageFlags::TRANSFER_DST,
+                                    ).build(),
                                 1,
                                 Data,
                             )?;
@@ -205,8 +195,7 @@ impl<'a> MeshBuilder<'a> {
                         format: format.clone(),
                         len,
                     })
-                })
-                .collect::<Result<_, Error>>()?,
+                }).collect::<Result<_, Error>>()?,
             ibuf: match self.indices {
                 None => None,
                 Some((ref indices, index_type)) => {
@@ -221,8 +210,10 @@ impl<'a> MeshBuilder<'a> {
                             let mut buffer = factory.create_buffer(
                                 BufferCreateInfo::builder()
                                     .size(indices.len() as _)
-                                    .usage(BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST)
-                                    .build(),
+                                    .usage(
+                                        BufferUsageFlags::INDEX_BUFFER
+                                            | BufferUsageFlags::TRANSFER_DST,
+                                    ).build(),
                                 1,
                                 Data,
                             )?;

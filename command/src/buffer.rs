@@ -1,8 +1,8 @@
 //! Buffer module docs.
 
-use std::{borrow::Borrow};
-use relevant::Relevant;
 use ash::vk::{CommandBuffer, CommandBufferLevel, CommandBufferUsageFlags};
+use relevant::Relevant;
+use std::borrow::Borrow;
 
 use crate::family::FamilyId;
 

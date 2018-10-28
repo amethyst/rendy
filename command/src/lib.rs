@@ -24,40 +24,20 @@ extern crate failure;
 extern crate relevant;
 extern crate smallvec;
 
-mod family;
 mod buffer;
 mod capability;
 mod encoder;
+mod family;
 mod pool;
 
 pub use crate::{
     buffer::{
-        Buffer,
-        Submit,
-        InitialState,
-        RecordingState,
-        ExecutableState,
-        PendingState,
-        InvalidState,
-        IndividualReset,
-        Level,
-        PrimaryLevel,
-        SecondaryLevel,
-        Droppable,
-        Resettable,
-        OneShot,
-        MultiShot,
-        SimultaneousUse,
-        RenderPassContinue,
-        Usage,
+        Buffer, Droppable, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
+        MultiShot, OneShot, PendingState, PrimaryLevel, RecordingState, RenderPassContinue,
+        Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
     },
     capability::Capability,
     encoder::Encoder,
-    family::{Family, FamilyId, Families},
-    pool::{Pool, OwningPool},
+    family::{Families, Family, FamilyId},
+    pool::{OwningPool, Pool},
 };
-
-
-
-
-

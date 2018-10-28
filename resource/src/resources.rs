@@ -1,6 +1,9 @@
 use std::cmp::max;
 
-use ash::{version::DeviceV1_0, vk::{BufferCreateInfo, ImageCreateInfo}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{BufferCreateInfo, ImageCreateInfo},
+};
 use memory::{Block, Heaps, MemoryError, MemoryUsage};
 use relevant::Relevant;
 
@@ -59,11 +62,19 @@ impl Resources {
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_buffer(buffer: buffer::Buffer, device: &impl DeviceV1_0, heaps: &mut Heaps) {
+    pub unsafe fn destroy_buffer(
+        buffer: buffer::Buffer,
+        device: &impl DeviceV1_0,
+        heaps: &mut Heaps,
+    ) {
         Self::destroy_buffer_inner(Escape::into_inner(buffer.inner), device, heaps)
     }
 
-    unsafe fn destroy_buffer_inner(inner: buffer::Inner, device: &impl DeviceV1_0, heaps: &mut Heaps) {
+    unsafe fn destroy_buffer_inner(
+        inner: buffer::Inner,
+        device: &impl DeviceV1_0,
+        heaps: &mut Heaps,
+    ) {
         device.destroy_buffer(inner.raw, None);
         heaps.free(device, inner.block);
     }
@@ -88,7 +99,8 @@ impl Resources {
         )?;
 
         unsafe {
-            device.bind_image_memory(img, block.memory(), block.range().start)
+            device
+                .bind_image_memory(img, block.memory(), block.range().start)
                 .unwrap()
         }
 
@@ -108,7 +120,11 @@ impl Resources {
         Self::destroy_image_inner(Escape::into_inner(image.inner), device, heaps)
     }
 
-    unsafe fn destroy_image_inner(inner: image::Inner, device: &impl DeviceV1_0, heaps: &mut Heaps) {
+    unsafe fn destroy_image_inner(
+        inner: image::Inner,
+        device: &impl DeviceV1_0,
+        heaps: &mut Heaps,
+    ) {
         device.destroy_image(inner.raw, None);
         heaps.free(device, inner.block);
     }

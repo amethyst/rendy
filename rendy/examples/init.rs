@@ -2,7 +2,7 @@ extern crate ash;
 extern crate failure;
 extern crate rendy;
 
-use rendy::{factory::{Factory, Config}};
+use rendy::factory::{Config, Factory};
 fn main() -> Result<(), failure::Error> {
     env_logger::init();
 

@@ -2,7 +2,6 @@
 
 use ash::vk::{PipelineStageFlags, QueueFlags};
 
-
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]
 pub struct Transfer;
@@ -246,8 +245,7 @@ pub fn required_queue_capability(stages: PipelineStageFlags) -> QueueFlags {
         capability |= QueueFlags::COMPUTE;
     }
     if stages.subset(PipelineStageFlags::TRANSFER) {
-        capability |=
-            QueueFlags::GRAPHICS | QueueFlags::COMPUTE | QueueFlags::TRANSFER;
+        capability |= QueueFlags::GRAPHICS | QueueFlags::COMPUTE | QueueFlags::TRANSFER;
     }
     if stages.subset(PipelineStageFlags::ALL_GRAPHICS) {
         capability |= QueueFlags::GRAPHICS;

@@ -1,6 +1,9 @@
 use std::ops::Range;
 
-use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{DeviceMemory, MemoryPropertyFlags},
+};
 
 use allocator::*;
 use smallvec::SmallVec;
@@ -265,7 +268,12 @@ struct MemoryType {
 }
 
 impl MemoryType {
-    fn new(memory_type: u32, heap_index: usize, properties: MemoryPropertyFlags, config: HeapsConfig) -> Self {
+    fn new(
+        memory_type: u32,
+        heap_index: usize,
+        properties: MemoryPropertyFlags,
+        config: HeapsConfig,
+    ) -> Self {
         MemoryType {
             properties,
             heap_index,
@@ -303,12 +311,16 @@ impl MemoryType {
                     .alloc(device, size, align)
                     .map(|(block, allocated)| (BlockFlavor::Arena(block), allocated))
             }
-            (MemoryUsageValue::Dynamic, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
+            (MemoryUsageValue::Dynamic, _, Some(ref mut dynamic))
+                if size <= dynamic.max_allocation() =>
+            {
                 dynamic
                     .alloc(device, size, align)
                     .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
             }
-            (MemoryUsageValue::Data, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
+            (MemoryUsageValue::Data, _, Some(ref mut dynamic))
+                if size <= dynamic.max_allocation() =>
+            {
                 dynamic
                     .alloc(device, size, align)
                     .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))

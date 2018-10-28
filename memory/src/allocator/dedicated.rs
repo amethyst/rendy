@@ -1,6 +1,9 @@
 use std::{ops::Range, ptr::NonNull};
 
-use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags, MemoryAllocateInfo}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{DeviceMemory, MemoryAllocateInfo, MemoryPropertyFlags},
+};
 
 use allocator::Allocator;
 use block::Block;
@@ -134,7 +137,7 @@ impl Allocator for DedicatedAllocator {
                         .memory_type_index(self.memory_type)
                         .allocation_size(size)
                         .build(),
-                    None
+                    None,
                 )?,
                 size,
                 self.memory_properties,

@@ -1,4 +1,3 @@
-
 use ash;
 use usage::MemoryUsageValue;
 
@@ -124,8 +123,6 @@ impl From<MappingError> for MemoryError {
     }
 }
 
-
-
 impl From<ash::vk::Result> for OutOfMemoryError {
     fn from(result: ash::vk::Result) -> OutOfMemoryError {
         match result {
@@ -142,7 +139,9 @@ impl From<ash::vk::Result> for MappingError {
         match result {
             ash::vk::Result::SUCCESS => panic!("Unexpected success"),
             ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory.into(),
-            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory.into(),
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => {
+                OutOfMemoryError::OutOfDeviceMemory.into()
+            }
             ash::vk::Result::ERROR_MEMORY_MAP_FAILED => MappingError::MappingFailed,
             _ => panic!("unexpected error"),
         }
@@ -154,7 +153,9 @@ impl From<ash::vk::Result> for AllocationError {
         match result {
             ash::vk::Result::SUCCESS => panic!("Unexpected success"),
             ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory.into(),
-            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory.into(),
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => {
+                OutOfMemoryError::OutOfDeviceMemory.into()
+            }
             _ => panic!("unexpected error"),
         }
     }
@@ -165,7 +166,9 @@ impl From<ash::vk::Result> for MemoryError {
         match result {
             ash::vk::Result::SUCCESS => panic!("Unexpected success"),
             ash::vk::Result::ERROR_OUT_OF_HOST_MEMORY => OutOfMemoryError::OutOfHostMemory.into(),
-            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => OutOfMemoryError::OutOfDeviceMemory.into(),
+            ash::vk::Result::ERROR_OUT_OF_DEVICE_MEMORY => {
+                OutOfMemoryError::OutOfDeviceMemory.into()
+            }
             ash::vk::Result::ERROR_MEMORY_MAP_FAILED => MappingError::MappingFailed.into(),
             _ => panic!("unexpected error"),
         }

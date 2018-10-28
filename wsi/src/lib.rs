@@ -1,6 +1,3 @@
-
-
-
 pub extern crate ash;
 
 #[macro_use]

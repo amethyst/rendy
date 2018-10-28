@@ -5,8 +5,8 @@ extern crate rendy;
 extern crate env_logger;
 extern crate winit;
 
-use std::time::{Instant, Duration};
-use rendy::factory::{Factory, Config};
+use rendy::factory::{Config, Factory};
+use std::time::{Duration, Instant};
 use winit::{EventsLoop, WindowBuilder};
 
 fn main() -> Result<(), failure::Error> {
@@ -31,7 +31,7 @@ fn main() -> Result<(), failure::Error> {
     while started.elapsed() < Duration::new(5, 0) {
         event_loop.poll_events(|_| ());
         std::thread::sleep(Duration::new(0, 1_000_000));
-    };
+    }
 
     factory.destroy_target(target);
 

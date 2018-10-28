@@ -1,4 +1,3 @@
-
 use ash::vk::ImageUsageFlags;
 use memory::usage::{Data, MemoryUsage, MemoryUsageValue};
 

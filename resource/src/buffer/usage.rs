@@ -1,6 +1,5 @@
-
 use ash::vk::BufferUsageFlags;
-use memory::usage::{Data, Download, Dynamic, Upload, MemoryUsage, MemoryUsageValue};
+use memory::usage::{Data, Download, Dynamic, MemoryUsage, MemoryUsageValue, Upload};
 
 /// Usage trait that must implemented by usage types.
 /// This trait provides a way to convert type-level usage to the value-level flags.

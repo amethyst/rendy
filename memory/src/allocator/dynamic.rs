@@ -1,7 +1,9 @@
-
 use std::{ops::Range, ptr::NonNull};
 
-use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags, MemoryAllocateInfo, MemoryMapFlags}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{DeviceMemory, MemoryAllocateInfo, MemoryMapFlags, MemoryPropertyFlags},
+};
 use hibitset::{BitSet, BitSetLike};
 use relevant::Relevant;
 use veclist::VecList;
@@ -157,7 +159,11 @@ impl DynamicAllocator {
     /// Create new `ArenaAllocator`
     /// for `memory_type` with `memory_properties` specified,
     /// with `ArenaConfig` provided.
-    pub fn new(memory_type: u32, memory_properties: MemoryPropertyFlags, mut config: DynamicConfig) -> Self {
+    pub fn new(
+        memory_type: u32,
+        memory_properties: MemoryPropertyFlags,
+        mut config: DynamicConfig,
+    ) -> Self {
         // This is hack to simplify implementation of chunk cleaning.
         config.blocks_per_chunk = ::std::mem::size_of::<usize>() as u32 * 8;
 
@@ -223,14 +229,28 @@ impl DynamicAllocator {
     }
 
     /// Allocate super-block to use as chunk memory.
-    fn alloc_chunk(&mut self, device: &impl DeviceV1_0, size: u64) -> Result<(Chunk, u64), MemoryError> {
+    fn alloc_chunk(
+        &mut self,
+        device: &impl DeviceV1_0,
+        size: u64,
+    ) -> Result<(Chunk, u64), MemoryError> {
         if size > self.max_block_size() {
             // Allocate from device.
             let (memory, mapping) = unsafe {
                 // Valid memory type specified.
-                let raw = device.allocate_memory(&MemoryAllocateInfo { memory_type_index: self.memory_type, allocation_size: size, ..Default::default() }, None)?;
+                let raw = device.allocate_memory(
+                    &MemoryAllocateInfo {
+                        memory_type_index: self.memory_type,
+                        allocation_size: size,
+                        ..Default::default()
+                    },
+                    None,
+                )?;
 
-                let mapping = if self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
+                let mapping = if self
+                    .memory_properties
+                    .subset(MemoryPropertyFlags::HOST_VISIBLE)
+                {
                     match device.map_memory(raw, 0, size, MemoryMapFlags::empty()) {
                         Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
                         Err(error) => {

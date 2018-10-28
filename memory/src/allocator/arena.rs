@@ -1,6 +1,9 @@
 use std::{collections::VecDeque, ops::Range, ptr::NonNull};
 
-use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags, MemoryAllocateInfo, MemoryMapFlags}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{DeviceMemory, MemoryAllocateInfo, MemoryMapFlags, MemoryPropertyFlags},
+};
 
 use relevant::Relevant;
 
@@ -138,7 +141,11 @@ impl ArenaAllocator {
     /// Create new `ArenaAllocator`
     /// for `memory_type` with `memory_properties` specified,
     /// with `ArenaConfig` provided.
-    pub fn new(memory_type: u32, memory_properties: MemoryPropertyFlags, config: ArenaConfig) -> Self {
+    pub fn new(
+        memory_type: u32,
+        memory_properties: MemoryPropertyFlags,
+        config: ArenaConfig,
+    ) -> Self {
         assert!(memory_properties.subset(Self::properties_required()));
         assert!(
             fits_usize(config.arena_size),
@@ -192,7 +199,10 @@ impl Allocator for ArenaAllocator {
         size: u64,
         align: u64,
     ) -> Result<(ArenaBlock, u64), MemoryError> {
-        debug_assert!(self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE));
+        debug_assert!(
+            self.memory_properties
+                .subset(MemoryPropertyFlags::HOST_VISIBLE)
+        );
 
         assert!(size <= self.arena_size);
         assert!(align <= self.arena_size);

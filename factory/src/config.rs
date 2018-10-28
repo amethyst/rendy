@@ -1,11 +1,7 @@
-
 use std::cmp::min;
 
 use ash::vk::{
-    QueueFlags,
-    QueueFamilyProperties,
-    MemoryPropertyFlags,
-    PhysicalDeviceMemoryProperties,
+    MemoryPropertyFlags, PhysicalDeviceMemoryProperties, QueueFamilyProperties, QueueFlags,
 };
 
 use command::FamilyId;
@@ -65,7 +61,11 @@ unsafe impl QueuesConfigure for SavedQueueConfig {
     type Priorities = Vec<f32>;
     type Families = Vec<(FamilyId, Vec<f32>)>;
     fn configure(self, families: &[QueueFamilyProperties]) -> Vec<(FamilyId, Vec<f32>)> {
-        if !self.0.iter().all(|&(index, ref priorities)| families.get(index.0 as usize).map_or(false, |p| p.queue_count as usize >= priorities.len())) {
+        if !self.0.iter().all(|&(index, ref priorities)| {
+            families
+                .get(index.0 as usize)
+                .map_or(false, |p| p.queue_count as usize >= priorities.len())
+        }) {
             panic!("Config is out of date");
         } else {
             self.0
@@ -90,21 +90,36 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
     type Heaps = Vec<u64>;
 
     fn configure(self, properties: &PhysicalDeviceMemoryProperties) -> (Self::Types, Self::Heaps) {
-        let types = (0 .. properties.memory_type_count)
+        let types = (0..properties.memory_type_count)
             .map(|index| &properties.memory_types[index as usize])
             .map(|mt| {
                 let config = HeapsConfig {
-                    arena: if mt.property_flags.subset(allocator::ArenaAllocator::properties_required()) {
+                    arena: if mt
+                        .property_flags
+                        .subset(allocator::ArenaAllocator::properties_required())
+                    {
                         Some(allocator::ArenaConfig {
-                            arena_size: min(256 * 1024 * 1024, properties.memory_heaps[mt.heap_index as usize].size / 8),
+                            arena_size: min(
+                                256 * 1024 * 1024,
+                                properties.memory_heaps[mt.heap_index as usize].size / 8,
+                            ),
                         })
                     } else {
                         None
                     },
-                    dynamic: if mt.property_flags.subset(allocator::DynamicAllocator::properties_required()) {
+                    dynamic: if mt
+                        .property_flags
+                        .subset(allocator::DynamicAllocator::properties_required())
+                    {
                         Some(allocator::DynamicConfig {
-                            max_block_size: min(32 * 1024 * 1024, properties.memory_heaps[mt.heap_index as usize].size / 8),
-                            block_size_granularity: min(256, properties.memory_heaps[mt.heap_index as usize].size / 1024),
+                            max_block_size: min(
+                                32 * 1024 * 1024,
+                                properties.memory_heaps[mt.heap_index as usize].size / 8,
+                            ),
+                            block_size_granularity: min(
+                                256,
+                                properties.memory_heaps[mt.heap_index as usize].size / 1024,
+                            ),
                             blocks_per_chunk: 64,
                         })
                     } else {
@@ -113,10 +128,9 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                 };
 
                 (mt.property_flags, mt.heap_index, config)
-            })
-            .collect();
+            }).collect();
 
-        let heaps = (0 .. properties.memory_heap_count)
+        let heaps = (0..properties.memory_heap_count)
             .map(|index| &properties.memory_heaps[index as usize])
             .map(|heap| heap.size)
             .collect();
@@ -130,7 +144,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SavedHeapsConfig {
     types: Vec<(MemoryPropertyFlags, u32, HeapsConfig)>,
-    heaps: Vec<u64>
+    heaps: Vec<u64>,
 }
 
 unsafe impl HeapsConfigure for SavedHeapsConfig {
@@ -144,5 +158,11 @@ unsafe impl HeapsConfigure for SavedHeapsConfig {
 
 #[allow(unused)]
 fn fmt_version(version: &u32, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-    write!(fmt, "{}.{}.{}", vk_version_major!(*version), vk_version_minor!(*version), vk_version_patch!(*version))
+    write!(
+        fmt,
+        "{}.{}.{}",
+        vk_version_major!(*version),
+        vk_version_minor!(*version),
+        vk_version_patch!(*version)
+    )
 }

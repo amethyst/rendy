@@ -1,5 +1,5 @@
-
-#[macro_use] extern crate derivative;
+#[macro_use]
+extern crate derivative;
 extern crate winit;
 
 extern crate rendy_factory as factory;
@@ -13,7 +13,6 @@ use frame::Frames;
 use wsi::Target;
 
 pub trait Renderer<T> {
-
     type Desc: RendererDesc<T>;
 
     fn builder() -> RendererBuilder<Self::Desc>

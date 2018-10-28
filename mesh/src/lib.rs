@@ -8,10 +8,10 @@
 
 extern crate ash;
 extern crate failure;
-extern crate rendy_memory as memory;
 extern crate rendy_command as command;
-extern crate rendy_resource as resource;
 extern crate rendy_factory as factory;
+extern crate rendy_memory as memory;
+extern crate rendy_resource as resource;
 
 #[cfg(feature = "serde")]
 #[macro_use]
@@ -25,6 +25,6 @@ mod vertex;
 
 pub use mesh::{Bind, Incompatible, IndexBuffer, Indices, Mesh, MeshBuilder, VertexBuffer};
 pub use vertex::{
-    AsVertex, Attribute, AsAttribute, Color, Normal, PosColor, PosNorm, PosNormTangTex, PosNormTex,
+    AsAttribute, AsVertex, Attribute, Color, Normal, PosColor, PosNorm, PosNormTangTex, PosNormTex,
     PosTex, Position, Query, Tangent, TexCoord, VertexFormat, WithAttribute,
 };

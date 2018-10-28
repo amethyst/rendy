@@ -1,9 +1,6 @@
 //! Built-in vertex formats.
 
-use std::{
-    borrow::Cow,
-    fmt::Debug,
-};
+use std::{borrow::Cow, fmt::Debug};
 
 use ash::vk::Format;
 

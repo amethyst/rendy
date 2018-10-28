@@ -17,7 +17,6 @@ pub use self::{
 
 /// Allocator trait implemented for various allocators.
 pub trait Allocator {
-
     /// Block type returned by allocator.
     type Block: Block;
 

@@ -1,8 +1,11 @@
 mod range;
 pub(crate) mod write;
 
+use ash::{
+    version::DeviceV1_0,
+    vk::{MappedMemoryRange, MemoryMapFlags},
+};
 use std::{ops::Range, ptr::NonNull};
-use ash::{version::DeviceV1_0, vk::{MemoryMapFlags, MappedMemoryRange}};
 
 use error::{MappingError, MemoryError};
 use memory::Memory;
@@ -11,7 +14,7 @@ use util::fits_usize;
 pub(crate) use self::range::{
     mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range,
 };
-use self::write::{Write, WriteFlush, WriteCoherent};
+use self::write::{Write, WriteCoherent, WriteFlush};
 
 /// Non-coherent marker.
 #[derive(Clone, Copy, Debug)]
@@ -65,13 +68,22 @@ impl<'a> MappedRange<'a> {
         );
         assert!(memory.host_visible());
 
-        let ptr = device.map_memory(memory.raw(), range.start, range.end - range.start, MemoryMapFlags::empty())?;
+        let ptr = device.map_memory(
+            memory.raw(),
+            range.start,
+            range.end - range.start,
+            MemoryMapFlags::empty(),
+        )?;
         assert!(
             (ptr as usize).wrapping_neg() <= (range.end - range.start) as usize,
             "Resulting pointer value + range length must fit in usize",
         );
 
-        Ok(Self::from_raw(memory, NonNull::new_unchecked(ptr as *mut u8), range))
+        Ok(Self::from_raw(
+            memory,
+            NonNull::new_unchecked(ptr as *mut u8),
+            range,
+        ))
     }
 
     /// Construct mapped range from raw mapping
@@ -116,13 +128,11 @@ impl<'a> MappedRange<'a> {
             .ok_or_else(|| MappingError::OutOfBounds)?;
 
         if self.coherent.0 {
-            device.invalidate_mapped_memory_ranges(&[
-                MappedMemoryRange::builder()
-                    .memory(self.memory.raw())
-                    .offset(self.range.start)
-                    .size(self.range.end - self.range.start)
-                    .build(),
-            ])?;
+            device.invalidate_mapped_memory_ranges(&[MappedMemoryRange::builder()
+                .memory(self.memory.raw())
+                .offset(self.range.start)
+                .size(self.range.end - self.range.start)
+                .build()])?;
         }
 
         let slice = mapped_slice::<T>(ptr, range)?;
@@ -148,13 +158,11 @@ impl<'a> MappedRange<'a> {
             .ok_or_else(|| MappingError::OutOfBounds)?;
 
         if !self.coherent.0 {
-            device.invalidate_mapped_memory_ranges(&[
-                MappedMemoryRange::builder()
-                    .memory(self.memory.raw())
-                    .offset(self.range.start)
-                    .size(self.range.end - self.range.start)
-                    .build(),
-            ])?;
+            device.invalidate_mapped_memory_ranges(&[MappedMemoryRange::builder()
+                .memory(self.memory.raw())
+                .offset(self.range.start)
+                .size(self.range.end - self.range.start)
+                .build()])?;
         }
 
         let slice = mapped_slice_mut::<T>(ptr, range.clone())?;
@@ -225,8 +233,6 @@ impl<'a> MappedRange<'a, Coherent> {
 
         let slice = mapped_slice_mut::<U>(ptr, range.clone())?;
 
-        Ok(WriteCoherent {
-            slice,
-        })
+        Ok(WriteCoherent { slice })
     }
 }

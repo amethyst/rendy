@@ -1,10 +1,12 @@
 use std::ops::Range;
 
-use ash::{version::DeviceV1_0, vk::{DeviceMemory, MemoryPropertyFlags}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{DeviceMemory, MemoryPropertyFlags},
+};
 
 use error::MappingError;
 use mapping::MappedRange;
-
 
 /// Block that owns a `Range` of the `Memory`.
 /// Implementor must ensure that there can't be any other blocks

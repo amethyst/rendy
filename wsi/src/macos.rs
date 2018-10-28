@@ -1,18 +1,14 @@
-
-use std::ffi::{CStr, c_void};
+use std::ffi::{c_void, CStr};
 
 use ash::{
-    version::{EntryV1_0, InstanceV1_0},
-    vk::{
-        SurfaceKHR,
-        MacOSSurfaceCreateInfoMVK,
-    },
     extensions::MacOSSurface,
+    version::{EntryV1_0, InstanceV1_0},
+    vk::{MacOSSurfaceCreateInfoMVK, SurfaceKHR},
 };
 
 use failure::Error;
 use objc::runtime::{Object, BOOL, YES};
-use winit::{Window, os::macos::WindowExt};
+use winit::{os::macos::WindowExt, Window};
 
 pub struct NativeSurface(MacOSSurface);
 
@@ -21,9 +17,11 @@ impl NativeSurface {
         MacOSSurface::name()
     }
 
-    pub fn new(entry: &impl EntryV1_0, instance: &impl InstanceV1_0) -> Result<Self, Vec<&'static str>> {
-        MacOSSurface::new(entry, instance)
-            .map(NativeSurface)
+    pub fn new(
+        entry: &impl EntryV1_0,
+        instance: &impl InstanceV1_0,
+    ) -> Result<Self, Vec<&'static str>> {
+        MacOSSurface::new(entry, instance).map(NativeSurface)
     }
 
     pub fn create_surface(&self, window: &Window) -> Result<SurfaceKHR, Error> {
@@ -37,9 +35,7 @@ impl NativeSurface {
             put_metal_layer(nsview);
 
             self.0.create_mac_os_surface_mvk(
-                &MacOSSurfaceCreateInfoMVK::builder()
-                    .view(&*nsview)
-                    .build(),
+                &MacOSSurfaceCreateInfoMVK::builder().view(&*nsview).build(),
                 None,
             )
         }?;
@@ -52,14 +48,14 @@ impl NativeSurface {
 unsafe fn put_metal_layer(nsview: *mut c_void) {
     let class = class!(CAMetalLayer);
     let view: cocoa::base::id = ::std::mem::transmute(nsview);
-    
-    let is_layer: BOOL = msg_send![view, isKindOfClass:class];
+
+    let is_layer: BOOL = msg_send![view, isKindOfClass: class];
     if is_layer == YES {
         return;
     }
 
     let layer: *mut Object = msg_send![view, layer];
-    if !layer.is_null() && msg_send![layer, isKindOfClass:class] {
+    if !layer.is_null() && msg_send![layer, isKindOfClass: class] {
         return;
     }
 

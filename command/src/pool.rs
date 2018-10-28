@@ -1,14 +1,13 @@
 //! Pool module docs.
 
-use ash::{version::DeviceV1_0, vk::{CommandBuffer, QueueFlags}};
+use ash::{
+    version::DeviceV1_0,
+    vk::{CommandBuffer, QueueFlags},
+};
 
 use relevant::Relevant;
 
-use crate::{
-    buffer::*,
-    capability::*,
-    family::FamilyId,
-};
+use crate::{buffer::*, capability::*, family::FamilyId};
 
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.

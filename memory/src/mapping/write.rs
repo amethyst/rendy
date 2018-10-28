@@ -1,9 +1,7 @@
-
 use std::{ops::Range, ptr::copy_nonoverlapping};
 
 use ash::{version::DeviceV1_0, vk::MappedMemoryRange};
 use memory::Memory;
-
 
 /// Trait for memory region suitable for host writes.
 pub trait Write<T: Copy> {
@@ -45,14 +43,11 @@ where
         if let Some((device, memory, range)) = self.flush.take() {
             unsafe {
                 device
-                    .flush_mapped_memory_ranges(&[
-                        MappedMemoryRange::builder()
-                            .memory(memory.raw())
-                            .offset(range.start)
-                            .size(range.end - range.start)
-                            .build(),
-                    ])
-                    .expect("Should flush successfully");
+                    .flush_mapped_memory_ranges(&[MappedMemoryRange::builder()
+                        .memory(memory.raw())
+                        .offset(range.start)
+                        .size(range.end - range.start)
+                        .build()]).expect("Should flush successfully");
             }
         }
     }
