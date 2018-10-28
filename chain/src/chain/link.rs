@@ -4,7 +4,7 @@ use ash::vk::{AccessFlags, PipelineStageFlags};
 use access::AccessFlagsExt;
 use node::State;
 use resource::Resource;
-use schedule::{FamilyId, QueueId, SubmissionId};
+use schedule::{FamilyIndex, QueueId, SubmissionId};
 
 /// State of the link associated with queue.
 /// Contains submissions range, combined access and stages bits by submissions from the range.
@@ -59,7 +59,7 @@ pub(crate) struct Link<R: Resource> {
     queues: Vec<Option<LinkQueueState>>,
 
     /// Family of queues.
-    family: FamilyId,
+    family: FamilyIndex,
 }
 
 /// Node for the link.
@@ -109,7 +109,7 @@ where
 
     /// Get queue family that owns the resource at the link.
     /// All associated submissions must be from the same queue family.
-    pub(crate) fn family(&self) -> FamilyId {
+    pub(crate) fn family(&self) -> FamilyIndex {
         self.family
     }
 

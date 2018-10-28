@@ -3,7 +3,14 @@ use std::cmp::{max, min};
 use ash::{
     extensions::{Surface, Swapchain},
     version::{DeviceV1_0, EntryV1_0, InstanceV1_0},
-    vk::{PhysicalDevice, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR},
+    vk::{
+        Format,
+        Extent2D,
+        PhysicalDevice,
+        SurfaceKHR,
+        SwapchainCreateInfoKHR,
+        SwapchainKHR
+    },
 };
 
 use failure::Error;
@@ -16,6 +23,9 @@ pub struct Target {
     window: Window,
     surface: SurfaceKHR,
     swapchain: SwapchainKHR,
+    image_count: u32,
+    format: Format,
+    extent: Extent2D,
     relevant: Relevant,
 }
 
@@ -43,14 +53,14 @@ impl Target {
             unsafe { surface.get_physical_device_surface_capabilities_khr(physical, surface_khr) }?;
         debug!("Capabilities: {:#?}", capabilities);
 
+        let image_count = max(min(image_count, capabilities.max_image_count), capabilities.min_image_count);
+
         let swapchain_khr = unsafe {
             swapchain.create_swapchain_khr(
                 &SwapchainCreateInfoKHR::builder()
                     .surface(surface_khr)
-                    .min_image_count(max(
-                        min(image_count, capabilities.max_image_count),
-                        capabilities.min_image_count,
-                    )).image_format(formats[0].format)
+                    .min_image_count(image_count)
+                    .image_format(formats[0].format)
                     .image_extent(capabilities.current_extent)
                     .image_array_layers(1)
                     .image_usage(capabilities.supported_usage_flags)
@@ -66,6 +76,9 @@ impl Target {
             window,
             surface: surface_khr,
             swapchain: swapchain_khr,
+            image_count,
+            format: formats[0].format,
+            extent: capabilities.current_extent,
             relevant: Relevant,
         })
     }
@@ -73,5 +86,20 @@ impl Target {
     pub unsafe fn dispose(self) -> (Window, SurfaceKHR, SwapchainKHR) {
         self.relevant.dispose();
         (self.window, self.surface, self.swapchain)
+    }
+
+    /// Get raw surface handle.
+    pub unsafe fn surface(&self) -> SurfaceKHR {
+        self.surface
+    }
+
+    /// Get target current extent.
+    pub fn extent(&self) -> Extent2D {
+        self.extent
+    }
+
+    /// Get target current format.
+    pub fn format(&self) -> Format {
+        self.format
     }
 }

@@ -7,7 +7,7 @@ use ash::{
 
 use relevant::Relevant;
 
-use crate::{buffer::*, capability::*, family::FamilyId};
+use crate::{buffer::*, capability::*, family::FamilyIndex};
 
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
@@ -17,7 +17,7 @@ pub struct Pool<P, C = QueueFlags, R = ()> {
     inner: P,
     capability: C,
     reset: R,
-    family: FamilyId,
+    family: FamilyIndex,
     relevant: Relevant,
 }
 

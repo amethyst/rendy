@@ -11,14 +11,14 @@ use crate::{capability::Capability, pool::Pool};
 
 /// Unique family index.
 #[derive(Clone, Copy, Debug)]
-pub struct FamilyId(pub u32);
+pub struct FamilyIndex(pub u32);
 
 /// Family of the command queues.
 /// Queues from one family can share resources and execute command buffers associated with the family.
 /// All queues of the family have same capabilities.
 #[derive(Clone, Debug)]
-pub struct Family<C = QueueFlags> {
-    index: FamilyId,
+pub struct Family<C: Capability = QueueFlags> {
+    index: FamilyIndex,
     queues: Vec<Queue>,
     min_image_transfer_granularity: Extent3D,
     capability: C,
@@ -29,7 +29,7 @@ impl Family {
     /// Get queue family from device.
     pub unsafe fn from_device(
         device: &impl DeviceV1_0,
-        index: FamilyId,
+        index: FamilyIndex,
         queues: u32,
         properties: &QueueFamilyProperties,
     ) -> Self {
@@ -43,6 +43,30 @@ impl Family {
             relevant: Relevant,
         }
     }
+}
+
+impl<C: Capability> Family<C> {
+
+    /// Get id of the family.
+    pub fn index(&self) -> FamilyIndex {
+        self.index
+    }
+
+    /// Get queues of the family.
+    pub fn queues(&mut self) -> &mut [Queue] {
+        &mut self.queues
+    }
+
+    /// Create command pool associated with the family.
+    /// Command buffers created from the pool could be submitted to the queues of the family.
+    pub fn create_pool<D, R>(&self, device: &impl DeviceV1_0, reset: R) -> Pool<CommandPool, C, R> {
+        unimplemented!()
+    }
+
+    /// Get family capability.
+    pub fn capability(&self) -> C {
+        self.capability
+    }
 
     /// Dispose of queue family container.
     pub fn dispose(self, device: &impl DeviceV1_0) {
@@ -53,19 +77,6 @@ impl Family {
         }
 
         self.relevant.dispose();
-    }
-}
-
-impl<C> Family<C> {
-    /// Get queues of the family.
-    pub fn queues(&mut self) -> &mut [Queue] {
-        &mut self.queues
-    }
-
-    /// Create command pool associated with the family.
-    /// Command buffers created from the pool could be submitted to the queues of the family.
-    pub fn create_pool<D, R>(&self, device: &impl DeviceV1_0, reset: R) -> Pool<CommandPool, C, R> {
-        unimplemented!()
     }
 }
 
@@ -102,51 +113,15 @@ where
     }
 }
 
-/// Collection of all families.
-#[derive(Clone, Debug)]
-pub struct Families {
-    families: Vec<Family<QueueFlags>>,
-}
-
-impl Families {
-    /// Create a new Families collection that is empty
-    pub fn new() -> Self {
-        Families {
-            families: Vec::new(),
-        }
-    }
-
-    /// Add a family to the `Families` group
-    pub fn add_family<C>(&mut self, family: Family<C>)
-    where
-        C: Capability,
-    {
-        self.families.push(family.into_flags());
-    }
-
-    /// Get queue families from device.
-    pub unsafe fn from_device(
-        device: &impl DeviceV1_0,
-        families: impl IntoIterator<Item = (FamilyId, u32)>,
-        properties: &[QueueFamilyProperties],
-    ) -> Self {
-        Families {
-            families: families
-                .into_iter()
-                .map(|(index, queues)| {
-                    Family::from_device(device, index, queues, &properties[index.0 as usize])
-                }).collect(),
-        }
-    }
-
-    /// Dispose of queue family containers.
-    pub fn dispose(self, device: &impl DeviceV1_0) {
-        for family in self.families {
-            family.dispose(device);
-        }
-
-        unsafe {
-            device.device_wait_idle();
-        }
-    }
+/// Get queue families from device.
+pub unsafe fn families_from_device(
+    device: &impl DeviceV1_0,
+    families: impl IntoIterator<Item = (FamilyIndex, u32)>,
+    properties: &[QueueFamilyProperties],
+) -> Vec<Family> {
+    families
+        .into_iter()
+        .map(|(index, queues)| {
+            Family::from_device(device, index, queues, &properties[index.0 as usize])
+        }).collect()
 }

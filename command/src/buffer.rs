@@ -4,7 +4,7 @@ use ash::vk::{CommandBuffer, CommandBufferLevel, CommandBufferUsageFlags};
 use relevant::Relevant;
 use std::borrow::Borrow;
 
-use crate::family::FamilyId;
+use crate::family::FamilyIndex;
 
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug)]
@@ -133,7 +133,7 @@ pub struct Buffer<C, S, L, R = ()> {
     state: S,
     level: L,
     reset: R,
-    family: FamilyId,
+    family: FamilyIndex,
     relevant: Relevant,
 }
 
@@ -163,12 +163,12 @@ impl<C, R> Buffer<C, InitialState, PrimaryLevel, R> {
 #[allow(missing_copy_implementations)]
 pub struct Submit {
     raw: CommandBuffer,
-    family: FamilyId,
+    family: FamilyIndex,
 }
 
 impl Submit {
     /// Get family this submit is associated with.
-    pub fn family(&self) -> FamilyId {
+    pub fn family(&self) -> FamilyIndex {
         self.family
     }
 

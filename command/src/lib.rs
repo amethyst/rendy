@@ -38,6 +38,6 @@ pub use crate::{
     },
     capability::Capability,
     encoder::Encoder,
-    family::{Families, Family, FamilyId},
+    family::{Family, FamilyIndex, families_from_device},
     pool::{OwningPool, Pool},
 };

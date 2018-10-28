@@ -11,6 +11,7 @@ use ash::{
         ExtensionProperties, ImageCreateInfo, InstanceCreateInfo, PhysicalDevice,
         PhysicalDeviceFeatures, PhysicalDeviceMemoryProperties, PhysicalDeviceProperties,
         PhysicalDeviceType, QueueFamilyProperties,
+        MemoryPropertyFlags,
     },
     Device, Entry, Instance, LoadingError,
 };
@@ -19,12 +20,11 @@ use relevant::Relevant;
 use smallvec::SmallVec;
 use winit::Window;
 
-use command::{Families, FamilyId};
-use memory::{Heaps, MemoryError, MemoryUsage};
+use command::{Family, FamilyIndex, families_from_device};
+use memory::{Block, Heaps, MemoryError, MemoryUsage, Write};
 use resource::{buffer::Buffer, image::Image, Resources};
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
-// use renderer::{RendererDesc, RendererBuilder};
 use wsi::{NativeSurface, Target};
 
 #[derive(Debug, Fail)]
@@ -46,7 +46,7 @@ pub struct Factory {
     instance: Instance<V1_0>,
     physical: PhysicalDeviceInfo,
     device: Device<V1_0>,
-    families: Families,
+    families: Vec<Family>,
     heaps: Heaps,
     resources: Resources,
     surface: Surface,
@@ -164,7 +164,7 @@ impl Factory {
 
         let heaps = unsafe { Heaps::new(types, heaps) };
 
-        let families = unsafe { Families::from_device(&device, get_queues, &physical.queues) };
+        let families = unsafe { families_from_device(&device, get_queues, &physical.queues) };
 
         let factory = Factory {
             instance,
@@ -184,6 +184,23 @@ impl Factory {
         Ok(factory)
     }
 
+    pub fn dispose(self) {
+        unsafe {
+            let _ = self.device.device_wait_idle();
+        }
+        for family in self.families {
+            family.dispose(&self.device);
+        }
+        self.heaps.dispose(&self.device);
+        unsafe {
+            self.device.destroy_device(None);
+            self.instance.destroy_instance(None);
+        }
+
+        self.relevant.dispose();
+        trace!("Factory destroyed");
+    }
+
     /// Creates a buffer that is managed with the specified properties.
     pub fn create_buffer(
         &mut self,
@@ -195,16 +212,45 @@ impl Factory {
             .create_buffer(&self.device, &mut self.heaps, info, align, memory_usage)
     }
 
-    /// Upload buffer data.
-    pub fn upload_buffer(
+    /// Upload buffer content.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that device won't write to or read from the memory region.
+    pub unsafe fn upload_buffer(
         &mut self,
-        _buffer: &mut Buffer,
-        _offset: u64,
-        _data: &[u8],
-        _family: FamilyId,
+        buffer: &mut Buffer,
+        offset: u64,
+        content: &[u8],
+        family: FamilyIndex,
+        access: AccessFlags,
+    ) -> Result<(), Error> {
+        if buffer.block().properties().subset(MemoryPropertyFlags::HOST_VISIBLE) {
+            self.upload_visible_buffer(buffer, offset, content, family, access)
+        } else {
+            unimplemented!("Staging is not supported yet");
+        }
+    }
+
+    /// Update buffer bound to host visible memory.AccessFlags.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that device won't write to or read from the memory region.
+    pub unsafe fn upload_visible_buffer(
+        &mut self,
+        buffer: &mut Buffer,
+        offset: u64,
+        content: &[u8],
+        _family: FamilyIndex,
         _access: AccessFlags,
     ) -> Result<(), Error> {
-        unimplemented!()
+        let block = buffer.block_mut();
+        assert!(block.properties().subset(MemoryPropertyFlags::HOST_VISIBLE));
+        let mut mapped = block.map(&self.device, offset .. offset + content.len() as u64)?;
+        mapped.write(&self.device, 0 .. content.len() as u64)?.write(content);
+
+        Ok(())
     }
 
     /// Creates an image that is mananged with the specified properties.
@@ -240,28 +286,30 @@ impl Factory {
         }
     }
 
-    // /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
-    // pub fn build_render<'a, R, T>(&mut self, builder: RendererBuilder<R>, data: &mut T) -> Result<R::Renderer, Error>
-    // where
-    //     R: RendererDesc<T>,
-    // {
-    //     let image_count = builder.image_count;
-    //     let targets = builder.windows.into_iter().map(|window| self.create_target(window, image_count)).collect::<Result<_, _>>()?;
-    //     Ok(builder.desc.build(targets, self, data))
-    // }
+    /// Get command queue families.
+    pub fn families(&self) -> &[Family] {
+        &self.families
+    }
 
-    pub fn dispose(self) {
-        self.families.dispose(&self.device);
-        self.heaps.dispose(&self.device);
-        unsafe {
-            self.device.destroy_device(None);
-            self.instance.destroy_instance(None);
+    /// Get command queue families.
+    pub fn families_mut(&mut self) -> &mut [Family] {
+        &mut self.families
+    }
+
+    /// Get surface support for family.
+    pub fn target_support(&self, family: FamilyIndex, target: &Target) -> bool {
+        unsafe { 
+            let surface = target.surface();
+            self.surface.get_physical_device_surface_support_khr(self.physical.handle, family.0, surface)
         }
+    }
 
-        self.relevant.dispose();
-        trace!("Factory destroyed");
+    /// Get device.
+    pub unsafe fn device(&self) -> &impl DeviceV1_0 {
+        &self.device
     }
 }
+
 
 unsafe fn extension_name_cstr(e: &ExtensionProperties) -> &CStr {
     CStr::from_ptr(e.extension_name[..].as_ptr())

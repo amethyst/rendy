@@ -135,7 +135,7 @@ pub struct VertexFormat<'a> {
 /// Trait implemented by all valid vertex formats.
 pub trait AsVertex: Copy + Sized + Send + Sync {
     /// List of all attributes formats with name and offset.
-    const VERTEX_FORMAT: VertexFormat<'static>;
+    const VERTEX: VertexFormat<'static>;
 
     /// Returns attribute of vertex by type
     #[inline]
@@ -152,7 +152,7 @@ impl<T> AsVertex for T
 where
     T: AsAttribute,
 {
-    const VERTEX_FORMAT: VertexFormat<'static> = VertexFormat {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[Attribute {
             format: T::FORMAT,
             offset: 0,
@@ -189,7 +189,7 @@ pub struct PosColor {
 }
 
 impl AsVertex for PosColor {
-    const VERTEX_FORMAT: VertexFormat<'static> = VertexFormat {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[
             <Self as WithAttribute<Position>>::ATTRIBUTE,
             <Self as WithAttribute<Color>>::ATTRIBUTE,
@@ -224,7 +224,7 @@ pub struct PosNorm {
 }
 
 impl AsVertex for PosNorm {
-    const VERTEX_FORMAT: VertexFormat<'static> = VertexFormat {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[
             <Self as WithAttribute<Position>>::ATTRIBUTE,
             <Self as WithAttribute<Normal>>::ATTRIBUTE,
@@ -259,7 +259,7 @@ pub struct PosTex {
 }
 
 impl AsVertex for PosTex {
-    const VERTEX_FORMAT: VertexFormat<'static> = VertexFormat {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[
             <Self as WithAttribute<Position>>::ATTRIBUTE,
             <Self as WithAttribute<TexCoord>>::ATTRIBUTE,
@@ -296,7 +296,7 @@ pub struct PosNormTex {
 }
 
 impl AsVertex for PosNormTex {
-    const VERTEX_FORMAT: VertexFormat<'static> = VertexFormat {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[
             <Self as WithAttribute<Position>>::ATTRIBUTE,
             <Self as WithAttribute<Normal>>::ATTRIBUTE,
@@ -343,7 +343,7 @@ pub struct PosNormTangTex {
 }
 
 impl AsVertex for PosNormTangTex {
-    const VERTEX_FORMAT: VertexFormat<'static> = VertexFormat {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[
             <Self as WithAttribute<Position>>::ATTRIBUTE,
             <Self as WithAttribute<Normal>>::ATTRIBUTE,

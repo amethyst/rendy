@@ -4,7 +4,7 @@
 // };
 
 use chain;
-use command::{Device, FamilyId, Queue, FrameGen, Submission, CapabilityFlags};
+use command::{Device, FamilyIndex, Queue, FrameGen, Submission, CapabilityFlags};
 use resource::{buffer, image};
 
 // use smallvec::SmallVec;
@@ -56,7 +56,7 @@ where
         aux: &mut T,
     ) -> Vec<D::Fence>
     where
-        Q: FnMut(FamilyId, usize) -> Option<&'a mut Queue<D::CommandQueue, CapabilityFlags>>
+        Q: FnMut(FamilyIndex, usize) -> Option<&'a mut Queue<D::CommandQueue, CapabilityFlags>>
     {
         unsafe {
             device.reset_fences(&self.fences);
@@ -77,7 +77,7 @@ where
         for submission in self.schedule.ordered() {
             let sid = submission.id();
             let qid = sid.queue();
-            let queue = queues(FamilyId(qid.family().0), qid.index()).expect("`queues` must contain all queues");
+            let queue = queues(FamilyIndex(qid.family().0), qid.index()).expect("`queues` must contain all queues");
 
             let node = self.nodes.get_mut(submission.node()).expect("`Node` must exist");
 

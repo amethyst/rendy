@@ -5,19 +5,19 @@ use super::{
 
 /// Family id value.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FamilyId(pub u32);
+pub struct FamilyIndex(pub u32);
 
 /// Instances of this type contains array of `Queue`s.
 /// All contained queues has identical capabilities.
 #[derive(Clone, Debug)]
 pub struct Family<S> {
-    id: FamilyId,
+    id: FamilyIndex,
     queues: Vec<Queue<S>>,
 }
 
 impl<S> Family<S> {
     /// Create new empty `Family`
-    pub fn new(id: FamilyId) -> Self {
+    pub fn new(id: FamilyIndex) -> Self {
         Family {
             id,
             queues: Vec::default(),
@@ -25,7 +25,7 @@ impl<S> Family<S> {
     }
 
     /// Get id of the family.
-    pub fn id(&self) -> FamilyId {
+    pub fn id(&self) -> FamilyIndex {
         self.id
     }
 

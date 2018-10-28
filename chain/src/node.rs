@@ -3,7 +3,7 @@ use std::collections::hash_map::{HashMap, Iter as HashMapIter};
 use ash::vk::{AccessFlags, PipelineStageFlags};
 
 use resource::{Buffer, Image, Resource};
-use schedule::FamilyId;
+use schedule::FamilyIndex;
 use Id;
 
 /// State in which node uses resource and usage flags.
@@ -35,7 +35,7 @@ pub struct Node {
     pub id: usize,
 
     /// Family required to execute the node.
-    pub family: FamilyId,
+    pub family: FamilyIndex,
 
     /// Dependencies of the node.
     /// Those are indices of other nodes in array.
@@ -50,7 +50,7 @@ pub struct Node {
 
 impl Node {
     /// Get family on which this node will be executed.
-    pub fn family(&self) -> FamilyId {
+    pub fn family(&self) -> FamilyIndex {
         self.family
     }
 

@@ -16,7 +16,7 @@ use std::ops::{Index, IndexMut};
 
 #[allow(unreachable_pub)]
 pub use self::{
-    family::{Family, FamilyId},
+    family::{Family, FamilyIndex},
     queue::{Queue, QueueId},
     submission::{Submission, SubmissionId},
 };
@@ -26,7 +26,7 @@ use fnv::FnvHashMap;
 /// Whole passes schedule.
 #[derive(Clone, Debug)]
 pub struct Schedule<S> {
-    map: FnvHashMap<FamilyId, Family<S>>,
+    map: FnvHashMap<FamilyIndex, Family<S>>,
     ordered: Vec<SubmissionId>,
 }
 
@@ -72,12 +72,12 @@ impl<S> Schedule<S> {
     }
 
     /// Get reference to `Family` instance by the id.
-    pub fn family(&self, fid: FamilyId) -> Option<&Family<S>> {
+    pub fn family(&self, fid: FamilyIndex) -> Option<&Family<S>> {
         self.map.get(&fid)
     }
 
     /// Get mutable reference to `Family` instance by the id.
-    pub fn family_mut(&mut self, fid: FamilyId) -> Option<&mut Family<S>> {
+    pub fn family_mut(&mut self, fid: FamilyIndex) -> Option<&mut Family<S>> {
         self.map.get_mut(&fid)
     }
 
@@ -113,7 +113,7 @@ impl<S> Schedule<S> {
 
     /// Get mutable reference to `Family` instance by the id.
     /// This function will add empty `Family` if id is not present.
-    fn ensure_family(&mut self, fid: FamilyId) -> &mut Family<S> {
+    fn ensure_family(&mut self, fid: FamilyIndex) -> &mut Family<S> {
         self.map.entry(fid).or_insert_with(|| Family::new(fid))
     }
 

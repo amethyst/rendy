@@ -1,6 +1,6 @@
 use fnv::FnvHashMap;
 
-use super::{family::FamilyId, queue::QueueId};
+use super::{family::FamilyIndex, queue::QueueId};
 use Id;
 
 /// Submission id.
@@ -20,7 +20,7 @@ impl SubmissionId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> FamilyId {
+    pub fn family(&self) -> FamilyIndex {
         self.queue.family()
     }
 

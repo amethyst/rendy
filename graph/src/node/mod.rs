@@ -14,7 +14,7 @@ use chain::{
 use command::{
     Encoder,
     Capability,
-    FamilyId,
+    FamilyIndex,
     Frames,
 };
 
@@ -151,7 +151,7 @@ where
 /// Trait-object safe `NodeDesc`.
 pub unsafe trait AnyNodeDesc<T: ?Sized> {
     /// Find family suitable for the node.
-    fn family(&self, families: &[(CapabilityFlags, FamilyId)]) -> Option<FamilyId>;
+    fn family(&self, families: &[(CapabilityFlags, FamilyIndex)]) -> Option<FamilyIndex>;
 
     /// Build the node.
     fn build(
@@ -167,7 +167,7 @@ where
     T: ?Sized,
     N: NodeDesc<T>,
 {
-    fn family(&self, families: &[(CapabilityFlags, FamilyId)]) -> Option<FamilyId> {
+    fn family(&self, families: &[(CapabilityFlags, FamilyIndex)]) -> Option<FamilyIndex> {
         families
             .iter()
             .find(|&(cap, _)| <N::Node as Node<T>>::Capability::from_flags(*cap).is_some())

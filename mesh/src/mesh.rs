@@ -10,7 +10,7 @@ use failure::Error;
 use ash::vk::{AccessFlags, BufferCreateInfo, BufferUsageFlags, IndexType, PrimitiveTopology};
 use smallvec::SmallVec;
 
-use command::FamilyId;
+use command::FamilyIndex;
 use factory::Factory;
 use memory::usage::Data;
 use resource::Buffer;
@@ -143,7 +143,7 @@ impl<'a> MeshBuilder<'a> {
         D: Into<Cow<'a, [V]>>,
     {
         self.vertices
-            .push((cast_cow(vertices.into()), V::VERTEX_FORMAT));
+            .push((cast_cow(vertices.into()), V::VERTEX));
         self
     }
 
@@ -164,7 +164,7 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new mesh.
-    pub fn build(&self, family: FamilyId, factory: &mut Factory) -> Result<Mesh, Error> {
+    pub fn build(&self, family: FamilyIndex, factory: &mut Factory) -> Result<Mesh, Error> {
         Ok(Mesh {
             vbufs: self
                 .vertices
@@ -183,13 +183,15 @@ impl<'a> MeshBuilder<'a> {
                                 1,
                                 Data,
                             )?;
-                            factory.upload_buffer(
-                                &mut buffer,
-                                0,
-                                vertices,
-                                family,
-                                AccessFlags::VERTEX_ATTRIBUTE_READ,
-                            )?;
+                            unsafe { // New buffer can't be touched by device yet.
+                                factory.upload_buffer(
+                                    &mut buffer,
+                                    0,
+                                    vertices,
+                                    family,
+                                    AccessFlags::VERTEX_ATTRIBUTE_READ,
+                                )?;
+                            }
                             buffer
                         },
                         format: format.clone(),
@@ -217,13 +219,15 @@ impl<'a> MeshBuilder<'a> {
                                 1,
                                 Data,
                             )?;
-                            // factory.upload_buffer(
-                            //     &mut buffer,
-                            //     family,
-                            //     AccessFlags::INDEX_BUFFER_READ,
-                            //     0,
-                            //     &indices,
-                            // )?;
+                            unsafe { // New buffer can't be touched by device yet.
+                                factory.upload_buffer(
+                                    &mut buffer,
+                                    0,
+                                    indices,
+                                    family,
+                                    AccessFlags::INDEX_READ,
+                                )?;
+                            }
                             buffer
                         },
                         index_type,
