@@ -4,22 +4,24 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-ash = { path = "../../ash/ash" }
-derivative = "1.0"
-failure = "0.1"
-log = "0.4"
-relevant = "0.2"
-serde = { version = "1.0", optional = true, features = ["derive"] }
-smallvec = "0.6"
-winit = "0.17"
 
-rendy-wsi = { path = "../wsi" }
-rendy-memory = { path = "../memory" }
-rendy-resource = { path = "../resource" }
 rendy-command = { path = "../command" }
 rendy-factory = { path = "../factory" }
+rendy-frame = { path = "../frame" }
+rendy-memory = { path = "../memory" }
 rendy-mesh = { path = "../mesh" }
+rendy-renderer = { path = "../renderer" }
+rendy-resource = { path = "../resource" }
+rendy-wsi = { path = "../wsi" }
 
 [dev-dependencies]
+ash = { path = "../../ash/ash" }
 env_logger = "0.5"
+# derivative = "1.0"
+failure = "0.1"
+log = "0.4"
+# relevant = "0.2"
+# serde = { version = "1.0", optional = true, features = ["derive"] }
+# smallvec = "0.6"
+winit = "0.17"
 

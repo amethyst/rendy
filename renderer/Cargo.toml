@@ -1,5 +1,5 @@
 [package]
-name = "rendy-factory"
+name = "rendy-renderer"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
@@ -9,11 +9,8 @@ derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = "0.2"
-serde = { version = "1.0", optional = true, features = ["derive"] }
-smallvec = "0.6"
 winit = "0.17"
 
-rendy-memory = { path = "../memory" }
-rendy-resource = { path = "../resource" }
-rendy-command = { path = "../command" }
 rendy-wsi = { path = "../wsi" }
+rendy-factory = { path = "../factory" }
+rendy-frame = { path = "../frame" }

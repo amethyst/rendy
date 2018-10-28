@@ -1,9 +1,16 @@
 
-use command::Frames;
-use wsi::Target;
+#[macro_use] extern crate derivative;
+extern crate winit;
+
+extern crate rendy_factory as factory;
+extern crate rendy_frame as frame;
+extern crate rendy_wsi as wsi;
+
 use winit::Window;
 
 use factory::Factory;
+use frame::Frames;
+use wsi::Target;
 
 pub trait Renderer<T> {
 

@@ -1,5 +1,5 @@
 
-use std::{ffi::{CStr, CString}, os::raw::c_char, cmp::{max, min}};
+use std::{ffi::{CStr, CString}, os::raw::c_char};
 
 use ash::{
     Device,
@@ -18,18 +18,8 @@ use ash::{
     },
     vk::{
         AccessFlags,
-        BufferUsageFlags,
         BufferCreateInfo,
-        ImageCreateFlags,
         ImageCreateInfo,
-        ImageType,
-        Extent3D,
-        Format,
-        SampleCountFlags,
-        ImageTiling,
-        ImageUsageFlags,
-        SharingMode,
-        ImageLayout,
         PhysicalDevice,
         InstanceCreateInfo,
         ApplicationInfo,
@@ -41,7 +31,6 @@ use ash::{
         DeviceCreateInfo,
         DeviceQueueCreateInfo,
         PhysicalDeviceFeatures,
-        SwapchainCreateInfoKHR,
     },
 };
 use failure::Error;
@@ -58,7 +47,7 @@ use resource::{
 };
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
-use renderer::{RendererDesc, RendererBuilder};
+// use renderer::{RendererDesc, RendererBuilder};
 use wsi::{NativeSurface, Target};
 
 #[derive(Debug, Fail)]
@@ -261,7 +250,7 @@ impl Factory {
             .create_image(&self.device, &mut self.heaps, info, align, memory_usage)
     }
 
-    /// Create surface
+    /// Create render target from window.
     pub fn create_target(&self, window: Window, image_count: u32) -> Result<Target, Error> {
         Target::new(window, image_count, self.physical.handle, &self.native_surface, &self.surface, &self.swapchain)
     }
@@ -276,15 +265,15 @@ impl Factory {
         }
     }
 
-    /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
-    pub fn build_render<'a, R, T>(&mut self, builder: RendererBuilder<R>, data: &mut T) -> Result<R::Renderer, Error>
-    where
-        R: RendererDesc<T>,
-    {
-        let image_count = builder.image_count;
-        let targets = builder.windows.into_iter().map(|window| self.create_target(window, image_count)).collect::<Result<_, _>>()?;
-        Ok(builder.desc.build(targets, self, data))
-    }
+    // /// Build a `Renderer<Self, T>` from the `RendererBuilder` and a render info
+    // pub fn build_render<'a, R, T>(&mut self, builder: RendererBuilder<R>, data: &mut T) -> Result<R::Renderer, Error>
+    // where
+    //     R: RendererDesc<T>,
+    // {
+    //     let image_count = builder.image_count;
+    //     let targets = builder.windows.into_iter().map(|window| self.create_target(window, image_count)).collect::<Result<_, _>>()?;
+    //     Ok(builder.desc.build(targets, self, data))
+    // }
 
     pub fn dispose(self) {
         self.families.dispose(&self.device);

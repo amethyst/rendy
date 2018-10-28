@@ -4,8 +4,10 @@ use ash::{version::DeviceV1_0, vk::{CommandPool, Queue, QueueFlags, Extent3D, Qu
 
 use relevant::Relevant;
 
-use capability::Capability;
-use pool::Pool;
+use crate::{
+    capability::Capability,
+    pool::Pool,
+};
 
 /// Unique family index.
 #[derive(Clone, Copy, Debug)]

@@ -1,15 +1,13 @@
 [workspace]
 
 members = [
-    "wsi",
-    "memory",
-    "resource",
     "command",
     "factory",
+    "frame",
+    "memory",
     "mesh",
-    # "pipeline",
-    # "pipeline-derive",
-    # "chain",
-    # "graph",
+    "renderer",
     "rendy",
+    "resource",
+    "wsi",
 ]

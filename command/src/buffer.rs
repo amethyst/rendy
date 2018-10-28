@@ -4,9 +4,7 @@ use std::{borrow::Borrow};
 use relevant::Relevant;
 use ash::vk::{CommandBuffer, CommandBufferLevel, CommandBufferUsageFlags};
 
-use encoder::Encoder;
-use family::FamilyId;
-use frame::FrameBound;
+use crate::family::FamilyId;
 
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug)]
@@ -16,6 +14,7 @@ pub struct PrimaryLevel;
 #[derive(Clone, Copy, Debug)]
 pub struct SecondaryLevel;
 
+/// Command buffer level.
 pub trait Level {
     /// Get raw level value.
     fn level(&self) -> CommandBufferLevel;
@@ -128,8 +127,8 @@ impl Usage for MultiShot<SimultaneousUse> {
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
 /// This way many methods become safe.
 #[derive(Debug)]
-pub struct Buffer<B, C, S, L, R = ()> {
-    inner: B,
+pub struct Buffer<C, S, L, R = ()> {
+    inner: CommandBuffer,
     capability: C,
     state: S,
     level: L,
@@ -138,13 +137,20 @@ pub struct Buffer<B, C, S, L, R = ()> {
     relevant: Relevant,
 }
 
-impl<B, C, R> Buffer<B, C, InitialState, PrimaryLevel, R> {
+impl<C, S, L, R> Buffer<C, S, L, R> {
+    /// Get raw CommandBuffer
+    pub unsafe fn raw(&self) -> CommandBuffer {
+        self.inner
+    }
+}
+
+impl<C, R> Buffer<C, InitialState, PrimaryLevel, R> {
     /// Begin recording command buffer.
     ///
     /// # Parameters
     ///
     /// `usage` - specifies usage of the command buffer. Possible types are `OneShot`, `MultiShot`.
-    pub fn begin<U>(self, usage: U) -> Buffer<B, C, RecordingState<U>, PrimaryLevel, R>
+    pub fn begin<U>(self, usage: U) -> Buffer<C, RecordingState<U>, PrimaryLevel, R>
     where
         U: Usage,
     {
@@ -172,58 +178,52 @@ impl Submit {
     }
 }
 
-impl<B, C, R> Buffer<B, C, ExecutableState<OneShot>, PrimaryLevel, R>
-where
-    B: Borrow<CommandBuffer>,
-{
+impl<C, R> Buffer<C, ExecutableState<OneShot>, PrimaryLevel, R> {
     /// produce `Submit` object that can be used to populate submission.
     pub fn submit_once(
         self,
     ) -> (
         Submit,
-        Buffer<B, C, PendingState<InvalidState>, PrimaryLevel, R>,
+        Buffer<C, PendingState<InvalidState>, PrimaryLevel, R>,
     ) {
         unimplemented!()
     }
 }
 
-impl<B, C, S, R> Buffer<B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R>
-where
-    B: Borrow<CommandBuffer>,
-{
+impl<C, S, R> Buffer<C, ExecutableState<MultiShot<S>>, PrimaryLevel, R> {
     /// Produce `Submit` object that can be used to populate submission.
     pub fn submit(
         self,
     ) -> (
         Submit,
-        Buffer<B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
+        Buffer<C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
     ) {
         unimplemented!()
     }
 }
 
-impl<B, C, N, L, R> Buffer<B, C, PendingState<N>, L, R> {
+impl<C, N, L, R> Buffer<C, PendingState<N>, L, R> {
     /// Mark command buffer as complete.
     ///
     /// # Safety
     ///
     /// User must ensure that recorded commands are complete.
-    pub unsafe fn complete(self) -> Buffer<B, C, N, L, R> {
+    pub unsafe fn complete(self) -> Buffer<C, N, L, R> {
         unimplemented!()
     }
 }
 
-impl<B, C, S, L> Buffer<B, C, S, L, IndividualReset>
+impl<C, S, L> Buffer<C, S, L, IndividualReset>
 where
     S: Resettable,
 {
     /// Reset command buffer.
-    pub fn reset(self) -> Buffer<B, C, InitialState, L, IndividualReset> {
+    pub fn reset(self) -> Buffer<C, InitialState, L, IndividualReset> {
         unimplemented!()
     }
 }
 
-impl<B, C, S, L> Buffer<B, C, S, L>
+impl<C, S, L> Buffer<C, S, L>
 where
     S: Resettable,
 {
@@ -233,36 +233,7 @@ where
     ///
     /// Mark command buffer as reset.
     /// User must reset buffer via command pool and call this method for all commands buffers affected.
-    pub unsafe fn mark_reset(self) -> Buffer<B, C, InitialState, L> {
-        unimplemented!()
-    }
-}
-
-impl<B, C, U, L, R> Encoder<C> for Buffer<B, C, RecordingState<U>, L, R>
-where
-    B: Borrow<CommandBuffer>,
-{
-    unsafe fn raw(&mut self) -> CommandBuffer {
-        *self.inner.borrow()
-    }
-}
-
-impl<'a, B> Borrow<CommandBuffer> for FrameBound<'a, B>
-where
-    B: Borrow<CommandBuffer>,
-{
-    fn borrow(&self) -> &CommandBuffer {
-        unsafe { // Make it safe.
-            self.inner_ref().borrow()
-        }
-    }
-}
-
-impl<'a, B, S, L, C> Buffer<FrameBound<'a, B>, C, S, L> {
-    /// Release borrowed buffer. This allows to acquire next buffer from pool.
-    /// Whatever state this buffer was in it will be reset only after bounded frame is complete.
-    /// This allows safely to release borrowed buffer in pending state.
-    pub fn release(self) {
+    pub unsafe fn mark_reset(self) -> Buffer<C, InitialState, L> {
         unimplemented!()
     }
 }

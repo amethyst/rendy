@@ -11,30 +11,30 @@ use ash::{
 use failure::Error;
 
 use rendy::{
-    command::Frames,
-    factory::{Factory, Renderer, RendererDesc},
+    frame::Frames,
+    factory::Factory,
+    renderer::{Renderer, RendererDesc},
     wsi::Target,
-    resource::Buffer,
     mesh::Mesh,
 };
 
 struct SimpleRenderer {
-    vertices: Option<rendy::resource::Buffer>,
+    vertices: Option<Mesh>,
 }
 
 struct SimpleRendererDesc;
 
-impl Renderer<Factory<V1_0>, ()> for SimpleRenderer {
+impl Renderer<()> for SimpleRenderer {
     type Desc = SimpleRendererDesc;
-    fn run(&mut self, factory: &mut Factory<V1_0>, data: &mut (), frames: &mut Frames) {
+    fn run(&mut self, factory: &mut Factory, data: &mut (), frames: &mut Frames) {
 
     }
 }
 
-impl RendererDesc<Factory<V1_0>, ()> for SimpleRendererDesc {
+impl RendererDesc<()> for SimpleRendererDesc {
     type Renderer = SimpleRenderer;
 
-    fn build(self, targets: Vec<Target>, factory: &mut Factory<V1_0>, data: &mut ()) -> SimpleRenderer {
+    fn build(self, targets: Vec<Target>, factory: &mut Factory, data: &mut ()) -> SimpleRenderer {
         SimpleRenderer {
             vertices: None,
         }
