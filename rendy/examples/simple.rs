@@ -50,6 +50,12 @@ use ash::{
         ColorComponentFlags,
         PipelineLayoutCreateInfo,
         PipelineStageFlags,
+        PipelineLayout,
+        ImageViewCreateInfo,
+        ImageViewType,
+        ImageSubresourceRange,
+        ImageAspectFlags,
+        ImageView,
     },
 };
 
@@ -71,23 +77,36 @@ struct SimpleRenderer {
     target: Target,
     family_index: usize,
     render_pass: RenderPass,
+    layout: PipelineLayout,
     pipeline: Pipeline,
-    framebuffers: Vec<Framebuffer>,
+    framebuffers: Vec<(ImageView, Framebuffer)>,
 }
 
-struct SimpleRendererDesc {
+struct SimpleRendererBuilder {
     window: Window,
     vertices: Vec<PosColor>,
 }
 
 impl Renderer<()> for SimpleRenderer {
-    type Desc = SimpleRendererDesc;
+    type Desc = SimpleRendererBuilder;
     fn run(&mut self, factory: &mut Factory, data: &mut (), frames: &mut Frames) {
 
     }
+    fn dispose(self, factory: &mut Factory, data: &mut ()) {
+        unsafe {
+            for framebuffer in self.framebuffers {
+                factory.device().destroy_image_view(framebuffer.0, None);
+                factory.device().destroy_framebuffer(framebuffer.1, None);
+            }
+            factory.device().destroy_pipeline(self.pipeline, None);
+            factory.device().destroy_render_pass(self.render_pass, None);
+        }
+        drop(self.mesh);
+        factory.destroy_target(self.target);
+    }
 }
 
-impl RendererBuilder<()> for SimpleRendererDesc {
+impl RendererBuilder<()> for SimpleRendererBuilder {
     type Error = Error;
     type Renderer = SimpleRenderer;
 
@@ -273,11 +292,53 @@ impl RendererBuilder<()> for SimpleRendererDesc {
             )
             .map_err(|(_, error)| error)?;
 
-            unimplemented!()
+            pipelines[0]
         };
+        
+        let framebuffers = unsafe {
+            factory.target_images(&target)?
+                .into_iter()
+                .map(|image| {
+                    let view = factory.device().create_image_view(
+                        &ImageViewCreateInfo::builder()
+                            .image(image)
+                            .view_type(ImageViewType::TYPE_2D)
+                            .format(target.format())
+                            .subresource_range(
+                                ImageSubresourceRange::builder()
+                                    .aspect_mask(ImageAspectFlags::COLOR)
+                                    .level_count(1)
+                                    .layer_count(1)
+                                    .build()
+                            )
+                            .build(),
+                        None,
+                    )?;
+                    let framebuffer = factory.device().create_framebuffer(
+                        &FramebufferCreateInfo::builder()
+                            .render_pass(render_pass)
+                            .attachments(&[view])
+                            .width(target.extent().width)
+                            .height(target.extent().height)
+                            .layers(1)
+                            .build(),
+                        None,
+                    )?;
 
-        // Ok(SimpleRenderer { mesh, family_index })
-        unimplemented!()
+                    Ok((view, framebuffer))
+                })
+                .collect::<Result<Vec<_>, Error>>()
+        }?;
+
+        Ok(SimpleRenderer {
+            mesh,
+            target,
+            family_index,
+            render_pass,
+            layout,
+            pipeline,
+            framebuffers,
+        })
     }
 }
 
@@ -288,7 +349,7 @@ fn main() -> Result<(), failure::Error> {
 
     let config: Config = Default::default();
 
-    let factory: Factory = Factory::new(config)?;
+    let mut factory: Factory = Factory::new(config)?;
 
     let mut event_loop = EventsLoop::new();
 
@@ -298,14 +359,30 @@ fn main() -> Result<(), failure::Error> {
 
     event_loop.poll_events(|_| ());
 
-    let target = factory.create_target(window, 3)?;
+    let renderer_builder = SimpleRendererBuilder {
+        window,
+        vertices: vec![
+            PosColor {
+                position: [0.0, -0.5, 0.5].into(),
+                color: [1.0, 0.0, 0.0, 1.0].into(),
+            },
+            PosColor {
+                position: [-0.5, 0.5, 0.5].into(),
+                color: [0.0, 1.0, 0.0, 1.0].into(),
+            },
+            PosColor {
+                position: [0.5, 0.5, 0.5].into(),
+                color: [0.0, 0.0, 1.0, 1.0].into(),
+            },
+        ],
+    };
+
+    let renderer = renderer_builder.build(&mut factory, &mut ())?;
 
     while started.elapsed() < Duration::new(5, 0) {
         event_loop.poll_events(|_| ());
         std::thread::sleep(Duration::new(0, 1_000_000));
     }
-
-    factory.destroy_target(target);
 
     factory.dispose();
     Ok(())

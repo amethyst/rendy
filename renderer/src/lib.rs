@@ -21,6 +21,7 @@ pub trait Renderer<T> {
     }
 
     fn run(&mut self, factory: &mut Factory, data: &mut T, frames: &mut Frames);
+    fn dispose(self, factory: &mut Factory, data: &mut T);
 }
 
 pub trait RendererBuilder<T> {

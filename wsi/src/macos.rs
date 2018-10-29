@@ -47,7 +47,7 @@ impl NativeSurface {
 
 unsafe fn put_metal_layer(nsview: *mut c_void) {
     let class = class!(CAMetalLayer);
-    let view: cocoa::base::id = ::std::mem::transmute(nsview);
+    let view: cocoa::base::id = std::mem::transmute(nsview);
 
     let is_layer: BOOL = msg_send![view, isKindOfClass: class];
     if is_layer == YES {

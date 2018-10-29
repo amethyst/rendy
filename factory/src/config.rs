@@ -157,7 +157,7 @@ unsafe impl HeapsConfigure for SavedHeapsConfig {
 }
 
 #[allow(unused)]
-fn fmt_version(version: &u32, fmt: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+fn fmt_version(version: &u32, fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
     write!(
         fmt,
         "{}.{}.{}",

@@ -12,6 +12,9 @@ use ash::{
         PhysicalDeviceFeatures, PhysicalDeviceMemoryProperties, PhysicalDeviceProperties,
         PhysicalDeviceType, QueueFamilyProperties,
         MemoryPropertyFlags,
+        SurfaceKHR,
+        SurfaceCapabilitiesKHR,
+        Image as AshImage,
     },
     Device, Entry, Instance, LoadingError,
 };
@@ -68,14 +71,20 @@ impl Factory {
         debug!("Available extensions:\n{:#?}", extensions);
 
         let instance = unsafe {
+            // Only present layers and extensions are enabled.
+            // Other parameters trivially valid.
             entry.create_instance(
                 &InstanceCreateInfo::builder()
                     .application_info(
                         &ApplicationInfo::builder()
                             .application_name(&CString::new(config.app_name)?)
                             .application_version(config.app_version)
+                            .engine_name(CStr::from_bytes_with_nul_unchecked(b"rendy\0"))
+                            .engine_version(1)
+                            .api_version(vk_make_version!(1, 0, 0))
                             .build(),
-                    ).enabled_extension_names(&extensions_to_enable(&extensions)?)
+                    )
+                    .enabled_extension_names(&extensions_to_enable(&extensions)?)
                     .build(),
                 None,
             )
@@ -87,7 +96,9 @@ impl Factory {
         let native_surface = NativeSurface::new(&entry, &instance)
             .map_err(|missing| format_err!("{:#?} functions are missing", missing))?;
 
-        let mut physicals = unsafe {
+        let mut physicals = unsafe { 
+            // Instance is valid.
+            // Physical device handlers are valid (enumerated from instance).
             instance
                 .enumerate_physical_devices()?
                 .into_iter()
@@ -121,8 +132,11 @@ impl Factory {
                 _ => 4,
             }).ok_or(format_err!("No suitable physical devices found"))?;
 
-        let device_name =
-            unsafe { CStr::from_ptr(&physical.properties.device_name[0]).to_string_lossy() };
+        let device_name = unsafe {
+            // Pointer is valid.
+            CStr::from_ptr(&physical.properties.device_name[0])
+                .to_string_lossy()
+        };
 
         debug!("Physical device picked: {}", device_name);
 
@@ -147,7 +161,7 @@ impl Factory {
                 &DeviceCreateInfo::builder()
                     .queue_create_infos(&create_queues)
                     .enabled_extension_names(&extensions_to_enable(&physical.extensions).unwrap())
-                    .enabled_features(&physical.features)
+                    // .enabled_features(&physical.features)
                     .build(),
                 None,
             )
@@ -216,6 +230,7 @@ impl Factory {
     ///
     /// # Safety
     ///
+    /// Buffer must be created by this `Factory`.
     /// Caller must ensure that device won't write to or read from the memory region.
     pub unsafe fn upload_buffer(
         &mut self,
@@ -305,8 +320,38 @@ impl Factory {
     }
 
     /// Get device.
+    /// 
+    /// # Safety
+    /// 
+    /// TODO!
     pub unsafe fn device(&self) -> &impl DeviceV1_0 {
         &self.device
+    }
+
+    /// Get physical device.
+    /// 
+    /// # Safety
+    /// 
+    /// TODO!
+    pub unsafe fn physical(&self) -> PhysicalDevice {
+        self.physical.handle
+    }
+
+    /// Get surface capabilities.
+    /// 
+    /// # Safety
+    /// 
+    /// TODO!
+    pub unsafe fn surface_capabilities(&self, target: &Target) -> Result<SurfaceCapabilitiesKHR, Error> {
+        self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, target.surface())
+            .map_err(Error::from)
+    }
+
+    /// Get target images.
+    /// TODO: Return `rendy::resource::Image`s.
+    pub unsafe fn target_images(&self, target: &Target) -> Result<Vec<AshImage>, Error> {
+        self.swapchain.get_swapchain_images_khr(target.swapchain())
+            .map_err(Error::from)
     }
 }
 

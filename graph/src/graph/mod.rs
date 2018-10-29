@@ -67,7 +67,7 @@ where
             });
         }
 
-        let frame = self.frame_gen.next_with_fences(::std::mem::replace(&mut self.fences, Vec::new()));
+        let frame = self.frame_gen.next_with_fences(std::mem::replace(&mut self.fences, Vec::new()));
 
         let ref semaphores = self.semaphores;
 

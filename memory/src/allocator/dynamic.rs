@@ -165,7 +165,7 @@ impl DynamicAllocator {
         mut config: DynamicConfig,
     ) -> Self {
         // This is hack to simplify implementation of chunk cleaning.
-        config.blocks_per_chunk = ::std::mem::size_of::<usize>() as u32 * 8;
+        config.blocks_per_chunk = std::mem::size_of::<usize>() as u32 * 8;
 
         assert_ne!(
             config.block_size_granularity, 0,
@@ -425,7 +425,7 @@ impl Chunk {
 }
 
 fn max_blocks_per_size() -> u32 {
-    let value = (::std::mem::size_of::<usize>() * 8).pow(4);
+    let value = (std::mem::size_of::<usize>() * 8).pow(4);
     assert!(fits_u32(value));
     value as u32
 }
@@ -433,7 +433,7 @@ fn max_blocks_per_size() -> u32 {
 fn check_bit_range_set(bitset: &BitSet, range: Range<u32>) -> bool {
     debug_assert!(range.start <= range.end);
     use hibitset::BitSetLike;
-    let layer_size = ::std::mem::size_of::<usize>() as u32 * 8;
+    let layer_size = std::mem::size_of::<usize>() as u32 * 8;
 
     assert_eq!(
         range.start % layer_size,

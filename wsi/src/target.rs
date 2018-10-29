@@ -9,7 +9,8 @@ use ash::{
         PhysicalDevice,
         SurfaceKHR,
         SwapchainCreateInfoKHR,
-        SwapchainKHR
+        SwapchainKHR,
+        SurfaceCapabilitiesKHR,
     },
 };
 
@@ -93,6 +94,12 @@ impl Target {
         self.surface
     }
 
+
+    /// Get raw surface handle.
+    pub unsafe fn swapchain(&self) -> SwapchainKHR {
+        self.swapchain
+    }
+
     /// Get target current extent.
     pub fn extent(&self) -> Extent2D {
         self.extent
@@ -101,5 +108,10 @@ impl Target {
     /// Get target current format.
     pub fn format(&self) -> Format {
         self.format
+    }
+
+    /// Get image count.
+    pub fn image_count(&self) -> u32 {
+        self.image_count
     }
 }
