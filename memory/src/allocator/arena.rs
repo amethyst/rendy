@@ -146,6 +146,8 @@ impl ArenaAllocator {
         memory_properties: MemoryPropertyFlags,
         config: ArenaConfig,
     ) -> Self {
+        info!("Create new 'arena' allocator: type: '{}', properties: '{}' config: '{:#?}'",
+            memory_type, memory_properties, config);
         assert!(memory_properties.subset(Self::properties_required()));
         assert!(
             fits_usize(config.arena_size),
@@ -163,11 +165,9 @@ impl ArenaAllocator {
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(mut self, device: &impl DeviceV1_0) {
         self.cleanup(device, 0);
-        assert!(
-            self.arenas.is_empty(),
-            "Arenas are not empty during allocator disposal. Arenas: {:#?}",
-            self.arenas
-        );
+        if !self.arenas.is_empty() {
+            error!("Arenas are not empty during allocator disposal. Arenas: {:#?}", self.arenas);
+        }
     }
 
     fn cleanup(&mut self, device: &impl DeviceV1_0, off: usize) -> u64 {
@@ -180,6 +180,7 @@ impl ArenaAllocator {
             let arena = self.arenas.pop_front().unwrap();
 
             unsafe {
+                trace!("Unmap memory: {:#?}", arena.memory);
                 device.unmap_memory(arena.memory.raw());
 
                 freed += arena.memory.size();

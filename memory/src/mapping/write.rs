@@ -41,6 +41,7 @@ where
 {
     fn drop(&mut self) {
         if let Some((device, memory, range)) = self.flush.take() {
+            trace!("Flush memory range {:#?} @ {} .. {}", memory, range.start, range.end);
             unsafe {
                 device
                     .flush_mapped_memory_ranges(&[MappedMemoryRange::builder()

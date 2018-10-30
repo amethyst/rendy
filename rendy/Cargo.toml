@@ -10,6 +10,7 @@ rendy-factory = { path = "../factory" }
 rendy-frame = { path = "../frame" }
 rendy-memory = { path = "../memory" }
 rendy-mesh = { path = "../mesh" }
+rendy-shader = { path = "../shader" }
 rendy-renderer = { path = "../renderer" }
 rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }

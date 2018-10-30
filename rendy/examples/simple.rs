@@ -56,6 +56,15 @@ use ash::{
         ImageSubresourceRange,
         ImageAspectFlags,
         ImageView,
+        ImageCreateInfo,
+        ImageType,
+        SampleCountFlags,
+        ImageTiling,
+        ImageUsageFlags,
+        SharingMode,
+        Format,
+        Extent3D,
+        ShaderModuleCreateInfo,
     },
 };
 
@@ -65,12 +74,22 @@ use rendy::{
     command::FamilyIndex,
     factory::{Factory, Config},
     frame::Frames,
+    memory::usage::Data,
     mesh::{Mesh, PosColor, AsVertex},
     renderer::{Renderer, RendererBuilder},
+    resource::Image,
+    shader::{glsl_to_spirv},
     wsi::Target,
 };
 
 use winit::{EventsLoop, WindowBuilder, Window};
+
+struct FramebufferEtc {
+    depth: Image,
+    depth_view: ImageView,
+    color_view: ImageView,
+    framebuffer: Framebuffer,
+}
 
 struct SimpleRenderer {
     mesh: Mesh,
@@ -79,7 +98,7 @@ struct SimpleRenderer {
     render_pass: RenderPass,
     layout: PipelineLayout,
     pipeline: Pipeline,
-    framebuffers: Vec<(ImageView, Framebuffer)>,
+    framebuffers: Vec<FramebufferEtc>,
 }
 
 struct SimpleRendererBuilder {
@@ -90,27 +109,34 @@ struct SimpleRendererBuilder {
 impl Renderer<()> for SimpleRenderer {
     type Desc = SimpleRendererBuilder;
     fn run(&mut self, factory: &mut Factory, data: &mut (), frames: &mut Frames) {
-
+        let ref mut family = factory.families_mut()[self.family_index];
     }
+
     fn dispose(self, factory: &mut Factory, data: &mut ()) {
+        drop(self.mesh);
         unsafe {
             for framebuffer in self.framebuffers {
-                factory.device().destroy_image_view(framebuffer.0, None);
-                factory.device().destroy_framebuffer(framebuffer.1, None);
+                factory.device().destroy_framebuffer(framebuffer.framebuffer, None);
+                factory.device().destroy_image_view(framebuffer.color_view, None);
+                factory.device().destroy_image_view(framebuffer.depth_view, None);
+                drop(framebuffer.depth);
             }
             factory.device().destroy_pipeline(self.pipeline, None);
             factory.device().destroy_render_pass(self.render_pass, None);
         }
-        drop(self.mesh);
         factory.destroy_target(self.target);
     }
 }
+
+glsl_to_spirv!(VertexShader, "examples/simple.vert");
+glsl_to_spirv!(FragmentShader, "examples/simple.frag");
 
 impl RendererBuilder<()> for SimpleRendererBuilder {
     type Error = Error;
     type Renderer = SimpleRenderer;
 
     fn build(self, factory: &mut Factory, data: &mut ()) -> Result<SimpleRenderer, Error> {
+
         let target = factory.create_target(self.window, 3)?;
 
         let extent = target.extent();
@@ -139,7 +165,16 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                             .stencil_store_op(AttachmentStoreOp::DONT_CARE)
                             .initial_layout(ImageLayout::UNDEFINED)
                             .final_layout(ImageLayout::PRESENT_SRC_KHR)
-                            .build()
+                            .build(),
+                        AttachmentDescription::builder()
+                            .format(Format::D32_SFLOAT)
+                            .load_op(AttachmentLoadOp::CLEAR)
+                            .store_op(AttachmentStoreOp::DONT_CARE)
+                            .stencil_load_op(AttachmentLoadOp::DONT_CARE)
+                            .stencil_store_op(AttachmentStoreOp::DONT_CARE)
+                            .initial_layout(ImageLayout::UNDEFINED)
+                            .final_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                            .build(),
                     ])
                     .subpasses(&[
                         SubpassDescription::builder()
@@ -189,20 +224,38 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
             )
         }?;
 
+        let (vertex, fragment) = unsafe {
+            let vertex = factory.device().create_shader_module(
+                &ShaderModuleCreateInfo::builder()
+                    .code(VertexShader::SPIRV)
+                    .build(),
+                None,
+            )?;
+
+            let fragment = factory.device().create_shader_module(
+                &ShaderModuleCreateInfo::builder()
+                    .code(FragmentShader::SPIRV)
+                    .build(),
+                None,
+            )?;
+
+            (vertex, fragment)
+        };
+
         let pipeline = unsafe {
-            let pipelines = factory.device().create_graphics_pipelines(
+            let mut pipelines = factory.device().create_graphics_pipelines(
                 PipelineCache::null(),
                 &[
                     GraphicsPipelineCreateInfo::builder()
                         .stages(&[
                             PipelineShaderStageCreateInfo::builder()
                                 .stage(ShaderStageFlags::VERTEX)
-                                .module(unimplemented!())
+                                .module(vertex)
                                 .name(CStr::from_bytes_with_nul_unchecked(b"main\0"))
                                 .build(),
                             PipelineShaderStageCreateInfo::builder()
                                 .stage(ShaderStageFlags::FRAGMENT)
-                                .module(unimplemented!())
+                                .module(fragment)
                                 .name(CStr::from_bytes_with_nul_unchecked(b"main\0"))
                                 .build(),
                         ])
@@ -255,6 +308,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         )
                         .multisample_state(
                             &PipelineMultisampleStateCreateInfo::builder()
+                                .rasterization_samples(SampleCountFlags::TYPE_1)
                                 .build()
                         )
                         .depth_stencil_state(
@@ -292,14 +346,49 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
             )
             .map_err(|(_, error)| error)?;
 
-            pipelines[0]
+            pipelines.remove(0)
         };
         
         let framebuffers = unsafe {
             factory.target_images(&target)?
                 .into_iter()
                 .map(|image| {
-                    let view = factory.device().create_image_view(
+                    let depth = factory.create_image(
+                        ImageCreateInfo::builder()
+                            .image_type(ImageType::TYPE_2D)
+                            .format(Format::D32_SFLOAT)
+                            .extent(Extent3D {
+                                width: target.extent().width,
+                                height: target.extent().height,
+                                depth: 1,
+                            })
+                            .mip_levels(1)
+                            .array_layers(1)
+                            .samples(SampleCountFlags::TYPE_1)
+                            .tiling(ImageTiling::OPTIMAL)
+                            .usage(ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
+                            .sharing_mode(SharingMode::EXCLUSIVE)
+                            .initial_layout(ImageLayout::UNDEFINED)
+                            .build(),
+                        1,
+                        Data,
+                    )?;
+                    let depth_view = factory.device().create_image_view(
+                        &ImageViewCreateInfo::builder()
+                            .image(depth.raw())
+                            .view_type(ImageViewType::TYPE_2D)
+                            .format(Format::D32_SFLOAT)
+                            .subresource_range(
+                                ImageSubresourceRange::builder()
+                                    .aspect_mask(ImageAspectFlags::COLOR)
+                                    .level_count(1)
+                                    .layer_count(1)
+                                    .build()
+                            )
+                            .build(),
+                        None,
+                    )?;
+                    let color_view = factory.device().create_image_view(
                         &ImageViewCreateInfo::builder()
                             .image(image)
                             .view_type(ImageViewType::TYPE_2D)
@@ -317,7 +406,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                     let framebuffer = factory.device().create_framebuffer(
                         &FramebufferCreateInfo::builder()
                             .render_pass(render_pass)
-                            .attachments(&[view])
+                            .attachments(&[color_view, depth_view])
                             .width(target.extent().width)
                             .height(target.extent().height)
                             .layers(1)
@@ -325,7 +414,12 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         None,
                     )?;
 
-                    Ok((view, framebuffer))
+                    Ok(FramebufferEtc {
+                        depth,
+                        depth_view,
+                        color_view,
+                        framebuffer,
+                    })
                 })
                 .collect::<Result<Vec<_>, Error>>()
         }?;
@@ -379,10 +473,11 @@ fn main() -> Result<(), failure::Error> {
 
     let renderer = renderer_builder.build(&mut factory, &mut ())?;
 
-    while started.elapsed() < Duration::new(5, 0) {
+    while started.elapsed() < Duration::new(1, 0) {
         event_loop.poll_events(|_| ());
         std::thread::sleep(Duration::new(0, 1_000_000));
     }
+    renderer.dispose(&mut factory, &mut ());
 
     factory.dispose();
     Ok(())

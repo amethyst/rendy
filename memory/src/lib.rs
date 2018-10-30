@@ -18,21 +18,16 @@
 #![warn(rust_2018_idioms)]
 
 extern crate ash;
-
-#[macro_use]
-extern crate derivative;
-
-#[macro_use]
-extern crate failure;
-extern crate veclist;
-
+#[macro_use] extern crate derivative;
+#[macro_use] extern crate failure;
+extern crate hibitset;
+#[macro_use] extern crate log;
+extern crate relevant;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde;
-
-extern crate hibitset;
-extern crate relevant;
 extern crate smallvec;
+extern crate veclist;
 
 mod block;
 mod error;

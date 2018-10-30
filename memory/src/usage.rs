@@ -9,7 +9,7 @@ pub trait MemoryUsage {
     type Fitness: Copy + Ord;
 
     /// Get runtime usage value.
-    fn value(self) -> MemoryUsageValue;
+    fn value(&self) -> MemoryUsageValue;
 
     /// Get comparable fitness value for memory properties.
     /// Should return `None` if memory doesn't fit.
@@ -26,7 +26,7 @@ impl MemoryUsage for Data {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> MemoryUsageValue {
+    fn value(&self) -> MemoryUsageValue {
         MemoryUsageValue::Data
     }
 
@@ -57,7 +57,7 @@ impl MemoryUsage for Dynamic {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> MemoryUsageValue {
+    fn value(&self) -> MemoryUsageValue {
         MemoryUsageValue::Dynamic
     }
 
@@ -87,7 +87,7 @@ impl MemoryUsage for Upload {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> MemoryUsageValue {
+    fn value(&self) -> MemoryUsageValue {
         MemoryUsageValue::Upload
     }
 
@@ -117,7 +117,7 @@ impl MemoryUsage for Download {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> MemoryUsageValue {
+    fn value(&self) -> MemoryUsageValue {
         MemoryUsageValue::Download
     }
 
@@ -154,8 +154,8 @@ impl MemoryUsage for MemoryUsageValue {
     type Fitness = u8;
 
     #[inline]
-    fn value(self) -> MemoryUsageValue {
-        self
+    fn value(&self) -> MemoryUsageValue {
+        *self
     }
 
     #[inline]

@@ -12,7 +12,7 @@ use smallvec::SmallVec;
 
 use command::FamilyIndex;
 use factory::Factory;
-use memory::usage::Data;
+use memory::usage::Dynamic;
 use resource::Buffer;
 
 use utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key};
@@ -181,7 +181,7 @@ impl<'a> MeshBuilder<'a> {
                                             | BufferUsageFlags::TRANSFER_DST,
                                     ).build(),
                                 1,
-                                Data,
+                                Dynamic,
                             )?;
                             unsafe { // New buffer can't be touched by device yet.
                                 factory.upload_buffer(
@@ -217,7 +217,7 @@ impl<'a> MeshBuilder<'a> {
                                             | BufferUsageFlags::TRANSFER_DST,
                                     ).build(),
                                 1,
-                                Data,
+                                Dynamic,
                             )?;
                             unsafe { // New buffer can't be touched by device yet.
                                 factory.upload_buffer(

@@ -22,6 +22,13 @@ pub struct Buffer {
     pub(crate) info: BufferCreateInfo,
 }
 
+#[derive(Debug)]
+pub(crate) struct Inner {
+    pub(crate) block: MemoryBlock,
+    pub(crate) raw: AshBuffer,
+    pub(crate) relevant: Relevant,
+}
+
 impl Buffer {
     /// Get buffers memory block.
     pub fn block(&self) -> &impl Block {
@@ -37,11 +44,4 @@ impl Buffer {
     pub unsafe fn raw(&self) -> AshBuffer {
         self.inner.raw
     }
-}
-
-#[derive(Debug)]
-pub(crate) struct Inner {
-    pub(crate) block: MemoryBlock,
-    pub(crate) raw: AshBuffer,
-    pub(crate) relevant: Relevant,
 }

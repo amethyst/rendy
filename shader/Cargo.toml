@@ -1,0 +1,18 @@
+[package]
+name = "rendy-shader"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "0.6"
+syn = "0.15"
+
+[build-dependencies]
+cmake = "0.1"
+simplelog = "0.5"
+failure = "0.1"
+git2 = "0.7"
+log = "0.4"

@@ -198,13 +198,19 @@ impl Factory {
         Ok(factory)
     }
 
-    pub fn dispose(self) {
+    pub fn dispose(mut self) {
         unsafe {
             let _ = self.device.device_wait_idle();
         }
         for family in self.families {
             family.dispose(&self.device);
         }
+
+        unsafe {
+            // All queues complete.
+            self.resources.cleanup(&self.device, &mut self.heaps);
+        }
+
         self.heaps.dispose(&self.device);
         unsafe {
             self.device.destroy_device(None);

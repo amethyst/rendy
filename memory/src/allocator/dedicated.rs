@@ -83,7 +83,8 @@ impl Block for DedicatedBlock {
     fn unmap(&mut self, device: &impl DeviceV1_0) {
         if self.mapping.take().is_some() {
             unsafe {
-                device.unmap_memory(self.memory());
+                trace!("Unmap memory: {:#?}", self.memory);
+                device.unmap_memory(self.memory.raw());
             }
         }
     }

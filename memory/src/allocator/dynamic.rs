@@ -164,6 +164,8 @@ impl DynamicAllocator {
         memory_properties: MemoryPropertyFlags,
         mut config: DynamicConfig,
     ) -> Self {
+        info!("Create new allocator: type: '{}', properties: '{}' config: '{:#?}'",
+            memory_type, memory_properties, config);
         // This is hack to simplify implementation of chunk cleaning.
         config.blocks_per_chunk = std::mem::size_of::<usize>() as u32 * 8;
 
@@ -234,6 +236,7 @@ impl DynamicAllocator {
         device: &impl DeviceV1_0,
         size: u64,
     ) -> Result<(Chunk, u64), MemoryError> {
+        trace!("Allocate new chunk: size: {}", size);
         if size > self.max_block_size() {
             // Allocate from device.
             let (memory, mapping) = unsafe {
@@ -251,6 +254,7 @@ impl DynamicAllocator {
                     .memory_properties
                     .subset(MemoryPropertyFlags::HOST_VISIBLE)
                 {
+                    trace!("Map new memory object");
                     match device.map_memory(raw, 0, size, MemoryMapFlags::empty()) {
                         Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
                         Err(error) => {
@@ -275,11 +279,15 @@ impl DynamicAllocator {
     /// Allocate super-block to use as chunk memory.
     #[warn(dead_code)]
     fn free_chunk(&mut self, device: &impl DeviceV1_0, chunk: Chunk) -> u64 {
+        trace!("Free chunk: {:#?}", chunk);
         match chunk {
             Chunk::Dedicated(boxed, _) => {
                 let size = boxed.size();
                 unsafe {
-                    device.unmap_memory(boxed.raw());
+                    if self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
+                        trace!("Unmap memory: {:#?}", boxed);
+                        device.unmap_memory(boxed.raw());
+                    }
                     device.free_memory(boxed.raw(), None);
                     boxed.dispose();
                 }
@@ -295,6 +303,7 @@ impl DynamicAllocator {
         device: &impl DeviceV1_0,
         size: u64,
     ) -> Result<(DynamicBlock, u64), MemoryError> {
+        trace!("Allocate block. type: {}, size: {}", self.memory_type, size);
         let size_index = self.size_index(size);
         let (block_index, allocated) = match (&self.sizes[size_index].blocks).iter().next() {
             Some(block_index) => {
@@ -342,6 +351,13 @@ impl DynamicAllocator {
             allocated,
         ))
     }
+
+    /// Perform full cleanup of the memory allocated.
+    pub fn dispose(self) {
+        for size in self.sizes {
+            assert_eq!(size.total_chunks, 0);
+        }
+    }
 }
 
 impl Allocator for DynamicAllocator {
@@ -361,6 +377,7 @@ impl Allocator for DynamicAllocator {
     }
 
     fn free(&mut self, device: &impl DeviceV1_0, block: DynamicBlock) -> u64 {
+        trace!("Free block: {:#?}", block);
         let size_index = self.size_index(block.size());
         let block_index = block.index;
         block.dispose();
@@ -381,6 +398,7 @@ impl Allocator for DynamicAllocator {
                 .chunks
                 .pop(chunk_index as usize)
                 .expect("Chunk must exist");
+            self.sizes[size_index].total_chunks -= 1;
             self.free_chunk(device, chunk)
         } else {
             0

@@ -77,6 +77,7 @@ impl Resources {
     ) {
         device.destroy_buffer(inner.raw, None);
         heaps.free(device, inner.block);
+        inner.relevant.dispose();
     }
 
     /// Create an image and bind to the memory that support intended usage.
@@ -127,18 +128,19 @@ impl Resources {
     ) {
         device.destroy_image(inner.raw, None);
         heaps.free(device, inner.block);
+        inner.relevant.dispose();
     }
 
     /// Recycle dropped resources.
     pub unsafe fn cleanup(&mut self, device: &impl DeviceV1_0, heaps: &mut Heaps) {
+        trace!("Cleanup buffers");
         for buffer in self.buffers.drain() {
-            device.destroy_buffer(buffer.raw, None);
-            heaps.free(device, buffer.block);
+            Self::destroy_buffer_inner(buffer, device, heaps);
         }
 
+        trace!("Cleanup images");
         for image in self.images.drain() {
-            device.destroy_image(image.raw, None);
-            heaps.free(device, image.block);
+            Self::destroy_image_inner(image, device, heaps);
         }
     }
 }

@@ -95,7 +95,14 @@ impl<T> Terminal<T> {
 
     /// Get iterator over values from dropped `Escape` instances that was created by this `Terminal`.
     pub(crate) fn drain<'a>(&'a mut self) -> impl Iterator<Item = T> + 'a {
-        repeat(()).scan((), move |&mut (), ()| self.receiver.try_recv())
+        repeat(()).scan((), move |&mut (), ()| {
+            trace!("Drain escape");
+            if !self.receiver.is_empty() {
+                self.receiver.recv()
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -105,8 +112,8 @@ impl<T> Drop for Terminal<T> {
             ManuallyDrop::drop(&mut self.sender);
             match self.receiver.recv() {
                 None => {}
-                _ => {
-                    panic!("Terminal must be dropped after all `Escape`s");
+                Some(_) => {
+                    error!("Terminal must be dropped after all `Escape`s");
                 }
             }
         }
