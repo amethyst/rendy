@@ -78,7 +78,7 @@ use rendy::{
     mesh::{Mesh, PosColor, AsVertex},
     renderer::{Renderer, RendererBuilder},
     resource::Image,
-    shader::{glsl_to_spirv},
+    shader::compile_to_spirv,
     wsi::Target,
 };
 
@@ -128,8 +128,19 @@ impl Renderer<()> for SimpleRenderer {
     }
 }
 
-glsl_to_spirv!(VertexShader, "examples/simple.vert");
-glsl_to_spirv!(FragmentShader, "examples/simple.frag");
+compile_to_spirv!(
+    struct VertexShader {
+        kind: Vertex,
+        lang: GLSL,
+        file: "examples/simple.vert",
+    }
+    
+    struct FragmentShader {
+        kind: Fragment,
+        lang: GLSL,
+        file: "examples/simple.frag",
+    }
+);
 
 impl RendererBuilder<()> for SimpleRendererBuilder {
     type Error = Error;
