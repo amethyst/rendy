@@ -6,16 +6,7 @@ use std::{
 use ash::{
     extensions::{Surface, Swapchain},
     version::{DeviceV1_0, EntryV1_0, InstanceV1_0, V1_0},
-    vk::{
-        AccessFlags, ApplicationInfo, BufferCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo,
-        ExtensionProperties, ImageCreateInfo, InstanceCreateInfo, PhysicalDevice,
-        PhysicalDeviceFeatures, PhysicalDeviceMemoryProperties, PhysicalDeviceProperties,
-        PhysicalDeviceType, QueueFamilyProperties,
-        MemoryPropertyFlags,
-        SurfaceKHR,
-        SurfaceCapabilitiesKHR,
-        Image as AshImage,
-    },
+    vk,
     Device, Entry, Instance, LoadingError,
 };
 use failure::Error;
@@ -26,9 +17,10 @@ use winit::Window;
 use command::{Family, FamilyIndex, families_from_device};
 use memory::{Block, Heaps, MemoryError, MemoryUsage, Write};
 use resource::{buffer::Buffer, image::Image, Resources};
+use wsi::{NativeSurface, Target};
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
-use wsi::{NativeSurface, Target};
+use queue::Queue;
 
 #[derive(Debug, Fail)]
 #[fail(display = "{:#?}", _0)]
@@ -36,12 +28,12 @@ pub struct EntryError(LoadingError);
 
 #[derive(Debug)]
 struct PhysicalDeviceInfo {
-    handle: PhysicalDevice,
-    properties: PhysicalDeviceProperties,
-    memory: PhysicalDeviceMemoryProperties,
-    queues: Vec<QueueFamilyProperties>,
-    features: PhysicalDeviceFeatures,
-    extensions: Vec<ExtensionProperties>,
+    handle: vk::PhysicalDevice,
+    properties: vk::PhysicalDeviceProperties,
+    memory: vk::PhysicalDeviceMemoryProperties,
+    queues: Vec<vk::QueueFamilyProperties>,
+    features: vk::PhysicalDeviceFeatures,
+    extensions: Vec<vk::ExtensionProperties>,
 }
 
 /// The `Factory<D>` type represents the overall creation type for `rendy`.
@@ -60,7 +52,7 @@ pub struct Factory {
 
 impl Factory {
     /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
-    /// from the specified `PhysicalDevice`.
+    /// from the specified `vk::PhysicalDevice`.
     pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, Error> {
         let entry = Entry::<V1_0>::new().map_err(EntryError)?;
 
@@ -74,9 +66,9 @@ impl Factory {
             // Only present layers and extensions are enabled.
             // Other parameters trivially valid.
             entry.create_instance(
-                &InstanceCreateInfo::builder()
+                &vk::InstanceCreateInfo::builder()
                     .application_info(
-                        &ApplicationInfo::builder()
+                        &vk::ApplicationInfo::builder()
                             .application_name(&CString::new(config.app_name)?)
                             .application_version(config.app_version)
                             .engine_name(CStr::from_bytes_with_nul_unchecked(b"rendy\0"))
@@ -89,7 +81,7 @@ impl Factory {
                 None,
             )
         }?;
-        trace!("Instance created");
+        // trace!("Instance created");
 
         let surface = Surface::new(&entry, &instance)
             .map_err(|missing| format_err!("{:#?} functions are missing", missing))?;
@@ -117,7 +109,7 @@ impl Factory {
         physicals.retain(|p| match extensions_to_enable(&p.extensions) {
             Ok(_) => true,
             Err(missing) => {
-                trace!("{:#?} missing extensions {:#?}", p, missing);
+                // trace!("{:#?} missing extensions {:#?}", p, missing);
                 false
             }
         });
@@ -125,10 +117,10 @@ impl Factory {
         let physical = physicals
             .into_iter()
             .min_by_key(|info| match info.properties.device_type {
-                PhysicalDeviceType::DISCRETE_GPU => 0,
-                PhysicalDeviceType::INTEGRATED_GPU => 1,
-                PhysicalDeviceType::VIRTUAL_GPU => 2,
-                PhysicalDeviceType::CPU => 3,
+                vk::PhysicalDeviceType::DISCRETE_GPU => 0,
+                vk::PhysicalDeviceType::INTEGRATED_GPU => 1,
+                vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
+                vk::PhysicalDeviceType::CPU => 3,
                 _ => 4,
             }).ok_or(format_err!("No suitable physical devices found"))?;
 
@@ -145,7 +137,7 @@ impl Factory {
         let (create_queues, get_queues): (SmallVec<[_; 32]>, SmallVec<[_; 32]>) = families
             .into_iter()
             .map(|(index, priorities)| {
-                let info = DeviceQueueCreateInfo::builder()
+                let info = vk::DeviceQueueCreateInfo::builder()
                     .queue_family_index(index.0)
                     .queue_priorities(priorities.as_ref())
                     .build();
@@ -158,7 +150,7 @@ impl Factory {
         let device = unsafe {
             instance.create_device(
                 physical.handle,
-                &DeviceCreateInfo::builder()
+                &vk::DeviceCreateInfo::builder()
                     .queue_create_infos(&create_queues)
                     .enabled_extension_names(&extensions_to_enable(&physical.extensions).unwrap())
                     // .enabled_features(&physical.features)
@@ -193,15 +185,19 @@ impl Factory {
             relevant: Relevant,
         };
 
-        trace!("Factory created");
+        // trace!("Factory created");
 
         Ok(factory)
     }
 
-    pub fn dispose(mut self) {
+    pub fn wait_idle(&self) {
         unsafe {
-            let _ = self.device.device_wait_idle();
+            self.device.device_wait_idle().unwrap();
         }
+    }
+
+    pub fn dispose(mut self) {
+        self.wait_idle();
         for family in self.families {
             family.dispose(&self.device);
         }
@@ -218,13 +214,13 @@ impl Factory {
         }
 
         self.relevant.dispose();
-        trace!("Factory destroyed");
+        // trace!("Factory destroyed");
     }
 
     /// Creates a buffer that is managed with the specified properties.
     pub fn create_buffer(
         &mut self,
-        info: BufferCreateInfo,
+        info: vk::BufferCreateInfo,
         align: u64,
         memory_usage: impl MemoryUsage,
     ) -> Result<Buffer, MemoryError> {
@@ -244,16 +240,16 @@ impl Factory {
         offset: u64,
         content: &[u8],
         family: FamilyIndex,
-        access: AccessFlags,
+        access: vk::AccessFlags,
     ) -> Result<(), Error> {
-        if buffer.block().properties().subset(MemoryPropertyFlags::HOST_VISIBLE) {
+        if buffer.block().properties().subset(vk::MemoryPropertyFlags::HOST_VISIBLE) {
             self.upload_visible_buffer(buffer, offset, content, family, access)
         } else {
             unimplemented!("Staging is not supported yet");
         }
     }
 
-    /// Update buffer bound to host visible memory.AccessFlags.
+    /// Update buffer bound to host visible memory.vk::AccessFlags.
     ///
     /// # Safety
     ///
@@ -264,10 +260,10 @@ impl Factory {
         offset: u64,
         content: &[u8],
         _family: FamilyIndex,
-        _access: AccessFlags,
+        _access: vk::AccessFlags,
     ) -> Result<(), Error> {
         let block = buffer.block_mut();
-        assert!(block.properties().subset(MemoryPropertyFlags::HOST_VISIBLE));
+        assert!(block.properties().subset(vk::MemoryPropertyFlags::HOST_VISIBLE));
         let mut mapped = block.map(&self.device, offset .. offset + content.len() as u64)?;
         mapped.write(&self.device, 0 .. content.len() as u64)?.write(content);
 
@@ -277,7 +273,7 @@ impl Factory {
     /// Creates an image that is mananged with the specified properties.
     pub fn create_image(
         &mut self,
-        info: ImageCreateInfo,
+        info: vk::ImageCreateInfo,
         align: u64,
         memory_usage: impl MemoryUsage,
     ) -> Result<Image, MemoryError> {
@@ -301,20 +297,23 @@ impl Factory {
         unsafe {
             let (window, surface, swapchain) = target.dispose();
             self.swapchain.destroy_swapchain_khr(swapchain, None);
+            // trace!("Swapchain destroyed");
             self.surface.destroy_surface_khr(surface, None);
-            trace!("Target destroyed");
+            // trace!("Surface destroyed");
             window
         }
     }
 
-    /// Get command queue families.
     pub fn families(&self) -> &[Family] {
         &self.families
     }
 
-    /// Get command queue families.
-    pub fn families_mut(&mut self) -> &mut [Family] {
-        &mut self.families
+    pub fn queue(&mut self, family: FamilyIndex, queue: usize) -> Queue<'_> {
+        let raw = self.families[family.0 as usize].queues()[queue];
+        Queue {
+            fp: self.device().fp_v1_0(),
+            raw,
+        }
     }
 
     /// Get surface support for family.
@@ -331,32 +330,62 @@ impl Factory {
     }
 
     /// Get physical device.
-    pub fn physical(&self) -> PhysicalDevice {
+    pub fn physical(&self) -> vk::PhysicalDevice {
         self.physical.handle
     }
 
     /// Get surface capabilities.
-    pub fn surface_capabilities(&self, target: &Target) -> Result<SurfaceCapabilitiesKHR, Error> {
+    pub fn surface_capabilities(&self, target: &Target) -> Result<vk::SurfaceCapabilitiesKHR, Error> {
         unsafe {
             self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, target.surface())
         }.map_err(Error::from)
     }
 
-    /// Get target images.
-    /// TODO: Return `rendy::resource::Image`s.
-    pub fn target_images(&self, target: &Target) -> Result<Vec<AshImage>, Error> {
+    /// Create new semaphore
+    pub fn create_semaphore(&self) -> vk::Semaphore {
         unsafe {
-            self.swapchain.get_swapchain_images_khr(target.swapchain())
-        }.map_err(Error::from)
+            self.device.create_semaphore(
+                &vk::SemaphoreCreateInfo::builder()
+                    .build(),
+                None
+            )
+        }.expect("Panic on OOM")
+    }
+
+    /// Create new fence
+    pub fn create_fence(&self, signaled: bool) -> vk::Fence {
+        unsafe {
+            self.device.create_fence(
+                &vk::FenceCreateInfo::builder()
+                    .flags(if signaled {
+                        vk::FenceCreateFlags::SIGNALED
+                    } else {
+                        vk::FenceCreateFlags::empty()
+                    })
+                    .build(),
+                None
+            )
+        }.expect("Panic on OOM")
+    }
+
+    /// Wait for the fence become signeled.
+    /// TODO:
+    /// * Add timeout.
+    /// * Add multifence version.
+    pub fn wait_for_fence(&self, fence: vk::Fence) {
+        unsafe {
+            // TODO: Handle device lost.
+            self.device.wait_for_fences(&[fence], true, !0).unwrap();
+        }
     }
 }
 
 
-unsafe fn extension_name_cstr(e: &ExtensionProperties) -> &CStr {
+unsafe fn extension_name_cstr(e: &vk::ExtensionProperties) -> &CStr {
     CStr::from_ptr(e.extension_name[..].as_ptr())
 }
 
-fn extensions_to_enable(available: &[ExtensionProperties]) -> Result<Vec<*const c_char>, Error> {
+fn extensions_to_enable(available: &[vk::ExtensionProperties]) -> Result<Vec<*const c_char>, Error> {
     let names = vec![
         Surface::name().as_ptr(),
         Swapchain::name().as_ptr(),
@@ -369,7 +398,6 @@ fn extensions_to_enable(available: &[ExtensionProperties]) -> Result<Vec<*const 
             .cloned()
             .filter_map(|name| {
                 let cstr_name = CStr::from_ptr(name);
-                trace!("Look for {:?}", cstr_name);
                 if available
                     .iter()
                     .find(|e| extension_name_cstr(e) == cstr_name)

@@ -236,7 +236,7 @@ impl DynamicAllocator {
         device: &impl DeviceV1_0,
         size: u64,
     ) -> Result<(Chunk, u64), MemoryError> {
-        trace!("Allocate new chunk: size: {}", size);
+        // trace!("Allocate new chunk: size: {}", size);
         if size > self.max_block_size() {
             // Allocate from device.
             let (memory, mapping) = unsafe {
@@ -254,7 +254,7 @@ impl DynamicAllocator {
                     .memory_properties
                     .subset(MemoryPropertyFlags::HOST_VISIBLE)
                 {
-                    trace!("Map new memory object");
+                    // trace!("Map new memory object");
                     match device.map_memory(raw, 0, size, MemoryMapFlags::empty()) {
                         Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
                         Err(error) => {
@@ -279,13 +279,13 @@ impl DynamicAllocator {
     /// Allocate super-block to use as chunk memory.
     #[warn(dead_code)]
     fn free_chunk(&mut self, device: &impl DeviceV1_0, chunk: Chunk) -> u64 {
-        trace!("Free chunk: {:#?}", chunk);
+        // trace!("Free chunk: {:#?}", chunk);
         match chunk {
             Chunk::Dedicated(boxed, _) => {
                 let size = boxed.size();
                 unsafe {
                     if self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
-                        trace!("Unmap memory: {:#?}", boxed);
+                        // trace!("Unmap memory: {:#?}", boxed);
                         device.unmap_memory(boxed.raw());
                     }
                     device.free_memory(boxed.raw(), None);
@@ -303,7 +303,7 @@ impl DynamicAllocator {
         device: &impl DeviceV1_0,
         size: u64,
     ) -> Result<(DynamicBlock, u64), MemoryError> {
-        trace!("Allocate block. type: {}, size: {}", self.memory_type, size);
+        // trace!("Allocate block. type: {}, size: {}", self.memory_type, size);
         let size_index = self.size_index(size);
         let (block_index, allocated) = match (&self.sizes[size_index].blocks).iter().next() {
             Some(block_index) => {
@@ -377,7 +377,7 @@ impl Allocator for DynamicAllocator {
     }
 
     fn free(&mut self, device: &impl DeviceV1_0, block: DynamicBlock) -> u64 {
-        trace!("Free block: {:#?}", block);
+        // trace!("Free block: {:#?}", block);
         let size_index = self.size_index(block.size());
         let block_index = block.index;
         block.dispose();

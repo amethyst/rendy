@@ -133,12 +133,12 @@ impl Resources {
 
     /// Recycle dropped resources.
     pub unsafe fn cleanup(&mut self, device: &impl DeviceV1_0, heaps: &mut Heaps) {
-        trace!("Cleanup buffers");
+        // trace!("Cleanup buffers");
         for buffer in self.buffers.drain() {
             Self::destroy_buffer_inner(buffer, device, heaps);
         }
 
-        trace!("Cleanup images");
+        // trace!("Cleanup images");
         for image in self.images.drain() {
             Self::destroy_image_inner(image, device, heaps);
         }

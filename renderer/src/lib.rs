@@ -20,7 +20,7 @@ pub trait Renderer<T> {
         Self::Desc::default()
     }
 
-    fn run(&mut self, factory: &mut Factory, data: &mut T, frames: &mut Frames);
+    fn run(&mut self, factory: &mut Factory, data: &mut T);
     fn dispose(self, factory: &mut Factory, data: &mut T);
 }
 

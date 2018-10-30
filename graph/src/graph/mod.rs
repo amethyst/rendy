@@ -194,7 +194,7 @@ where
 //         Y: FnMut(image::Kind, Format, image::Usage, &mut D, &mut T) -> I,
 //         P: IntoIterator<Item = PresentBuilder<'a, B>>,
 //     {
-//         trace!("Build Graph");
+//         // trace!("Build Graph");
 //         use chain::{build, pass::Pass};
 
 //         let families = families.into_iter().collect::<Vec<_>>();
@@ -209,7 +209,7 @@ where
 //             )));
 //         }
 
-//         trace!("Schedule nodes execution");
+//         // trace!("Schedule nodes execution");
 //         let passes: Vec<Pass> = nodes
 //             .iter()
 //             .enumerate()
@@ -220,9 +220,9 @@ where
 //             find_family::<B, _>(families.iter().cloned(), qid).max_queues()
 //         });
 
-//         trace!("Scheduled nodes execution {:#?}", chains);
+//         // trace!("Scheduled nodes execution {:#?}", chains);
 
-//         trace!("Allocate buffers");
+//         // trace!("Allocate buffers");
 //         let buffers = self
 //             .buffers
 //             .iter()
@@ -239,7 +239,7 @@ where
 //             })
 //             .collect::<Vec<_>>();
 
-//         trace!("Allocate images");
+//         // trace!("Allocate images");
 //         let images = self
 //             .images
 //             .iter()
@@ -261,23 +261,23 @@ where
 //         let mut built_nodes: Vec<Option<Box<AnyNode<B, D, T>>>> =
 //             (0..nodes.len()).map(|_| None).collect();
 
-//         trace!("Synchronize");
+//         // trace!("Synchronize");
 //         let mut semaphores = GenId::new();
 //         let schedule = sync(&chains, || {
 //             let id = semaphores.next();
 //             (id, id)
 //         });
-//         trace!("Schedule: {:#?}", schedule);
+//         // trace!("Schedule: {:#?}", schedule);
 
-//         trace!("Build nodes");
+//         // trace!("Build nodes");
 //         for family in schedule.iter() {
-//             trace!("For family {:#?}", family);
+//             // trace!("For family {:#?}", family);
 //             for queue in family.iter() {
-//                 trace!("For queue {:#?}", queue.id());
+//                 // trace!("For queue {:#?}", queue.id());
 //                 for (sid, submission) in queue.iter() {
-//                     trace!("For submission {:#?}", sid);
+//                     // trace!("For submission {:#?}", sid);
 //                     let builder = nodes[submission.pass().0].take().unwrap();
-//                     trace!("Build node {}", builder.name());
+//                     // trace!("Build node {}", builder.name());
 //                     let node = builder.build(
 //                         submission,
 //                         &chains.buffers,

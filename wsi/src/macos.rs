@@ -40,7 +40,7 @@ impl NativeSurface {
             )
         }?;
 
-        trace!("Surface {:p} created", surface);
+        // trace!("Surface {:p} created", surface);
         Ok(surface)
     }
 }

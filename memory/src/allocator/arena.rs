@@ -180,7 +180,7 @@ impl ArenaAllocator {
             let arena = self.arenas.pop_front().unwrap();
 
             unsafe {
-                trace!("Unmap memory: {:#?}", arena.memory);
+                // trace!("Unmap memory: {:#?}", arena.memory);
                 device.unmap_memory(arena.memory.raw());
 
                 freed += arena.memory.size();

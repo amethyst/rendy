@@ -3,30 +3,24 @@ use std::cmp::{max, min};
 use ash::{
     extensions::{Surface, Swapchain},
     version::{DeviceV1_0, EntryV1_0, InstanceV1_0},
-    vk::{
-        Format,
-        Extent2D,
-        PhysicalDevice,
-        SurfaceKHR,
-        SwapchainCreateInfoKHR,
-        SwapchainKHR,
-        SurfaceCapabilitiesKHR,
-    },
+    vk,
 };
 
 use failure::Error;
 use relevant::Relevant;
+use smallvec::SmallVec;
 use winit::Window;
 
 use NativeSurface;
 
 pub struct Target {
+    fp: Swapchain,
     window: Window,
-    surface: SurfaceKHR,
-    swapchain: SwapchainKHR,
-    image_count: u32,
-    format: Format,
-    extent: Extent2D,
+    surface: vk::SurfaceKHR,
+    swapchain: vk::SwapchainKHR,
+    images: Vec<vk::Image>,
+    format: vk::Format,
+    extent: vk::Extent2D,
     relevant: Relevant,
 }
 
@@ -34,7 +28,7 @@ impl Target {
     pub fn new(
         window: Window,
         image_count: u32,
-        physical: PhysicalDevice,
+        physical: vk::PhysicalDevice,
         native_surface: &NativeSurface,
         surface: &Surface,
         swapchain: &Swapchain,
@@ -58,7 +52,7 @@ impl Target {
 
         let swapchain_khr = unsafe {
             swapchain.create_swapchain_khr(
-                &SwapchainCreateInfoKHR::builder()
+                &vk::SwapchainCreateInfoKHR::builder()
                     .surface(surface_khr)
                     .min_image_count(image_count)
                     .image_format(formats[0].format)
@@ -71,47 +65,99 @@ impl Target {
             )
         }?;
 
-        trace!("Target created");
+        let images = unsafe {
+            swapchain.get_swapchain_images_khr(swapchain_khr)
+        }.map_err(Error::from)?;
+
+        // trace!("Target created");
 
         Ok(Target {
+            fp: swapchain.clone(),
             window,
             surface: surface_khr,
             swapchain: swapchain_khr,
-            image_count,
+            images,
             format: formats[0].format,
             extent: capabilities.current_extent,
             relevant: Relevant,
         })
     }
 
-    pub unsafe fn dispose(self) -> (Window, SurfaceKHR, SwapchainKHR) {
+    pub unsafe fn dispose(self) -> (Window, vk::SurfaceKHR, vk::SwapchainKHR) {
         self.relevant.dispose();
         (self.window, self.surface, self.swapchain)
     }
 
     /// Get raw surface handle.
-    pub unsafe fn surface(&self) -> SurfaceKHR {
+    pub unsafe fn surface(&self) -> vk::SurfaceKHR {
         self.surface
     }
 
-
     /// Get raw surface handle.
-    pub unsafe fn swapchain(&self) -> SwapchainKHR {
+    pub unsafe fn swapchain(&self) -> vk::SwapchainKHR {
         self.swapchain
     }
 
     /// Get target current extent.
-    pub fn extent(&self) -> Extent2D {
+    pub fn extent(&self) -> vk::Extent2D {
         self.extent
     }
 
     /// Get target current format.
-    pub fn format(&self) -> Format {
+    pub fn format(&self) -> vk::Format {
         self.format
     }
 
     /// Get image count.
-    pub fn image_count(&self) -> u32 {
-        self.image_count
+    pub fn images(&self) -> &[vk::Image] {
+        &self.images
+    }
+
+    /// Acquire next image.
+    pub fn next_image(&mut self, signal: vk::Semaphore) -> Result<NextImages<'_>, Error> {
+        let index = unsafe {
+            self.fp.acquire_next_image_khr(self.swapchain, !0, signal, vk::Fence::null())
+                .map_err(Error::from)
+        }?;
+
+        Ok(NextImages {
+            fp: &self.fp,
+            swapchains: smallvec![self.swapchain],
+            indices: smallvec![index],
+        })
+    }
+}
+
+#[derive(Derivative)]
+#[derivative(Debug)]
+pub struct NextImages<'a> {
+    #[derivative(Debug = "ignore")]
+    fp: &'a Swapchain,
+    swapchains: SmallVec<[vk::SwapchainKHR; 4]>,
+    indices: SmallVec<[u32; 4]>,
+}
+
+impl<'a> NextImages<'a> {
+    /// Get indices.
+    pub fn indices(&self) -> &[u32] {
+        &self.indices
+    }
+
+    /// Present images by the queue.
+    pub fn queue_present(self, queue: vk::Queue, wait: &[vk::Semaphore]) -> Result<(), Error> {
+        assert_eq!(self.swapchains.len(), self.indices.len());
+        unsafe {
+            let mut results = std::iter::repeat(ash::vk::Result::SUCCESS).take(self.swapchains.len()).collect::<SmallVec<[_; 4]>>();
+            self.fp.queue_present_khr(
+                queue,
+                &vk::PresentInfoKHR::builder()
+                    .wait_semaphores(wait)
+                    .swapchains(&self.swapchains)
+                    .image_indices(&self.indices)
+                    .results(&mut results)
+                    .build()
+            )
+            .map_err(Error::from)
+        }
     }
 }

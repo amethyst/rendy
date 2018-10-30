@@ -96,7 +96,7 @@ impl<T> Terminal<T> {
     /// Get iterator over values from dropped `Escape` instances that was created by this `Terminal`.
     pub(crate) fn drain<'a>(&'a mut self) -> impl Iterator<Item = T> + 'a {
         repeat(()).scan((), move |&mut (), ()| {
-            trace!("Drain escape");
+            // trace!("Drain escape");
             if !self.receiver.is_empty() {
                 self.receiver.recv()
             } else {

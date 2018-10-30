@@ -119,12 +119,7 @@ impl Heaps {
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock, MemoryError> {
-        trace!("Alloc block: type '{}', usage '{:#?}', size: '{}', align: '{}'",
-            memory_index,
-            usage.value(),
-            size,
-            align,
-        );
+        // trace!("Alloc block: type '{}', usage '{:#?}', size: '{}', align: '{}'", memory_index, usage.value(), size, align);
         assert!(fits_usize(memory_index));
 
         let ref mut memory_type = self.types[memory_index as usize];
@@ -147,7 +142,7 @@ impl Heaps {
     ///
     /// Memory block must be allocated from this heap.
     pub fn free(&mut self, device: &impl DeviceV1_0, block: MemoryBlock) {
-        trace!("Free block '{:#?}'", block);
+        // trace!("Free block '{:#?}'", block);
         let memory_index = block.memory_index;
         debug_assert!(fits_usize(memory_index));
 

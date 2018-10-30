@@ -28,3 +28,4 @@ pub use config::{
     SavedHeapsConfig, SavedQueueConfig,
 };
 pub use factory::Factory;
+pub use queue::Queue;

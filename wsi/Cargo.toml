@@ -5,9 +5,11 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
 ash = { path = "../../ash/ash" }
+derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = "0.2"
+smallvec = "0.6"
 winit = "0.17"
 
 [target.'cfg(target_os = "macos")'.dependencies]
