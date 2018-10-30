@@ -326,38 +326,28 @@ impl Factory {
     }
 
     /// Get device.
-    /// 
-    /// # Safety
-    /// 
-    /// TODO!
-    pub unsafe fn device(&self) -> &impl DeviceV1_0 {
+    pub fn device(&self) -> &impl DeviceV1_0 {
         &self.device
     }
 
     /// Get physical device.
-    /// 
-    /// # Safety
-    /// 
-    /// TODO!
-    pub unsafe fn physical(&self) -> PhysicalDevice {
+    pub fn physical(&self) -> PhysicalDevice {
         self.physical.handle
     }
 
     /// Get surface capabilities.
-    /// 
-    /// # Safety
-    /// 
-    /// TODO!
-    pub unsafe fn surface_capabilities(&self, target: &Target) -> Result<SurfaceCapabilitiesKHR, Error> {
-        self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, target.surface())
-            .map_err(Error::from)
+    pub fn surface_capabilities(&self, target: &Target) -> Result<SurfaceCapabilitiesKHR, Error> {
+        unsafe {
+            self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, target.surface())
+        }.map_err(Error::from)
     }
 
     /// Get target images.
     /// TODO: Return `rendy::resource::Image`s.
-    pub unsafe fn target_images(&self, target: &Target) -> Result<Vec<AshImage>, Error> {
-        self.swapchain.get_swapchain_images_khr(target.swapchain())
-            .map_err(Error::from)
+    pub fn target_images(&self, target: &Target) -> Result<Vec<AshImage>, Error> {
+        unsafe {
+            self.swapchain.get_swapchain_images_khr(target.swapchain())
+        }.map_err(Error::from)
     }
 }
 

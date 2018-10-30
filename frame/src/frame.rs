@@ -8,7 +8,20 @@ use failure::Error;
 use smallvec::SmallVec;
 use std::borrow::Borrow;
 
-use command::{Buffer, Capability, InitialState, OwningPool};
+use command::{
+    Buffer,
+    Encoder,
+    RecordingState,
+    Resettable,
+    Capability,
+    InitialState,
+    OwningPool,
+    OneShot,
+    MultiShot,
+    Submit,
+    ExecutableState,
+    PrimaryLevel,
+};
 
 /// Fences collection.
 pub type Fences = SmallVec<[Fence; 8]>;
@@ -128,7 +141,7 @@ impl<'a, T> FrameBound<'a, T> {
     ///
     /// Unbound value usage must not break frame-binding semantics.
     ///
-    pub unsafe fn inner_ref(&self) -> &T {
+    pub unsafe fn value_ref(&self) -> &T {
         &self.value
     }
 
@@ -138,7 +151,7 @@ impl<'a, T> FrameBound<'a, T> {
     ///
     /// Unbound value usage must not break frame-binding semantics.
     ///
-    pub unsafe fn inner_mut(&mut self) -> &mut T {
+    pub unsafe fn value_mut(&mut self) -> &mut T {
         &mut self.value
     }
 
@@ -194,12 +207,12 @@ impl Frames {
 /// All command buffers acquired from bound `FramePool` are guarantee
 /// to complete when frame's fence is set, and buffers can be reset.
 #[derive(Debug)]
-pub struct FramePool<P, B, C> {
-    inner: OwningPool<P, B, C>,
+pub struct FramePool<C, R> {
+    inner: OwningPool<C, R>,
     frame: Option<FrameIndex>,
 }
 
-impl<P, B, C> FramePool<P, B, C> {
+impl<C, R> FramePool<C, R> {
     /// Bind pool to particular frame.
     ///
     /// Command pools acquired from the bound pool could be submitted only within frame borrowing lifetime.
@@ -212,7 +225,7 @@ impl<P, B, C> FramePool<P, B, C> {
     ///
     /// This function will panic if pool is still bound to frame.
     ///
-    pub fn bind<'a, 'b, F>(&'a mut self, frame: &'b Frame) -> FrameBound<'b, &'a mut Self> {
+    pub fn bind<'a, F>(&'a mut self, frame: &'a Frame) -> FrameBound<'a, &'a mut Self> {
         assert!(
             self.frame.is_none(),
             "`FramePool::reset` must be called before binding to another frame"
@@ -239,9 +252,9 @@ impl<P, B, C> FramePool<P, B, C> {
     }
 }
 
-impl<P, B> FramePool<P, B, QueueFlags> {
+impl<R> FramePool<QueueFlags, R> {
     /// Convert capability level
-    pub fn from_flags<C>(self) -> Result<FramePool<P, B, C>, Self>
+    pub fn from_flags<C>(self) -> Result<FramePool<C, R>, Self>
     where
         C: Capability,
     {
@@ -258,7 +271,7 @@ impl<P, B> FramePool<P, B, QueueFlags> {
     }
 }
 
-impl<'a, 'b, P: 'b, B: 'b, C: 'b> FrameBound<'a, &'b mut FramePool<P, B, C>> {
+impl<'a, C: 'a, R: 'a> FrameBound<'a, &'a mut FramePool<C, R>> {
     /// Reserve at least `count` buffers.
     /// Allocate if there are not enough unused buffers.
     pub fn reserve(&mut self, count: usize) {
@@ -272,12 +285,15 @@ impl<'a, 'b, P: 'b, B: 'b, C: 'b> FrameBound<'a, &'b mut FramePool<P, B, C>> {
         &mut self,
         device: &impl DeviceV1_0,
         level: L,
-    ) -> Buffer<FrameBound<'b, &mut CommandBuffer>, C, InitialState, L> {
+    ) -> FrameBound<'a, Buffer<C, InitialState, L>> {
         unimplemented!()
     }
 }
 
-impl<'a, B, S, L, C> FrameBound<'a, Buffer<B, C, S, L>> {
+impl<'a, S, L, C> FrameBound<'a, Buffer<C, S, L>>
+where
+    S: Resettable,
+{
     /// Release borrowed buffer. This allows to acquire next buffer from pool.
     /// Whatever state this buffer was in it will be reset only after bounded frame is complete.
     /// This allows safely to release borrowed buffer in pending state.
@@ -286,14 +302,19 @@ impl<'a, B, S, L, C> FrameBound<'a, Buffer<B, C, S, L>> {
     }
 }
 
-impl<'a, B> Borrow<CommandBuffer> for FrameBound<'a, B>
-where
-    B: Borrow<CommandBuffer>,
-{
-    fn borrow(&self) -> &CommandBuffer {
-        unsafe {
-            // Make it safe.
-            self.inner_ref().borrow()
-        }
+impl<'a, C, R> FrameBound<'a, Buffer<C, ExecutableState<OneShot>, PrimaryLevel, R>> {
+    /// Produce `Submit` object that can be used to populate submission.
+    pub fn submit(
+        self,
+    ) -> (
+        FrameBound<'a, Submit>,
+    ) {
+        unimplemented!()
+    }
+}
+
+impl<'a, C, U, L, R> Encoder<C> for FrameBound<'a, Buffer<C, RecordingState<U>, L, R>>{
+    unsafe fn raw(&mut self) -> CommandBuffer {
+        Buffer::raw(&self.value)
     }
 }

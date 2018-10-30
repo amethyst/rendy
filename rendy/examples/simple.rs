@@ -71,7 +71,7 @@ use ash::{
 use failure::Error;
 
 use rendy::{
-    command::FamilyIndex,
+    command::{FamilyIndex, NoIndividualReset, Graphics, OwningPool, PrimaryLevel, OneShot},
     factory::{Factory, Config},
     frame::Frames,
     memory::usage::Data,
@@ -99,6 +99,7 @@ struct SimpleRenderer {
     layout: PipelineLayout,
     pipeline: Pipeline,
     framebuffers: Vec<FramebufferEtc>,
+    pool: OwningPool<Graphics>,
 }
 
 struct SimpleRendererBuilder {
@@ -108,11 +109,26 @@ struct SimpleRendererBuilder {
 
 impl Renderer<()> for SimpleRenderer {
     type Desc = SimpleRendererBuilder;
-    fn run(&mut self, factory: &mut Factory, data: &mut (), frames: &mut Frames) {
+    fn run(&mut self, factory: &mut Factory, (): &mut (), frames: &mut Frames) {
+        let buffer = self.pool.acquire_buffer(factory.device());
+
+        let buffer = buffer.begin(OneShot, factory.device());
+
+        let buffer = buffer.finish(factory.device());
+
+        // Owned by `self.pool`.
+        let (submit, buffer) = buffer.submit_once();
+        unsafe {
+            buffer.release();
+        }
+
         let ref mut family = factory.families_mut()[self.family_index];
+        let ref mut queue = family.queues()[0];
+        
+        unimplemented!("Submit command buffer to the queue");
     }
 
-    fn dispose(self, factory: &mut Factory, data: &mut ()) {
+    fn dispose(self, factory: &mut Factory, (): &mut ()) {
         drop(self.mesh);
         unsafe {
             for framebuffer in self.framebuffers {
@@ -123,6 +139,7 @@ impl Renderer<()> for SimpleRenderer {
             }
             factory.device().destroy_pipeline(self.pipeline, None);
             factory.device().destroy_render_pass(self.render_pass, None);
+            self.pool.dispose(factory.device());
         }
         factory.destroy_target(self.target);
     }
@@ -146,7 +163,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
     type Error = Error;
     type Renderer = SimpleRenderer;
 
-    fn build(self, factory: &mut Factory, data: &mut ()) -> Result<SimpleRenderer, Error> {
+    fn build(self, factory: &mut Factory, (): &mut ()) -> Result<SimpleRenderer, Error> {
 
         let target = factory.create_target(self.window, 3)?;
 
@@ -280,9 +297,9 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                                         .build(),
                                 ])
                                 .vertex_attribute_descriptions(
-                                    &PosColor::VERTEX.attributes.iter().map(|attribute|
+                                    &PosColor::VERTEX.attributes.iter().enumerate().map(|(location, attribute)|
                                         VertexInputAttributeDescription::builder()
-                                            .location(0)
+                                            .location(location as u32)
                                             .binding(0)
                                             .format(attribute.format)
                                             .offset(attribute.offset)
@@ -435,6 +452,9 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                 .collect::<Result<Vec<_>, Error>>()
         }?;
 
+        let ref family = factory.families()[family_index];
+        let pool = family.create_owning_pool(unsafe {factory.device()}, PrimaryLevel)?.from_flags().unwrap();
+
         Ok(SimpleRenderer {
             mesh,
             target,
@@ -443,6 +463,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
             layout,
             pipeline,
             framebuffers,
+            pool,
         })
     }
 }

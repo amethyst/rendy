@@ -2,12 +2,24 @@
 
 use ash::{
     version::DeviceV1_0,
-    vk::{CommandPool, Extent3D, Queue, QueueFamilyProperties, QueueFlags},
+    vk::{
+        CommandPool,
+        Extent3D,
+        Queue,
+        QueueFamilyProperties,
+        QueueFlags,
+        CommandPoolCreateInfo,
+    },
 };
 
+use failure::Error;
 use relevant::Relevant;
 
-use crate::{capability::Capability, pool::Pool};
+use crate::{
+    capability::Capability,
+    pool::{Pool, OwningPool},
+    buffer::{Level, Reset, NoIndividualReset},
+};
 
 /// Unique family index.
 #[derive(Clone, Copy, Debug)]
@@ -59,8 +71,36 @@ impl<C: Capability> Family<C> {
 
     /// Create command pool associated with the family.
     /// Command buffers created from the pool could be submitted to the queues of the family.
-    pub fn create_pool<D, R>(&self, device: &impl DeviceV1_0, reset: R) -> Pool<CommandPool, C, R> {
-        unimplemented!()
+    pub fn create_pool<R>(&self, device: &impl DeviceV1_0, reset: R) -> Result<Pool<C, R>, Error>
+    where
+        R: Reset,
+    {
+        let pool = unsafe {
+            // Is this family belong to specified device.
+            let raw = device.create_command_pool(
+                &CommandPoolCreateInfo::builder()
+                    .queue_family_index(self.index.0)
+                    .flags(reset.flags())
+                    .build(),
+                None,
+            )?;
+
+            Pool::from_raw(raw, self.capability, reset, self.index)
+        };
+
+        Ok(pool)
+    }
+
+    /// Create command pool associated with the family.
+    /// Command buffers created from the pool could be submitted to the queues of the family.
+    /// Created pool owns its command buffers.
+    pub fn create_owning_pool<L>(&self, device: &impl DeviceV1_0, level: L) -> Result<OwningPool<C, L>, Error>
+    where
+        L: Level,
+    {
+        self.create_pool(device, NoIndividualReset).map(|pool| unsafe {
+            OwningPool::from_inner(pool, level)
+        })
     }
 
     /// Get family capability.
