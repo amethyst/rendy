@@ -29,6 +29,10 @@ impl Memory {
     }
 
     /// Create memory from raw object.
+    /// 
+    /// # Safety
+    /// 
+    /// TODO:
     pub unsafe fn from_raw(raw: DeviceMemory, size: u64, properties: MemoryPropertyFlags) -> Self {
         Memory {
             properties,

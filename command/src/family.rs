@@ -38,17 +38,25 @@ pub struct Family<C: Capability = QueueFlags> {
 }
 
 impl Family {
-    /// Get queue family from device.
+    /// Query queue family from device.
+    /// 
+    /// # Safety
+    /// 
+    /// This function shouldn't be used more then once with the same parameters.
+    /// Raw queue handle queried from device can make `Family` usage invalid.
+    /// `family` must be one of the family indices used during `device` creation.
+    /// `queues` must be equal to number of queues specified for `family` during `device` creation.
+    /// `properties` must be the properties retuned for queue family from physical device.
     pub unsafe fn from_device(
         device: &impl DeviceV1_0,
-        index: FamilyIndex,
+        family: FamilyIndex,
         queues: u32,
         properties: &QueueFamilyProperties,
     ) -> Self {
         Family {
-            index,
+            index: family,
             queues: (0..queues)
-                .map(|queue_index| device.get_device_queue(index.0, queue_index))
+                .map(|queue_index| device.get_device_queue(family.0, queue_index))
                 .collect(),
             min_image_transfer_granularity: properties.min_image_transfer_granularity,
             capability: properties.queue_flags,
@@ -58,7 +66,6 @@ impl Family {
 }
 
 impl<C: Capability> Family<C> {
-
     /// Get id of the family.
     pub fn index(&self) -> FamilyIndex {
         self.index
@@ -153,7 +160,14 @@ where
     }
 }
 
-/// Get queue families from device.
+/// Query queue families from device.
+/// 
+/// # Safety
+/// 
+/// This function shouldn't be used more then once with same parameters.
+/// Raw queue handle queried from device can make returned `Family` usage invalid.
+/// `families` iterator must yeild unique family indices with queue count used during `device` creation.
+/// `properties` must contain properties retuned for queue family from physical device for each family index yielded by `families`.
 pub unsafe fn families_from_device(
     device: &impl DeviceV1_0,
     families: impl IntoIterator<Item = (FamilyIndex, u32)>,

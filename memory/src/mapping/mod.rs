@@ -50,9 +50,9 @@ impl<'a> MappedRange<'a> {
     ///
     /// # Safety
     ///
-    /// Only one range for the given memory object can be mapped.
-    /// Memory object must be not mapped.
-    /// Memory object must be created with device specified.
+    /// * Only one range for the given memory object can be mapped.
+    /// * Memory object must be not mapped.
+    /// * Memory object must be created with device specified.
     pub unsafe fn new(
         memory: &'a Memory,
         device: &impl DeviceV1_0,
@@ -87,6 +87,10 @@ impl<'a> MappedRange<'a> {
     }
 
     /// Construct mapped range from raw mapping
+    /// 
+    /// # Safety
+    /// 
+    /// `memory` `range` must be mapped to host memory region pointer by `ptr`.
     pub unsafe fn from_raw(memory: &'a Memory, ptr: NonNull<u8>, range: Range<u64>) -> Self {
         MappedRange {
             ptr,
@@ -96,12 +100,12 @@ impl<'a> MappedRange<'a> {
         }
     }
 
-    /// Get raw mapping pointer
+    /// Get pointer to beginning of memory region.
     pub fn ptr(&self) -> NonNull<u8> {
         self.ptr
     }
 
-    /// Get raw mapping pointer
+    /// Get mapped range.
     pub fn range(&self) -> Range<u64> {
         self.range.clone()
     }
@@ -113,8 +117,8 @@ impl<'a> MappedRange<'a> {
     ///
     /// # Safety
     ///
-    /// Caller must ensure that device won't write to the memory region for until the borrow ends.
-    /// `T` Must be plain-old-data type with memory layout compatible with data written by the device.
+    /// * Caller must ensure that device won't write to the memory region until the borrowing ends.
+    /// * `T` Must be plain-old-data type with memory layout compatible with data written by the device.
     pub unsafe fn read<'b, T>(
         &'b mut self,
         device: &impl DeviceV1_0,
@@ -144,7 +148,7 @@ impl<'a> MappedRange<'a> {
     ///
     /// # Safety
     ///
-    /// Caller must ensure that device won't write to or read from the memory region.
+    /// * Caller must ensure that device won't write to or read from the memory region.
     pub unsafe fn write<'b, T>(
         &'b mut self,
         device: &'b impl DeviceV1_0,
@@ -221,6 +225,10 @@ impl<'a> From<MappedRange<'a, NonCoherent>> for MappedRange<'a> {
 
 impl<'a> MappedRange<'a, Coherent> {
     /// Fetch writer to the sub-region.
+    ///
+    /// # Safety
+    ///
+    /// * Caller must ensure that device won't write to or read from the memory region.
     pub unsafe fn write<'b, U>(
         &'b mut self,
         range: Range<u64>,

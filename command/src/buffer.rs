@@ -162,6 +162,15 @@ pub struct Buffer<C, S, L, R = NoIndividualReset> {
 
 impl<C, S, L, R> Buffer<C, S, L, R> {
     /// Wrap raw buffer handle.
+    /// 
+    /// # Safety
+    /// 
+    /// * `raw` must be valid command buffer handle.
+    /// * `capability` must be subset of `family` capability.
+    /// * `state` must represent actual state buffer currently in.
+    /// * command buffer must be allocated with specified `level`.
+    /// * If `reset` is `IndividualReset` then buffer must be allocated from pool created with `IndividualReset` marker.
+    /// * command buffer must be allocated from pool created for `family`.
     pub unsafe fn from_raw(
         raw: CommandBuffer,
         capability: C,
@@ -181,12 +190,32 @@ impl<C, S, L, R> Buffer<C, S, L, R> {
         }
     }
 
-    /// Get raw CommandBuffer
+    /// Get raw command buffer handle.
+    /// 
+    /// # Safety
+    /// 
+    /// * Valid usage for command buffer must not be violated.
+    /// Particularly command buffer must not change its state.
+    /// Or `change_state` must be used to reflect accumulated change.
     pub unsafe fn raw(&self) -> CommandBuffer {
         self.raw
     }
 
+    /// Get raw command buffer handle.
+    /// 
+    /// # Safety
+    /// 
+    /// * Valid usage for command buffer must not be violated.
+    pub unsafe fn into_raw(self) -> CommandBuffer {
+        self.relevant.dispose();
+        self.raw
+    }
+
+    /// Change state of the command buffer.
     ///
+    /// # Safety
+    ///
+    /// * This method must be used only to reflect state changed due to raw handle usage.
     pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> Buffer<C, U, L, R> {
         Buffer {
             raw: self.raw,
@@ -303,7 +332,15 @@ impl<C, N, L, R> Buffer<C, PendingState<N>, L, R> {
     ///
     /// # Safety
     ///
-    /// User must ensure that recorded commands are complete.
+    /// * Commands recoreded to this buffer must be complete.
+    /// Normally command buffer moved to this state when [`Submit`] object is created.
+    /// To ensure that recorded commands are complete once can [wait] for the [`Fence`] specified
+    /// when [submitting] created [`Submit`] object or in later submission to the same queue.
+    /// 
+    /// [`Submit`]: struct.Submit
+    /// [wait]: ../ash/version/trait.DeviceV1_0.html#method.wait_for_fences
+    /// [`Fence`]: ../ash/vk/struct.Fence.html
+    /// [submitting]: ../ash/version/trait.DeviceV1_0.html#method.queue_submit
     pub unsafe fn complete(self) -> Buffer<C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }
@@ -312,7 +349,8 @@ impl<C, N, L, R> Buffer<C, PendingState<N>, L, R> {
     ///
     /// # Safety
     ///
-    /// It must be owned by `OwningPool`
+    /// * It must be owned by `OwningPool`
+    /// TODO: Use lifetimes to tie `Buffer` to `OwningPool`.
     pub unsafe fn release(self) {
         self.relevant.dispose();
     }
@@ -334,12 +372,14 @@ impl<C, S, L> Buffer<C, S, L>
 where
     S: Resettable,
 {
-    /// Reset command buffer.
+    /// Mark command buffer as reset.
     ///
     /// # Safety
     ///
-    /// Mark command buffer as reset.
-    /// User must reset buffer via command pool and call this method for all commands buffers affected.
+    /// * This function must be used only to reflect command buffer being reset implicitly.
+    /// For instance:
+    /// * [`Pool::reset`](struct.Pool.html#method.reset) on pool from which the command buffer was allocated.
+    /// * Raw handle usage.
     pub unsafe fn mark_reset(self) -> Buffer<C, InitialState, L> {
         self.change_state(|_| InitialState)
     }

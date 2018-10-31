@@ -2,7 +2,7 @@
 
 mod usage;
 
-use ash::vk::{Buffer as AshBuffer, BufferCreateInfo};
+use ash::vk;
 
 pub use self::usage::*;
 use memory::{Block, MemoryBlock};
@@ -19,13 +19,13 @@ use escape::Escape;
 #[derive(Debug)]
 pub struct Buffer {
     pub(crate) inner: Escape<Inner>,
-    pub(crate) info: BufferCreateInfo,
+    pub(crate) info: vk::BufferCreateInfo,
 }
 
 #[derive(Debug)]
 pub(crate) struct Inner {
     pub(crate) block: MemoryBlock,
-    pub(crate) raw: AshBuffer,
+    pub(crate) raw: vk::Buffer,
     pub(crate) relevant: Relevant,
 }
 
@@ -41,7 +41,11 @@ impl Buffer {
     }
 
     /// Get raw buffer handle.
-    pub unsafe fn raw(&self) -> AshBuffer {
+    /// 
+    /// # Safety
+    /// 
+    /// Raw buffer handler should not be usage to violate this object valid usage.
+    pub unsafe fn raw(&self) -> vk::Buffer {
         self.inner.raw
     }
 }

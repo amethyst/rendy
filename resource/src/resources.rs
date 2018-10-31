@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use ash::{
     version::DeviceV1_0,
-    vk::{BufferCreateInfo, ImageCreateInfo},
+    vk,
 };
 use memory::{Block, Heaps, MemoryError, MemoryUsage};
 use relevant::Relevant;
@@ -30,7 +30,7 @@ impl Resources {
         &mut self,
         device: &impl DeviceV1_0,
         heaps: &mut Heaps,
-        info: BufferCreateInfo,
+        info: vk::BufferCreateInfo,
         align: u64,
         memory_usage: impl MemoryUsage,
     ) -> Result<buffer::Buffer, MemoryError> {
@@ -62,14 +62,19 @@ impl Resources {
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_buffer(
-        buffer: buffer::Buffer,
-        device: &impl DeviceV1_0,
-        heaps: &mut Heaps,
+    pub fn destroy_buffer(
+        _buffer: buffer::Buffer,
+        _device: &impl DeviceV1_0,
+        _heaps: &mut Heaps,
     ) {
-        Self::destroy_buffer_inner(Escape::into_inner(buffer.inner), device, heaps)
+        unimplemented!()
     }
 
+    /// Drop inner buffer representation.
+    /// 
+    /// # Safety
+    /// 
+    /// Device must not attempt to use the buffer.
     unsafe fn destroy_buffer_inner(
         inner: buffer::Inner,
         device: &impl DeviceV1_0,
@@ -85,7 +90,7 @@ impl Resources {
         &mut self,
         device: &impl DeviceV1_0,
         heaps: &mut Heaps,
-        info: ImageCreateInfo,
+        info: vk::ImageCreateInfo,
         align: u64,
         memory_usage: impl MemoryUsage,
     ) -> Result<image::Image, MemoryError> {
@@ -116,11 +121,20 @@ impl Resources {
     }
 
     /// Destroy image.
-    /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_image(image: image::Image, device: &impl DeviceV1_0, heaps: &mut Heaps) {
-        Self::destroy_image_inner(Escape::into_inner(image.inner), device, heaps)
+    /// Image can be dropped but this method reduces overhead.
+    pub unsafe fn destroy_image(
+        _image: image::Image,
+        _device: &impl DeviceV1_0,
+        _heaps: &mut Heaps)
+    {
+        unimplemented!()
     }
 
+    /// Drop inner image representation.
+    /// 
+    /// # Safety
+    /// 
+    /// Device must not attempt to use the image.
     unsafe fn destroy_image_inner(
         inner: image::Inner,
         device: &impl DeviceV1_0,
@@ -132,6 +146,10 @@ impl Resources {
     }
 
     /// Recycle dropped resources.
+    /// 
+    /// # Safety
+    /// 
+    /// Device must not attempt to use previously dropped buffers and images.
     pub unsafe fn cleanup(&mut self, device: &impl DeviceV1_0, heaps: &mut Heaps) {
         // trace!("Cleanup buffers");
         for buffer in self.buffers.drain() {

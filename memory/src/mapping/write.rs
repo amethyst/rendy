@@ -8,10 +8,8 @@ pub trait Write<T: Copy> {
     /// Get mutable slice of `T` bound to mapped range.
     ///
     /// # Safety
-    ///
-    /// Slice returned by this function could be hazardous.
-    /// User must ensure that bit actual patterns represents valid values of `T`
-    /// or not attempt to read them.
+    /// 
+    /// * Returned slice should not be read.
     unsafe fn slice(&mut self) -> &mut [T];
 
     /// Write data into mapped memory sub-region.
@@ -59,6 +57,9 @@ where
     T: Copy + 'a,
     D: DeviceV1_0 + 'a,
 {
+    /// # Safety
+    /// 
+    /// [See doc comment for trait method](trait.Write#method.slice)
     unsafe fn slice(&mut self) -> &mut [T] {
         self.slice
     }
@@ -74,6 +75,9 @@ impl<'a, T> Write<T> for WriteCoherent<'a, T>
 where
     T: Copy + 'a,
 {
+    /// # Safety
+    /// 
+    /// [See doc comment for trait method](trait.Write#method.slice)
     unsafe fn slice(&mut self) -> &mut [T] {
         self.slice
     }

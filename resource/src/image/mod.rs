@@ -4,7 +4,7 @@ mod usage;
 
 pub use self::usage::*;
 
-use ash::vk::{Image as AshImage, ImageCreateInfo};
+use ash::vk;
 
 use memory::{Block, MemoryBlock};
 use relevant::Relevant;
@@ -20,13 +20,13 @@ use escape::Escape;
 #[derive(Debug)]
 pub struct Image {
     pub(super) inner: Escape<Inner>,
-    pub(super) info: ImageCreateInfo,
+    pub(super) info: vk::ImageCreateInfo,
 }
 
 #[derive(Debug)]
 pub(super) struct Inner {
     pub(super) block: MemoryBlock,
-    pub(super) raw: AshImage,
+    pub(super) raw: vk::Image,
     pub(super) relevant: Relevant,
 }
 
@@ -41,8 +41,12 @@ impl Image {
         &mut self.inner.block
     }
 
-    /// Get raw buffer handle.
-    pub unsafe fn raw(&self) -> AshImage {
+    /// Get raw image handle.
+    /// 
+    /// # Safety
+    /// 
+    /// Raw image handler should not be usage to violate this object valid usage.
+    pub unsafe fn raw(&self) -> vk::Image {
         self.inner.raw
     }
 }

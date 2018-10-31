@@ -35,12 +35,13 @@ where
     /// 
     /// # Safety
     /// 
-    /// raw command pool must be created for specified family.
-    /// family must have speicifed capability.
-    /// reset flags has to be used for pool creation.
-    pub unsafe fn from_raw(pool: CommandPool, capability: C, reset: R, family: FamilyIndex) -> Self {
+    /// * `raw` must be valid command pool handle.
+    /// * The command pool must be created for specified `family` index.
+    /// * `capability` must be subset of capabilites of the `family` the pool was created for.
+    /// * if `reset` is `IndividualReset` the pool must be created with individual command buffer reset flag set.
+    pub unsafe fn from_raw(raw: CommandPool, capability: C, reset: R, family: FamilyIndex) -> Self {
         Pool {
-            raw: pool,
+            raw,
             capability,
             reset,
             family,
@@ -48,13 +49,13 @@ where
         }
     }
 
-    /// Allocate new buffers.
+    /// Allocate new command buffers.
     pub fn allocate_buffers<L: Level>(
         &mut self,
         device: &impl DeviceV1_0,
         level: L,
         count: usize,
-    ) -> Result<Vec<Buffer<C, InitialState, L, R>>, Error>
+    ) -> Vec<Buffer<C, InitialState, L, R>>
     where
         L: Level,
     {
@@ -66,9 +67,9 @@ where
                     .command_buffer_count(count as u32)
                     .build()
             )
-        }?;
+        }.expect("Panic on OOM");
 
-        Ok(buffers.into_iter().map(|raw| unsafe {
+        buffers.into_iter().map(|raw| unsafe {
             Buffer::from_raw(
                 raw,
                 self.capability,
@@ -77,11 +78,12 @@ where
                 self.reset,
                 self.family,
             )
-        }).collect())
+        }).collect()
     }
 
     /// Free buffers.
     /// Buffers must be in droppable state.
+    /// TODO: Validate buffers were allocated from this pool.
     pub fn free_buffers(
         &mut self,
         device: &impl DeviceV1_0,
@@ -94,12 +96,21 @@ where
     }
 
     /// Reset all buffers of this pool.
+    /// 
+    /// # Safety
+    /// 
+    /// All buffers allocated from this pool must be marked reset.
+    /// See [`Buffer::mark_reset`](struct.Buffer.html#method.mark_reset)
     pub unsafe fn reset(&mut self, device: &impl DeviceV1_0) {
         device.reset_command_pool(self.raw, Default::default())
             .expect("Panic if OOM");
     }
 
     /// Dispose of command pool.
+    /// 
+    /// # Safety
+    /// 
+    /// * All buffers allocated from this pool must be [freed](#method.free_buffers).
     pub unsafe fn dispose(self, device: &impl DeviceV1_0) {
         device.destroy_command_pool(self.raw, None);
         self.relevant.dispose();
@@ -147,7 +158,7 @@ where
     /// 
     /// # Safety
     /// 
-    /// All buffers allocated from specified pool must be deallocated.
+    /// * All buffers allocated from this pool must be [freed](#method.free_buffers).
     pub unsafe fn from_inner(inner: Pool<C>, level: L) -> Self {
         OwningPool {
             inner,
@@ -177,9 +188,11 @@ where
         }
     }
 
-    /// Acquire command buffer from pool.
-    /// The command buffer could be submitted only as part of submission for associated frame.
-    /// TODO: Ensure buffer is bound to pool.
+    /// Acquire next unused command buffer from pool.
+    /// 
+    /// # Safety
+    /// 
+    /// * Acquired buffer must be [released](struct.Buffer#method.release) when no longer needed.
     pub fn acquire_buffer(
         &mut self,
         device: &impl DeviceV1_0,
@@ -199,17 +212,25 @@ where
     }
 
     /// Reset all buffers at once.
+    /// [`Pool::acquire_buffer`](#method.acquire_buffer) will reuse allocated buffers.
     ///
     /// # Safety
     ///
-    /// All buffers from this pool must be in resettable state.
-    /// Any primary buffer that references secondary buffer from this pool will be invalidated.
+    /// * All buffers acquired from this pool must be released.
+    /// * Commands in buffers must be [complete](struct.Buffer#method.complete).
+    /// 
+    /// Note.
+    /// * Any primary buffer that references secondary buffer from this pool will be invalidated.
     pub unsafe fn reset(&mut self, device: &impl DeviceV1_0) {
         self.inner.reset(device);
         self.next = 0;
     }
 
     /// Dispose of command pool.
+    /// 
+    /// # Safety
+    /// 
+    /// Same as for [`Pool::reset`](#method.reset).
     pub unsafe fn dispose(mut self, device: &impl DeviceV1_0) {
         self.reset(device);
         if !self.buffers.is_empty() {
@@ -221,7 +242,7 @@ where
 }
 
 impl<L> OwningPool<QueueFlags, L> {
-    /// Convert capability level
+    /// Convert capability level.
     pub fn from_flags<C>(self) -> Result<OwningPool<C, L>, Self>
     where
         C: Capability,

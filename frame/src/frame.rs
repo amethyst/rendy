@@ -41,8 +41,8 @@ pub struct FrameGen {
 }
 
 impl FrameGen {
-    /// Only one `FrameGen` should be used.
-    pub unsafe fn new() -> Self {
+    /// Create new `FrameGen`
+    pub fn new() -> Self {
         FrameGen { next: 0 }
     }
 

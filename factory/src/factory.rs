@@ -232,8 +232,9 @@ impl Factory {
     ///
     /// # Safety
     ///
-    /// Buffer must be created by this `Factory`.
-    /// Caller must ensure that device won't write to or read from the memory region.
+    /// * Buffer must be created by this `Factory`.
+    /// * Caller must ensure that device won't write to or read from
+    /// the memory region occupied by this buffer.
     pub unsafe fn upload_buffer(
         &mut self,
         buffer: &mut Buffer,
@@ -253,7 +254,8 @@ impl Factory {
     ///
     /// # Safety
     ///
-    /// Caller must ensure that device won't write to or read from the memory region.
+    /// * Caller must ensure that device won't write to or read from
+    /// the memory region occupied by this buffer.
     pub unsafe fn upload_visible_buffer(
         &mut self,
         buffer: &mut Buffer,

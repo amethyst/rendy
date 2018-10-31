@@ -83,17 +83,30 @@ impl Target {
         })
     }
 
+    /// Strip the target to the internal parts.
+    /// 
+    /// # Safety
+    /// 
+    /// Surface and swapchain must be destroyed immediately.
     pub unsafe fn dispose(self) -> (Window, vk::SurfaceKHR, vk::SwapchainKHR) {
         self.relevant.dispose();
         (self.window, self.surface, self.swapchain)
     }
 
     /// Get raw surface handle.
+    /// 
+    /// # Safety
+    /// 
+    /// Raw handle usage should not violate this type valid usage.
     pub unsafe fn surface(&self) -> vk::SurfaceKHR {
         self.surface
     }
 
     /// Get raw surface handle.
+    /// 
+    /// # Safety
+    /// 
+    /// Raw handle usage should not violate this type valid usage.
     pub unsafe fn swapchain(&self) -> vk::SwapchainKHR {
         self.swapchain
     }
@@ -108,7 +121,7 @@ impl Target {
         self.format
     }
 
-    /// Get image count.
+    /// Get raw handlers for the swapchain images.
     pub fn images(&self) -> &[vk::Image] {
         &self.images
     }
@@ -147,6 +160,7 @@ impl<'a> NextImages<'a> {
     pub fn queue_present(self, queue: vk::Queue, wait: &[vk::Semaphore]) -> Result<(), Error> {
         assert_eq!(self.swapchains.len(), self.indices.len());
         unsafe {
+            // TODO: ???
             let mut results = std::iter::repeat(ash::vk::Result::SUCCESS).take(self.swapchains.len()).collect::<SmallVec<[_; 4]>>();
             self.fp.queue_present_khr(
                 queue,

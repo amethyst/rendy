@@ -6,7 +6,6 @@ extern crate winit;
 
 use std::{
     ffi::CStr,
-    mem::size_of,
     time::{Duration, Instant},
 };
 use ash::{
@@ -17,9 +16,8 @@ use ash::{
 use failure::Error;
 
 use rendy::{
-    command::{FamilyIndex, NoIndividualReset, Graphics, OwningPool, PrimaryLevel, OneShot},
+    command::{FamilyIndex, Graphics, OwningPool, PrimaryLevel, OneShot},
     factory::{Factory, Config},
-    frame::Frames,
     memory::usage::Data,
     mesh::{Mesh, PosColor, AsVertex},
     renderer::{Renderer, RendererBuilder},
@@ -101,6 +99,7 @@ impl Renderer<()> for SimpleRenderer {
                     vk::SubmitInfo::builder()
                         .wait_semaphores(&[framebuffer.acquire])
                         .signal_semaphores(&[framebuffer.release])
+                        .command_buffers(&[submit.raw()])
                         .build(),
                 ],
                 framebuffer.fence,
@@ -178,6 +177,8 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
         ?;
 
         let render_pass = unsafe {
+            // Seems OK.
+            // TODO: Provide better safety explanation.
             factory.device().create_render_pass(
                 &vk::RenderPassCreateInfo::builder()
                     .attachments(&[
@@ -507,22 +508,22 @@ fn main() -> Result<(), failure::Error> {
 
     let mut renderer = renderer_builder.build(&mut factory, &mut ())?;
 
-    // trace!("Start rendering");
-    let mut counter = (0 .. );
+    trace!("Start rendering");
+    let mut counter = 0 .. ;
     let started = Instant::now();
     counter.by_ref().take_while(|_| started.elapsed() < Duration::new(1, 0)).for_each(|_| {
         event_loop.poll_events(|_| ());
         renderer.run(&mut factory, &mut ());
-        // std::thread::sleep(Duration::new(0, 10_000_000));
+        std::thread::sleep(Duration::new(0, 1_000_000));
     });
 
     info!("Rendered {} frames", counter.start);
-    // trace!("Stop rendering");
+    trace!("Stop rendering");
 
     renderer.dispose(&mut factory, &mut ());
-    // trace!("Render disposed");
+    trace!("Render disposed");
 
     factory.dispose();
-    // trace!("Factory disposed");
+    trace!("Factory disposed");
     Ok(())
 }
