@@ -7,7 +7,7 @@ use std::mem::size_of;
 
 use failure::Error;
 
-use ash::vk::{AccessFlags, BufferCreateInfo, BufferUsageFlags, IndexType, PrimitiveTopology};
+use ash::vk;
 use smallvec::SmallVec;
 
 use command::FamilyIndex;
@@ -30,7 +30,7 @@ pub struct VertexBuffer {
 #[derive(Debug)]
 pub struct IndexBuffer {
     buffer: Buffer,
-    index_type: IndexType,
+    index_type: vk::IndexType,
     len: u32,
 }
 
@@ -90,8 +90,8 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MeshBuilder<'a> {
     vertices: SmallVec<[(Cow<'a, [u8]>, VertexFormat<'static>); 16]>,
-    indices: Option<(Cow<'a, [u8]>, IndexType)>,
-    prim: PrimitiveTopology,
+    indices: Option<(Cow<'a, [u8]>, vk::IndexType)>,
+    prim: vk::PrimitiveTopology,
 }
 
 impl<'a> MeshBuilder<'a> {
@@ -100,7 +100,7 @@ impl<'a> MeshBuilder<'a> {
         MeshBuilder {
             vertices: SmallVec::new(),
             indices: None,
-            prim: PrimitiveTopology::TRIANGLE_LIST,
+            prim: vk::PrimitiveTopology::TRIANGLE_LIST,
         }
     }
 
@@ -120,8 +120,8 @@ impl<'a> MeshBuilder<'a> {
     {
         self.indices = match indices.into() {
             Indices::None => None,
-            Indices::U16(i) => Some((cast_cow(i), IndexType::UINT16)),
-            Indices::U32(i) => Some((cast_cow(i), IndexType::UINT32)),
+            Indices::U16(i) => Some((cast_cow(i), vk::IndexType::UINT16)),
+            Indices::U32(i) => Some((cast_cow(i), vk::IndexType::UINT32)),
         };
         self
     }
@@ -142,15 +142,14 @@ impl<'a> MeshBuilder<'a> {
         V: AsVertex + 'a,
         D: Into<Cow<'a, [V]>>,
     {
-        self.vertices
-            .push((cast_cow(vertices.into()), V::VERTEX));
+        self.vertices.push((cast_cow(vertices.into()), V::VERTEX));
         self
     }
 
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn with_prim_type(mut self, prim: PrimitiveTopology) -> Self {
+    pub fn with_prim_type(mut self, prim: vk::PrimitiveTopology) -> Self {
         self.prim = prim;
         self
     }
@@ -158,7 +157,7 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn set_prim_type(&mut self, prim: PrimitiveTopology) -> &mut Self {
+    pub fn set_prim_type(&mut self, prim: vk::PrimitiveTopology) -> &mut Self {
         self.prim = prim;
         self
     }
@@ -174,22 +173,23 @@ impl<'a> MeshBuilder<'a> {
                     Ok(VertexBuffer {
                         buffer: {
                             let mut buffer = factory.create_buffer(
-                                BufferCreateInfo::builder()
+                                vk::BufferCreateInfo::builder()
                                     .size(vertices.len() as _)
                                     .usage(
-                                        BufferUsageFlags::VERTEX_BUFFER
-                                            | BufferUsageFlags::TRANSFER_DST,
+                                        vk::BufferUsageFlags::VERTEX_BUFFER
+                                            | vk::BufferUsageFlags::TRANSFER_DST,
                                     ).build(),
                                 1,
                                 Dynamic,
                             )?;
-                            unsafe { // New buffer can't be touched by device yet.
+                            unsafe {
+                                // New buffer can't be touched by device yet.
                                 factory.upload_buffer(
                                     &mut buffer,
                                     0,
                                     vertices,
                                     family,
-                                    AccessFlags::VERTEX_ATTRIBUTE_READ,
+                                    vk::AccessFlags::VERTEX_ATTRIBUTE_READ,
                                 )?;
                             }
                             buffer
@@ -202,30 +202,31 @@ impl<'a> MeshBuilder<'a> {
                 None => None,
                 Some((ref indices, index_type)) => {
                     let stride = match index_type {
-                        IndexType::UINT16 => size_of::<u16>(),
-                        IndexType::UINT32 => size_of::<u32>(),
+                        vk::IndexType::UINT16 => size_of::<u16>(),
+                        vk::IndexType::UINT32 => size_of::<u32>(),
                         _ => unreachable!(),
                     };
                     let len = indices.len() as u32 / stride as u32;
                     Some(IndexBuffer {
                         buffer: {
                             let mut buffer = factory.create_buffer(
-                                BufferCreateInfo::builder()
+                                vk::BufferCreateInfo::builder()
                                     .size(indices.len() as _)
                                     .usage(
-                                        BufferUsageFlags::INDEX_BUFFER
-                                            | BufferUsageFlags::TRANSFER_DST,
+                                        vk::BufferUsageFlags::INDEX_BUFFER
+                                            | vk::BufferUsageFlags::TRANSFER_DST,
                                     ).build(),
                                 1,
                                 Dynamic,
                             )?;
-                            unsafe { // New buffer can't be touched by device yet.
+                            unsafe {
+                                // New buffer can't be touched by device yet.
                                 factory.upload_buffer(
                                     &mut buffer,
                                     0,
                                     indices,
                                     family,
-                                    AccessFlags::INDEX_READ,
+                                    vk::AccessFlags::INDEX_READ,
                                 )?;
                             }
                             buffer
@@ -246,7 +247,7 @@ impl<'a> MeshBuilder<'a> {
 pub struct Mesh {
     vbufs: Vec<VertexBuffer>,
     ibuf: Option<IndexBuffer>,
-    prim: PrimitiveTopology,
+    prim: vk::PrimitiveTopology,
 }
 
 impl Mesh {
@@ -255,8 +256,8 @@ impl Mesh {
         MeshBuilder::new()
     }
 
-    /// PrimitiveTopology type of the `Mesh`
-    pub fn primitive(&self) -> PrimitiveTopology {
+    /// vk::PrimitiveTopology type of the `Mesh`
+    pub fn primitive(&self) -> vk::PrimitiveTopology {
         self.prim
     }
 
@@ -316,7 +317,7 @@ pub enum Bind<'a> {
         /// The offset into the buffer to start at.
         offset: u64,
         /// The type of the table elements (`u16` or `u32`).
-        index_type: IndexType,
+        index_type: vk::IndexType,
         /// Indices count to use in `draw_indexed` method.
         count: u32,
     },

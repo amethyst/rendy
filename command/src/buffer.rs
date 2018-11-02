@@ -1,19 +1,10 @@
-//! Buffer module docs.
+//! Command buffer module docs.
 
-use std::borrow::Borrow;
-use ash::{
-    version::DeviceV1_0,
-    vk::{
-        CommandBuffer,
-        CommandBufferLevel,
-        CommandBufferUsageFlags,
-        CommandPoolCreateFlags,
-        CommandBufferBeginInfo,
-    },
-};
+use ash::{version::DeviceV1_0, vk};
 use relevant::Relevant;
+use std::borrow::Borrow;
 
-use crate::family::FamilyIndex;
+use crate::{capability::Capability, family::FamilyIndex};
 
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug, Default)]
@@ -26,23 +17,23 @@ pub struct SecondaryLevel;
 /// Command buffer level.
 pub trait Level: Copy {
     /// Get raw level value.
-    fn level(&self) -> CommandBufferLevel;
+    fn level(&self) -> vk::CommandBufferLevel;
 }
 
 impl Level for PrimaryLevel {
-    fn level(&self) -> CommandBufferLevel {
-        CommandBufferLevel::PRIMARY
+    fn level(&self) -> vk::CommandBufferLevel {
+        vk::CommandBufferLevel::PRIMARY
     }
 }
 
 impl Level for SecondaryLevel {
-    fn level(&self) -> CommandBufferLevel {
-        CommandBufferLevel::SECONDARY
+    fn level(&self) -> vk::CommandBufferLevel {
+        vk::CommandBufferLevel::SECONDARY
     }
 }
 
-impl Level for CommandBufferLevel {
-    fn level(&self) -> CommandBufferLevel {
+impl Level for vk::CommandBufferLevel {
+    fn level(&self) -> vk::CommandBufferLevel {
         *self
     }
 }
@@ -57,18 +48,18 @@ pub struct NoIndividualReset;
 
 /// Specify flags required for command pool creation to allow individual buffer reset.
 pub trait Reset: Copy {
-    fn flags(&self) -> CommandPoolCreateFlags;
+    fn flags(&self) -> vk::CommandPoolCreateFlags;
 }
 
 impl Reset for IndividualReset {
-    fn flags(&self) -> CommandPoolCreateFlags {
-        CommandPoolCreateFlags::RESET_COMMAND_BUFFER
+    fn flags(&self) -> vk::CommandPoolCreateFlags {
+        vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER
     }
 }
 
 impl Reset for NoIndividualReset {
-    fn flags(&self) -> CommandPoolCreateFlags {
-        CommandPoolCreateFlags::empty()
+    fn flags(&self) -> vk::CommandPoolCreateFlags {
+        vk::CommandPoolCreateFlags::empty()
     }
 }
 
@@ -86,7 +77,7 @@ pub struct RecordingState<U>(U);
 pub struct ExecutableState<U>(U);
 
 /// Command buffer in pending state are submitted to the device.
-/// Buffer in pending state must never be invalidated or reset because device may read it at the moment.
+/// Command buffer in pending state must never be invalidated or reset because device may read it at the moment.
 /// Proving device is done with buffer requires nontrivial strategies.
 /// Therefore moving buffer from pending state requires `unsafe` method.
 #[derive(Clone, Copy, Debug, Default)]
@@ -104,14 +95,14 @@ impl<U> Resettable for RecordingState<U> {}
 impl<U> Resettable for ExecutableState<U> {}
 impl Resettable for InvalidState {}
 
-/// Buffer with this usage flag will move to invalid state after execution.
+/// Command buffer with this usage flag will move to invalid state after execution.
 /// Resubmitting will require reset and rerecording commands.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct OneShot;
 
-/// Buffer with this usage flag will move back to executable state after execution.
+/// Command buffer with this usage flag will move back to executable state after execution.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MultiShot<S = ()>(S);
+pub struct MultiShot<S = ()>(pub S);
 
 /// Additional flag for `MultiShot` that allows to resubmit buffer in pending state.
 /// Note that resubmitting pending buffers can hurt performance.
@@ -125,24 +116,24 @@ pub struct RenderPassContinue;
 /// Trait implemented by all usage types.
 pub trait Usage {
     /// State in which command buffer moves after completion.
-    fn flags(&self) -> CommandBufferUsageFlags;
+    fn flags(&self) -> vk::CommandBufferUsageFlags;
 }
 
 impl Usage for OneShot {
-    fn flags(&self) -> CommandBufferUsageFlags {
-        CommandBufferUsageFlags::ONE_TIME_SUBMIT
+    fn flags(&self) -> vk::CommandBufferUsageFlags {
+        vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT
     }
 }
 
 impl Usage for MultiShot {
-    fn flags(&self) -> CommandBufferUsageFlags {
-        CommandBufferUsageFlags::empty()
+    fn flags(&self) -> vk::CommandBufferUsageFlags {
+        vk::CommandBufferUsageFlags::empty()
     }
 }
 
 impl Usage for MultiShot<SimultaneousUse> {
-    fn flags(&self) -> CommandBufferUsageFlags {
-        CommandBufferUsageFlags::SIMULTANEOUS_USE
+    fn flags(&self) -> vk::CommandBufferUsageFlags {
+        vk::CommandBufferUsageFlags::SIMULTANEOUS_USE
     }
 }
 
@@ -150,8 +141,8 @@ impl Usage for MultiShot<SimultaneousUse> {
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
 /// This way many methods become safe.
 #[derive(Debug)]
-pub struct Buffer<C, S, L, R = NoIndividualReset> {
-    raw: CommandBuffer,
+pub struct CommandBuffer<C, S, L = PrimaryLevel, R = NoIndividualReset> {
+    raw: vk::CommandBuffer,
     capability: C,
     state: S,
     level: L,
@@ -160,11 +151,11 @@ pub struct Buffer<C, S, L, R = NoIndividualReset> {
     relevant: Relevant,
 }
 
-impl<C, S, L, R> Buffer<C, S, L, R> {
+impl<C, S, L, R> CommandBuffer<C, S, L, R> {
     /// Wrap raw buffer handle.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// * `raw` must be valid command buffer handle.
     /// * `capability` must be subset of `family` capability.
     /// * `state` must represent actual state buffer currently in.
@@ -172,14 +163,14 @@ impl<C, S, L, R> Buffer<C, S, L, R> {
     /// * If `reset` is `IndividualReset` then buffer must be allocated from pool created with `IndividualReset` marker.
     /// * command buffer must be allocated from pool created for `family`.
     pub unsafe fn from_raw(
-        raw: CommandBuffer,
+        raw: vk::CommandBuffer,
         capability: C,
         state: S,
         level: L,
         reset: R,
         family: FamilyIndex,
     ) -> Self {
-        Buffer {
+        CommandBuffer {
             raw,
             capability,
             state,
@@ -191,22 +182,22 @@ impl<C, S, L, R> Buffer<C, S, L, R> {
     }
 
     /// Get raw command buffer handle.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// * Valid usage for command buffer must not be violated.
     /// Particularly command buffer must not change its state.
     /// Or `change_state` must be used to reflect accumulated change.
-    pub unsafe fn raw(&self) -> CommandBuffer {
+    pub unsafe fn raw(&self) -> vk::CommandBuffer {
         self.raw
     }
 
     /// Get raw command buffer handle.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// * Valid usage for command buffer must not be violated.
-    pub unsafe fn into_raw(self) -> CommandBuffer {
+    pub unsafe fn into_raw(self) -> vk::CommandBuffer {
         self.relevant.dispose();
         self.raw
     }
@@ -216,8 +207,8 @@ impl<C, S, L, R> Buffer<C, S, L, R> {
     /// # Safety
     ///
     /// * This method must be used only to reflect state changed due to raw handle usage.
-    pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> Buffer<C, U, L, R> {
-        Buffer {
+    pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> CommandBuffer<C, U, L, R> {
+        CommandBuffer {
             raw: self.raw,
             capability: self.capability,
             state: f(self.state),
@@ -227,42 +218,57 @@ impl<C, S, L, R> Buffer<C, S, L, R> {
             relevant: self.relevant,
         }
     }
+
+    /// Get buffers capability.
+    pub fn capability(&self) -> C
+    where
+        C: Capability,
+    {
+        self.capability
+    }
 }
 
-impl<C, R> Buffer<C, InitialState, PrimaryLevel, R> {
+impl<C, R> CommandBuffer<C, InitialState, PrimaryLevel, R> {
     /// Begin recording command buffer.
     ///
     /// # Parameters
     ///
     /// `usage` - specifies usage of the command buffer. Possible types are `OneShot`, `MultiShot`.
-    pub fn begin<U>(self, usage: U, device: &impl DeviceV1_0) -> Buffer<C, RecordingState<U>, PrimaryLevel, R>
+    pub fn begin<U>(
+        self,
+        device: &impl DeviceV1_0,
+        usage: U,
+    ) -> CommandBuffer<C, RecordingState<U>, PrimaryLevel, R>
     where
         U: Usage,
     {
         unsafe {
-            device.begin_command_buffer(
-                self.raw,
-                &CommandBufferBeginInfo::builder()
-                    .flags(usage.flags())
-                    .build()
-            ).expect("Panic on OOM");
+            device
+                .begin_command_buffer(
+                    self.raw,
+                    &vk::CommandBufferBeginInfo::builder()
+                        .flags(usage.flags())
+                        .build(),
+                ).expect("Panic on OOM");
 
             self.change_state(|_| RecordingState(usage))
-        }        
+        }
     }
 }
 
-impl<C, U, R> Buffer<C, RecordingState<U>, PrimaryLevel, R> {
+impl<C, U, R> CommandBuffer<C, RecordingState<U>, PrimaryLevel, R> {
     /// Finish recording command buffer.
     ///
     /// # Parameters
-    pub fn finish(self, device: &impl DeviceV1_0) -> Buffer<C, ExecutableState<U>, PrimaryLevel, R>
+    pub fn finish(
+        self,
+        device: &impl DeviceV1_0,
+    ) -> CommandBuffer<C, ExecutableState<U>, PrimaryLevel, R>
     where
         U: Usage,
     {
         unsafe {
-            device.end_command_buffer(self.raw)
-                .expect("Panic on OOM");
+            device.end_command_buffer(self.raw).expect("Panic on OOM");
             self.change_state(|RecordingState(usage)| ExecutableState(usage))
         }
     }
@@ -272,7 +278,7 @@ impl<C, U, R> Buffer<C, RecordingState<U>, PrimaryLevel, R> {
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
 pub struct Submit {
-    raw: CommandBuffer,
+    raw: vk::CommandBuffer,
     family: FamilyIndex,
 }
 
@@ -283,21 +289,20 @@ impl Submit {
     }
 
     /// Get raw command buffer.
-    pub fn raw(&self) -> CommandBuffer {
+    pub fn raw(&self) -> vk::CommandBuffer {
         self.raw
     }
 }
 
-impl<C, R> Buffer<C, ExecutableState<OneShot>, PrimaryLevel, R> {
+impl<C, S, R> CommandBuffer<C, ExecutableState<S>, PrimaryLevel, R> {
     /// produce `Submit` object that can be used to populate submission.
-    pub fn submit_once(self) -> (
+    pub fn submit_once(
+        self,
+    ) -> (
         Submit,
-        Buffer<C, PendingState<InvalidState>, PrimaryLevel, R>,
+        CommandBuffer<C, PendingState<InvalidState>, PrimaryLevel, R>,
     ) {
-        let buffer = unsafe {
-
-            self.change_state(|_| PendingState(InvalidState))
-        };
+        let buffer = unsafe { self.change_state(|_| PendingState(InvalidState)) };
 
         let submit = Submit {
             raw: buffer.raw,
@@ -308,15 +313,15 @@ impl<C, R> Buffer<C, ExecutableState<OneShot>, PrimaryLevel, R> {
     }
 }
 
-impl<C, S, R> Buffer<C, ExecutableState<MultiShot<S>>, PrimaryLevel, R> {
+impl<C, S, R> CommandBuffer<C, ExecutableState<MultiShot<S>>, PrimaryLevel, R> {
     /// Produce `Submit` object that can be used to populate submission.
-    pub fn submit(self) -> (
+    pub fn submit(
+        self,
+    ) -> (
         Submit,
-        Buffer<C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
+        CommandBuffer<C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
     ) {
-        let buffer = unsafe {
-            self.change_state(|state| PendingState(state))
-        };
+        let buffer = unsafe { self.change_state(|state| PendingState(state)) };
 
         let submit = Submit {
             raw: buffer.raw,
@@ -327,7 +332,7 @@ impl<C, S, R> Buffer<C, ExecutableState<MultiShot<S>>, PrimaryLevel, R> {
     }
 }
 
-impl<C, N, L, R> Buffer<C, PendingState<N>, L, R> {
+impl<C, N, L, R> CommandBuffer<C, PendingState<N>, L, R> {
     /// Mark command buffer as complete.
     ///
     /// # Safety
@@ -336,12 +341,12 @@ impl<C, N, L, R> Buffer<C, PendingState<N>, L, R> {
     /// Normally command buffer moved to this state when [`Submit`] object is created.
     /// To ensure that recorded commands are complete once can [wait] for the [`Fence`] specified
     /// when [submitting] created [`Submit`] object or in later submission to the same queue.
-    /// 
+    ///
     /// [`Submit`]: struct.Submit
     /// [wait]: ../ash/version/trait.DeviceV1_0.html#method.wait_for_fences
     /// [`Fence`]: ../ash/vk/struct.Fence.html
     /// [submitting]: ../ash/version/trait.DeviceV1_0.html#method.queue_submit
-    pub unsafe fn complete(self) -> Buffer<C, N, L, R> {
+    pub unsafe fn complete(self) -> CommandBuffer<C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }
 
@@ -349,26 +354,24 @@ impl<C, N, L, R> Buffer<C, PendingState<N>, L, R> {
     ///
     /// # Safety
     ///
-    /// * It must be owned by `OwningPool`
-    /// TODO: Use lifetimes to tie `Buffer` to `OwningPool`.
+    /// * It must be owned by `OwningCommandPool`
+    /// TODO: Use lifetimes to tie `CommandCommand buffer` to `OwningCommandPool`.
     pub unsafe fn release(self) {
         self.relevant.dispose();
     }
 }
 
-impl<C, S, L> Buffer<C, S, L, IndividualReset>
+impl<C, S, L> CommandBuffer<C, S, L, IndividualReset>
 where
     S: Resettable,
 {
     /// Reset command buffer.
-    pub fn reset(self) -> Buffer<C, InitialState, L, IndividualReset> {
-        unsafe {
-            self.change_state(|_| InitialState)
-        }
+    pub fn reset(self) -> CommandBuffer<C, InitialState, L, IndividualReset> {
+        unsafe { self.change_state(|_| InitialState) }
     }
 }
 
-impl<C, S, L> Buffer<C, S, L>
+impl<C, S, L> CommandBuffer<C, S, L>
 where
     S: Resettable,
 {
@@ -378,9 +381,9 @@ where
     ///
     /// * This function must be used only to reflect command buffer being reset implicitly.
     /// For instance:
-    /// * [`Pool::reset`](struct.Pool.html#method.reset) on pool from which the command buffer was allocated.
+    /// * [`CommandPool::reset`](struct.CommandPool.html#method.reset) on pool from which the command buffer was allocated.
     /// * Raw handle usage.
-    pub unsafe fn mark_reset(self) -> Buffer<C, InitialState, L> {
+    pub unsafe fn mark_reset(self) -> CommandBuffer<C, InitialState, L> {
         self.change_state(|_| InitialState)
     }
 }

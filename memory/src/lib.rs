@@ -18,10 +18,13 @@
 #![warn(rust_2018_idioms)]
 
 extern crate ash;
-#[macro_use] extern crate derivative;
-#[macro_use] extern crate failure;
+#[macro_use]
+extern crate derivative;
+#[macro_use]
+extern crate failure;
 extern crate hibitset;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 extern crate relevant;
 #[cfg(feature = "serde")]
 #[macro_use]

@@ -3,11 +3,11 @@ use std::ffi::{c_void, CStr};
 use ash::{
     extensions::MacOSSurface,
     version::{EntryV1_0, InstanceV1_0},
-    vk::{MacOSSurfaceCreateInfoMVK, SurfaceKHR},
+    vk,
 };
 
 use failure::Error;
-use objc::runtime::{Object, BOOL, YES};
+use objc::runtime::{Object, BOOL, NO, YES};
 use winit::{os::macos::WindowExt, Window};
 
 pub struct NativeSurface(MacOSSurface);
@@ -24,7 +24,7 @@ impl NativeSurface {
         MacOSSurface::new(entry, instance).map(NativeSurface)
     }
 
-    pub fn create_surface(&self, window: &Window) -> Result<SurfaceKHR, Error> {
+    pub fn create_surface(&self, window: &Window) -> Result<vk::SurfaceKHR, Error> {
         let surface = unsafe {
             let nsview = window.get_nsview();
 
@@ -35,7 +35,9 @@ impl NativeSurface {
             put_metal_layer(nsview);
 
             self.0.create_mac_os_surface_mvk(
-                &MacOSSurfaceCreateInfoMVK::builder().view(&*nsview).build(),
+                &vk::MacOSSurfaceCreateInfoMVK::builder()
+                    .view(&*nsview)
+                    .build(),
                 None,
             )
         }?;
@@ -51,15 +53,18 @@ unsafe fn put_metal_layer(nsview: *mut c_void) {
 
     let is_layer: BOOL = msg_send![view, isKindOfClass: class];
     if is_layer == YES {
+        // msg_send![view, displaySyncEnabled: NO];
         return;
     }
 
     let layer: *mut Object = msg_send![view, layer];
     if !layer.is_null() && msg_send![layer, isKindOfClass: class] {
+        // msg_send![layer, displaySyncEnabled: NO];
         return;
     }
 
     let layer: *mut Object = msg_send![class, new];
+    // msg_send![layer, displaySyncEnabled: NO];
     msg_send![view, setLayer: layer];
     msg_send![view, retain];
 }

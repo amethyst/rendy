@@ -22,10 +22,12 @@ pub(crate) struct Escape<T> {
 
 impl<T> Escape<T> {
     /// Unwrap the value.
+    #[allow(unused)]
     pub(crate) fn into_inner(escape: Self) -> T {
         Self::deconstruct(escape).0
     }
 
+    #[allow(unused)]
     fn deconstruct(mut escape: Self) -> (T, Sender<T>) {
         unsafe {
             let value = read(&mut *escape.value);
@@ -51,7 +53,10 @@ impl<T> DerefMut for Escape<T> {
 
 impl<T> Drop for Escape<T> {
     fn drop(&mut self) {
-        let value = unsafe { read(&mut *self.value) };
+        let value = unsafe {
+            // `ManuallyDrop` will prevent `self.value` usage.
+            read(&mut *self.value)
+        };
         self.sender.send(value)
     }
 }

@@ -8,7 +8,7 @@ pub trait Write<T: Copy> {
     /// Get mutable slice of `T` bound to mapped range.
     ///
     /// # Safety
-    /// 
+    ///
     /// * Returned slice should not be read.
     unsafe fn slice(&mut self) -> &mut [T];
 
@@ -58,7 +58,7 @@ where
     D: DeviceV1_0 + 'a,
 {
     /// # Safety
-    /// 
+    ///
     /// [See doc comment for trait method](trait.Write#method.slice)
     unsafe fn slice(&mut self) -> &mut [T] {
         self.slice
@@ -76,7 +76,7 @@ where
     T: Copy + 'a,
 {
     /// # Safety
-    /// 
+    ///
     /// [See doc comment for trait method](trait.Write#method.slice)
     unsafe fn slice(&mut self) -> &mut [T] {
         self.slice

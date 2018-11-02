@@ -38,17 +38,20 @@ impl Target {
         let present_modes = unsafe {
             surface.get_physical_device_surface_present_modes_khr(physical, surface_khr)
         }?;
-        debug!("Present modes: {:#?}", present_modes);
+        info!("Present modes: {:#?}", present_modes);
 
         let formats =
             unsafe { surface.get_physical_device_surface_formats_khr(physical, surface_khr) }?;
-        debug!("Formats: {:#?}", formats);
+        info!("Formats: {:#?}", formats);
 
         let capabilities =
             unsafe { surface.get_physical_device_surface_capabilities_khr(physical, surface_khr) }?;
-        debug!("Capabilities: {:#?}", capabilities);
+        info!("Capabilities: {:#?}", capabilities);
 
-        let image_count = max(min(image_count, capabilities.max_image_count), capabilities.min_image_count);
+        let image_count = max(
+            min(image_count, capabilities.max_image_count),
+            capabilities.min_image_count,
+        );
 
         let swapchain_khr = unsafe {
             swapchain.create_swapchain_khr(
@@ -59,15 +62,14 @@ impl Target {
                     .image_extent(capabilities.current_extent)
                     .image_array_layers(1)
                     .image_usage(capabilities.supported_usage_flags)
-                    .present_mode(present_modes[0])
+                    .present_mode(*present_modes.first().unwrap())
                     .build(),
                 None,
             )
         }?;
 
-        let images = unsafe {
-            swapchain.get_swapchain_images_khr(swapchain_khr)
-        }.map_err(Error::from)?;
+        let images =
+            unsafe { swapchain.get_swapchain_images_khr(swapchain_khr) }.map_err(Error::from)?;
 
         // trace!("Target created");
 
@@ -84,9 +86,9 @@ impl Target {
     }
 
     /// Strip the target to the internal parts.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Surface and swapchain must be destroyed immediately.
     pub unsafe fn dispose(self) -> (Window, vk::SurfaceKHR, vk::SwapchainKHR) {
         self.relevant.dispose();
@@ -94,18 +96,18 @@ impl Target {
     }
 
     /// Get raw surface handle.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Raw handle usage should not violate this type valid usage.
     pub unsafe fn surface(&self) -> vk::SurfaceKHR {
         self.surface
     }
 
     /// Get raw surface handle.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Raw handle usage should not violate this type valid usage.
     pub unsafe fn swapchain(&self) -> vk::SwapchainKHR {
         self.swapchain
@@ -129,7 +131,8 @@ impl Target {
     /// Acquire next image.
     pub fn next_image(&mut self, signal: vk::Semaphore) -> Result<NextImages<'_>, Error> {
         let index = unsafe {
-            self.fp.acquire_next_image_khr(self.swapchain, !0, signal, vk::Fence::null())
+            self.fp
+                .acquire_next_image_khr(self.swapchain, !0, signal, vk::Fence::null())
                 .map_err(Error::from)
         }?;
 
@@ -161,17 +164,19 @@ impl<'a> NextImages<'a> {
         assert_eq!(self.swapchains.len(), self.indices.len());
         unsafe {
             // TODO: ???
-            let mut results = std::iter::repeat(ash::vk::Result::SUCCESS).take(self.swapchains.len()).collect::<SmallVec<[_; 4]>>();
-            self.fp.queue_present_khr(
-                queue,
-                &vk::PresentInfoKHR::builder()
-                    .wait_semaphores(wait)
-                    .swapchains(&self.swapchains)
-                    .image_indices(&self.indices)
-                    .results(&mut results)
-                    .build()
-            )
-            .map_err(Error::from)
+            let mut results = std::iter::repeat(ash::vk::Result::SUCCESS)
+                .take(self.swapchains.len())
+                .collect::<SmallVec<[_; 4]>>();
+            self.fp
+                .queue_present_khr(
+                    queue,
+                    &vk::PresentInfoKHR::builder()
+                        .wait_semaphores(wait)
+                        .swapchains(&self.swapchains)
+                        .image_indices(&self.indices)
+                        .results(&mut results)
+                        .build(),
+                ).map_err(Error::from)
         }
     }
 }

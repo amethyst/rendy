@@ -1,20 +1,20 @@
 // use std::fmt;
-use ash::vk::{DeviceMemory, MemoryPropertyFlags};
+use ash::vk;
 use relevant::Relevant;
 
 /// Memory object wrapper.
 /// Contains size and properties of the memory.
 #[derive(Debug)]
 pub struct Memory {
-    raw: DeviceMemory,
+    raw: vk::DeviceMemory,
     size: u64,
-    properties: MemoryPropertyFlags,
+    properties: vk::MemoryPropertyFlags,
     relevant: Relevant,
 }
 
 impl Memory {
     /// Get memory properties.
-    pub fn properties(&self) -> MemoryPropertyFlags {
+    pub fn properties(&self) -> vk::MemoryPropertyFlags {
         self.properties
     }
 
@@ -24,16 +24,20 @@ impl Memory {
     }
 
     /// Get raw memory.
-    pub fn raw(&self) -> DeviceMemory {
+    pub fn raw(&self) -> vk::DeviceMemory {
         self.raw
     }
 
     /// Create memory from raw object.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// TODO:
-    pub unsafe fn from_raw(raw: DeviceMemory, size: u64, properties: MemoryPropertyFlags) -> Self {
+    pub unsafe fn from_raw(
+        raw: vk::DeviceMemory,
+        size: u64,
+        properties: vk::MemoryPropertyFlags,
+    ) -> Self {
         Memory {
             properties,
             raw,
@@ -45,13 +49,15 @@ impl Memory {
     /// Check if this memory is host-visible and can be mapped.
     /// `memory.host_visible()` is equivalent to `memory.properties().subset(Properties::HOST_VISIBLE)`
     pub fn host_visible(&self) -> bool {
-        self.properties.subset(MemoryPropertyFlags::HOST_VISIBLE)
+        self.properties
+            .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
     }
 
     /// Check if this memory is host-coherent and doesn't require invalidating or flushing.
     /// `memory.host_coherent()` is equivalent to `memory.properties().subset(Properties::HOST_COHERENT)`
     pub fn host_coherent(&self) -> bool {
-        self.properties.subset(MemoryPropertyFlags::HOST_COHERENT)
+        self.properties
+            .subset(vk::MemoryPropertyFlags::HOST_COHERENT)
     }
 
     /// Dispose of memory object.

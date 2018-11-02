@@ -1,5 +1,5 @@
 
-use ash::vk::{AccessFlags, PipelineStageFlags};
+use ash::vk;
 
 use access::AccessFlagsExt;
 use node::State;
@@ -12,8 +12,8 @@ use schedule::{FamilyIndex, QueueId, SubmissionId};
 pub(crate) struct LinkQueueState {
     pub(crate) first: usize,
     pub(crate) last: usize,
-    pub(crate) access: AccessFlags,
-    pub(crate) stages: PipelineStageFlags,
+    pub(crate) access: vk::AccessFlags,
+    pub(crate) stages: vk::PipelineStageFlags,
 }
 
 impl LinkQueueState {
@@ -41,7 +41,7 @@ impl LinkQueueState {
 #[derive(Clone, Debug)]
 pub(crate) struct Link<R: Resource> {
     /// Combination of all accesses.
-    access: AccessFlags,
+    access: vk::AccessFlags,
 
     /// Combination of all usages.
     usage: R::Usage,
@@ -50,7 +50,7 @@ pub(crate) struct Link<R: Resource> {
     layout: R::Layout,
 
     /// Combination of all stages.
-    stages: PipelineStageFlags,
+    stages: vk::PipelineStageFlags,
 
     /// Number of queues involved.
     queue_count: usize,
@@ -124,7 +124,7 @@ where
     }
 
     /// Get access.
-    pub(crate) fn access(&self) -> AccessFlags {
+    pub(crate) fn access(&self) -> vk::AccessFlags {
         self.access
     }
 
@@ -139,7 +139,7 @@ where
     }
 
     // /// Get usage.
-    // pub(crate) fn stages(&self) -> PipelineStageFlags {
+    // pub(crate) fn stages(&self) -> vk::PipelineStageFlags {
     //     self.stages
     // }
 

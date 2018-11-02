@@ -1,11 +1,10 @@
-
 extern crate proc_macro;
-extern crate syn;
 extern crate quote;
 extern crate shaderc;
+extern crate syn;
 
-use std::path::PathBuf;
 use proc_macro::TokenStream;
+use std::path::PathBuf;
 
 struct Input {
     name_ident: syn::Ident,
@@ -64,7 +63,7 @@ pub fn compile_to_spirv_proc(input: TokenStream) -> TokenStream {
         name_ident,
         kind_ident,
         lang_ident,
-        file_lit
+        file_lit,
     } = syn::parse_macro_input!(input);
 
     let file = file_lit.value();
@@ -85,9 +84,8 @@ pub fn compile_to_spirv_proc(input: TokenStream) -> TokenStream {
                 ops.set_target_env(shaderc::TargetEnv::Vulkan, ash::vk_make_version!(1, 0, 0));
                 ops.set_source_language(lang(&lang_ident.to_string()));
                 ops
-            }).as_ref()
-        )
-        .unwrap();
+            }).as_ref(),
+        ).unwrap();
 
     let spirv_code = spirv.as_binary_u8();
     let spirv_code_lit = syn::LitByteStr::new(spirv_code, file_lit.span());

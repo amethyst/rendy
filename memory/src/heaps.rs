@@ -1,9 +1,6 @@
 use std::ops::Range;
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{DeviceMemory, MemoryPropertyFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 
 use allocator::*;
 use smallvec::SmallVec;
@@ -33,10 +30,10 @@ pub struct Heaps {
 }
 
 impl Heaps {
-    /// This must be called with `MemoryPropertyFlags` fetched from physical device.
+    /// This must be called with `vk::MemoryPropertyFlags` fetched from physical device.
     pub unsafe fn new<P, H>(types: P, heaps: H) -> Self
     where
-        P: IntoIterator<Item = (MemoryPropertyFlags, u32, HeapsConfig)>,
+        P: IntoIterator<Item = (vk::MemoryPropertyFlags, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
     {
         let heaps = heaps
@@ -216,12 +213,12 @@ macro_rules! any_block {
 
 impl Block for MemoryBlock {
     #[inline]
-    fn properties(&self) -> MemoryPropertyFlags {
+    fn properties(&self) -> vk::MemoryPropertyFlags {
         any_block!(&self.block => block.properties())
     }
 
     #[inline]
-    fn memory(&self) -> DeviceMemory {
+    fn memory(&self) -> vk::DeviceMemory {
         any_block!(&self.block => block.memory())
     }
 
@@ -262,7 +259,7 @@ impl MemoryHeap {
 #[derive(Debug)]
 struct MemoryType {
     heap_index: usize,
-    properties: MemoryPropertyFlags,
+    properties: vk::MemoryPropertyFlags,
     dedicated: DedicatedAllocator,
     arena: Option<ArenaAllocator>,
     dynamic: Option<DynamicAllocator>,
@@ -273,7 +270,7 @@ impl MemoryType {
     fn new(
         memory_type: u32,
         heap_index: usize,
-        properties: MemoryPropertyFlags,
+        properties: vk::MemoryPropertyFlags,
         config: HeapsConfig,
     ) -> Self {
         MemoryType {

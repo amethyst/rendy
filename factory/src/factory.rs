@@ -6,15 +6,14 @@ use std::{
 use ash::{
     extensions::{Surface, Swapchain},
     version::{DeviceV1_0, EntryV1_0, InstanceV1_0, V1_0},
-    vk,
-    Device, Entry, Instance, LoadingError,
+    vk, Device, Entry, Instance, LoadingError,
 };
 use failure::Error;
 use relevant::Relevant;
 use smallvec::SmallVec;
 use winit::Window;
 
-use command::{Family, FamilyIndex, families_from_device};
+use command::{families_from_device, Family, FamilyIndex};
 use memory::{Block, Heaps, MemoryError, MemoryUsage, Write};
 use resource::{buffer::Buffer, image::Image, Resources};
 use wsi::{NativeSurface, Target};
@@ -57,10 +56,10 @@ impl Factory {
         let entry = Entry::<V1_0>::new().map_err(EntryError)?;
 
         let layers = entry.enumerate_instance_layer_properties()?;
-        debug!("Available layers:\n{:#?}", layers);
+        info!("Available layers:\n{:#?}", layers);
 
         let extensions = entry.enumerate_instance_extension_properties()?;
-        debug!("Available extensions:\n{:#?}", extensions);
+        info!("Available extensions:\n{:#?}", extensions);
 
         let instance = unsafe {
             // Only present layers and extensions are enabled.
@@ -75,8 +74,7 @@ impl Factory {
                             .engine_version(1)
                             .api_version(vk_make_version!(1, 0, 0))
                             .build(),
-                    )
-                    .enabled_extension_names(&extensions_to_enable(&extensions)?)
+                    ).enabled_extension_names(&extensions_to_enable(&extensions)?)
                     .build(),
                 None,
             )
@@ -88,7 +86,7 @@ impl Factory {
         let native_surface = NativeSurface::new(&entry, &instance)
             .map_err(|missing| format_err!("{:#?} functions are missing", missing))?;
 
-        let mut physicals = unsafe { 
+        let mut physicals = unsafe {
             // Instance is valid.
             // Physical device handlers are valid (enumerated from instance).
             instance
@@ -104,7 +102,7 @@ impl Factory {
                 })
         }.collect::<Vec<_>>();
 
-        debug!("Physical devices:\n{:#?}", physicals);
+        info!("Physical devices:\n{:#?}", physicals);
 
         physicals.retain(|p| match extensions_to_enable(&p.extensions) {
             Ok(_) => true,
@@ -126,11 +124,10 @@ impl Factory {
 
         let device_name = unsafe {
             // Pointer is valid.
-            CStr::from_ptr(&physical.properties.device_name[0])
-                .to_string_lossy()
+            CStr::from_ptr(&physical.properties.device_name[0]).to_string_lossy()
         };
 
-        debug!("Physical device picked: {}", device_name);
+        info!("Physical device picked: {}", device_name);
 
         let families = config.queues.configure(&physical.queues);
 
@@ -145,7 +142,7 @@ impl Factory {
                 (info, get)
             }).unzip();
 
-        debug!("Queues: {:#?}", get_queues);
+        info!("Queues: {:#?}", get_queues);
 
         let device = unsafe {
             instance.create_device(
@@ -166,7 +163,7 @@ impl Factory {
         let heaps = heaps.into_iter().collect::<SmallVec<[_; 16]>>();
         let types = types.into_iter().collect::<SmallVec<[_; 32]>>();
 
-        debug!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
+        info!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
 
         let heaps = unsafe { Heaps::new(types, heaps) };
 
@@ -243,8 +240,12 @@ impl Factory {
         family: FamilyIndex,
         access: vk::AccessFlags,
     ) -> Result<(), Error> {
-        if buffer.block().properties().subset(vk::MemoryPropertyFlags::HOST_VISIBLE) {
-            self.upload_visible_buffer(buffer, offset, content, family, access)
+        if buffer
+            .block()
+            .properties()
+            .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
+        {
+            self.upload_visible_buffer(buffer, offset, content)
         } else {
             unimplemented!("Staging is not supported yet");
         }
@@ -261,14 +262,17 @@ impl Factory {
         buffer: &mut Buffer,
         offset: u64,
         content: &[u8],
-        _family: FamilyIndex,
-        _access: vk::AccessFlags,
     ) -> Result<(), Error> {
         let block = buffer.block_mut();
-        assert!(block.properties().subset(vk::MemoryPropertyFlags::HOST_VISIBLE));
-        let mut mapped = block.map(&self.device, offset .. offset + content.len() as u64)?;
-        mapped.write(&self.device, 0 .. content.len() as u64)?.write(content);
-
+        assert!(
+            block
+                .properties()
+                .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
+        );
+        let mut mapped = block.map(&self.device, offset..offset + content.len() as u64)?;
+        mapped
+            .write(&self.device, 0..content.len() as u64)?
+            .write(content);
         Ok(())
     }
 
@@ -320,9 +324,13 @@ impl Factory {
 
     /// Get surface support for family.
     pub fn target_support(&self, family: FamilyIndex, target: &Target) -> bool {
-        unsafe { 
+        unsafe {
             let surface = target.surface();
-            self.surface.get_physical_device_surface_support_khr(self.physical.handle, family.0, surface)
+            self.surface.get_physical_device_surface_support_khr(
+                self.physical.handle,
+                family.0,
+                surface,
+            )
         }
     }
 
@@ -337,20 +345,23 @@ impl Factory {
     }
 
     /// Get surface capabilities.
-    pub fn surface_capabilities(&self, target: &Target) -> Result<vk::SurfaceCapabilitiesKHR, Error> {
+    pub fn surface_capabilities(
+        &self,
+        target: &Target,
+    ) -> Result<vk::SurfaceCapabilitiesKHR, Error> {
         unsafe {
-            self.surface.get_physical_device_surface_capabilities_khr(self.physical.handle, target.surface())
+            self.surface.get_physical_device_surface_capabilities_khr(
+                self.physical.handle,
+                target.surface(),
+            )
         }.map_err(Error::from)
     }
 
     /// Create new semaphore
     pub fn create_semaphore(&self) -> vk::Semaphore {
         unsafe {
-            self.device.create_semaphore(
-                &vk::SemaphoreCreateInfo::builder()
-                    .build(),
-                None
-            )
+            self.device
+                .create_semaphore(&vk::SemaphoreCreateInfo::builder().build(), None)
         }.expect("Panic on OOM")
     }
 
@@ -363,9 +374,8 @@ impl Factory {
                         vk::FenceCreateFlags::SIGNALED
                     } else {
                         vk::FenceCreateFlags::empty()
-                    })
-                    .build(),
-                None
+                    }).build(),
+                None,
             )
         }.expect("Panic on OOM")
     }
@@ -374,20 +384,71 @@ impl Factory {
     /// TODO:
     /// * Add timeout.
     /// * Add multifence version.
-    pub fn wait_for_fence(&self, fence: vk::Fence) {
+    pub fn reset_fence(&self, fence: vk::Fence) {
         unsafe {
             // TODO: Handle device lost.
-            self.device.wait_for_fences(&[fence], true, !0).unwrap();
+            self.device.reset_fences(&[fence]).expect("Panic on OOM")
         }
     }
-}
 
+    /// Wait for the fence become signeled.
+    /// TODO:
+    /// * Add timeout.
+    /// * Add multifence version.
+    pub fn wait_for_fence(&self, fence: vk::Fence) {
+        unsafe {
+            self.device
+                .wait_for_fences(&[fence], true, !0)
+                .expect("Panic on OOM") // TODO: Handle device lost.
+        }
+    }
+
+    // /// Inefficiently upload image data.
+    // pub fn _inefficiently_upload_image(
+    //     &mut self,
+    //     image: &mut Image,
+    //     data: &[u8],
+    //     layout: vk::ImageLayout,
+    // ) {
+    //     let mut staging_buffer = self.create_buffer(
+    //         vk::BufferCreateInfo::builder()
+    //             .size(data.len() as u64)
+    //             .usage(vk::BufferUsageFlags::TRANSFER_SRC)
+    //             .build(),
+    //         1,
+    //         Upload,
+    //     ).unwrap();
+
+    //     self.upload_visible_buffer(&mut staging_buffer, 0, data).unwrap();
+
+    //     let extent = image.extent();
+        
+    //     let command_pool = self.families[0].create_owning_pool(&self.device, crate::command::PrimaryLevel).unwrap();
+    //     let command_buffer = command_pool.acquire_buffer(&self.device);
+    //     let command_buffer = command_buffer.begin(&self.device, crate::command::OneShot);
+    //     self.device.cmd_copy_buffer_to_image(
+    //         command_buffer.raw(),
+    //         staging_buffer.raw(),
+    //         image.raw(),
+    //         layout,
+    //         &[
+    //             vk::BufferImageCopy::builder()
+    //                 .buffer_row_length(extent.width * 4)
+    //                 .buffer_image_height(extent.height * extent.width * 4)
+    //                 .image_extent(extent)
+    //                 .build(),
+    //         ]
+    //     )
+    // }
+}
 
 unsafe fn extension_name_cstr(e: &vk::ExtensionProperties) -> &CStr {
     CStr::from_ptr(e.extension_name[..].as_ptr())
 }
 
-fn extensions_to_enable(available: &[vk::ExtensionProperties]) -> Result<Vec<*const c_char>, Error> {
+fn extensions_to_enable(
+    available: &[vk::ExtensionProperties],
+) -> Result<Vec<*const c_char>, Error> {
     let names = vec![
         Surface::name().as_ptr(),
         Swapchain::name().as_ptr(),

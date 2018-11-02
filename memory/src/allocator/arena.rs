@@ -1,9 +1,6 @@
 use std::{collections::VecDeque, ops::Range, ptr::NonNull};
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{DeviceMemory, MemoryAllocateInfo, MemoryMapFlags, MemoryPropertyFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 
 use relevant::Relevant;
 
@@ -47,12 +44,12 @@ impl ArenaBlock {
 
 impl Block for ArenaBlock {
     #[inline]
-    fn properties(&self) -> MemoryPropertyFlags {
+    fn properties(&self) -> vk::MemoryPropertyFlags {
         self.shared_memory().properties()
     }
 
     #[inline]
-    fn memory(&self) -> DeviceMemory {
+    fn memory(&self) -> vk::DeviceMemory {
         self.shared_memory().raw()
     }
 
@@ -108,7 +105,7 @@ pub struct ArenaConfig {
 #[derive(Debug)]
 pub struct ArenaAllocator {
     memory_type: u32,
-    memory_properties: MemoryPropertyFlags,
+    memory_properties: vk::MemoryPropertyFlags,
     arena_size: u64,
     offset: u64,
     arenas: VecDeque<Arena>,
@@ -129,8 +126,8 @@ unsafe impl Sync for Arena {}
 
 impl ArenaAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> MemoryPropertyFlags {
-        MemoryPropertyFlags::HOST_VISIBLE
+    pub fn properties_required() -> vk::MemoryPropertyFlags {
+        vk::MemoryPropertyFlags::HOST_VISIBLE
     }
 
     /// Maximum allocation size.
@@ -143,11 +140,13 @@ impl ArenaAllocator {
     /// with `ArenaConfig` provided.
     pub fn new(
         memory_type: u32,
-        memory_properties: MemoryPropertyFlags,
+        memory_properties: vk::MemoryPropertyFlags,
         config: ArenaConfig,
     ) -> Self {
-        info!("Create new 'arena' allocator: type: '{}', properties: '{}' config: '{:#?}'",
-            memory_type, memory_properties, config);
+        info!(
+            "Create new 'arena' allocator: type: '{}', properties: '{}' config: '{:#?}'",
+            memory_type, memory_properties, config
+        );
         assert!(memory_properties.subset(Self::properties_required()));
         assert!(
             fits_usize(config.arena_size),
@@ -166,7 +165,10 @@ impl ArenaAllocator {
     pub fn dispose(mut self, device: &impl DeviceV1_0) {
         self.cleanup(device, 0);
         if !self.arenas.is_empty() {
-            error!("Arenas are not empty during allocator disposal. Arenas: {:#?}", self.arenas);
+            error!(
+                "Arenas are not empty during allocator disposal. Arenas: {:#?}",
+                self.arenas
+            );
         }
     }
 
@@ -202,7 +204,7 @@ impl Allocator for ArenaAllocator {
     ) -> Result<(ArenaBlock, u64), MemoryError> {
         debug_assert!(
             self.memory_properties
-                .subset(MemoryPropertyFlags::HOST_VISIBLE)
+                .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
         );
 
         assert!(size <= self.arena_size);
@@ -234,14 +236,15 @@ impl Allocator for ArenaAllocator {
 
         let (memory, ptr) = unsafe {
             let raw = device.allocate_memory(
-                &MemoryAllocateInfo::builder()
+                &vk::MemoryAllocateInfo::builder()
                     .memory_type_index(self.memory_type)
                     .allocation_size(self.arena_size)
                     .build(),
                 None,
             )?;
 
-            let ptr = match device.map_memory(raw, 0, self.arena_size, MemoryMapFlags::empty()) {
+            let ptr = match device.map_memory(raw, 0, self.arena_size, vk::MemoryMapFlags::empty())
+            {
                 Ok(ptr) => NonNull::new_unchecked(ptr as *mut u8),
                 Err(error) => {
                     device.free_memory(raw, None);

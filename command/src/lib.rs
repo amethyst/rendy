@@ -19,7 +19,8 @@
 
 extern crate ash;
 
-#[macro_use] extern crate failure;
+#[macro_use]
+extern crate failure;
 extern crate relevant;
 extern crate smallvec;
 
@@ -31,13 +32,12 @@ mod pool;
 
 pub use crate::{
     buffer::{
-        Buffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
-        MultiShot, OneShot, PendingState, PrimaryLevel, RecordingState, RenderPassContinue,
-        Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
-        NoIndividualReset,
+        CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
+        MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
+        RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
     },
-    capability::{Capability, Graphics, Compute, Transfer, General},
+    capability::{Capability, Compute, General, Graphics, Transfer},
     encoder::Encoder,
-    family::{Family, FamilyIndex, families_from_device},
-    pool::{OwningPool, Pool},
+    family::{families_from_device, Family, FamilyIndex},
+    pool::{CommandPool, OwningCommandPool},
 };

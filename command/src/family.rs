@@ -1,24 +1,14 @@
 //! Family module docs.
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{
-        CommandPool,
-        Extent3D,
-        Queue,
-        QueueFamilyProperties,
-        QueueFlags,
-        CommandPoolCreateInfo,
-    },
-};
+use ash::{version::DeviceV1_0, vk};
 
 use failure::Error;
 use relevant::Relevant;
 
 use crate::{
+    buffer::{Level, NoIndividualReset, Reset},
     capability::Capability,
-    pool::{Pool, OwningPool},
-    buffer::{Level, Reset, NoIndividualReset},
+    pool::{CommandPool, OwningCommandPool},
 };
 
 /// Unique family index.
@@ -29,19 +19,19 @@ pub struct FamilyIndex(pub u32);
 /// Queues from one family can share resources and execute command buffers associated with the family.
 /// All queues of the family have same capabilities.
 #[derive(Clone, Debug)]
-pub struct Family<C: Capability = QueueFlags> {
+pub struct Family<C: Capability = vk::QueueFlags> {
     index: FamilyIndex,
-    queues: Vec<Queue>,
-    min_image_transfer_granularity: Extent3D,
+    queues: Vec<vk::Queue>,
+    min_image_transfer_granularity: vk::Extent3D,
     capability: C,
     relevant: Relevant,
 }
 
 impl Family {
     /// Query queue family from device.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This function shouldn't be used more then once with the same parameters.
     /// Raw queue handle queried from device can make `Family` usage invalid.
     /// `family` must be one of the family indices used during `device` creation.
@@ -51,7 +41,7 @@ impl Family {
         device: &impl DeviceV1_0,
         family: FamilyIndex,
         queues: u32,
-        properties: &QueueFamilyProperties,
+        properties: &vk::QueueFamilyProperties,
     ) -> Self {
         Family {
             index: family,
@@ -72,27 +62,31 @@ impl<C: Capability> Family<C> {
     }
 
     /// Get queues of the family.
-    pub fn queues(&mut self) -> &mut [Queue] {
+    pub fn queues(&mut self) -> &mut [vk::Queue] {
         &mut self.queues
     }
 
     /// Create command pool associated with the family.
     /// Command buffers created from the pool could be submitted to the queues of the family.
-    pub fn create_pool<R>(&self, device: &impl DeviceV1_0, reset: R) -> Result<Pool<C, R>, Error>
+    pub fn create_pool<R>(
+        &self,
+        device: &impl DeviceV1_0,
+        reset: R,
+    ) -> Result<CommandPool<C, R>, Error>
     where
         R: Reset,
     {
         let pool = unsafe {
             // Is this family belong to specified device.
             let raw = device.create_command_pool(
-                &CommandPoolCreateInfo::builder()
+                &vk::CommandPoolCreateInfo::builder()
                     .queue_family_index(self.index.0)
                     .flags(reset.flags())
                     .build(),
                 None,
             )?;
 
-            Pool::from_raw(raw, self.capability, reset, self.index)
+            CommandPool::from_raw(raw, self.capability, reset, self.index)
         };
 
         Ok(pool)
@@ -101,13 +95,16 @@ impl<C: Capability> Family<C> {
     /// Create command pool associated with the family.
     /// Command buffers created from the pool could be submitted to the queues of the family.
     /// Created pool owns its command buffers.
-    pub fn create_owning_pool<L>(&self, device: &impl DeviceV1_0, level: L) -> Result<OwningPool<C, L>, Error>
+    pub fn create_owning_pool<L>(
+        &self,
+        device: &impl DeviceV1_0,
+        level: L,
+    ) -> Result<OwningCommandPool<C, L>, Error>
     where
         L: Level,
     {
-        self.create_pool(device, NoIndividualReset).map(|pool| unsafe {
-            OwningPool::from_inner(pool, level)
-        })
+        self.create_pool(device, NoIndividualReset)
+            .map(|pool| unsafe { OwningCommandPool::from_inner(pool, level) })
     }
 
     /// Get family capability.
@@ -133,7 +130,7 @@ where
 {
     /// Convert from some `Family<C>` where `C` is something that implements
     /// `Capability`
-    pub fn into_flags(self) -> Family<QueueFlags> {
+    pub fn into_flags(self) -> Family<vk::QueueFlags> {
         Family {
             index: self.index,
             queues: self.queues,
@@ -145,7 +142,7 @@ where
 
     /// Convert into a `Family<C>` where `C` something that implements
     /// `Capability`
-    pub fn from_flags(family: Family<QueueFlags>) -> Option<Self> {
+    pub fn from_flags(family: Family<vk::QueueFlags>) -> Option<Self> {
         if let Some(capability) = C::from_flags(family.capability) {
             Some(Family {
                 index: family.index,
@@ -161,9 +158,9 @@ where
 }
 
 /// Query queue families from device.
-/// 
+///
 /// # Safety
-/// 
+///
 /// This function shouldn't be used more then once with same parameters.
 /// Raw queue handle queried from device can make returned `Family` usage invalid.
 /// `families` iterator must yeild unique family indices with queue count used during `device` creation.
@@ -171,7 +168,7 @@ where
 pub unsafe fn families_from_device(
     device: &impl DeviceV1_0,
     families: impl IntoIterator<Item = (FamilyIndex, u32)>,
-    properties: &[QueueFamilyProperties],
+    properties: &[vk::QueueFamilyProperties],
 ) -> Vec<Family> {
     families
         .into_iter()

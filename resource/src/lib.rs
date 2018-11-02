@@ -20,7 +20,8 @@
 
 extern crate ash;
 extern crate crossbeam_channel;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 extern crate relevant;
 extern crate rendy_memory as memory;
 

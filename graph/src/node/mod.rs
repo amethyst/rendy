@@ -2,7 +2,7 @@
 //!
 
 use std::any::Any;
-use ash::{version::DeviceV1_0, vk::{QueueFlags}};
+use ash::{version::DeviceV1_0, vk};
 
 use chain::{
     State,

@@ -1,4 +1,3 @@
-
 use ash::vk;
 
 pub struct Queue<'a> {
@@ -15,7 +14,7 @@ impl<'a> Queue<'a> {
             result => panic!("{:#?}", result),
         }
     }
-    
+
     /// Get raw handle.
     pub fn raw(&self) -> vk::Queue {
         self.raw
@@ -24,8 +23,8 @@ impl<'a> Queue<'a> {
     /// Submit to the queue.
     pub fn submit(&mut self, submits: &[vk::SubmitInfo], fence: vk::Fence) {
         let _ = unsafe {
-            self.fp.queue_submit(self.raw, submits.len() as u32, submits.as_ptr(), fence)
+            self.fp
+                .queue_submit(self.raw, submits.len() as u32, submits.as_ptr(), fence)
         };
     }
 }
-

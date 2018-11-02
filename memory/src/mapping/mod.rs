@@ -1,10 +1,7 @@
 mod range;
 pub(crate) mod write;
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{MappedMemoryRange, MemoryMapFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 use std::{ops::Range, ptr::NonNull};
 
 use error::{MappingError, MemoryError};
@@ -72,7 +69,7 @@ impl<'a> MappedRange<'a> {
             memory.raw(),
             range.start,
             range.end - range.start,
-            MemoryMapFlags::empty(),
+            vk::MemoryMapFlags::empty(),
         )?;
         assert!(
             (ptr as usize).wrapping_neg() <= (range.end - range.start) as usize,
@@ -87,9 +84,9 @@ impl<'a> MappedRange<'a> {
     }
 
     /// Construct mapped range from raw mapping
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// `memory` `range` must be mapped to host memory region pointer by `ptr`.
     pub unsafe fn from_raw(memory: &'a Memory, ptr: NonNull<u8>, range: Range<u64>) -> Self {
         MappedRange {
@@ -132,7 +129,7 @@ impl<'a> MappedRange<'a> {
             .ok_or_else(|| MappingError::OutOfBounds)?;
 
         if self.coherent.0 {
-            device.invalidate_mapped_memory_ranges(&[MappedMemoryRange::builder()
+            device.invalidate_mapped_memory_ranges(&[vk::MappedMemoryRange::builder()
                 .memory(self.memory.raw())
                 .offset(self.range.start)
                 .size(self.range.end - self.range.start)
@@ -162,7 +159,7 @@ impl<'a> MappedRange<'a> {
             .ok_or_else(|| MappingError::OutOfBounds)?;
 
         if !self.coherent.0 {
-            device.invalidate_mapped_memory_ranges(&[MappedMemoryRange::builder()
+            device.invalidate_mapped_memory_ranges(&[vk::MappedMemoryRange::builder()
                 .memory(self.memory.raw())
                 .offset(self.range.start)
                 .size(self.range.end - self.range.start)

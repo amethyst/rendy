@@ -1,5 +1,3 @@
-
-
 extern crate rendy_shader_proc;
 pub use rendy_shader_proc::compile_to_spirv_proc;
 

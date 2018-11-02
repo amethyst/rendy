@@ -1,9 +1,6 @@
 use std::{ops::Range, ptr::NonNull};
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{DeviceMemory, MemoryAllocateInfo, MemoryMapFlags, MemoryPropertyFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 use hibitset::{BitSet, BitSetLike};
 use relevant::Relevant;
 use veclist::VecList;
@@ -48,12 +45,12 @@ impl DynamicBlock {
 
 impl Block for DynamicBlock {
     #[inline]
-    fn properties(&self) -> MemoryPropertyFlags {
+    fn properties(&self) -> vk::MemoryPropertyFlags {
         self.shared_memory().properties()
     }
 
     #[inline]
-    fn memory(&self) -> DeviceMemory {
+    fn memory(&self) -> vk::DeviceMemory {
         self.shared_memory().raw()
     }
 
@@ -119,7 +116,7 @@ pub struct DynamicAllocator {
     memory_type: u32,
 
     /// Memory properties of the memory type.
-    memory_properties: MemoryPropertyFlags,
+    memory_properties: vk::MemoryPropertyFlags,
 
     /// Number of blocks per chunk.
     blocks_per_chunk: u32,
@@ -147,8 +144,8 @@ struct Size {
 
 impl DynamicAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> MemoryPropertyFlags {
-        MemoryPropertyFlags::empty()
+    pub fn properties_required() -> vk::MemoryPropertyFlags {
+        vk::MemoryPropertyFlags::empty()
     }
 
     /// Maximum allocation size.
@@ -161,11 +158,13 @@ impl DynamicAllocator {
     /// with `ArenaConfig` provided.
     pub fn new(
         memory_type: u32,
-        memory_properties: MemoryPropertyFlags,
+        memory_properties: vk::MemoryPropertyFlags,
         mut config: DynamicConfig,
     ) -> Self {
-        info!("Create new allocator: type: '{}', properties: '{}' config: '{:#?}'",
-            memory_type, memory_properties, config);
+        info!(
+            "Create new allocator: type: '{}', properties: '{}' config: '{:#?}'",
+            memory_type, memory_properties, config
+        );
         // This is hack to simplify implementation of chunk cleaning.
         config.blocks_per_chunk = std::mem::size_of::<usize>() as u32 * 8;
 
@@ -178,7 +177,7 @@ impl DynamicAllocator {
             .max_block_size
             .checked_mul(config.blocks_per_chunk.into())
             .expect("Max chunk size must fit u64 to allocate it from Vulkan");
-        if memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
+        if memory_properties.subset(vk::MemoryPropertyFlags::HOST_VISIBLE) {
             assert!(
                 fits_usize(max_chunk_size),
                 "Max chunk size must fit usize for mapping"
@@ -242,7 +241,7 @@ impl DynamicAllocator {
             let (memory, mapping) = unsafe {
                 // Valid memory type specified.
                 let raw = device.allocate_memory(
-                    &MemoryAllocateInfo {
+                    &vk::MemoryAllocateInfo {
                         memory_type_index: self.memory_type,
                         allocation_size: size,
                         ..Default::default()
@@ -252,10 +251,10 @@ impl DynamicAllocator {
 
                 let mapping = if self
                     .memory_properties
-                    .subset(MemoryPropertyFlags::HOST_VISIBLE)
+                    .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
                 {
                     // trace!("Map new memory object");
-                    match device.map_memory(raw, 0, size, MemoryMapFlags::empty()) {
+                    match device.map_memory(raw, 0, size, vk::MemoryMapFlags::empty()) {
                         Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
                         Err(error) => {
                             device.free_memory(raw, None);
@@ -284,7 +283,10 @@ impl DynamicAllocator {
             Chunk::Dedicated(boxed, _) => {
                 let size = boxed.size();
                 unsafe {
-                    if self.memory_properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
+                    if self
+                        .memory_properties
+                        .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
+                    {
                         // trace!("Unmap memory: {:#?}", boxed);
                         device.unmap_memory(boxed.raw());
                     }

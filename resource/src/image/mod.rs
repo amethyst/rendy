@@ -42,12 +42,16 @@ impl Image {
     }
 
     /// Get raw image handle.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Raw image handler should not be usage to violate this object valid usage.
     pub unsafe fn raw(&self) -> vk::Image {
         self.inner.raw
     }
-}
 
+    /// Get extent of the image.
+    pub fn extent(&self) -> vk::Extent3D {
+        self.info.extent
+    }
+}

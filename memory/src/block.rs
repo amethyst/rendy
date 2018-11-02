@@ -1,9 +1,6 @@
 use std::ops::Range;
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{DeviceMemory, MemoryPropertyFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 
 use error::MappingError;
 use mapping::MappedRange;
@@ -14,10 +11,10 @@ use mapping::MappedRange;
 /// Provides access to safe memory range mapping.
 pub trait Block {
     /// Get memory properties of the block.
-    fn properties(&self) -> MemoryPropertyFlags;
+    fn properties(&self) -> vk::MemoryPropertyFlags;
 
     /// Get raw memory object.
-    fn memory(&self) -> DeviceMemory;
+    fn memory(&self) -> vk::DeviceMemory;
 
     /// Get memory range owned by this block.
     fn range(&self) -> Range<u64>;

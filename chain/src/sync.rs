@@ -4,7 +4,7 @@
 use std::ops::{Range, RangeFrom, RangeTo};
 
 use fnv::FnvHashMap;
-use ash::vk::{AccessFlags, PipelineStageFlags};
+use ash::vk;
 
 use chain::{Chain, Link};
 use collect::Chains;
@@ -50,13 +50,13 @@ impl<S> Signal<S> {
 /// Semaphore wait info.
 /// There must be paired signal.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Wait<S>(S, PipelineStageFlags);
+pub struct Wait<S>(S, vk::PipelineStageFlags);
 
 impl<S> Wait<S> {
     /// Create waiting for specified point.
     /// At this point `Signal` must be created as well.
     /// `id` and `point` combination must be unique.
-    fn new(semaphore: S, stages: PipelineStageFlags) -> Self {
+    fn new(semaphore: S, stages: vk::PipelineStageFlags) -> Self {
         Wait(semaphore, stages)
     }
 
@@ -66,7 +66,7 @@ impl<S> Wait<S> {
     }
 
     /// Stage at which to wait.
-    pub fn stage(&self) -> PipelineStageFlags {
+    pub fn stage(&self) -> vk::PipelineStageFlags {
         self.1
     }
 }
@@ -78,7 +78,7 @@ pub struct Barrier<R: Resource> {
     pub queues: Option<Range<QueueId>>,
 
     /// State transition.
-    pub states: Range<(AccessFlags, R::Layout, PipelineStageFlags)>,
+    pub states: Range<(vk::AccessFlags, R::Layout, vk::PipelineStageFlags)>,
 }
 
 impl<R> Barrier<R>
@@ -96,18 +96,18 @@ where
         }
     }
 
-    fn transfer(queues: Range<QueueId>, states: Range<(AccessFlags, R::Layout)>) -> Self {
+    fn transfer(queues: Range<QueueId>, states: Range<(vk::AccessFlags, R::Layout)>) -> Self {
         Barrier {
             queues: Some(queues),
             states: (
                 states.start.0,
                 states.start.1,
-                PipelineStageFlags::TOP_OF_PIPE,
+                vk::PipelineStageFlags::TOP_OF_PIPE,
             )
                 ..(
                     states.end.0,
                     states.end.1,
-                    PipelineStageFlags::BOTTOM_OF_PIPE,
+                    vk::PipelineStageFlags::BOTTOM_OF_PIPE,
                 ),
         }
     }
@@ -115,22 +115,22 @@ where
     fn acquire(
         queues: Range<QueueId>,
         left: RangeFrom<R::Layout>,
-        right: RangeTo<(AccessFlags, R::Layout)>,
+        right: RangeTo<(vk::AccessFlags, R::Layout)>,
     ) -> Self {
         Self::transfer(
             queues,
-            (AccessFlags::empty(), left.start)..(right.end.0, right.end.1),
+            (vk::AccessFlags::empty(), left.start)..(right.end.0, right.end.1),
         )
     }
 
     fn release(
         queues: Range<QueueId>,
-        left: RangeFrom<(AccessFlags, R::Layout)>,
+        left: RangeFrom<(vk::AccessFlags, R::Layout)>,
         right: RangeTo<R::Layout>,
     ) -> Self {
         Self::transfer(
             queues,
-            (left.start.0, left.start.1)..(AccessFlags::empty(), right.end),
+            (left.start.0, left.start.1)..(vk::AccessFlags::empty(), right.end),
         )
     }
 }

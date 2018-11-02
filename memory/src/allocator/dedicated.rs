@@ -1,9 +1,6 @@
 use std::{ops::Range, ptr::NonNull};
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{DeviceMemory, MemoryAllocateInfo, MemoryPropertyFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 
 use allocator::Allocator;
 use block::Block;
@@ -40,12 +37,12 @@ impl DedicatedBlock {
 
 impl Block for DedicatedBlock {
     #[inline]
-    fn properties(&self) -> MemoryPropertyFlags {
+    fn properties(&self) -> vk::MemoryPropertyFlags {
         self.memory.properties()
     }
 
     #[inline]
-    fn memory(&self) -> DeviceMemory {
+    fn memory(&self) -> vk::DeviceMemory {
         self.memory.raw()
     }
 
@@ -100,19 +97,19 @@ impl Block for DedicatedBlock {
 #[derive(Debug)]
 pub struct DedicatedAllocator {
     memory_type: u32,
-    memory_properties: MemoryPropertyFlags,
+    memory_properties: vk::MemoryPropertyFlags,
     used: u64,
 }
 
 impl DedicatedAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> MemoryPropertyFlags {
-        MemoryPropertyFlags::empty()
+    pub fn properties_required() -> vk::MemoryPropertyFlags {
+        vk::MemoryPropertyFlags::empty()
     }
 
     /// Create new `ArenaAllocator`
     /// for `memory_type` with `memory_properties` specified
-    pub fn new(memory_type: u32, memory_properties: MemoryPropertyFlags) -> Self {
+    pub fn new(memory_type: u32, memory_properties: vk::MemoryPropertyFlags) -> Self {
         DedicatedAllocator {
             memory_type,
             memory_properties,
@@ -134,7 +131,7 @@ impl Allocator for DedicatedAllocator {
         let memory = unsafe {
             Memory::from_raw(
                 device.allocate_memory(
-                    &MemoryAllocateInfo::builder()
+                    &vk::MemoryAllocateInfo::builder()
                         .memory_type_index(self.memory_type)
                         .allocation_size(size)
                         .build(),

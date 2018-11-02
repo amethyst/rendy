@@ -1,8 +1,6 @@
 use std::cmp::min;
 
-use ash::vk::{
-    MemoryPropertyFlags, PhysicalDeviceMemoryProperties, QueueFamilyProperties, QueueFlags,
-};
+use ash::vk;
 
 use command::FamilyIndex;
 use memory::{allocator, HeapsConfig};
@@ -31,7 +29,7 @@ pub unsafe trait QueuesConfigure {
     type Priorities: AsRef<[f32]>;
     type Families: IntoIterator<Item = (FamilyIndex, Self::Priorities)>;
 
-    fn configure(self, families: &[QueueFamilyProperties]) -> Self::Families;
+    fn configure(self, families: &[vk::QueueFamilyProperties]) -> Self::Families;
 }
 
 /// QueuePicket that picks first graphics queue family.
@@ -44,10 +42,10 @@ pub struct OneGraphicsQueue;
 unsafe impl QueuesConfigure for OneGraphicsQueue {
     type Priorities = [f32; 1];
     type Families = Option<(FamilyIndex, [f32; 1])>;
-    fn configure(self, families: &[QueueFamilyProperties]) -> Option<(FamilyIndex, [f32; 1])> {
+    fn configure(self, families: &[vk::QueueFamilyProperties]) -> Option<(FamilyIndex, [f32; 1])> {
         families
             .iter()
-            .position(|f| f.queue_flags.subset(QueueFlags::GRAPHICS) && f.queue_count > 0)
+            .position(|f| f.queue_flags.subset(vk::QueueFlags::GRAPHICS) && f.queue_count > 0)
             .map(|p| (FamilyIndex(p as u32), [1.0]))
     }
 }
@@ -60,7 +58,7 @@ pub struct SavedQueueConfig(Vec<(FamilyIndex, Vec<f32>)>);
 unsafe impl QueuesConfigure for SavedQueueConfig {
     type Priorities = Vec<f32>;
     type Families = Vec<(FamilyIndex, Vec<f32>)>;
-    fn configure(self, families: &[QueueFamilyProperties]) -> Vec<(FamilyIndex, Vec<f32>)> {
+    fn configure(self, families: &[vk::QueueFamilyProperties]) -> Vec<(FamilyIndex, Vec<f32>)> {
         if !self.0.iter().all(|&(index, ref priorities)| {
             families
                 .get(index.0 as usize)
@@ -74,10 +72,13 @@ unsafe impl QueuesConfigure for SavedQueueConfig {
 }
 
 pub unsafe trait HeapsConfigure {
-    type Types: IntoIterator<Item = (MemoryPropertyFlags, u32, HeapsConfig)>;
+    type Types: IntoIterator<Item = (vk::MemoryPropertyFlags, u32, HeapsConfig)>;
     type Heaps: IntoIterator<Item = u64>;
 
-    fn configure(self, properties: &PhysicalDeviceMemoryProperties) -> (Self::Types, Self::Heaps);
+    fn configure(
+        self,
+        properties: &vk::PhysicalDeviceMemoryProperties,
+    ) -> (Self::Types, Self::Heaps);
 }
 
 /// Basic heaps config.
@@ -86,10 +87,13 @@ pub unsafe trait HeapsConfigure {
 pub struct BasicHeapsConfigure;
 
 unsafe impl HeapsConfigure for BasicHeapsConfigure {
-    type Types = Vec<(MemoryPropertyFlags, u32, HeapsConfig)>;
+    type Types = Vec<(vk::MemoryPropertyFlags, u32, HeapsConfig)>;
     type Heaps = Vec<u64>;
 
-    fn configure(self, properties: &PhysicalDeviceMemoryProperties) -> (Self::Types, Self::Heaps) {
+    fn configure(
+        self,
+        properties: &vk::PhysicalDeviceMemoryProperties,
+    ) -> (Self::Types, Self::Heaps) {
         let types = (0..properties.memory_type_count)
             .map(|index| &properties.memory_types[index as usize])
             .map(|mt| {
@@ -143,15 +147,18 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SavedHeapsConfig {
-    types: Vec<(MemoryPropertyFlags, u32, HeapsConfig)>,
+    types: Vec<(vk::MemoryPropertyFlags, u32, HeapsConfig)>,
     heaps: Vec<u64>,
 }
 
 unsafe impl HeapsConfigure for SavedHeapsConfig {
-    type Types = Vec<(MemoryPropertyFlags, u32, HeapsConfig)>;
+    type Types = Vec<(vk::MemoryPropertyFlags, u32, HeapsConfig)>;
     type Heaps = Vec<u64>;
 
-    fn configure(self, _properties: &PhysicalDeviceMemoryProperties) -> (Self::Types, Self::Heaps) {
+    fn configure(
+        self,
+        _properties: &vk::PhysicalDeviceMemoryProperties,
+    ) -> (Self::Types, Self::Heaps) {
         (self.types, self.heaps)
     }
 }

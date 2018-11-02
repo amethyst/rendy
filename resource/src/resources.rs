@@ -1,14 +1,11 @@
 use std::cmp::max;
 
-use ash::{
-    version::DeviceV1_0,
-    vk,
-};
+use ash::{version::DeviceV1_0, vk};
 use memory::{Block, Heaps, MemoryError, MemoryUsage};
 use relevant::Relevant;
 
 use buffer;
-use escape::{Escape, Terminal};
+use escape::Terminal;
 use image;
 
 /// Resource manager.
@@ -62,18 +59,14 @@ impl Resources {
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub fn destroy_buffer(
-        _buffer: buffer::Buffer,
-        _device: &impl DeviceV1_0,
-        _heaps: &mut Heaps,
-    ) {
+    pub fn destroy_buffer(_buffer: buffer::Buffer, _device: &impl DeviceV1_0, _heaps: &mut Heaps) {
         unimplemented!()
     }
 
     /// Drop inner buffer representation.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Device must not attempt to use the buffer.
     unsafe fn destroy_buffer_inner(
         inner: buffer::Inner,
@@ -125,15 +118,15 @@ impl Resources {
     pub unsafe fn destroy_image(
         _image: image::Image,
         _device: &impl DeviceV1_0,
-        _heaps: &mut Heaps)
-    {
+        _heaps: &mut Heaps,
+    ) {
         unimplemented!()
     }
 
     /// Drop inner image representation.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Device must not attempt to use the image.
     unsafe fn destroy_image_inner(
         inner: image::Inner,
@@ -146,9 +139,9 @@ impl Resources {
     }
 
     /// Recycle dropped resources.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Device must not attempt to use previously dropped buffers and images.
     pub unsafe fn cleanup(&mut self, device: &impl DeviceV1_0, heaps: &mut Heaps) {
         // trace!("Cleanup buffers");

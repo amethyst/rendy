@@ -1,30 +1,17 @@
 //! Frame module docs.
 
-use ash::{
-    version::DeviceV1_0,
-    vk::{CommandBuffer, Fence, QueueFlags},
-};
+use ash::{version::DeviceV1_0, vk};
 use failure::Error;
 use smallvec::SmallVec;
 use std::borrow::Borrow;
 
 use command::{
-    Buffer,
-    Encoder,
-    RecordingState,
-    Resettable,
-    Capability,
-    InitialState,
-    OwningPool,
-    OneShot,
-    MultiShot,
-    Submit,
-    ExecutableState,
-    PrimaryLevel,
+    Capability, CommandBuffer, Encoder, ExecutableState, InitialState, MultiShot, OneShot,
+    OwningCommandPool, PrimaryLevel, RecordingState, Resettable, Submit,
 };
 
 /// Fences collection.
-pub type Fences = SmallVec<[Fence; 8]>;
+pub type Fences = SmallVec<[vk::Fence; 8]>;
 
 /// Unique index of the frame.
 /// It must be unique per render instance.
@@ -203,12 +190,12 @@ impl Frames {
     }
 }
 
-/// `OwningPool` that can be bound to frame execution.
+/// `OwningCommandPool` that can be bound to frame execution.
 /// All command buffers acquired from bound `FramePool` are guarantee
 /// to complete when frame's fence is set, and buffers can be reset.
 #[derive(Debug)]
 pub struct FramePool<C, R> {
-    inner: OwningPool<C, R>,
+    inner: OwningCommandPool<C, R>,
     frame: Option<FrameIndex>,
 }
 
@@ -246,13 +233,13 @@ impl<C, R> FramePool<C, R> {
         assert_eq!(
             self.frame.take(),
             Some(complete.index()),
-            "Pool must be bound to the specified frame"
+            "CommandPool must be bound to the specified frame"
         );
         unimplemented!()
     }
 }
 
-impl<R> FramePool<QueueFlags, R> {
+impl<R> FramePool<vk::QueueFlags, R> {
     /// Convert capability level
     pub fn from_flags<C>(self) -> Result<FramePool<C, R>, Self>
     where
@@ -285,12 +272,12 @@ impl<'a, C: 'a, R: 'a> FrameBound<'a, &'a mut FramePool<C, R>> {
         &mut self,
         device: &impl DeviceV1_0,
         level: L,
-    ) -> FrameBound<'a, Buffer<C, InitialState, L>> {
+    ) -> FrameBound<'a, CommandBuffer<C, InitialState, L>> {
         unimplemented!()
     }
 }
 
-impl<'a, S, L, C> FrameBound<'a, Buffer<C, S, L>>
+impl<'a, S, L, C> FrameBound<'a, CommandBuffer<C, S, L>>
 where
     S: Resettable,
 {
@@ -302,19 +289,15 @@ where
     }
 }
 
-impl<'a, C, R> FrameBound<'a, Buffer<C, ExecutableState<OneShot>, PrimaryLevel, R>> {
+impl<'a, C, R> FrameBound<'a, CommandBuffer<C, ExecutableState<OneShot>, PrimaryLevel, R>> {
     /// Produce `Submit` object that can be used to populate submission.
-    pub fn submit(
-        self,
-    ) -> (
-        FrameBound<'a, Submit>,
-    ) {
+    pub fn submit(self) -> (FrameBound<'a, Submit>,) {
         unimplemented!()
     }
 }
 
-impl<'a, C, U, L, R> Encoder<C> for FrameBound<'a, Buffer<C, RecordingState<U>, L, R>>{
-    unsafe fn raw(&mut self) -> CommandBuffer {
-        Buffer::raw(&self.value)
+impl<'a, C, U, L, R> Encoder<C> for FrameBound<'a, CommandBuffer<C, RecordingState<U>, L, R>> {
+    unsafe fn raw(&mut self) -> vk::CommandBuffer {
+        CommandBuffer::raw(&self.value)
     }
 }

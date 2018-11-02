@@ -1,6 +1,6 @@
 use std::collections::hash_map::{HashMap, Iter as HashMapIter};
 
-use ash::vk::{AccessFlags, PipelineStageFlags};
+use ash::vk;
 
 use resource::{Buffer, Image, Resource};
 use schedule::FamilyIndex;
@@ -10,13 +10,13 @@ use Id;
 #[derive(Clone, Copy, Debug)]
 pub struct State<R: Resource> {
     /// Access performed by the node.
-    pub access: AccessFlags,
+    pub access: vk::AccessFlags,
 
     /// Optional layout in which node can use resource.
     pub layout: R::Layout,
 
     /// Stages at which resource is accessed.
-    pub stages: PipelineStageFlags,
+    pub stages: vk::PipelineStageFlags,
 
     /// Usage flags required for resource.
     pub usage: R::Usage,
