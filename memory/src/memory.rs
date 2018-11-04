@@ -1,20 +1,23 @@
 // use std::fmt;
-use ash::vk;
+
 use relevant::Relevant;
 
 /// Memory object wrapper.
 /// Contains size and properties of the memory.
 #[derive(Debug)]
-pub struct Memory {
-    raw: vk::DeviceMemory,
+pub struct Memory<B: gfx_hal::Backend> {
+    raw: B::Memory,
     size: u64,
-    properties: vk::MemoryPropertyFlags,
+    properties: gfx_hal::memory::Properties,
     relevant: Relevant,
 }
 
-impl Memory {
+impl<B> Memory<B>
+where
+    B: gfx_hal::Backend,
+{
     /// Get memory properties.
-    pub fn properties(&self) -> vk::MemoryPropertyFlags {
+    pub fn properties(&self) -> gfx_hal::memory::Properties {
         self.properties
     }
 
@@ -24,7 +27,13 @@ impl Memory {
     }
 
     /// Get raw memory.
-    pub fn raw(&self) -> vk::DeviceMemory {
+    pub fn raw(&self) -> &B::Memory {
+        &self.raw
+    }
+
+    /// Unwrap raw memory.
+    pub fn into_raw(self) -> B::Memory {
+        self.relevant.dispose();
         self.raw
     }
 
@@ -34,9 +43,9 @@ impl Memory {
     ///
     /// TODO:
     pub unsafe fn from_raw(
-        raw: vk::DeviceMemory,
+        raw: B::Memory,
         size: u64,
-        properties: vk::MemoryPropertyFlags,
+        properties: gfx_hal::memory::Properties,
     ) -> Self {
         Memory {
             properties,
@@ -47,22 +56,17 @@ impl Memory {
     }
 
     /// Check if this memory is host-visible and can be mapped.
-    /// `memory.host_visible()` is equivalent to `memory.properties().subset(Properties::HOST_VISIBLE)`
+    /// `memory.host_visible()` is equivalent to `memory.properties().contains(Properties::CPU_VISIBLE)`
     pub fn host_visible(&self) -> bool {
         self.properties
-            .subset(vk::MemoryPropertyFlags::HOST_VISIBLE)
+            .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
     }
 
     /// Check if this memory is host-coherent and doesn't require invalidating or flushing.
-    /// `memory.host_coherent()` is equivalent to `memory.properties().subset(Properties::HOST_COHERENT)`
+    /// `memory.host_coherent()` is equivalent to `memory.properties().contains(Properties::COHERENT)`
     pub fn host_coherent(&self) -> bool {
         self.properties
-            .subset(vk::MemoryPropertyFlags::HOST_COHERENT)
-    }
-
-    /// Dispose of memory object.
-    pub(crate) fn dispose(self) {
-        self.relevant.dispose();
+            .contains(gfx_hal::memory::Properties::COHERENT)
     }
 }
 

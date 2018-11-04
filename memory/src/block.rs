@@ -1,20 +1,17 @@
 use std::ops::Range;
 
-use ash::{version::DeviceV1_0, vk};
-
-use error::MappingError;
-use mapping::MappedRange;
+use crate::mapping::MappedRange;
 
 /// Block that owns a `Range` of the `Memory`.
 /// Implementor must ensure that there can't be any other blocks
 /// with overlapping range (either through type system or safety notes for unsafe functions).
 /// Provides access to safe memory range mapping.
-pub trait Block {
+pub trait Block<B: gfx_hal::Backend> {
     /// Get memory properties of the block.
-    fn properties(&self) -> vk::MemoryPropertyFlags;
+    fn properties(&self) -> gfx_hal::memory::Properties;
 
     /// Get raw memory object.
-    fn memory(&self) -> vk::DeviceMemory;
+    fn memory(&self) -> &B::Memory;
 
     /// Get memory range owned by this block.
     fn range(&self) -> Range<u64>;
@@ -23,11 +20,11 @@ pub trait Block {
     /// Memory writes to the region performed by device become available for the host.
     fn map<'a>(
         &'a mut self,
-        device: &impl DeviceV1_0,
+        device: &impl gfx_hal::Device<B>,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a>, MappingError>;
+    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error>;
 
     /// Release memory mapping. Must be called after successful `map` call.
     /// No-op if block is not mapped.
-    fn unmap(&mut self, device: &impl DeviceV1_0);
+    fn unmap(&mut self, device: &impl gfx_hal::Device<B>);
 }

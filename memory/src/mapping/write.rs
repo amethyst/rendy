@@ -1,7 +1,4 @@
-use std::{ops::Range, ptr::copy_nonoverlapping};
-
-use ash::{version::DeviceV1_0, vk::MappedMemoryRange};
-use memory::Memory;
+use std::ptr::copy_nonoverlapping;
 
 /// Trait for memory region suitable for host writes.
 pub trait Write<T: Copy> {
@@ -27,35 +24,25 @@ pub trait Write<T: Copy> {
 }
 
 #[derive(Debug)]
-pub(super) struct WriteFlush<'a, T: 'a, D: DeviceV1_0 + 'a> {
+pub(super) struct WriteFlush<'a, T: 'a, F: FnOnce() + 'a> {
     pub(super) slice: &'a mut [T],
-    pub(super) flush: Option<(&'a D, &'a Memory, Range<u64>)>,
+    pub(super) flush: Option<F>,
 }
 
-impl<'a, T, D> Drop for WriteFlush<'a, T, D>
+impl<'a, T, F> Drop for WriteFlush<'a, T, F>
 where
     T: 'a,
-    D: DeviceV1_0 + 'a,
+    F: FnOnce() + 'a,
 {
     fn drop(&mut self) {
-        if let Some((device, memory, range)) = self.flush.take() {
-            // trace!("Flush memory range {:#?} @ {} .. {}", memory, range.start, range.end);
-            unsafe {
-                device
-                    .flush_mapped_memory_ranges(&[MappedMemoryRange::builder()
-                        .memory(memory.raw())
-                        .offset(range.start)
-                        .size(range.end - range.start)
-                        .build()]).expect("Should flush successfully");
-            }
-        }
+        self.flush.take().map(|f| f());
     }
 }
 
-impl<'a, T, D> Write<T> for WriteFlush<'a, T, D>
+impl<'a, T, F> Write<T> for WriteFlush<'a, T, F>
 where
     T: Copy + 'a,
-    D: DeviceV1_0 + 'a,
+    F: FnOnce() + 'a,
 {
     /// # Safety
     ///

@@ -1,33 +1,35 @@
 use std::{ops::Range, ptr::NonNull};
 
-use ash::{version::DeviceV1_0, vk};
-
-use allocator::Allocator;
-use block::Block;
-use error::*;
-use mapping::{mapped_fitting_range, MappedRange};
-use memory::*;
+use crate::{
+    allocator::{Allocator, Kind},
+    block::Block,
+    mapping::{mapped_fitting_range, MappedRange},
+    memory::*,
+};
 
 /// Memory block allocated from `DedicatedAllocator`
 #[derive(Debug)]
-pub struct DedicatedBlock {
-    memory: Memory,
+pub struct DedicatedBlock<B: gfx_hal::Backend,> {
+    memory: Memory<B>,
     mapping: Option<(NonNull<u8>, Range<u64>)>,
 }
 
-unsafe impl Send for DedicatedBlock {}
-unsafe impl Sync for DedicatedBlock {}
+unsafe impl<B> Send for DedicatedBlock<B> where B: gfx_hal::Backend, {}
+unsafe impl<B> Sync for DedicatedBlock<B> where B: gfx_hal::Backend, {}
 
-impl DedicatedBlock {
+impl<B> DedicatedBlock<B>
+where
+    B: gfx_hal::Backend,
+{
     /// Get inner memory.
     /// Panics if mapped.
-    pub fn unwrap_memory(self) -> Memory {
+    pub fn unwrap_memory(self) -> Memory<B> {
         assert!(self.mapping.is_none());
         self.memory
     }
 
     /// Make unmapped block.
-    pub fn from_memory(memory: Memory) -> Self {
+    pub fn from_memory(memory: Memory<B>) -> Self {
         DedicatedBlock {
             memory,
             mapping: None,
@@ -35,14 +37,17 @@ impl DedicatedBlock {
     }
 }
 
-impl Block for DedicatedBlock {
+impl<B> Block<B> for DedicatedBlock<B>
+where
+    B: gfx_hal::Backend,
+{
     #[inline]
-    fn properties(&self) -> vk::MemoryPropertyFlags {
+    fn properties(&self) -> gfx_hal::memory::Properties {
         self.memory.properties()
     }
 
     #[inline]
-    fn memory(&self) -> vk::DeviceMemory {
+    fn memory(&self) -> &B::Memory {
         self.memory.raw()
     }
 
@@ -53,9 +58,9 @@ impl Block for DedicatedBlock {
 
     fn map<'a>(
         &'a mut self,
-        device: &impl DeviceV1_0,
+        device: &impl gfx_hal::Device<B>,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a>, MappingError> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         assert!(
             range.start <= range.end,
             "Memory mapping region must have valid size"
@@ -77,7 +82,7 @@ impl Block for DedicatedBlock {
         }
     }
 
-    fn unmap(&mut self, device: &impl DeviceV1_0) {
+    fn unmap(&mut self, device: &impl gfx_hal::Device<B>) {
         if self.mapping.take().is_some() {
             unsafe {
                 // trace!("Unmap memory: {:#?}", self.memory);
@@ -87,29 +92,30 @@ impl Block for DedicatedBlock {
     }
 }
 
-/// Dummy memory allocator that uses memory object per allocation requested.
+/// Dedicated memory allocator that uses memory object per allocation requested.
 ///
 /// This allocator suites best huge allocations.
 /// From 32 MiB when GPU has 4-8 GiB memory total.
 ///
 /// `Heaps` use this allocator when none of sub-allocators bound to the memory type
 /// can handle size required.
+/// TODO: Check if resource prefers dedicated memory.
 #[derive(Debug)]
 pub struct DedicatedAllocator {
-    memory_type: u32,
-    memory_properties: vk::MemoryPropertyFlags,
+    memory_type: gfx_hal::MemoryTypeId,
+    memory_properties: gfx_hal::memory::Properties,
     used: u64,
 }
 
 impl DedicatedAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> vk::MemoryPropertyFlags {
-        vk::MemoryPropertyFlags::empty()
+    pub fn properties_required() -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::empty()
     }
 
-    /// Create new `ArenaAllocator`
+    /// Create new `LinearAllocator`
     /// for `memory_type` with `memory_properties` specified
-    pub fn new(memory_type: u32, memory_properties: vk::MemoryPropertyFlags) -> Self {
+    pub fn new(memory_type: gfx_hal::MemoryTypeId, memory_properties: gfx_hal::memory::Properties) -> Self {
         DedicatedAllocator {
             memory_type,
             memory_properties,
@@ -118,24 +124,28 @@ impl DedicatedAllocator {
     }
 }
 
-impl Allocator for DedicatedAllocator {
-    type Block = DedicatedBlock;
+impl<B> Allocator<B> for DedicatedAllocator
+where
+    B: gfx_hal::Backend,
+{
+    type Block = DedicatedBlock<B>;
+
+    fn kind() -> Kind {
+        Kind::Dedicated
+    }
 
     #[inline]
     fn alloc(
         &mut self,
-        device: &impl DeviceV1_0,
+        device: &impl gfx_hal::Device<B>,
         size: u64,
         _align: u64,
-    ) -> Result<(DedicatedBlock, u64), MemoryError> {
+    ) -> Result<(DedicatedBlock<B>, u64), gfx_hal::device::AllocationError> {
         let memory = unsafe {
             Memory::from_raw(
                 device.allocate_memory(
-                    &vk::MemoryAllocateInfo::builder()
-                        .memory_type_index(self.memory_type)
-                        .allocation_size(size)
-                        .build(),
-                    None,
+                    self.memory_type,
+                    size,
                 )?,
                 size,
                 self.memory_properties,
@@ -148,12 +158,12 @@ impl Allocator for DedicatedAllocator {
     }
 
     #[inline]
-    fn free(&mut self, device: &impl DeviceV1_0, mut block: DedicatedBlock) -> u64 {
+    fn free(&mut self, device: &impl gfx_hal::Device<B>, mut block: DedicatedBlock<B>) -> u64 {
         block.unmap(device);
         let size = block.memory.size();
         self.used -= size;
         unsafe {
-            device.free_memory(block.memory.raw(), None);
+            device.free_memory(block.memory.into_raw());
         }
         size
     }

@@ -5,8 +5,6 @@ use std::{
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
-use error::MappingError;
-
 /// Get sub-range of memory mapping.
 /// `range` is in memory object space.
 pub(crate) fn mapped_fitting_range(
@@ -56,7 +54,7 @@ pub(crate) fn mapped_sub_range(
 pub(crate) unsafe fn mapped_slice_mut<'a, T>(
     ptr: NonNull<u8>,
     range: Range<u64>,
-) -> Result<&'a mut [T], MappingError> {
+) -> &'a mut [T] {
     let size = (range.end - range.start) as usize;
     assert_eq!(
         size % size_of::<T>(),
@@ -64,14 +62,8 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(
         "Range length must be multiple of element size"
     );
     let offset = ptr.as_ptr() as usize;
-    if offset % align_of::<T>() > 0 {
-        return Err(MappingError::Unaligned {
-            align: align_of::<T>(),
-            offset,
-        });
-    }
-
-    Ok(from_raw_parts_mut(ptr.as_ptr() as *mut T, size))
+    assert_eq!(offset % align_of::<T>(), 0, "Range offset must be multiple of element alignment");
+    from_raw_parts_mut(ptr.as_ptr() as *mut T, size)
 }
 
 /// # Safety
@@ -81,7 +73,7 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(
 pub(crate) unsafe fn mapped_slice<'a, T>(
     ptr: NonNull<u8>,
     range: Range<u64>,
-) -> Result<&'a [T], MappingError> {
+) -> &'a [T] {
     let size = (range.end - range.start) as usize;
     assert_eq!(
         size % size_of::<T>(),
@@ -89,12 +81,6 @@ pub(crate) unsafe fn mapped_slice<'a, T>(
         "Range length must be multiple of element size"
     );
     let offset = ptr.as_ptr() as usize;
-    if offset % align_of::<T>() > 0 {
-        return Err(MappingError::Unaligned {
-            align: align_of::<T>(),
-            offset,
-        });
-    }
-
-    Ok(from_raw_parts(ptr.as_ptr() as *const T, size))
+    assert_eq!(offset % align_of::<T>(), 0, "Range offset must be multiple of element alignment");
+    from_raw_parts(ptr.as_ptr() as *const T, size)
 }

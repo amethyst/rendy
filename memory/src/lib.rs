@@ -16,24 +16,17 @@
 #![deny(future_incompatible)]
 #![warn(rust_2018_compatibility)]
 #![warn(rust_2018_idioms)]
+#![warn(unused_unsafe)]
 
-extern crate ash;
-#[macro_use]
-extern crate derivative;
-#[macro_use]
-extern crate failure;
+#[macro_use] extern crate derivative;
+#[macro_use] extern crate failure;
 extern crate hibitset;
-#[macro_use]
-extern crate log;
+#[macro_use] extern crate log;
 extern crate relevant;
 #[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
-extern crate smallvec;
-extern crate veclist;
+#[macro_use] extern crate serde;
 
 mod block;
-mod error;
 mod heaps;
 mod mapping;
 mod memory;
@@ -42,9 +35,10 @@ mod util;
 pub mod allocator;
 pub mod usage;
 
-pub use block::Block;
-pub use error::{AllocationError, MappingError, MemoryError, OutOfMemoryError};
-pub use heaps::{Heaps, HeapsConfig, MemoryBlock};
-pub use mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent};
-pub use memory::Memory;
-pub use usage::MemoryUsage;
+pub use crate::{
+    block::Block,
+    heaps::{Heaps, HeapsConfig, MemoryBlock},
+    mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent},
+    memory::Memory,
+    usage::MemoryUsage,
+};

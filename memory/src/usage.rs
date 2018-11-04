@@ -1,19 +1,22 @@
 //! Defines usage types for memory bocks.
 //! See `Usage` and implementations for details.
 
-use ash::vk::MemoryPropertyFlags;
+use crate::allocator::Kind;
 
 /// Memory usage trait.
 pub trait MemoryUsage {
-    /// Comparable fitness value.
-    type Fitness: Copy + Ord;
-
-    /// Get runtime usage value.
-    fn value(&self) -> MemoryUsageValue;
+    /// Get set of properties required for the usage.
+    fn properties_required(&self) -> gfx_hal::memory::Properties;
 
     /// Get comparable fitness value for memory properties.
-    /// Should return `None` if memory doesn't fit.
-    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<Self::Fitness>;
+    /// 
+    /// # Panics
+    /// 
+    /// This function will panic if properties set doesn't contain required properties.
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32;
+
+    /// Get comparable fitness value for memory allocator.
+    fn allocator_fitness(&self, kind: Kind) -> u32;
 }
 
 /// Full speed GPU access.
@@ -23,25 +26,25 @@ pub trait MemoryUsage {
 pub struct Data;
 
 impl MemoryUsage for Data {
-    type Fitness = u8;
 
-    #[inline]
-    fn value(&self) -> MemoryUsageValue {
-        MemoryUsageValue::Data
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::DEVICE_LOCAL
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
-        if !properties.subset(MemoryPropertyFlags::DEVICE_LOCAL) {
-            None
-        } else {
-            Some(
-                ((!properties.subset(MemoryPropertyFlags::HOST_VISIBLE)) as u8) << 3
-                    | ((!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED)) as u8) << 2
-                    | ((!properties.subset(MemoryPropertyFlags::HOST_CACHED)) as u8) << 1
-                    | ((!properties.subset(MemoryPropertyFlags::HOST_COHERENT)) as u8) << 0
-                    | 0,
-            )
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL));
+        0 | ((!properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE)) as u32) << 3
+          | ((!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED)) as u32) << 2
+          | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 1
+          | ((!properties.contains(gfx_hal::memory::Properties::COHERENT)) as u32) << 0
+    }
+
+    fn allocator_fitness(&self, kind: Kind) -> u32 {
+        match kind {
+            Kind::Dedicated => 1,
+            Kind::Dynamic => 2,
+            Kind::Linear => 0,
         }
     }
 }
@@ -54,25 +57,26 @@ impl MemoryUsage for Data {
 pub struct Dynamic;
 
 impl MemoryUsage for Dynamic {
-    type Fitness = u8;
 
-    #[inline]
-    fn value(&self) -> MemoryUsageValue {
-        MemoryUsageValue::Dynamic
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
-        if !properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
-            None
-        } else {
-            assert!(!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED));
-            Some(
-                (properties.subset(MemoryPropertyFlags::DEVICE_LOCAL) as u8) << 2
-                    | (properties.subset(MemoryPropertyFlags::HOST_COHERENT) as u8) << 1
-                    | ((!properties.subset(MemoryPropertyFlags::HOST_CACHED)) as u8) << 0
-                    | 0,
-            )
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
+    
+        0 | (properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
+          | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
+          | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
+    }
+
+    fn allocator_fitness(&self, kind: Kind) -> u32 {
+        match kind {
+            Kind::Dedicated => 1,
+            Kind::Dynamic => 2,
+            Kind::Linear => 0,
         }
     }
 }
@@ -84,25 +88,26 @@ impl MemoryUsage for Dynamic {
 pub struct Upload;
 
 impl MemoryUsage for Upload {
-    type Fitness = u8;
 
-    #[inline]
-    fn value(&self) -> MemoryUsageValue {
-        MemoryUsageValue::Upload
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
-        if !properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
-            None
-        } else {
-            assert!(!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED));
-            Some(
-                ((!properties.subset(MemoryPropertyFlags::DEVICE_LOCAL)) as u8) << 2
-                    | ((!properties.subset(MemoryPropertyFlags::HOST_CACHED)) as u8) << 0
-                    | (properties.subset(MemoryPropertyFlags::HOST_COHERENT) as u8) << 1
-                    | 0,
-            )
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
+
+        0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
+          | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
+          | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
+    }
+
+    fn allocator_fitness(&self, kind: Kind) -> u32 {
+        match kind {
+            Kind::Dedicated => 0,
+            Kind::Dynamic => 1,
+            Kind::Linear => 2,
         }
     }
 }
@@ -114,57 +119,27 @@ impl MemoryUsage for Upload {
 pub struct Download;
 
 impl MemoryUsage for Download {
-    type Fitness = u8;
 
-    #[inline]
-    fn value(&self) -> MemoryUsageValue {
-        MemoryUsageValue::Download
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
-        if !properties.subset(MemoryPropertyFlags::HOST_VISIBLE) {
-            None
-        } else {
-            assert!(!properties.subset(MemoryPropertyFlags::LAZILY_ALLOCATED));
-            Some(
-                ((!properties.subset(MemoryPropertyFlags::DEVICE_LOCAL)) as u8) << 2
-                    | (properties.subset(MemoryPropertyFlags::HOST_CACHED) as u8) << 1
-                    | (properties.subset(MemoryPropertyFlags::HOST_COHERENT) as u8) << 0
-                    | 0,
-            )
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
+
+        0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
+          | (properties.contains(gfx_hal::memory::Properties::CPU_CACHED) as u32) << 1
+          | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 0
+    }
+
+    fn allocator_fitness(&self, kind: Kind) -> u32 {
+        match kind {
+            Kind::Dedicated => 0,
+            Kind::Dynamic => 1,
+            Kind::Linear => 2,
         }
     }
 }
 
-/// Dynamic value that specify memory usage flags.
-#[derive(Clone, Copy, Debug)]
-pub enum MemoryUsageValue {
-    /// Runtime counterpart for `Data`.
-    Data,
-    /// Runtime counterpart for `Dynamic`.
-    Dynamic,
-    /// Runtime counterpart for `Upload`.
-    Upload,
-    /// Runtime counterpart for `Download`.
-    Download,
-}
-
-impl MemoryUsage for MemoryUsageValue {
-    type Fitness = u8;
-
-    #[inline]
-    fn value(&self) -> MemoryUsageValue {
-        *self
-    }
-
-    #[inline]
-    fn memory_fitness(&self, properties: MemoryPropertyFlags) -> Option<u8> {
-        match self {
-            MemoryUsageValue::Data => Data.memory_fitness(properties),
-            MemoryUsageValue::Dynamic => Dynamic.memory_fitness(properties),
-            MemoryUsageValue::Upload => Upload.memory_fitness(properties),
-            MemoryUsageValue::Download => Download.memory_fitness(properties),
-        }
-    }
-}
