@@ -16,8 +16,8 @@ use failure::Error;
 
 use rendy::{
     command::{
-        CommandBuffer, CommandPool, ExecutableState, FamilyIndex, Graphics, MultiShot, OneShot,
-        OwningCommandPool, PendingState, PrimaryLevel, NoIndividualReset,
+        CommandBuffer, CommandPool, ExecutableState, FamilyIndex, Graphics, MultiShot,
+        NoIndividualReset, OneShot, OwningCommandPool, PendingState, PrimaryLevel,
     },
     factory::{Config, Factory},
     memory::usage::{Data, Dynamic},
@@ -111,7 +111,7 @@ impl Renderer<()> for SimpleRenderer {
 
             factory.reset_fence(framebuffer.fence);
             // trace!("Fence reset");
-            
+
             let mut queue = factory.queue(self.family_index, 0);
             queue.submit(
                 &[vk::SubmitInfo::builder()
@@ -152,7 +152,10 @@ impl Renderer<()> for SimpleRenderer {
                 drop(framebuffer.depth);
                 // trace!("Depth image destroyed");
 
-                framebuffer.command_pool.free_buffers(factory.device(), framebuffer.command_buffer.map(|cbuf| cbuf.complete()));
+                framebuffer.command_pool.free_buffers(
+                    factory.device(),
+                    framebuffer.command_buffer.map(|cbuf| cbuf.complete()),
+                );
                 framebuffer.command_pool.dispose(factory.device());
                 // trace!("CommandPool destroyed");
             }
@@ -242,14 +245,12 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         .color_attachments(&[vk::AttachmentReference::builder()
                             .attachment(0)
                             .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-                            .build()])
-                        .depth_stencil_attachment(
+                            .build()]).depth_stencil_attachment(
                             &vk::AttachmentReference::builder()
                                 .attachment(1)
                                 .layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-                                .build()
-                        )
-                        .build()]).dependencies(&[
+                                .build(),
+                        ).build()]).dependencies(&[
                         vk::SubpassDependency::builder()
                             .src_subpass(!0)
                             .src_stage_mask(vk::PipelineStageFlags::TOP_OF_PIPE)
@@ -295,9 +296,8 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
             (vertex, fragment)
         };
 
-        let pipeline =
-            unsafe {
-                let mut pipelines =
+        let pipeline = unsafe {
+            let mut pipelines =
                     factory
                         .device()
                         .create_graphics_pipelines(
@@ -391,8 +391,8 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                             None,
                         ).map_err(|(_, error)| error)?;
 
-                pipelines.remove(0)
-            };
+            pipelines.remove(0)
+        };
 
         let framebuffers = unsafe {
             target
@@ -457,7 +457,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         None,
                     )?;
 
-                    let mut command_pool = unsafe { 
+                    let mut command_pool = unsafe {
                         let ref family = factory.families()[family_index.0 as usize];
                         family
                             .create_pool(factory.device(), NoIndividualReset)?
@@ -616,7 +616,13 @@ fn main() -> Result<(), failure::Error> {
 
     let total_micros = duration.as_secs() * 1_000_000 + duration.subsec_micros() as u64;
 
-    info!("Rendered {} frames for {}.{:03} secs. FPS: {}", counter.start, duration.as_secs(), duration.subsec_millis(), counter.start * 1_000_000 / total_micros);
+    info!(
+        "Rendered {} frames for {}.{:03} secs. FPS: {}",
+        counter.start,
+        duration.as_secs(),
+        duration.subsec_millis(),
+        counter.start * 1_000_000 / total_micros
+    );
     // trace!("Stop rendering");
 
     renderer.dispose(&mut factory, &mut ());

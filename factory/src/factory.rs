@@ -422,7 +422,7 @@ impl Factory {
     //     self.upload_visible_buffer(&mut staging_buffer, 0, data).unwrap();
 
     //     let extent = image.extent();
-        
+
     //     let command_pool = self.families[0].create_owning_pool(&self.device, crate::command::PrimaryLevel).unwrap();
     //     let command_buffer = command_pool.acquire_buffer(&self.device);
     //     let command_buffer = command_buffer.begin(&self.device, crate::command::OneShot);
