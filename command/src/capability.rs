@@ -1,7 +1,5 @@
 //! Capability module docs.
 
-use ash::vk;
-
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]
 pub struct Transfer;
@@ -24,91 +22,83 @@ pub struct General;
 
 /// Abstract capability specifier.
 pub trait Capability: Copy {
-    /// Try to create capability instance from flags.
-    /// Instance will be created if all required flags set.
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self>;
+    /// Try to create capability instance from queue_type.
+    /// Instance will be created if all required queue_type set.
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self>;
 
-    /// Convert into `vk::QueueFlags`
-    fn into_flags(self) -> vk::QueueFlags;
+    /// Convert into `gfx_hal::QueueType`
+    fn into_flags(self) -> gfx_hal::QueueType;
 }
 
-impl Capability for vk::QueueFlags {
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self> {
-        Some(flags)
+impl Capability for gfx_hal::QueueType {
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        Some(queue_type)
     }
 
-    fn into_flags(self) -> vk::QueueFlags {
+    fn into_flags(self) -> gfx_hal::QueueType {
         self
     }
 }
 
 impl Capability for Transfer {
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self> {
-        if flags.subset(vk::QueueFlags::TRANSFER) {
-            Some(Transfer)
-        } else {
-            None
-        }
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        Some(Transfer)
     }
 
-    fn into_flags(self) -> vk::QueueFlags {
-        vk::QueueFlags::TRANSFER
+    fn into_flags(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::Transfer
     }
 }
 
 impl Capability for Execute {
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self> {
-        if flags.intersects(vk::QueueFlags::COMPUTE | vk::QueueFlags::GRAPHICS) {
-            Some(Execute)
-        } else {
-            None
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            _ => Some(Execute),
+            gfx_hal::QueueType::Transfer => None,
         }
     }
 
-    fn into_flags(self) -> vk::QueueFlags {
-        vk::QueueFlags::COMPUTE | vk::QueueFlags::GRAPHICS
+    fn into_flags(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::General
     }
 }
 
 impl Capability for Compute {
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self> {
-        if flags.subset(vk::QueueFlags::COMPUTE) {
-            Some(Compute)
-        } else {
-            None
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::Compute | gfx_hal::QueueType::General => Some(Compute),
+            _ => None
         }
     }
 
-    fn into_flags(self) -> vk::QueueFlags {
-        vk::QueueFlags::COMPUTE
+    fn into_flags(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::Compute
     }
 }
 
 impl Capability for Graphics {
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self> {
-        if flags.subset(vk::QueueFlags::GRAPHICS) {
-            Some(Graphics)
-        } else {
-            None
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::Graphics | gfx_hal::QueueType::General => Some(Graphics),
+            _ => None
         }
     }
 
-    fn into_flags(self) -> vk::QueueFlags {
-        vk::QueueFlags::GRAPHICS
+    fn into_flags(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::Graphics
     }
 }
 
 impl Capability for General {
-    fn from_flags(flags: vk::QueueFlags) -> Option<Self> {
-        if flags.subset(vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE) {
-            Some(General)
-        } else {
-            None
+    fn from_flags(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::General => Some(General),
+            _ => None
         }
     }
 
-    fn into_flags(self) -> vk::QueueFlags {
-        vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE
+    fn into_flags(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::General
     }
 }
 
@@ -184,71 +174,26 @@ impl Supports<Graphics> for General {
     }
 }
 
-impl Supports<Transfer> for vk::QueueFlags {
+impl Supports<Transfer> for gfx_hal::QueueType {
     fn supports(&self) -> Option<Transfer> {
         Transfer::from_flags(*self)
     }
 }
 
-impl Supports<Execute> for vk::QueueFlags {
+impl Supports<Execute> for gfx_hal::QueueType {
     fn supports(&self) -> Option<Execute> {
         Execute::from_flags(*self)
     }
 }
 
-impl Supports<Compute> for vk::QueueFlags {
+impl Supports<Compute> for gfx_hal::QueueType {
     fn supports(&self) -> Option<Compute> {
         Compute::from_flags(*self)
     }
 }
 
-impl Supports<Graphics> for vk::QueueFlags {
+impl Supports<Graphics> for gfx_hal::QueueType {
     fn supports(&self) -> Option<Graphics> {
         Graphics::from_flags(*self)
     }
-}
-
-/// Get capabilities required by pipeline stages.
-pub fn required_queue_capability(stages: vk::PipelineStageFlags) -> vk::QueueFlags {
-    let mut capability = vk::QueueFlags::empty();
-    if stages.subset(vk::PipelineStageFlags::DRAW_INDIRECT) {
-        capability |= vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE;
-    }
-    if stages.subset(vk::PipelineStageFlags::VERTEX_INPUT) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::VERTEX_SHADER) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::TESSELLATION_CONTROL_SHADER) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::TESSELLATION_EVALUATION_SHADER) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::GEOMETRY_SHADER) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::FRAGMENT_SHADER) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::LATE_FRAGMENT_TESTS) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    if stages.subset(vk::PipelineStageFlags::COMPUTE_SHADER) {
-        capability |= vk::QueueFlags::COMPUTE;
-    }
-    if stages.subset(vk::PipelineStageFlags::TRANSFER) {
-        capability |= vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE | vk::QueueFlags::TRANSFER;
-    }
-    if stages.subset(vk::PipelineStageFlags::ALL_GRAPHICS) {
-        capability |= vk::QueueFlags::GRAPHICS;
-    }
-    capability
 }

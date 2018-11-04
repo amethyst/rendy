@@ -1,15 +1,10 @@
 //! Encoder module docs.
 //!
 
-mod clear;
-
-use ash::vk;
 use crate::buffer::{CommandBuffer, RecordingState};
 
-pub use self::clear::*;
-
 /// Encoder allow command recording in safe-ish abstract manner.
-pub trait Encoder<C = vk::QueueFlags> {
+pub trait Encoder<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
     /// Get raw command buffer.
     ///
     /// # Safety
@@ -17,11 +12,14 @@ pub trait Encoder<C = vk::QueueFlags> {
     /// Safety of commands recording through raw buffer is covered by corresponding functions.
     /// Handle must not be used outside of `Encoder` scope.
     /// Encoder implicitly finishes buffer recording.
-    unsafe fn raw(&mut self) -> vk::CommandBuffer;
+    unsafe fn raw(&mut self) -> &mut B::CommandBuffer;
 }
 
-impl<C, U, L, R> Encoder<C> for CommandBuffer<C, RecordingState<U>, L, R> {
-    unsafe fn raw(&mut self) -> vk::CommandBuffer {
+impl<B, C, U, L, R> Encoder<B, C> for CommandBuffer<B, C, RecordingState<U>, L, R>
+where
+    B: gfx_hal::Backend,
+{
+    unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
         CommandBuffer::raw(self)
     }
 }
