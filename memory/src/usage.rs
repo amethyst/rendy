@@ -4,7 +4,7 @@
 use crate::allocator::Kind;
 
 /// Memory usage trait.
-pub trait MemoryUsage {
+pub trait MemoryUsage: Copy + std::fmt::Debug {
     /// Get set of properties required for the usage.
     fn properties_required(&self) -> gfx_hal::memory::Properties;
 

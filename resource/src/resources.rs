@@ -1,66 +1,79 @@
 use std::cmp::max;
 
-use ash::{version::DeviceV1_0, vk};
-use memory::{Block, Heaps, MemoryError, MemoryUsage};
-use relevant::Relevant;
+use memory::{Block, Heaps};
 
-use buffer;
-use escape::Terminal;
-use image;
+use crate::{
+    buffer,
+    escape::{Escape, Terminal},
+    image,
+};
 
 /// Resource manager.
 /// It can be used to create and destroy resources such as buffers and images.
-#[derive(Debug, Default)]
-pub struct Resources {
-    buffers: Terminal<buffer::Inner>,
-    images: Terminal<image::Inner>,
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
+pub struct Resources<B: gfx_hal::Backend> {
+    buffers: Terminal<buffer::Inner<B>>,
+    images: Terminal<image::Inner<B>>,
+
+    dropped_buffers: Vec<buffer::Inner<B>>,
+    dropped_images: Vec<image::Inner<B>>,
 }
 
-impl Resources {
+impl<B> Resources<B>
+where
+    B: gfx_hal::Backend,
+{
     /// Create new `Resources` instance.
     pub fn new() -> Self {
-        Self::default()
+        Default::default()
     }
 
     /// Create a buffer and bind to the memory that support intended usage.
     pub fn create_buffer(
         &mut self,
-        device: &impl DeviceV1_0,
-        heaps: &mut Heaps,
-        info: vk::BufferCreateInfo,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
         align: u64,
-        memory_usage: impl MemoryUsage,
-    ) -> Result<buffer::Buffer, MemoryError> {
-        let buf = unsafe { device.create_buffer(&info, None)? };
-        let reqs = unsafe { device.get_buffer_memory_requirements(buf) };
+        size: u64,
+        usage: impl buffer::Usage,
+    ) -> Result<buffer::Buffer<B>, failure::Error> {
+        let buf = unsafe {
+            device.create_buffer(size, usage.flags())
+        }?;
+        let reqs = unsafe {
+            device.get_buffer_requirements(&buf)
+        };
         let block = heaps.allocate(
             device,
-            reqs.memory_type_bits,
-            memory_usage,
+            reqs.type_mask as u32,
+            usage.memory(),
             reqs.size,
             max(reqs.alignment, align),
         )?;
 
-        unsafe {
-            device
-                .bind_buffer_memory(buf, block.memory(), block.range().start)
-                .unwrap()
-        }
+        let buf = unsafe {
+            device.bind_buffer_memory(block.memory(), block.range().start, buf)
+        }?;
 
         Ok(buffer::Buffer {
             inner: self.buffers.escape(buffer::Inner {
                 raw: buf,
                 block,
-                relevant: Relevant,
+                relevant: relevant::Relevant,
             }),
-            info,
+            info: buffer::Info {
+                align,
+                size,
+                usage: usage.flags(),
+            }
         })
     }
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub fn destroy_buffer(_buffer: buffer::Buffer, _device: &impl DeviceV1_0, _heaps: &mut Heaps) {
-        unimplemented!()
+    pub fn destroy_buffer(&mut self, buffer: buffer::Buffer<B>) {
+        self.dropped_buffers.push(Escape::into_inner(buffer.inner));
     }
 
     /// Drop inner buffer representation.
@@ -69,11 +82,11 @@ impl Resources {
     ///
     /// Device must not attempt to use the buffer.
     unsafe fn destroy_buffer_inner(
-        inner: buffer::Inner,
-        device: &impl DeviceV1_0,
-        heaps: &mut Heaps,
+        inner: buffer::Inner<B>,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
     ) {
-        device.destroy_buffer(inner.raw, None);
+        device.destroy_buffer(inner.raw);
         heaps.free(device, inner.block);
         inner.relevant.dispose();
     }
@@ -81,46 +94,67 @@ impl Resources {
     /// Create an image and bind to the memory that support intended usage.
     pub fn create_image(
         &mut self,
-        device: &impl DeviceV1_0,
-        heaps: &mut Heaps,
-        info: vk::ImageCreateInfo,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
         align: u64,
-        memory_usage: impl MemoryUsage,
-    ) -> Result<image::Image, MemoryError> {
-        let img = unsafe { device.create_image(&info, None)? };
-        let reqs = unsafe { device.get_image_memory_requirements(img) };
+        kind: gfx_hal::image::Kind,
+        levels: gfx_hal::image::Level,
+        format: gfx_hal::format::Format,
+        tiling: gfx_hal::image::Tiling,
+        view_caps: gfx_hal::image::ViewCapabilities,
+        usage: impl image::Usage,
+    ) -> Result<image::Image<B>, failure::Error> {
+        let img = unsafe {
+            device.create_image(
+                kind,
+                levels,
+                format,
+                tiling,
+                usage.flags(),
+                view_caps,
+            )
+        }?;
+        let reqs = unsafe {
+            device.get_image_requirements(&img)
+        };
         let block = heaps.allocate(
             device,
-            reqs.memory_type_bits,
-            memory_usage,
+            reqs.type_mask as u32,
+            usage.memory(),
             reqs.size,
             max(reqs.alignment, align),
         )?;
 
-        unsafe {
+        let img = unsafe {
             device
-                .bind_image_memory(img, block.memory(), block.range().start)
-                .unwrap()
-        }
+                .bind_image_memory(block.memory(), block.range().start, img)
+        }?;
 
         Ok(image::Image {
             inner: self.images.escape(image::Inner {
                 raw: img,
                 block,
-                relevant: Relevant,
+                relevant: relevant::Relevant,
             }),
-            info,
+            info: image::Info {
+                align,
+                kind,
+                levels,
+                format,
+                tiling,
+                view_caps,
+                usage: usage.flags(),
+            },
         })
     }
 
     /// Destroy image.
     /// Image can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_image(
-        _image: image::Image,
-        _device: &impl DeviceV1_0,
-        _heaps: &mut Heaps,
+    pub fn destroy_image(
+        &mut self,
+        image: image::Image<B>,
     ) {
-        unimplemented!()
+        self.dropped_images.push(Escape::into_inner(image.inner));
     }
 
     /// Drop inner image representation.
@@ -129,11 +163,11 @@ impl Resources {
     ///
     /// Device must not attempt to use the image.
     unsafe fn destroy_image_inner(
-        inner: image::Inner,
-        device: &impl DeviceV1_0,
-        heaps: &mut Heaps,
+        inner: image::Inner<B>,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
     ) {
-        device.destroy_image(inner.raw, None);
+        device.destroy_image(inner.raw);
         heaps.free(device, inner.block);
         inner.relevant.dispose();
     }
@@ -143,15 +177,16 @@ impl Resources {
     /// # Safety
     ///
     /// Device must not attempt to use previously dropped buffers and images.
-    pub unsafe fn cleanup(&mut self, device: &impl DeviceV1_0, heaps: &mut Heaps) {
-        // trace!("Cleanup buffers");
-        for buffer in self.buffers.drain() {
+    pub unsafe fn cleanup(&mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+        for buffer in self.dropped_buffers.drain(..) {
             Self::destroy_buffer_inner(buffer, device, heaps);
         }
 
-        // trace!("Cleanup images");
-        for image in self.images.drain() {
+        for image in self.dropped_images.drain(..) {
             Self::destroy_image_inner(image, device, heaps);
         }
+
+        self.dropped_buffers.extend(self.buffers.drain());
+        self.dropped_images.extend(self.images.drain());
     }
 }

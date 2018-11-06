@@ -10,14 +10,12 @@ use std::{
     ptr::read,
 };
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
-
 /// Wraps value of any type and send it to the `Terminal` from which the wrapper was created.
 /// In case `Terminal` is already dropped then value will be cast into oblivion via `std::mem::forget`.
 #[derive(Debug, Clone)]
 pub(crate) struct Escape<T> {
     value: ManuallyDrop<T>,
-    sender: Sender<T>,
+    sender: crossbeam_channel::Sender<T>,
 }
 
 impl<T> Escape<T> {
@@ -28,7 +26,7 @@ impl<T> Escape<T> {
     }
 
     #[allow(unused)]
-    fn deconstruct(mut escape: Self) -> (T, Sender<T>) {
+    fn deconstruct(mut escape: Self) -> (T, crossbeam_channel::Sender<T>) {
         unsafe {
             let value = read(&mut *escape.value);
             let sender = read(&mut escape.sender);
@@ -65,8 +63,8 @@ impl<T> Drop for Escape<T> {
 /// Receives values from dropped `Escape` instances that was created by this `Terminal`.
 #[derive(Debug)]
 pub(crate) struct Terminal<T> {
-    receiver: Receiver<T>,
-    sender: ManuallyDrop<Sender<T>>,
+    receiver: crossbeam_channel::Receiver<T>,
+    sender: ManuallyDrop<crossbeam_channel::Sender<T>>,
 }
 
 impl<T> Default for Terminal<T> {
@@ -78,7 +76,7 @@ impl<T> Default for Terminal<T> {
 impl<T> Terminal<T> {
     /// Create new `Terminal`.
     pub(crate) fn new() -> Self {
-        let (sender, receiver) = unbounded();
+        let (sender, receiver) = crossbeam_channel::unbounded();
         Terminal {
             sender: ManuallyDrop::new(sender),
             receiver,
@@ -89,7 +87,7 @@ impl<T> Terminal<T> {
     pub(crate) fn escape(&self, value: T) -> Escape<T> {
         Escape {
             value: ManuallyDrop::new(value),
-            sender: Sender::clone(&self.sender),
+            sender: crossbeam_channel::Sender::clone(&self.sender),
         }
     }
 

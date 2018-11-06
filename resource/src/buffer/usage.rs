@@ -1,5 +1,5 @@
-use ash::vk::BufferUsageFlags;
-use memory::usage::{Data, Download, Dynamic, MemoryUsage, MemoryUsageValue, Upload};
+
+use memory::usage::{Data, Download, Dynamic, MemoryUsage, Upload};
 
 /// Usage trait that must implemented by usage types.
 /// This trait provides a way to convert type-level usage to the value-level flags.
@@ -8,20 +8,23 @@ pub trait Usage {
     type MemoryUsage: MemoryUsage;
 
     /// Convert usage to the flags.
-    fn flags(&self) -> BufferUsageFlags;
+    fn flags(&self) -> gfx_hal::buffer::Usage;
 
     /// Get suggested memory usage.
     fn memory(&self) -> Self::MemoryUsage;
 }
 
-impl Usage for (BufferUsageFlags, MemoryUsageValue) {
-    type MemoryUsage = MemoryUsageValue;
+impl<M> Usage for (gfx_hal::buffer::Usage, M)
+where
+    M: MemoryUsage,
+{
+    type MemoryUsage = M;
 
-    fn flags(&self) -> BufferUsageFlags {
+    fn flags(&self) -> gfx_hal::buffer::Usage {
         self.0
     }
 
-    fn memory(&self) -> MemoryUsageValue {
+    fn memory(&self) -> M {
         self.1
     }
 }
@@ -35,8 +38,8 @@ pub struct VertexBuffer;
 impl Usage for VertexBuffer {
     type MemoryUsage = Data;
 
-    fn flags(&self) -> BufferUsageFlags {
-        BufferUsageFlags::TRANSFER_DST | BufferUsageFlags::VERTEX_BUFFER
+    fn flags(&self) -> gfx_hal::buffer::Usage {
+        gfx_hal::buffer::Usage::TRANSFER_DST | gfx_hal::buffer::Usage::VERTEX
     }
 
     fn memory(&self) -> Data {
@@ -53,8 +56,8 @@ pub struct IndexBuffer;
 impl Usage for IndexBuffer {
     type MemoryUsage = Data;
 
-    fn flags(&self) -> BufferUsageFlags {
-        BufferUsageFlags::TRANSFER_DST | BufferUsageFlags::INDEX_BUFFER
+    fn flags(&self) -> gfx_hal::buffer::Usage {
+        gfx_hal::buffer::Usage::TRANSFER_DST | gfx_hal::buffer::Usage::INDEX
     }
 
     fn memory(&self) -> Data {
@@ -70,8 +73,8 @@ pub struct UniformBuffer;
 impl Usage for UniformBuffer {
     type MemoryUsage = Dynamic;
 
-    fn flags(&self) -> BufferUsageFlags {
-        BufferUsageFlags::UNIFORM_BUFFER
+    fn flags(&self) -> gfx_hal::buffer::Usage {
+        gfx_hal::buffer::Usage::UNIFORM
     }
 
     fn memory(&self) -> Dynamic {
@@ -86,8 +89,8 @@ pub struct UploadBuffer;
 impl Usage for UploadBuffer {
     type MemoryUsage = Upload;
 
-    fn flags(&self) -> BufferUsageFlags {
-        BufferUsageFlags::TRANSFER_SRC
+    fn flags(&self) -> gfx_hal::buffer::Usage {
+        gfx_hal::buffer::Usage::TRANSFER_SRC
     }
 
     fn memory(&self) -> Upload {
@@ -102,8 +105,8 @@ pub struct DownloadBuffer;
 impl Usage for DownloadBuffer {
     type MemoryUsage = Download;
 
-    fn flags(&self) -> BufferUsageFlags {
-        BufferUsageFlags::TRANSFER_DST
+    fn flags(&self) -> gfx_hal::buffer::Usage {
+        gfx_hal::buffer::Usage::TRANSFER_DST
     }
 
     fn memory(&self) -> Download {

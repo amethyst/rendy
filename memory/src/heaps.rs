@@ -8,12 +8,15 @@ use crate::{
     util::*,
 };
 
+/// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
 #[derive(Debug, Fail)]
 pub enum HeapsError {
+    /// Memory allocation failure.
     #[fail(display = "{}", _0)]
     AllocationError(gfx_hal::device::AllocationError),
 
+    /// No memory types among required for resource with requested properties was found.
     #[fail(display = "Memory type among ({}) with properties ({:?}) not found", _0, _1)]
     NoSuitableMemory(u32, gfx_hal::memory::Properties),
 }

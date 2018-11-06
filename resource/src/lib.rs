@@ -17,12 +17,10 @@
 #![deny(future_incompatible)]
 #![warn(rust_2018_compatibility)]
 #![warn(rust_2018_idioms)]
+#![warn(unused_unsafe)]
 
-extern crate ash;
-extern crate crossbeam_channel;
-#[macro_use]
-extern crate log;
-extern crate relevant;
+#[macro_use] extern crate derivative;
+#[macro_use] extern crate log;
 extern crate rendy_memory as memory;
 
 mod escape;

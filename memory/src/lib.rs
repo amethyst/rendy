@@ -37,7 +37,7 @@ pub mod usage;
 
 pub use crate::{
     block::Block,
-    heaps::{Heaps, HeapsConfig, MemoryBlock},
+    heaps::{Heaps, HeapsConfig, MemoryBlock, HeapsError},
     mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent},
     memory::Memory,
     usage::MemoryUsage,

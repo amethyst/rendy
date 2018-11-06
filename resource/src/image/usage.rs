@@ -1,5 +1,4 @@
-use ash::vk::ImageUsageFlags;
-use memory::usage::{Data, MemoryUsage, MemoryUsageValue};
+use memory::usage::{Data, MemoryUsage};
 
 /// Usage trait that must implemented by usage types.
 /// This trait provides a way to convert type-level usage to the value-level flags.
@@ -8,20 +7,23 @@ pub trait Usage {
     type MemoryUsage: MemoryUsage;
 
     /// Convert usage to the flags.
-    fn flags(&self) -> ImageUsageFlags;
+    fn flags(&self) -> gfx_hal::image::Usage;
 
     /// Get suggested memory usage.
     fn memory(&self) -> Self::MemoryUsage;
 }
 
-impl Usage for (ImageUsageFlags, MemoryUsageValue) {
-    type MemoryUsage = MemoryUsageValue;
+impl<M> Usage for (gfx_hal::image::Usage, M)
+where
+    M: MemoryUsage,
+{
+    type MemoryUsage = M;
 
-    fn flags(&self) -> ImageUsageFlags {
+    fn flags(&self) -> gfx_hal::image::Usage {
         self.0
     }
 
-    fn memory(&self) -> MemoryUsageValue {
+    fn memory(&self) -> M {
         self.1
     }
 }
@@ -35,8 +37,8 @@ pub struct Texture;
 impl Usage for Texture {
     type MemoryUsage = Data;
 
-    fn flags(&self) -> ImageUsageFlags {
-        ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED
+    fn flags(&self) -> gfx_hal::image::Usage {
+        gfx_hal::image::Usage::TRANSFER_DST | gfx_hal::image::Usage::SAMPLED
     }
 
     fn memory(&self) -> Data {
@@ -51,8 +53,8 @@ pub struct RenderTargetStorage;
 impl Usage for RenderTargetStorage {
     type MemoryUsage = Data;
 
-    fn flags(&self) -> ImageUsageFlags {
-        ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::STORAGE
+    fn flags(&self) -> gfx_hal::image::Usage {
+        gfx_hal::image::Usage::COLOR_ATTACHMENT | gfx_hal::image::Usage::STORAGE
     }
 
     fn memory(&self) -> Data {
@@ -67,8 +69,8 @@ pub struct RenderTargetSampled;
 impl Usage for RenderTargetSampled {
     type MemoryUsage = Data;
 
-    fn flags(&self) -> ImageUsageFlags {
-        ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED
+    fn flags(&self) -> gfx_hal::image::Usage {
+        gfx_hal::image::Usage::COLOR_ATTACHMENT | gfx_hal::image::Usage::SAMPLED
     }
 
     fn memory(&self) -> Data {
