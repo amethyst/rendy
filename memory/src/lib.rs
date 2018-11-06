@@ -18,13 +18,7 @@
 #![warn(rust_2018_idioms)]
 #![warn(unused_unsafe)]
 
-#[macro_use] extern crate derivative;
-#[macro_use] extern crate failure;
-extern crate hibitset;
-#[macro_use] extern crate log;
-extern crate relevant;
-#[cfg(feature = "serde")]
-#[macro_use] extern crate serde;
+extern crate failure;
 
 mod block;
 mod heaps;

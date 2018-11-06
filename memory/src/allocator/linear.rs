@@ -1,7 +1,5 @@
 use std::{collections::VecDeque, ops::Range, ptr::NonNull};
 
-use relevant::Relevant;
-
 use crate::{
     allocator::{Allocator, Kind},
     block::Block,
@@ -11,7 +9,7 @@ use crate::{
 };
 
 /// Memory block allocated from `LinearAllocator`
-#[derive(Derivative)]
+#[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct LinearBlock<B: gfx_hal::Backend> {
     // #[derivative(Debug(format_with = "::memory::memory_ptr_fmt"))]
@@ -20,7 +18,7 @@ pub struct LinearBlock<B: gfx_hal::Backend> {
     ptr: NonNull<u8>,
     range: Range<u64>,
     #[derivative(Debug = "ignore")]
-    relevant: Relevant,
+    relevant: relevant::Relevant,
 }
 
 unsafe impl<B> Send for LinearBlock<B> where B: gfx_hal::Backend {}
@@ -116,7 +114,7 @@ pub struct LinearAllocator<B: gfx_hal::Backend> {
     lines: VecDeque<Line<B>>,
 }
 
-#[derive(Derivative)]
+#[derive(derivative::Derivative)]
 #[derivative(Debug)]
 struct Line<B: gfx_hal::Backend> {
     used: u64,
@@ -133,7 +131,7 @@ impl<B> LinearAllocator<B>
 where
     B: gfx_hal::Backend,
 {
-    /// Get properties required by the allocator.
+    /// Get properties required by the `LinearAllocator`.
     pub fn properties_required() -> gfx_hal::memory::Properties {
         gfx_hal::memory::Properties::CPU_VISIBLE
     }
@@ -151,7 +149,7 @@ where
         memory_properties: gfx_hal::memory::Properties,
         config: LinearConfig,
     ) -> Self {
-        info!(
+        log::info!(
             "Create new 'linear' allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
             memory_type, memory_properties, config
         );
@@ -173,7 +171,7 @@ where
     pub fn dispose(mut self, device: &impl gfx_hal::Device<B>) {
         self.cleanup(device, 0);
         if !self.lines.is_empty() {
-            error!(
+            log::error!(
                 "Lines are not empty during allocator disposal. Lines: {:#?}",
                 self.lines
             );
@@ -242,7 +240,7 @@ where
                         memory: &*line.memory,
                         ptr,
                         range,
-                        relevant: Relevant,
+                        relevant: relevant::Relevant,
                     },
                     0,
                 ));
@@ -284,7 +282,7 @@ where
             memory: &*line.memory,
             ptr,
             range,
-            relevant: Relevant,
+            relevant: relevant::Relevant,
         };
 
         self.lines.push_back(line);

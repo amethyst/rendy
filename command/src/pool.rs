@@ -5,7 +5,7 @@ use crate::{buffer::*, capability::*};
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
 /// Wraps raw buffers into `CommandCommand buffer`.
-#[derive(Derivative)]
+#[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndividualReset> {
     #[derivative(Debug = "ignore")]raw: B::CommandPool,
@@ -138,10 +138,12 @@ where
 /// It can be used to borrow buffers one by one.
 /// All buffers will be reset together via pool.
 /// Prior resetting user must ensure all buffers are complete.
-#[derive(Debug)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 pub struct OwningCommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, L = PrimaryLevel> {
     inner: CommandPool<B, C>,
     level: L,
+    #[derivative(Debug = "ignore")]
     buffers: Vec<B::CommandBuffer>,
     next: usize,
 }

@@ -1,8 +1,5 @@
 use std::{ops::Range, ptr::NonNull};
 
-use hibitset::{BitSet, BitSetLike};
-use relevant::Relevant;
-
 use crate::{
     allocator::{Allocator, Kind},
     block::Block,
@@ -12,7 +9,7 @@ use crate::{
 };
 
 /// Memory block allocated from `DynamicAllocator`
-#[derive(Derivative)]
+#[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct DynamicBlock<B: gfx_hal::Backend> {
     index: u32,
@@ -21,7 +18,7 @@ pub struct DynamicBlock<B: gfx_hal::Backend> {
     ptr: Option<NonNull<u8>>,
     range: Range<u64>,
     #[derivative(Debug = "ignore")]
-    relevant: Relevant,
+    relevant: relevant::Relevant,
 }
 
 unsafe impl<B> Send for DynamicBlock<B> where B: gfx_hal::Backend {}
@@ -144,18 +141,13 @@ struct Size<B: gfx_hal::Backend> {
     total_chunks: u32,
 
     /// Bits per free blocks.
-    blocks: BitSet,
+    blocks: hibitset::BitSet,
 }
 
 impl<B> DynamicAllocator<B>
 where
     B: gfx_hal::Backend,
 {
-    /// Get properties required by the allocator.
-    pub fn properties_required() -> gfx_hal::memory::Properties {
-        gfx_hal::memory::Properties::empty()
-    }
-
     /// Maximum allocation size.
     pub fn max_allocation(&self) -> u64 {
         self.max_block_size()
@@ -169,7 +161,7 @@ where
         memory_properties: gfx_hal::memory::Properties,
         mut config: DynamicConfig,
     ) -> Self {
-        info!(
+        log::info!(
             "Create new allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
             memory_type, memory_properties, config
         );
@@ -209,7 +201,7 @@ where
             sizes: (0..sizes)
                 .map(|_| Size {
                     chunks: veclist::VecList::new(),
-                    blocks: BitSet::new(),
+                    blocks: hibitset::BitSet::new(),
                     total_chunks: 0,
                 }).collect(),
         }
@@ -311,7 +303,7 @@ where
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         // trace!("Allocate block. type: {}, size: {}", self.memory_type, size);
         let size_index = self.size_index(size);
-        let (block_index, allocated) = match (&self.sizes[size_index].blocks).iter().next() {
+        let (block_index, allocated) = match hibitset::BitSetLike::iter(&self.sizes[size_index].blocks).next() {
             Some(block_index) => {
                 self.sizes[size_index].blocks.remove(block_index);
                 (block_index, 0)
@@ -352,7 +344,7 @@ where
                     mapped_fitting_range(ptr, chunk.range(), block_range)
                         .expect("Block must be in sub-range of chunk")
                 }),
-                relevant: Relevant,
+                relevant: relevant::Relevant,
             },
             allocated,
         ))
@@ -464,9 +456,8 @@ fn max_blocks_per_size() -> u32 {
     value as u32
 }
 
-fn check_bit_range_set(bitset: &BitSet, range: Range<u32>) -> bool {
+fn check_bit_range_set(bitset: &hibitset::BitSet, range: Range<u32>) -> bool {
     debug_assert!(range.start <= range.end);
-    use hibitset::BitSetLike;
     let layer_size = std::mem::size_of::<usize>() as u32 * 8;
 
     assert_eq!(
@@ -480,5 +471,5 @@ fn check_bit_range_set(bitset: &BitSet, range: Range<u32>) -> bool {
         "Hack. Can be removed after this function works without this assert"
     );
 
-    bitset.layer0((range.start / layer_size) as usize) == !0
+    hibitset::BitSetLike::layer0(&bitset, (range.start / layer_size) as usize) == !0
 }

@@ -9,7 +9,7 @@ use crate::{
 /// Family of the command queues.
 /// Queues from one family can share resources and execute command buffers associated with the family.
 /// All queues of the family have same capabilities.
-#[derive(Derivative)]
+#[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Family<B: gfx_hal::Backend, C: Capability = gfx_hal::QueueType> {
     index: gfx_hal::queue::QueueFamilyId,
@@ -33,19 +33,19 @@ where
     /// `properties` must be the properties retuned for queue family from physical device.
     pub unsafe fn from_device(
         queues: &mut gfx_hal::queue::Queues<B>,
-        family: gfx_hal::queue::QueueFamilyId,
-        queue_count: u32,
-        queue_type: gfx_hal::QueueType,
+        index: gfx_hal::queue::QueueFamilyId,
+        count: usize,
+        family: &impl gfx_hal::queue::QueueFamily,
     ) -> Self {
         Family {
-            index: family,
+            index,
             queues: {
-                let queues = queues.take_raw(family).expect("");
-                assert_eq!(queues.len(), queue_count as usize);
+                let queues = queues.take_raw(index).expect("");
+                assert_eq!(queues.len(), count);
                 queues
             },
             // min_image_transfer_granularity: properties.min_image_transfer_granularity,
-            capability: queue_type,
+            capability: family.queue_type(),
             relevant: relevant::Relevant,
         }
     }
@@ -61,7 +61,12 @@ where
     }
 
     /// Get queues of the family.
-    pub fn queues(&mut self) -> &mut [B::CommandQueue] {
+    pub fn queues(&self) -> &[impl gfx_hal::queue::RawCommandQueue<B>] {
+        &self.queues
+    }
+
+    /// Get queues of the family.
+    pub fn queues_mut(&mut self) -> &mut [impl gfx_hal::queue::RawCommandQueue<B>] {
         &mut self.queues
     }
 
@@ -163,15 +168,15 @@ where
 /// `properties` must contain properties retuned for queue family from physical device for each family index yielded by `families`.
 pub unsafe fn families_from_device<B>(
     queues: &mut gfx_hal::queue::Queues<B>,
-    families: impl IntoIterator<Item = (gfx_hal::queue::QueueFamilyId, u32)>,
-    queue_types: &[gfx_hal::QueueType],
+    families: impl IntoIterator<Item = (gfx_hal::queue::QueueFamilyId, usize)>,
+    queue_types: &[impl gfx_hal::queue::QueueFamily],
 ) -> Vec<Family<B>>
 where
     B: gfx_hal::Backend,
 {
     families
         .into_iter()
-        .map(|(index, queue_count)| {
-            Family::from_device(queues, index, queue_count, queue_types[index.0 as usize])
+        .map(|(index, count)| {
+            Family::from_device(queues, index, count, &queue_types[index.0])
         }).collect()
 }

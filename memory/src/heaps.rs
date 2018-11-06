@@ -10,7 +10,7 @@ use crate::{
 
 /// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
-#[derive(Debug, Fail)]
+#[derive(Debug, failure::Fail)]
 pub enum HeapsError {
     /// Memory allocation failure.
     #[fail(display = "{}", _0)]
@@ -314,20 +314,16 @@ where
             properties,
             heap_index,
             dedicated: DedicatedAllocator::new(memory_type, properties),
-            linear: if properties.contains(LinearAllocator::<B>::properties_required()) {
+            linear: if properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
                 config
                     .linear
                     .map(|config| LinearAllocator::new(memory_type, properties, config))
             } else {
                 None
             },
-            dynamic: if properties.contains(DynamicAllocator::<B>::properties_required()) {
-                config
-                    .dynamic
-                    .map(|config| DynamicAllocator::new(memory_type, properties, config))
-            } else {
-                None
-            },
+            dynamic: config
+                .dynamic
+                .map(|config| DynamicAllocator::new(memory_type, properties, config)),
         }
     }
 

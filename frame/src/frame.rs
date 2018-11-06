@@ -1,8 +1,5 @@
 //! Frame module docs.
 
-use ash::{version::DeviceV1_0, vk};
-use failure::Error;
-use smallvec::SmallVec;
 use std::borrow::Borrow;
 
 use command::{
@@ -11,7 +8,7 @@ use command::{
 };
 
 /// Fences collection.
-pub type Fences = SmallVec<[vk::Fence; 8]>;
+pub type Fences<B> = smallvec::SmallVec<[<B as gfx_hal::Backend>::Fence; 8]>;
 
 /// Unique index of the frame.
 /// It must be unique per render instance.
@@ -61,26 +58,29 @@ impl Frame {
 /// Frame that is fully submitted for execution.
 /// User can wait for it to become `CompleteFrame`.
 #[derive(Debug)]
-pub struct PendingFrame {
+pub struct PendingFrame<B: gfx_hal::Backend> {
     index: FrameIndex,
-    fences: Fences,
+    fences: Fences<B>,
 }
 
-impl PendingFrame {
+impl<B> PendingFrame<B>
+where
+    B: gfx_hal::Backend,
+{
     /// Get frame index.
     pub fn index(&self) -> FrameIndex {
         self.index
     }
 
     /// Check if frame is complete on device.
-    pub fn is_complete<D>(&self, device: &D) -> bool {
+    pub fn is_complete(&self, device: &impl gfx_hal::Device<B>) -> bool {
         unimplemented!("Check the fences")
     }
 
     /// Try to complete the frame.
     /// Returns `Ok(CompleteFrame {...})` if `is_complete` will return `true.
     /// Returns `Err(self)` otherwise.
-    pub fn complete<D>(self, device: &D) -> Result<(CompleteFrame, Fences), Self> {
+    pub fn complete(self, device: &impl gfx_hal::Device<B>) -> Result<(CompleteFrame, Fences<B>), Self> {
         if self.is_complete(device) {
             Ok((CompleteFrame { index: self.index }, self.fences))
         } else {
@@ -89,8 +89,8 @@ impl PendingFrame {
     }
 
     /// Wait for the frame to complete and return `CompleteFrame` as a proof.
-    pub fn wait<D>(self, device: &D) -> Result<(CompleteFrame, Fences), Error> {
-        unimplemented!("Wait for the fences");
+    pub fn wait(self, device: &impl gfx_hal::Device<B>) -> Result<(CompleteFrame, Fences<B>), gfx_hal::device::OomOrDeviceLost> {
+        device.wait_for_fences(&self.fences, gfx_hal::device::WaitFor::All, !0)?;
         Ok((CompleteFrame { index: self.index }, self.fences))
     }
 }
@@ -160,12 +160,15 @@ impl<'a, T> FrameBound<'a, T> {
 
 /// Timeline of frames, complete, pending and next.
 #[derive(Debug)]
-pub struct Frames {
-    pending: SmallVec<[PendingFrame; 5]>,
+pub struct Frames<B: gfx_hal::Backend> {
+    pending: smallvec::SmallVec<[PendingFrame<B>; 5]>,
     next: Frame,
 }
 
-impl Frames {
+impl<B> Frames<B>
+where
+    B: gfx_hal::Backend,
+{
     /// Get next frame reference.
     fn next(&self) -> &Frame {
         &self.next
@@ -194,12 +197,15 @@ impl Frames {
 /// All command buffers acquired from bound `FramePool` are guarantee
 /// to complete when frame's fence is set, and buffers can be reset.
 #[derive(Debug)]
-pub struct FramePool<C, R> {
-    inner: OwningCommandPool<C, R>,
+pub struct FramePool<B: gfx_hal::Backend, C, L> {
+    inner: OwningCommandPool<B, C, L>,
     frame: Option<FrameIndex>,
 }
 
-impl<C, R> FramePool<C, R> {
+impl<B, C, L> FramePool<B, C, L>
+where
+    B: gfx_hal::Backend,
+{
     /// Bind pool to particular frame.
     ///
     /// Command pools acquired from the bound pool could be submitted only within frame borrowing lifetime.
@@ -239,9 +245,12 @@ impl<C, R> FramePool<C, R> {
     }
 }
 
-impl<R> FramePool<vk::QueueFlags, R> {
+impl<B, L> FramePool<B, gfx_hal::QueueType, L>
+where
+    B: gfx_hal::Backend,
+{
     /// Convert capability level
-    pub fn from_flags<C>(self) -> Result<FramePool<C, R>, Self>
+    pub fn from_flags<C>(self) -> Result<FramePool<B, C, L>, Self>
     where
         C: Capability,
     {
@@ -258,7 +267,10 @@ impl<R> FramePool<vk::QueueFlags, R> {
     }
 }
 
-impl<'a, C: 'a, R: 'a> FrameBound<'a, &'a mut FramePool<C, R>> {
+impl<'a, B: 'a, C: 'a, L: 'a> FrameBound<'a, &'a mut FramePool<B, C, L>>
+where
+    B: gfx_hal::Backend,
+{
     /// Reserve at least `count` buffers.
     /// Allocate if there are not enough unused buffers.
     pub fn reserve(&mut self, count: usize) {
@@ -268,17 +280,16 @@ impl<'a, C: 'a, R: 'a> FrameBound<'a, &'a mut FramePool<C, R>> {
     /// Acquire command buffer from pool.
     /// The command buffer could be submitted only as part of submission for associated frame.
     /// TODO: Check that buffer cannot be moved out.
-    pub fn acquire_buffer<D, L>(
+    pub fn acquire_buffer(
         &mut self,
-        device: &impl DeviceV1_0,
-        level: L,
-    ) -> FrameBound<'a, CommandBuffer<C, InitialState, L>> {
+    ) -> FrameBound<'a, CommandBuffer<B, C, InitialState, L>> {
         unimplemented!()
     }
 }
 
-impl<'a, S, L, C> FrameBound<'a, CommandBuffer<C, S, L>>
+impl<'a, B, S, L, C> FrameBound<'a, CommandBuffer<B, C, S, L>>
 where
+    B: gfx_hal::Backend,
     S: Resettable,
 {
     /// Release borrowed buffer. This allows to acquire next buffer from pool.
@@ -289,15 +300,21 @@ where
     }
 }
 
-impl<'a, C, R> FrameBound<'a, CommandBuffer<C, ExecutableState<OneShot>, PrimaryLevel, R>> {
+impl<'a, B, C, L> FrameBound<'a, CommandBuffer<B, C, ExecutableState<OneShot>, PrimaryLevel, L>>
+where
+    B: gfx_hal::Backend,
+{
     /// Produce `Submit` object that can be used to populate submission.
-    pub fn submit(self) -> (FrameBound<'a, Submit>,) {
+    pub fn submit(self) -> (FrameBound<'a, Submit<B>>,) {
         unimplemented!()
     }
 }
 
-impl<'a, C, U, L, R> Encoder<C> for FrameBound<'a, CommandBuffer<C, RecordingState<U>, L, R>> {
-    unsafe fn raw(&mut self) -> vk::CommandBuffer {
-        CommandBuffer::raw(&self.value)
+impl<'a, B, C, U, L> Encoder<B, C> for FrameBound<'a, CommandBuffer<B, C, RecordingState<U>, L>>
+where
+    B: gfx_hal::Backend,
+{
+    unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
+        CommandBuffer::raw(&mut self.value)
     }
 }

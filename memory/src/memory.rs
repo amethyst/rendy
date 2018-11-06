@@ -1,7 +1,5 @@
 // use std::fmt;
 
-use relevant::Relevant;
-
 /// Memory object wrapper.
 /// Contains size and properties of the memory.
 #[derive(Debug)]
@@ -9,7 +7,7 @@ pub struct Memory<B: gfx_hal::Backend> {
     raw: B::Memory,
     size: u64,
     properties: gfx_hal::memory::Properties,
-    relevant: Relevant,
+    relevant: relevant::Relevant,
 }
 
 impl<B> Memory<B>
@@ -51,7 +49,7 @@ where
             properties,
             raw,
             size,
-            relevant: Relevant,
+            relevant: relevant::Relevant,
         }
     }
 

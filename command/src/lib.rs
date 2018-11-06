@@ -18,8 +18,7 @@
 #![warn(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-#[macro_use] extern crate failure;
-#[macro_use] extern crate derivative;
+extern crate failure;
 
 mod buffer;
 mod capability;
@@ -27,14 +26,14 @@ mod encoder;
 mod family;
 mod pool;
 
-// pub use crate::{
-//     buffer::{
-//         CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
-//         MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
-//         RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
-//     },
-//     capability::{Capability, Compute, General, Graphics, Transfer},
-//     encoder::Encoder,
-//     family::{families_from_device, Family, gfx_hal::queue::QueueFamilyId},
-//     pool::{CommandPool, OwningCommandPool},
-// };
+pub use crate::{
+    buffer::{
+        CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
+        MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
+        RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
+    },
+    capability::{Capability, Compute, General, Graphics, Transfer},
+    encoder::Encoder,
+    family::{families_from_device, Family},
+    pool::{CommandPool, OwningCommandPool},
+};
