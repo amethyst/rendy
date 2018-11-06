@@ -6,18 +6,10 @@
 //! vertex attributes required by shader interface.
 //!
 
-extern crate ash;
-extern crate failure;
 extern crate rendy_command as command;
 extern crate rendy_factory as factory;
 extern crate rendy_memory as memory;
 extern crate rendy_resource as resource;
-
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
-
-extern crate smallvec;
 
 mod mesh;
 mod utils;

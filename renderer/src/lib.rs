@@ -1,17 +1,10 @@
-#[macro_use]
-extern crate derivative;
-extern crate failure;
-extern crate winit;
 
 extern crate rendy_factory as factory;
-extern crate rendy_frame as frame;
-extern crate rendy_wsi as wsi;
 
 use factory::Factory;
-use frame::Frames;
 
-pub trait Renderer<T> {
-    type Desc: RendererBuilder<T>;
+pub trait Renderer<B: gfx_hal::Backend, T> {
+    type Desc: RendererBuilder<B, T>;
 
     fn builder() -> Self::Desc
     where
@@ -20,13 +13,13 @@ pub trait Renderer<T> {
         Self::Desc::default()
     }
 
-    fn run(&mut self, factory: &mut Factory, data: &mut T);
-    fn dispose(self, factory: &mut Factory, data: &mut T);
+    fn run(&mut self, factory: &mut Factory<B>, data: &mut T);
+    fn dispose(self, factory: &mut Factory<B>, data: &mut T);
 }
 
-pub trait RendererBuilder<T> {
+pub trait RendererBuilder<B: gfx_hal::Backend, T> {
     type Error;
-    type Renderer: Renderer<T>;
+    type Renderer: Renderer<B, T>;
 
-    fn build(self, factory: &mut Factory, data: &mut T) -> Result<Self::Renderer, Self::Error>;
+    fn build(self, factory: &mut Factory<B>, data: &mut T) -> Result<Self::Renderer, Self::Error>;
 }

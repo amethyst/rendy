@@ -58,7 +58,7 @@ where
     /// # Safety
     ///
     /// Raw buffer handler should not be usage to violate this object valid usage.
-    pub unsafe fn raw(&self) -> &B::Buffer {
+    pub fn raw(&self) -> &B::Buffer {
         &self.inner.raw
     }
 }

@@ -2,11 +2,9 @@
 
 use std::{borrow::Cow, fmt::Debug};
 
-use ash::vk::Format;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Attribute {
-    pub format: Format,
+    pub format: gfx_hal::format::Format,
     pub offset: u32,
 }
 
@@ -19,7 +17,7 @@ pub trait AsAttribute: Debug + PartialEq + Copy + Send + Sync {
     const SIZE: u32;
 
     /// Attribute format.
-    const FORMAT: Format;
+    const FORMAT: gfx_hal::format::Format;
 }
 
 /// Type for position attribute of vertex.
@@ -38,7 +36,7 @@ where
 impl AsAttribute for Position {
     const NAME: &'static str = "position";
     const SIZE: u32 = 12;
-    const FORMAT: Format = Format::R32G32B32_SFLOAT;
+    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
 }
 
 /// Type for color attribute of vertex
@@ -57,7 +55,7 @@ where
 impl AsAttribute for Color {
     const NAME: &'static str = "color";
     const SIZE: u32 = 16;
-    const FORMAT: Format = Format::R32G32B32A32_SFLOAT;
+    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgba32Float;
 }
 
 /// Type for texture coord attribute of vertex
@@ -77,7 +75,7 @@ where
 impl AsAttribute for Normal {
     const NAME: &'static str = "normal";
     const SIZE: u32 = 12;
-    const FORMAT: Format = Format::R32G32B32_SFLOAT;
+    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
 }
 
 /// Type for tangent attribute of vertex
@@ -97,7 +95,7 @@ where
 impl AsAttribute for Tangent {
     const NAME: &'static str = "tangent";
     const SIZE: u32 = 12;
-    const FORMAT: Format = Format::R32G32B32_SFLOAT;
+    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
 }
 
 /// Type for texture coord attribute of vertex
@@ -117,7 +115,7 @@ where
 impl AsAttribute for TexCoord {
     const NAME: &'static str = "tex_coord";
     const SIZE: u32 = 8;
-    const FORMAT: Format = Format::R32G32_SFLOAT;
+    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rg32Float;
 }
 
 /// Vertex format contains information to initialize graphics pipeline

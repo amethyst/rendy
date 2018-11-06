@@ -71,7 +71,7 @@ where
     /// # Safety
     ///
     /// Raw image handler should not be usage to violate this object valid usage.
-    pub unsafe fn raw(&self) -> &B::Image {
+    pub fn raw(&self) -> &B::Image {
         &self.inner.raw
     }
 

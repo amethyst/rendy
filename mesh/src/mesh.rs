@@ -5,32 +5,26 @@
 use std::borrow::Cow;
 use std::mem::size_of;
 
-use failure::Error;
-
-use ash::vk;
-use smallvec::SmallVec;
-
-use command::FamilyIndex;
 use factory::Factory;
 use memory::usage::Dynamic;
-use resource::Buffer;
+use resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer};
 
 use utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key};
 use vertex::{AsVertex, VertexFormat};
 
 /// Vertex buffer with it's format
 #[derive(Debug)]
-pub struct VertexBuffer {
-    buffer: Buffer,
+pub struct VertexBuffer<B: gfx_hal::Backend> {
+    buffer: Buffer<B>,
     format: VertexFormat<'static>,
     len: u32,
 }
 
 /// Index buffer with it's type
 #[derive(Debug)]
-pub struct IndexBuffer {
-    buffer: Buffer,
-    index_type: vk::IndexType,
+pub struct IndexBuffer<B: gfx_hal::Backend> {
+    buffer: Buffer<B>,
+    index_type: gfx_hal::IndexType,
     len: u32,
 }
 
@@ -89,18 +83,18 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct MeshBuilder<'a> {
-    vertices: SmallVec<[(Cow<'a, [u8]>, VertexFormat<'static>); 16]>,
-    indices: Option<(Cow<'a, [u8]>, vk::IndexType)>,
-    prim: vk::PrimitiveTopology,
+    vertices: smallvec::SmallVec<[(Cow<'a, [u8]>, VertexFormat<'static>); 16]>,
+    indices: Option<(Cow<'a, [u8]>, gfx_hal::IndexType)>,
+    prim: gfx_hal::Primitive,
 }
 
 impl<'a> MeshBuilder<'a> {
     /// Create empty builder.
     pub fn new() -> Self {
         MeshBuilder {
-            vertices: SmallVec::new(),
+            vertices: smallvec::SmallVec::new(),
             indices: None,
-            prim: vk::PrimitiveTopology::TRIANGLE_LIST,
+            prim: gfx_hal::Primitive::TriangleList,
         }
     }
 
@@ -120,8 +114,8 @@ impl<'a> MeshBuilder<'a> {
     {
         self.indices = match indices.into() {
             Indices::None => None,
-            Indices::U16(i) => Some((cast_cow(i), vk::IndexType::UINT16)),
-            Indices::U32(i) => Some((cast_cow(i), vk::IndexType::UINT32)),
+            Indices::U16(i) => Some((cast_cow(i), gfx_hal::IndexType::U16)),
+            Indices::U32(i) => Some((cast_cow(i), gfx_hal::IndexType::U32)),
         };
         self
     }
@@ -149,7 +143,7 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn with_prim_type(mut self, prim: vk::PrimitiveTopology) -> Self {
+    pub fn with_prim_type(mut self, prim: gfx_hal::Primitive) -> Self {
         self.prim = prim;
         self
     }
@@ -157,13 +151,16 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn set_prim_type(&mut self, prim: vk::PrimitiveTopology) -> &mut Self {
+    pub fn set_prim_type(&mut self, prim: gfx_hal::Primitive) -> &mut Self {
         self.prim = prim;
         self
     }
 
     /// Builds and returns the new mesh.
-    pub fn build(&self, family: FamilyIndex, factory: &mut Factory) -> Result<Mesh, Error> {
+    pub fn build<B>(&self, family: gfx_hal::queue::QueueFamilyId, factory: &mut Factory<B>) -> Result<Mesh<B>, failure::Error>
+    where
+        B: gfx_hal::Backend,
+    {
         Ok(Mesh {
             vbufs: self
                 .vertices
@@ -173,14 +170,9 @@ impl<'a> MeshBuilder<'a> {
                     Ok(VertexBuffer {
                         buffer: {
                             let mut buffer = factory.create_buffer(
-                                vk::BufferCreateInfo::builder()
-                                    .size(vertices.len() as _)
-                                    .usage(
-                                        vk::BufferUsageFlags::VERTEX_BUFFER
-                                            | vk::BufferUsageFlags::TRANSFER_DST,
-                                    ).build(),
                                 1,
-                                Dynamic,
+                                vertices.len() as _,
+                                UsageVertexBuffer,
                             )?;
                             unsafe {
                                 // New buffer can't be touched by device yet.
@@ -189,7 +181,7 @@ impl<'a> MeshBuilder<'a> {
                                     0,
                                     vertices,
                                     family,
-                                    vk::AccessFlags::VERTEX_ATTRIBUTE_READ,
+                                    gfx_hal::buffer::Access::VERTEX_BUFFER_READ,
                                 )?;
                             }
                             buffer
@@ -197,27 +189,22 @@ impl<'a> MeshBuilder<'a> {
                         format: format.clone(),
                         len,
                     })
-                }).collect::<Result<_, Error>>()?,
+                }).collect::<Result<_, failure::Error>>()?,
             ibuf: match self.indices {
                 None => None,
                 Some((ref indices, index_type)) => {
                     let stride = match index_type {
-                        vk::IndexType::UINT16 => size_of::<u16>(),
-                        vk::IndexType::UINT32 => size_of::<u32>(),
+                        gfx_hal::IndexType::U16 => size_of::<u16>(),
+                        gfx_hal::IndexType::U32 => size_of::<u32>(),
                         _ => unreachable!(),
                     };
                     let len = indices.len() as u32 / stride as u32;
                     Some(IndexBuffer {
                         buffer: {
                             let mut buffer = factory.create_buffer(
-                                vk::BufferCreateInfo::builder()
-                                    .size(indices.len() as _)
-                                    .usage(
-                                        vk::BufferUsageFlags::INDEX_BUFFER
-                                            | vk::BufferUsageFlags::TRANSFER_DST,
-                                    ).build(),
                                 1,
-                                Dynamic,
+                                indices.len() as _,
+                                UsageIndexBuffer,
                             )?;
                             unsafe {
                                 // New buffer can't be touched by device yet.
@@ -226,7 +213,7 @@ impl<'a> MeshBuilder<'a> {
                                     0,
                                     indices,
                                     family,
-                                    vk::AccessFlags::INDEX_READ,
+                                    gfx_hal::buffer::Access::INDEX_BUFFER_READ,
                                 )?;
                             }
                             buffer
@@ -244,63 +231,67 @@ impl<'a> MeshBuilder<'a> {
 /// Single mesh is a collection of buffers that provides available attributes.
 /// Exactly one mesh is used per drawing call in common.
 #[derive(Debug)]
-pub struct Mesh {
-    vbufs: Vec<VertexBuffer>,
-    ibuf: Option<IndexBuffer>,
-    prim: vk::PrimitiveTopology,
+pub struct Mesh<B: gfx_hal::Backend> {
+    vbufs: Vec<VertexBuffer<B>>,
+    ibuf: Option<IndexBuffer<B>>,
+    prim: gfx_hal::Primitive,
 }
 
-impl Mesh {
-    /// Build new mesh with `HMeshBuilder`
-    pub fn new<'a>() -> MeshBuilder<'a> {
+impl<B> Mesh<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Build new mesh with `MeshBuilder`
+    pub fn builder<'a>() -> MeshBuilder<'a> {
         MeshBuilder::new()
     }
 
-    /// vk::PrimitiveTopology type of the `Mesh`
-    pub fn primitive(&self) -> vk::PrimitiveTopology {
+    /// gfx_hal::Primitive type of the `Mesh`
+    pub fn primitive(&self) -> gfx_hal::Primitive {
         self.prim
     }
 
-    // /// Bind buffers to specified attribute locations.
-    // pub fn bind<'a>(
-    //     &'a self,
-    //     formats: &[VertexFormat],
-    //     vertex: &mut VertexBufferSet<'a, B>,
-    // ) -> Result<Bind<'a, B>, Incompatible> {
-    //     debug_assert!(is_slice_sorted(formats));
-    //     debug_assert!(is_slice_sorted_by_key(&self.vbufs, |vbuf| &vbuf.format));
-    //     debug_assert!(vertex.0.is_empty());
+    /// Bind buffers to specified attribute locations.
+    pub fn bind<'a>(
+        &'a self,
+        formats: &[VertexFormat],
+    ) -> Result<Bind<'a, B>, Incompatible> {
+        debug_assert!(is_slice_sorted(formats));
+        debug_assert!(is_slice_sorted_by_key(&self.vbufs, |vbuf| &vbuf.format));
+        
+        let mut vertex = smallvec::SmallVec::new();
 
-    //     let mut next = 0;
-    //     let mut vertex_count = None;
-    //     for format in formats {
-    //         if let Some(index) = find_compatible_buffer(&self.vbufs[next..], format) {
-    //             // Ensure buffer is valid
-    //             vertex.0.push((self.vbufs[index].buffer.raw(), 0));
-    //             next = index + 1;
-    //             assert!(vertex_count.is_none() || vertex_count == Some(self.vbufs[index].len));
-    //             vertex_count = Some(self.vbufs[index].len);
-    //         } else {
-    //             // Can't bind
-    //             return Err(Incompatible);
-    //         }
-    //     }
-    //     Ok(self
-    //         .ibuf
-    //         .as_ref()
-    //         .map(|ibuf| Bind::Indexed {
-    //             buffer: ibuf.buffer.raw(),
-    //             offset: 0,
-    //             index_type: ibuf.index_type,
-    //             count: ibuf.len,
-    //         })
-    //         .unwrap_or(Bind::Unindexed {
-    //             count: vertex_count.unwrap_or(0),
-    //         }))
-    // }
+        let mut next = 0;
+        let mut vertex_count = None;
+        for format in formats {
+            if let Some(index) = find_compatible_buffer(&self.vbufs[next..], format) {
+                // Ensure buffer is valid
+                vertex.push((self.vbufs[index].buffer.raw(), 0));
+                next = index + 1;
+                assert!(vertex_count.is_none() || vertex_count == Some(self.vbufs[index].len));
+                vertex_count = Some(self.vbufs[index].len);
+            } else {
+                // Can't bind
+                return Err(Incompatible);
+            }
+        }
+        Ok(match self.ibuf.as_ref() {
+            Some(ibuf) => Bind::Indexed {
+                buffer: ibuf.buffer.raw(),
+                offset: 0,
+                index_type: ibuf.index_type,
+                count: ibuf.len,
+                vertex,
+            },
+            None => Bind::Unindexed {
+                count: vertex_count.unwrap_or(0),
+                vertex,
+            },
+        })
+    }
 }
 
-/// Error type returned by `Mesh::bind` in case of mesh's vertex buffers are incompatible with requested vertex formats.
+/// failure::Error type returned by `Mesh::bind` in case of mesh's vertex buffers are incompatible with requested vertex formats.
 #[derive(Clone, Copy, Debug)]
 pub struct Incompatible;
 
@@ -308,53 +299,65 @@ pub struct Incompatible;
 /// It only contains `IndexBufferView` (if index buffers exists)
 /// and vertex count.
 /// Vertex buffers are in separate `VertexBufferSet`
-#[derive(Copy, Clone, Debug)]
-pub enum Bind<'a> {
+#[derive(Clone, Debug)]
+pub enum Bind<'a, B: gfx_hal::Backend> {
     /// Indexed binding.
     Indexed {
         /// The buffer to bind.
-        buffer: &'a Buffer,
+        buffer: &'a B::Buffer,
         /// The offset into the buffer to start at.
         offset: u64,
         /// The type of the table elements (`u16` or `u32`).
-        index_type: vk::IndexType,
+        index_type: gfx_hal::IndexType,
         /// Indices count to use in `draw_indexed` method.
         count: u32,
+        /// Vertex buffers.
+        vertex: smallvec::SmallVec<[(&'a B::Buffer, u64); 16]>,
     },
     /// Not indexed binding.
     Unindexed {
         /// Vertex count to use in `draw` method.
         count: u32,
+        /// Vertex buffers.
+        vertex: smallvec::SmallVec<[(&'a B::Buffer, u64); 16]>,
     },
 }
 
-// impl<'a> Bind<'a> {
-//     /// Record drawing command for this biding.
-//     pub fn draw(&self, vertex: VertexBufferSet, encoder: &mut RenderSubpassCommon) {
-//         encoder.bind_vertex_buffers(0, vertex);
-//         match *self {
-//             Bind::Indexed {
-//                 buffer,
-//                 offset,
-//                 index_type,
-//                 count,
-//             } => {
-//                 encoder.bind_index_buffer(IndexBufferView {
-//                     buffer,
-//                     offset,
-//                     index_type,
-//                 });
-//                 encoder.draw_indexed(0..count, 0, 0..1);
-//             }
-//             Bind::Unindexed { count } => {
-//                 encoder.draw(0..count, 0..1);
-//             }
-//         }
-//     }
-// }
+impl<'a, B> Bind<'a, B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Record drawing command for this biding.
+    pub unsafe fn draw_raw(&self, encoder: &mut impl gfx_hal::command::RawCommandBuffer<B>) {
+        match self {
+            &Bind::Indexed {
+                buffer,
+                offset,
+                index_type,
+                count,
+                ref vertex,
+            } => {
+                encoder.bind_vertex_buffers(0, vertex.iter().cloned());
+                encoder.bind_index_buffer(gfx_hal::buffer::IndexBufferView {
+                    buffer,
+                    offset,
+                    index_type,
+                });
+                encoder.draw_indexed(0..count, 0, 0..1);
+            }
+            &Bind::Unindexed { ref vertex, count } => {
+                encoder.bind_vertex_buffers(0, vertex.iter().cloned());
+                encoder.draw(0..count, 0..1);
+            }
+        }
+    }
+}
 
 /// Helper function to find buffer with compatible format.
-fn find_compatible_buffer(vbufs: &[VertexBuffer], format: &VertexFormat) -> Option<usize> {
+fn find_compatible_buffer<B>(vbufs: &[VertexBuffer<B>], format: &VertexFormat) -> Option<usize>
+where
+    B: gfx_hal::Backend,
+{
     debug_assert!(is_slice_sorted_by_key(&*format.attributes, |a| a.offset));
     for (i, vbuf) in vbufs.iter().enumerate() {
         debug_assert!(is_slice_sorted_by_key(&*vbuf.format.attributes, |a| a.offset));

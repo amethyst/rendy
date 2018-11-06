@@ -10,7 +10,7 @@ repository = "https://github.com/omni-viral/gfx-mesh.git"
 documentation = "https://docs.rs/crate/gfx-mesh/0.1.0/gfx-mesh"
 
 [dependencies]
-ash = { path = "../../ash/ash" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 failure = "0.1"
 rendy-memory = { path = "../memory" }
 rendy-command = { path = "../command" }

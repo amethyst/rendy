@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-ash = { path = "../../ash/ash" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 failure = "0.1"
 relevant = "0.2"
 smallvec = "0.6"
