@@ -15,7 +15,7 @@ macro_rules! create_surface_for_backend {
         {
             if let Some(instance) = std::any::Any::downcast_ref::<$backend::Instance>($instance) {
                 let surface: Box<std::any::Any> = Box::new(self::$module::create_surface(instance, $window));
-                let surface = Box::downcast::<B::Surface>(surface).expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
+                let surface = Box::downcast(surface).expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
                 return *surface;
             }
         }

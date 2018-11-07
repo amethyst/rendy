@@ -3,8 +3,12 @@ name = "rendy"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
-[dependencies]
+[features]
+dx12 = ["rendy-factory/gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12"]
+metal = ["rendy-factory/gfx-backend-metal", "rendy-wsi/gfx-backend-metal"]
+vulkan = ["rendy-factory/gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan"]
 
+[dependencies]
 rendy-command = { path = "../command" }
 rendy-factory = { path = "../factory" }
 rendy-frame = { path = "../frame" }

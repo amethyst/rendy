@@ -324,3 +324,39 @@ where
     //     )
     // }
 }
+
+
+macro_rules! init_factory_for_backend {
+    ($target:ident, $config:ident | $backend:ident @ $module:ident ? $feature:meta) => {
+        [$feature]
+        {
+            if std::any::TypeId::of::<$backend::Backend>() == $target {
+                let instance = $backend::Instance::create("Rendy", 1);
+                let factory: Box<Any> = Box::new(Factory::new(instance, config));
+                factory.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
+            }
+        }
+    };
+
+    ($target:ident, $config:ident $(| $backend:ident @ $module:ident ? $feature:meta)*) => {
+        $(init_factory_for_backend!($target, $config | $backend @ $module ? $feature));*
+    };
+
+    ($target:ident, $config:ident) => {
+        init_factory_for_backend!($target, $config
+            | gfx_backend_dx12 @ dx12 ? cfg(feature = "gfx-backend-dx12")
+            | gfx_backend_metal @ metal ? cfg(feature = "gfx-backend-metal")
+            | gfx_backend_vulkan @ vulkan ? cfg(feature = "gfx-backend-vulkan")
+        );
+    };
+}
+
+/// Init factory.
+pub fn init<B>(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error>
+where
+    B: gfx_hal::Backend,
+{
+    let type_id = std::any::TypeId::of::<B>();
+    init_factory_for_backend!(type_id, config);
+    panic!("Undefined backend requested. Make sure feature for required backends are enabled.")
+}

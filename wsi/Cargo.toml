@@ -3,6 +3,11 @@ name = "rendy-wsi"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
+[features]
+dx12 = ["gfx-backend-dx12"]
+metal = ["gfx-backend-metal"]
+vulkan = ["gfx-backend-vulkan"]
+
 [dependencies]
 derivative = "1.0"
 failure = "0.1"

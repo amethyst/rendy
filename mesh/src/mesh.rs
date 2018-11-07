@@ -6,7 +6,6 @@ use std::borrow::Cow;
 use std::mem::size_of;
 
 use factory::Factory;
-use memory::usage::Dynamic;
 use resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer};
 
 use utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key};
@@ -196,7 +195,6 @@ impl<'a> MeshBuilder<'a> {
                     let stride = match index_type {
                         gfx_hal::IndexType::U16 => size_of::<u16>(),
                         gfx_hal::IndexType::U32 => size_of::<u32>(),
-                        _ => unreachable!(),
                     };
                     let len = indices.len() as u32 / stride as u32;
                     Some(IndexBuffer {

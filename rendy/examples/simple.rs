@@ -16,7 +16,7 @@ use failure::Error;
 
 use rendy::{
     command::{
-        CommandBuffer, CommandPool, ExecutableState, FamilyIndex, Graphics, MultiShot,
+        CommandBuffer, CommandPool, ExecutableState, gfx_hal::queue::QueueFamilyId, Graphics, MultiShot,
         NoIndividualReset, OneShot, OwningCommandPool, PendingState, PrimaryLevel,
     },
     factory::{Config, Factory},
@@ -48,7 +48,7 @@ struct SimpleRenderer {
     mesh: Mesh,
     // texture: (Image, vk::ImageView),
     target: Target,
-    family_index: FamilyIndex,
+    family_index: gfx_hal::queue::QueueFamilyId,
     render_pass: vk::RenderPass,
     layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
@@ -116,7 +116,7 @@ impl Renderer<()> for SimpleRenderer {
             queue.submit(
                 &[vk::SubmitInfo::builder()
                     .wait_semaphores(&[framebuffer.acquire])
-                    .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
+                    .wait_dst_stage_mask(&[gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT])
                     .signal_semaphores(&[framebuffer.release])
                     .command_buffers(&[submit.raw()])
                     .build()],
@@ -203,17 +203,17 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
             .iter()
             .enumerate()
             .find(|(index, family)| {
-                let graphics = family.capability().subset(vk::QueueFlags::GRAPHICS);
+                let graphics = family.capability().subset(gfx_hal::QueueType::Graphics);
                 let presentation = factory.target_support(family.index(), &target);
                 graphics && presentation
             }).ok_or_else(|| format_err!("Can't find queue capable of graphics and presentation"))?;
 
-        let family_index = FamilyIndex(index as u32);
+        let family_index = gfx_hal::queue::QueueFamilyId(index as u32);
 
         let mesh = Mesh::new()
             .with_vertices(self.vertices)
             .with_prim_type(vk::PrimitiveTopology::TRIANGLE_LIST)
-            .build(FamilyIndex(0), factory)?;
+            .build(gfx_hal::queue::QueueFamilyId(0), factory)?;
 
         let render_pass = unsafe {
             // Seems OK.
@@ -253,18 +253,18 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         ).build()]).dependencies(&[
                         vk::SubpassDependency::builder()
                             .src_subpass(!0)
-                            .src_stage_mask(vk::PipelineStageFlags::TOP_OF_PIPE)
+                            .src_stage_mask(gfx_hal::pso::PipelineStage::TOP_OF_PIPE)
                             .src_access_mask(vk::AccessFlags::empty())
                             .dst_subpass(0)
                             .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
-                            .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+                            .dst_stage_mask(gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT)
                             .build(),
                         vk::SubpassDependency::builder()
                             .src_subpass(0)
                             .src_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
-                            .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+                            .src_stage_mask(gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT)
                             .dst_subpass(!0)
-                            .dst_stage_mask(vk::PipelineStageFlags::BOTTOM_OF_PIPE)
+                            .dst_stage_mask(gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE)
                             .dst_access_mask(vk::AccessFlags::empty())
                             .build(),
                     ]).build(),
@@ -403,7 +403,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         vk::ImageCreateInfo::builder()
                             .image_type(vk::ImageType::TYPE_2D)
                             .format(vk::Format::D32_SFLOAT)
-                            .extent(vk::Extent3D {
+                            .extent(gfx_hal::image::Extent {
                                 width: target.extent().width,
                                 height: target.extent().height,
                                 depth: 1,
