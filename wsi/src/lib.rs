@@ -1,42 +1,48 @@
 
-#[cfg(feature = "gfx-backend-metal")]
-mod metal {
+#[cfg(feature = "metal")]
+mod gfx_backend_metal {
 
-fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
+pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
     let nsview = winit::os::macos::WindowExt::get_nsview(window);
     instance.create_surface_from_nsview(nsview)
 }
 
 }
 
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 macro_rules! create_surface_for_backend {
-    ($instance:ident, $window:ident | $backend:ident @ $module:ident ? $feature:meta) => {
-        #[$feature]
-        {
-            if let Some(instance) = std::any::Any::downcast_ref::<$backend::Instance>($instance) {
-                let surface: Box<std::any::Any> = Box::new(self::$module::create_surface(instance, $window));
-                let surface = Box::downcast(surface).expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
-                return *surface;
+    (match $instance:ident, $window:ident $(| $backend:ident @ $feature:meta)+) => {{
+        #[allow(non_camel_case_types)]
+        enum _B {$(
+            $backend,
+        )+}
+
+        for b in [$(_B::$backend),+].iter() {
+            match b {$(
+                #[$feature]
+                _B::$backend => {
+                    if let Some(instance) = std::any::Any::downcast_ref($instance) {
+                        let surface: Box<std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
+                        return *surface.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
+                    }
+                })+
+                _ => continue,
             }
         }
-    };
+        panic!("Undefined backend requested. Make sure feature for required backend is enabled.")
+    }};
 
-    ($instance:ident, $window:ident $(| $backend:ident @ $module:ident ? $feature:meta)*) => {
-        $(create_surface_for_backend!($instance, $window | $backend @ $module ? $feature));*
-    };
-
-    ($instance:ident, $window:ident) => {
-        create_surface_for_backend!($instance, $window
-            | gfx_backend_dx12 @ dx12 ? cfg(feature = "gfx-backend-dx12")
-            | gfx_backend_metal @ metal ? cfg(feature = "gfx-backend-metal")
-            | gfx_backend_vulkan @ vulkan ? cfg(feature = "gfx-backend-vulkan")
+    ($instance:ident, $window:ident) => {{
+        create_surface_for_backend!(match $instance, $window
+            | gfx_backend_dx12 @ cfg(feature = "dx12")
+            | gfx_backend_metal @ cfg(feature = "metal")
+            | gfx_backend_vulkan @ cfg(feature = "vulkan")
         );
-    };
+    }};
 }
 
-fn create_surface<B: gfx_hal::Backend>(instance: &dyn gfx_hal::Instance<Backend = B>, window: &winit::Window) -> B::Surface {
+fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn gfx_hal::Instance<Backend = B>>, window: &winit::Window) -> B::Surface {
     create_surface_for_backend!(instance, window);
-    unreachable!()
 }
 
 /// Rendering target bound to window.
@@ -55,14 +61,14 @@ where
     B: gfx_hal::Backend,
 {
     pub fn new(
-        instance: &dyn gfx_hal::Instance<Backend = B>,
+        instance: &Box<dyn gfx_hal::Instance<Backend = B>>,
         physical_device: &B::PhysicalDevice,
         device: &impl gfx_hal::Device<B>,
         window: winit::Window,
         image_count: u32,
         usage: gfx_hal::image::Usage,
     ) -> Result<Self, failure::Error> {
-        let mut surface = create_surface(instance, &window);
+        let mut surface = create_surface::<B>(instance, &window);
 
         let (capabilities, formats, present_modes) = gfx_hal::Surface::compatibility(&surface, physical_device);
 

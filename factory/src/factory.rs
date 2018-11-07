@@ -1,10 +1,6 @@
-use std::{
-    ffi::{CStr, CString},
-    os::raw::c_char,
-};
 
 use command::{families_from_device, Family};
-use memory::{Block, Heaps, MemoryUsage, Write};
+use memory::{Block, Heaps, Write};
 use resource::{buffer::{self, Buffer}, image::{self, Image}, Resources};
 use wsi::Target;
 
@@ -26,8 +22,8 @@ where
 {
     /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
     /// from the specified `vk::PhysicalDevice`.
-    pub fn new(instance: impl gfx_hal::Instance<Backend = B>, config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, failure::Error> {
-        let mut adapters = instance.enumerate_adapters();
+    pub fn init(instance: impl gfx_hal::Instance<Backend = B>, config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, failure::Error> {
+        let adapters = instance.enumerate_adapters();
 
         if adapters.is_empty() {
             failure::bail!("No physical devices found");
@@ -208,7 +204,7 @@ where
     /// Create render target from window.
     pub fn create_target(&self, window: winit::Window, image_count: u32, usage: gfx_hal::image::Usage) -> Result<Target<B>, failure::Error> {
         Target::new(
-            &*self.instance,
+            &self.instance,
             &self.adapter.physical_device,
             &self.device,
             window,
@@ -305,7 +301,6 @@ where
     //     self.upload_visible_buffer(&mut staging_buffer, 0, data).unwrap();
 
     //     let extent = image.extent();
-
     //     let command_pool = self.families[0].create_owning_pool(&self.device, crate::command::PrimaryLevel).unwrap();
     //     let command_buffer = command_pool.acquire_buffer(&self.device);
     //     let command_buffer = command_buffer.begin(&self.device, crate::command::OneShot);
@@ -326,37 +321,48 @@ where
 }
 
 
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 macro_rules! init_factory_for_backend {
-    ($target:ident, $config:ident | $backend:ident @ $module:ident ? $feature:meta) => {
-        [$feature]
-        {
-            if std::any::TypeId::of::<$backend::Backend>() == $target {
-                let instance = $backend::Instance::create("Rendy", 1);
-                let factory: Box<Any> = Box::new(Factory::new(instance, config));
-                factory.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
+    (match $target:ident, $config:ident $(| $backend:ident @ $feature:meta)+) => {{
+        #[allow(non_camel_case_types)]
+        enum _B {$(
+            $backend,
+        )+}
+
+        for b in [$(_B::$backend),+].iter() {
+            match b {$(
+                #[$feature]
+                _B::$backend => {
+                    if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
+                        let instance = $backend::Instance::create("Rendy", 1);
+                        let factory: Box<std::any::Any> = Box::new(Factory::init(instance, $config)?);
+                        return Ok(*factory.downcast::<Factory<$target>>().unwrap());
+                    }
+                })+
+                _ => continue,
             }
         }
-    };
+        panic!("Undefined backend requested. Make sure feature for required backend is enabled.")
+    }};
 
-    ($target:ident, $config:ident $(| $backend:ident @ $module:ident ? $feature:meta)*) => {
-        $(init_factory_for_backend!($target, $config | $backend @ $module ? $feature));*
-    };
-
-    ($target:ident, $config:ident) => {
-        init_factory_for_backend!($target, $config
-            | gfx_backend_dx12 @ dx12 ? cfg(feature = "gfx-backend-dx12")
-            | gfx_backend_metal @ metal ? cfg(feature = "gfx-backend-metal")
-            | gfx_backend_vulkan @ vulkan ? cfg(feature = "gfx-backend-vulkan")
+    ($target:ident, $config:ident) => {{
+        init_factory_for_backend!(match $target, $config
+            | gfx_backend_dx12 @ cfg(feature = "dx12")
+            | gfx_backend_metal @ cfg(feature = "metal")
+            | gfx_backend_vulkan @ cfg(feature = "vulkan")
         );
-    };
+    }};
 }
 
-/// Init factory.
-pub fn init<B>(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error>
+impl<B> Factory<B>
 where
     B: gfx_hal::Backend,
 {
-    let type_id = std::any::TypeId::of::<B>();
-    init_factory_for_backend!(type_id, config);
-    panic!("Undefined backend requested. Make sure feature for required backends are enabled.")
+    #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
+    /// Init factory.
+    pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error> {
+        log::debug!("Creating factory");
+        init_factory_for_backend!(B, config)
+    }
 }
+
