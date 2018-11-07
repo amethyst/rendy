@@ -320,8 +320,6 @@ where
     // }
 }
 
-
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 macro_rules! init_factory_for_backend {
     (match $target:ident, $config:ident $(| $backend:ident @ $feature:meta)+) => {{
         #[allow(non_camel_case_types)]
@@ -342,7 +340,11 @@ macro_rules! init_factory_for_backend {
                 _ => continue,
             }
         }
-        panic!("Undefined backend requested. Make sure feature for required backend is enabled.")
+        panic!("
+            Undefined backend requested.
+            Make sure feature for required backend is enabled.
+            Try to add `--features=vulkan` or if on macos `--features=metal`.
+        ")
     }};
 
     ($target:ident, $config:ident) => {{
@@ -358,7 +360,6 @@ impl<B> Factory<B>
 where
     B: gfx_hal::Backend,
 {
-    #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
     /// Init factory.
     pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error> {
         log::debug!("Creating factory");

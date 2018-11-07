@@ -1,11 +1,15 @@
 extern crate rendy;
 
+#[cfg(feature = "dx12")]
+type Backend = rendy::dx12::Backend;
+
 #[cfg(feature = "metal")]
 type Backend = rendy::metal::Backend;
 
+#[cfg(feature = "vulkan")]
+type Backend = rendy::vulkan::Backend;
 
 type Factory = rendy::factory::Factory<Backend>;
-
 
 fn main() -> Result<(), failure::Error> {
 

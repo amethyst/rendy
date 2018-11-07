@@ -9,7 +9,6 @@ pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &wi
 
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 macro_rules! create_surface_for_backend {
     (match $instance:ident, $window:ident $(| $backend:ident @ $feature:meta)+) => {{
         #[allow(non_camel_case_types)]
@@ -29,7 +28,11 @@ macro_rules! create_surface_for_backend {
                 _ => continue,
             }
         }
-        panic!("Undefined backend requested. Make sure feature for required backend is enabled.")
+        panic!("
+            Undefined backend requested.
+            Make sure feature for required backend is enabled.
+            Try to add `--features=vulkan` or if on macos `--features=metal`.
+        ")
     }};
 
     ($instance:ident, $window:ident) => {{
@@ -198,7 +201,7 @@ where
 {
     /// Get indices.
     pub fn indices(&self) -> impl IntoIterator<Item = u32> + '_ {
-        self.swapchains.iter().map(|(s, i)| *i)
+        self.swapchains.iter().map(|(_s, i)| *i)
     }
 
     /// Present images by the queue.
