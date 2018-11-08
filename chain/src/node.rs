@@ -1,22 +1,21 @@
 use std::collections::hash_map::{HashMap, Iter as HashMapIter};
 
-use ash::vk;
-
-use resource::{Buffer, Image, Resource};
-use schedule::FamilyIndex;
-use Id;
+use crate::{
+    resource::{Buffer, Image, Resource},
+    Id,
+};
 
 /// State in which node uses resource and usage flags.
 #[derive(Clone, Copy, Debug)]
 pub struct State<R: Resource> {
     /// Access performed by the node.
-    pub access: vk::AccessFlags,
+    pub access: R::Access,
 
     /// Optional layout in which node can use resource.
     pub layout: R::Layout,
 
     /// Stages at which resource is accessed.
-    pub stages: vk::PipelineStageFlags,
+    pub stages: gfx_hal::pso::PipelineStage,
 
     /// Usage flags required for resource.
     pub usage: R::Usage,
@@ -35,7 +34,7 @@ pub struct Node {
     pub id: usize,
 
     /// Family required to execute the node.
-    pub family: FamilyIndex,
+    pub family: gfx_hal::queue::QueueFamilyId,
 
     /// Dependencies of the node.
     /// Those are indices of other nodes in array.
@@ -50,7 +49,7 @@ pub struct Node {
 
 impl Node {
     /// Get family on which this node will be executed.
-    pub fn family(&self) -> FamilyIndex {
+    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
         self.family
     }
 

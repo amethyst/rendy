@@ -1,10 +1,9 @@
-use fnv::FnvHashMap;
 
-use super::{family::FamilyIndex, queue::QueueId};
-use Id;
+use super::queue::QueueId;
+use crate::Id;
 
 /// Submission id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SubmissionId {
     /// Queue id of the submission.
     pub queue: QueueId,
@@ -20,7 +19,7 @@ impl SubmissionId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> FamilyIndex {
+    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
         self.queue.family()
     }
 
@@ -40,7 +39,7 @@ impl SubmissionId {
 pub struct Submission<S> {
     node: usize,
     id: SubmissionId,
-    resource_links: FnvHashMap<Id, usize>,
+    resource_links: fnv::FnvHashMap<Id, usize>,
     wait_factor: usize,
     submit_order: usize,
     sync: S,
@@ -87,7 +86,7 @@ impl<S> Submission<S> {
     ) -> Self {
         Submission {
             node,
-            resource_links: FnvHashMap::default(),
+            resource_links: fnv::FnvHashMap::default(),
             id,
             wait_factor,
             submit_order,

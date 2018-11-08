@@ -1,23 +1,25 @@
 
-use ash::vk;
-
-use access::AccessFlagsExt;
-use node::State;
-use resource::Resource;
-use schedule::{FamilyIndex, QueueId, SubmissionId};
+use crate::{
+    node::State,
+    resource::{AccessFlags, Resource},
+    schedule::{QueueId, SubmissionId},
+};
 
 /// State of the link associated with queue.
 /// Contains submissions range, combined access and stages bits by submissions from the range.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct LinkQueueState {
+pub(crate) struct LinkQueueState<R: Resource> {
     pub(crate) first: usize,
     pub(crate) last: usize,
-    pub(crate) access: vk::AccessFlags,
-    pub(crate) stages: vk::PipelineStageFlags,
+    pub(crate) access: R::Access,
+    pub(crate) stages: gfx_hal::pso::PipelineStage,
 }
 
-impl LinkQueueState {
-    fn new<R: Resource>(node: &LinkNode<R>) -> Self {
+impl<R> LinkQueueState<R>
+where
+    R: Resource,
+{
+    fn new(node: &LinkNode<R>) -> Self {
         LinkQueueState {
             first: node.sid.index(),
             last: node.sid.index(),
@@ -26,7 +28,7 @@ impl LinkQueueState {
         }
     }
 
-    fn push<R: Resource>(&mut self, node: &LinkNode<R>) {
+    fn push(&mut self, node: &LinkNode<R>) {
         assert!(self.last < node.sid.index());
         self.access |= node.state.access;
         self.stages |= node.state.stages;
@@ -41,7 +43,7 @@ impl LinkQueueState {
 #[derive(Clone, Debug)]
 pub(crate) struct Link<R: Resource> {
     /// Combination of all accesses.
-    access: vk::AccessFlags,
+    access: R::Access,
 
     /// Combination of all usages.
     usage: R::Usage,
@@ -50,16 +52,16 @@ pub(crate) struct Link<R: Resource> {
     layout: R::Layout,
 
     /// Combination of all stages.
-    stages: vk::PipelineStageFlags,
+    stages: gfx_hal::pso::PipelineStage,
 
     /// Number of queues involved.
     queue_count: usize,
 
     /// State per queue.
-    queues: Vec<Option<LinkQueueState>>,
+    queues: Vec<Option<LinkQueueState<R>>>,
 
     /// Family of queues.
-    family: FamilyIndex,
+    family: gfx_hal::queue::QueueFamilyId,
 }
 
 /// Node for the link.
@@ -109,7 +111,7 @@ where
 
     /// Get queue family that owns the resource at the link.
     /// All associated submissions must be from the same queue family.
-    pub(crate) fn family(&self) -> FamilyIndex {
+    pub(crate) fn family(&self) -> gfx_hal::queue::QueueFamilyId {
         self.family
     }
 
@@ -124,7 +126,7 @@ where
     }
 
     /// Get access.
-    pub(crate) fn access(&self) -> vk::AccessFlags {
+    pub(crate) fn access(&self) -> R::Access {
         self.access
     }
 
@@ -139,7 +141,7 @@ where
     }
 
     // /// Get usage.
-    // pub(crate) fn stages(&self) -> vk::PipelineStageFlags {
+    // pub(crate) fn stages(&self) -> gfx_hal::pso::PipelineStage {
     //     self.stages
     // }
 
@@ -191,7 +193,7 @@ where
     // }
 
     /// Iterate over queues.
-    pub(crate) fn queues(&self) -> impl Iterator<Item = (QueueId, &LinkQueueState)> {
+    pub(crate) fn queues(&self) -> impl Iterator<Item = (QueueId, &LinkQueueState<R>)> {
         let family = self.family;
         self.queues
             .iter()
@@ -204,7 +206,7 @@ where
     }
 
     /// Get particular queue
-    pub(crate) fn queue(&self, qid: QueueId) -> &LinkQueueState {
+    pub(crate) fn queue(&self, qid: QueueId) -> &LinkQueueState<R> {
         assert_eq!(qid.family(), self.family);
         self.queues[qid.index()].as_ref().unwrap()
     }

@@ -7,10 +7,11 @@
 mod link;
 
 use std::ops::BitOr;
-use fnv::FnvHashMap;
 
-use resource::{Buffer, Image, Resource};
-use Id;
+use crate::{
+    resource::{Buffer, Image, Resource},
+    Id,
+};
 
 pub(crate) use self::link::{Link, LinkNode};
 
@@ -90,7 +91,7 @@ where
 }
 
 /// Type alias for map of chains by id for buffers.
-pub(crate) type BufferChains = FnvHashMap<Id, Chain<Buffer>>;
+pub(crate) type BufferChains = fnv::FnvHashMap<Id, Chain<Buffer>>;
 
 /// Type alias for map of chains by id for images.
-pub(crate) type ImageChains = FnvHashMap<Id, Chain<Image>>;
+pub(crate) type ImageChains = fnv::FnvHashMap<Id, Chain<Image>>;

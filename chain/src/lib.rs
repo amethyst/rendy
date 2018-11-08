@@ -18,27 +18,22 @@
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
 
-extern crate ash;
-extern crate fnv;
-
 /// Unique resource id.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub u64);
 
-mod access;
 mod chain;
 mod collect;
 mod node;
 mod resource;
 mod schedule;
-mod stage;
 mod sync;
 
-pub use access::AccessFlagsExt;
-pub use chain::Chain;
-pub use collect::{collect, Chains, Unsynchronized};
-pub use node::{Node, State, BufferState, ImageState};
-pub use resource::{Buffer, Image, Resource};
-pub use schedule::{Family, FamilyIndex, Queue, QueueId, Schedule, Submission, SubmissionId};
-pub use stage::{ComputePipelineStage, GraphicsPipelineStage};
-pub use sync::{sync, SyncData, Barriers, BufferBarriers, ImageBarriers, Guard, Wait, Signal};
+pub use crate::{
+    chain::Chain,
+    collect::{collect, Chains, Unsynchronized},
+    node::{Node, State, BufferState, ImageState},
+    resource::{AccessFlags, Buffer, Image, Resource},
+    schedule::{Family, Queue, QueueId, Schedule, Submission, SubmissionId},
+    sync::{sync, SyncData, Barriers, BufferBarriers, ImageBarriers, Guard, Wait, Signal},
+};

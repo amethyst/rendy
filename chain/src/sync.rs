@@ -3,15 +3,14 @@
 
 use std::ops::{Range, RangeFrom, RangeTo};
 
-use fnv::FnvHashMap;
-use ash::vk;
-
-use chain::{Chain, Link};
-use collect::Chains;
-use node::State;
-use resource::{Buffer, Image, Resource};
-use schedule::{Queue, QueueId, Schedule, SubmissionId};
-use Id;
+use crate::{
+    chain::{Chain, Link},
+    collect::Chains,
+    node::State,
+    resource::{AccessFlags, Buffer, Image, Resource},
+    schedule::{Queue, QueueId, Schedule, SubmissionId},
+    Id,
+};
 
 /// Semaphore identifier.
 /// It allows to distinguish different semaphores to be later replaced in `Signal`s and `Wait`s
@@ -50,13 +49,13 @@ impl<S> Signal<S> {
 /// Semaphore wait info.
 /// There must be paired signal.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Wait<S>(S, vk::PipelineStageFlags);
+pub struct Wait<S>(S, gfx_hal::pso::PipelineStage);
 
 impl<S> Wait<S> {
     /// Create waiting for specified point.
     /// At this point `Signal` must be created as well.
     /// `id` and `point` combination must be unique.
-    fn new(semaphore: S, stages: vk::PipelineStageFlags) -> Self {
+    fn new(semaphore: S, stages: gfx_hal::pso::PipelineStage) -> Self {
         Wait(semaphore, stages)
     }
 
@@ -66,7 +65,7 @@ impl<S> Wait<S> {
     }
 
     /// Stage at which to wait.
-    pub fn stage(&self) -> vk::PipelineStageFlags {
+    pub fn stage(&self) -> gfx_hal::pso::PipelineStage {
         self.1
     }
 }
@@ -78,7 +77,7 @@ pub struct Barrier<R: Resource> {
     pub queues: Option<Range<QueueId>>,
 
     /// State transition.
-    pub states: Range<(vk::AccessFlags, R::Layout, vk::PipelineStageFlags)>,
+    pub states: Range<(R::Access, R::Layout, gfx_hal::pso::PipelineStage)>,
 }
 
 impl<R> Barrier<R>
@@ -96,18 +95,18 @@ where
         }
     }
 
-    fn transfer(queues: Range<QueueId>, states: Range<(vk::AccessFlags, R::Layout)>) -> Self {
+    fn transfer(queues: Range<QueueId>, states: Range<(R::Access, R::Layout)>) -> Self {
         Barrier {
             queues: Some(queues),
             states: (
                 states.start.0,
                 states.start.1,
-                vk::PipelineStageFlags::TOP_OF_PIPE,
+                gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
             )
                 ..(
                     states.end.0,
                     states.end.1,
-                    vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                    gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE,
                 ),
         }
     }
@@ -115,28 +114,28 @@ where
     fn acquire(
         queues: Range<QueueId>,
         left: RangeFrom<R::Layout>,
-        right: RangeTo<(vk::AccessFlags, R::Layout)>,
+        right: RangeTo<(R::Access, R::Layout)>,
     ) -> Self {
         Self::transfer(
             queues,
-            (vk::AccessFlags::empty(), left.start)..(right.end.0, right.end.1),
+            (R::Access::empty(), left.start)..(right.end.0, right.end.1),
         )
     }
 
     fn release(
         queues: Range<QueueId>,
-        left: RangeFrom<(vk::AccessFlags, R::Layout)>,
+        left: RangeFrom<(R::Access, R::Layout)>,
         right: RangeTo<R::Layout>,
     ) -> Self {
         Self::transfer(
             queues,
-            (left.start.0, left.start.1)..(vk::AccessFlags::empty(), right.end),
+            (left.start.0, left.start.1)..(R::Access::empty(), right.end),
         )
     }
 }
 
 /// Map of barriers by resource id.
-pub type Barriers<R> = FnvHashMap<Id, Barrier<R>>;
+pub type Barriers<R> = fnv::FnvHashMap<Id, Barrier<R>>;
 
 /// Map of barriers by buffer id.
 pub type BufferBarriers = Barriers<Buffer>;
@@ -157,8 +156,8 @@ pub struct Guard {
 impl Guard {
     fn new() -> Self {
         Guard {
-            buffers: FnvHashMap::default(),
-            images: FnvHashMap::default(),
+            buffers: fnv::FnvHashMap::default(),
+            images: fnv::FnvHashMap::default(),
         }
     }
 
@@ -247,7 +246,7 @@ impl<S, W> SyncData<S, W> {
     }
 }
 
-struct SyncTemp(FnvHashMap<SubmissionId, SyncData<Semaphore, Semaphore>>);
+struct SyncTemp(fnv::FnvHashMap<SubmissionId, SyncData<Semaphore, Semaphore>>);
 impl SyncTemp {
     fn get_sync(&mut self, sid: SubmissionId) -> &mut SyncData<Semaphore, Semaphore> {
         self.0.entry(sid).or_insert_with(|| SyncData::new())
@@ -263,21 +262,20 @@ where
     let ref buffers = chains.buffers;
     let ref images = chains.images;
 
-    let mut sync = SyncTemp(FnvHashMap::default());
+    let mut sync = SyncTemp(fnv::FnvHashMap::default());
     for (&id, chain) in buffers {
         sync_chain(id, chain, schedule, &mut sync);
     }
     for (&id, chain) in images {
         sync_chain(id, chain, schedule, &mut sync);
     }
-
     if schedule.queue_count() > 1 {
         optimize(schedule, &mut sync);
     }
 
     let mut result = Schedule::new();
-    let mut signals: FnvHashMap<Semaphore, Option<S>> = FnvHashMap::default();
-    let mut waits: FnvHashMap<Semaphore, Option<W>> = FnvHashMap::default();
+    let mut signals: fnv::FnvHashMap<Semaphore, Option<S>> = fnv::FnvHashMap::default();
+    let mut waits: fnv::FnvHashMap<Semaphore, Option<W>> = fnv::FnvHashMap::default();
 
     for queue in schedule.iter().flat_map(|family| family.iter()) {
         let mut new_queue = Queue::new(queue.id());
@@ -443,7 +441,7 @@ where
 
 fn optimize_submission(
     sid: SubmissionId,
-    found: &mut FnvHashMap<QueueId, usize>,
+    found: &mut fnv::FnvHashMap<QueueId, usize>,
     sync: &mut SyncTemp,
 ) {
     let mut to_remove = Vec::new();
@@ -482,7 +480,7 @@ fn optimize_submission(
 
 fn optimize<S>(schedule: &Schedule<S>, sync: &mut SyncTemp) {
     for queue in schedule.iter().flat_map(|family| family.iter()) {
-        let mut found = FnvHashMap::default();
+        let mut found = fnv::FnvHashMap::default();
         for submission in queue.iter() {
             optimize_submission(submission.id(), &mut found, sync);
         }
