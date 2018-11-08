@@ -1,10 +1,12 @@
+
 extern crate proc_macro;
-extern crate quote;
-extern crate shaderc;
-extern crate syn;
 
 use proc_macro::TokenStream;
 use std::path::PathBuf;
+
+macro_rules! vk_make_version {
+    ($major: expr, $minor: expr, $patch: expr) => ((($major as u32) << 22) | (($minor as u32) << 12) | $patch as u32)
+}
 
 struct Input {
     name_ident: syn::Ident,
@@ -81,7 +83,7 @@ pub fn compile_to_spirv_proc(input: TokenStream) -> TokenStream {
             "main",
             Some({
                 let mut ops = shaderc::CompileOptions::new().unwrap();
-                ops.set_target_env(shaderc::TargetEnv::Vulkan, ash::vk_make_version!(1, 0, 0));
+                ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                 ops.set_source_language(lang(&lang_ident.to_string()));
                 ops
             }).as_ref(),

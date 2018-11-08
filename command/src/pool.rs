@@ -18,7 +18,6 @@ pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndivi
 impl<B, C, R> CommandPool<B, C, R>
 where
     B: gfx_hal::Backend,
-    C: Capability,
     R: Reset,
 {
     /// Wrap raw command pool.
@@ -52,6 +51,7 @@ where
     ) -> Vec<CommandBuffer<B, C, InitialState, L, R>>
     where
         L: Level,
+        C: Capability,
     {
         let buffers = gfx_hal::pool::RawCommandPool::allocate(
             &mut self.raw,
@@ -78,7 +78,7 @@ where
     /// TODO: Validate buffers were allocated from this pool.
     pub fn free_buffers(
         &mut self,
-        buffers: impl IntoIterator<Item = CommandBuffer<B, C, impl Resettable, impl Level, R>>,
+        buffers: impl IntoIterator<Item = CommandBuffer<'static, B, C, impl Resettable, impl Level, R>>,
     ) {
         let buffers = buffers
             .into_iter()
@@ -109,18 +109,27 @@ where
         device.destroy_command_pool(self.raw);
         self.relevant.dispose();
     }
-}
 
-impl<B, R> CommandPool<B, gfx_hal::QueueType, R>
-where
-    B: gfx_hal::Backend,
-{
     /// Convert capability level
-    pub fn from_flags<C>(self) -> Result<CommandPool<B, C, R>, Self>
+    pub fn with_capability_value(self) -> CommandPool<B, gfx_hal::QueueType, R>
     where
         C: Capability,
     {
-        if let Some(capability) = C::from_flags(self.capability) {
+        CommandPool {
+            raw: self.raw,
+            capability: self.capability.into_queue_type(),
+            reset: self.reset,
+            family: self.family,
+            relevant: self.relevant,
+        }
+    }
+
+    /// Convert capability level
+    pub fn with_capability<U>(self) -> Result<CommandPool<B, U, R>, Self>
+    where
+        C: Supports<U>,
+    {
+        if let Some(capability) = self.capability.supports() {
             Ok(CommandPool {
                 raw: self.raw,
                 capability,
@@ -151,8 +160,6 @@ pub struct OwningCommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, L = Pr
 impl<B, C, L> OwningCommandPool<B, C, L>
 where
     B: gfx_hal::Backend,
-    C: Capability,
-    L: Level,
 {
     /// Wrap simple pool into owning version.
     ///
@@ -170,7 +177,10 @@ where
 
     /// Reserve at least `count` buffers.
     /// Allocate if there are not enough unused buffers.
-    pub fn reserve(&mut self, count: usize) {
+    pub fn reserve(&mut self, count: usize)
+    where
+        L: Level,
+    {
         let total = self.next + count;
         if total >= self.buffers.len() {
             let add = total - self.buffers.len();
@@ -195,12 +205,16 @@ where
     /// * Acquired buffer must be [released](struct.Command buffer#method.release) when no longer needed.
     pub fn acquire_buffer(
         &mut self,
-    ) -> CommandBuffer<B, C, InitialState, L> {
+    ) -> CommandBuffer<B, C, InitialState, L>
+    where
+        L: Level,
+        C: Capability,
+    {
         self.reserve(1);
         self.next += 1;
         unsafe {
             CommandBuffer::from_raw(
-                self.buffers[self.next - 1].clone(),
+                &mut self.buffers[self.next - 1],
                 self.inner.capability,
                 InitialState,
                 self.level,
@@ -238,18 +252,26 @@ where
 
         self.inner.dispose(device);
     }
-}
 
-impl<B, L> OwningCommandPool<B, gfx_hal::QueueType, L>
-where
-    B: gfx_hal::Backend,
-{
     /// Convert capability level.
-    pub fn from_flags<C>(self) -> Result<OwningCommandPool<B, C, L>, Self>
+    pub fn with_capability_value(self) -> OwningCommandPool<B, gfx_hal::QueueType, L>
     where
         C: Capability,
     {
-        match self.inner.from_flags::<C>() {
+        OwningCommandPool {
+            inner: self.inner.with_capability_value(),
+            level: self.level,
+            buffers: self.buffers,
+            next: self.next,
+        }
+    }
+
+    /// Convert capability level.
+    pub fn with_capability<U>(self) -> Result<OwningCommandPool<B, U, L>, Self>
+    where
+        C: Supports<U>,
+    {
+        match self.inner.with_capability() {
             Ok(inner) => Ok(OwningCommandPool {
                 inner,
                 level: self.level,
@@ -261,7 +283,7 @@ where
                 level: self.level,
                 buffers: self.buffers,
                 next: self.next,
-            }),
+            })
         }
     }
 }

@@ -7,7 +7,6 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 proc-macro = true
 
 [dependencies]
-ash = { path = "../../../ash/ash" }
 shaderc = "0.3"
 syn = "0.15"
 quote = "0.6"

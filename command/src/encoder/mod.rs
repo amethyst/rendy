@@ -1,10 +1,14 @@
 //! Encoder module docs.
 //!
 
-use crate::buffer::{CommandBuffer, RecordingState};
+use crate::{
+    buffer::{CommandBuffer, RecordingState},
+    capability::Supports,
+};
 
 /// Encoder allow command recording in safe-ish abstract manner.
 pub trait Encoder<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
+
     /// Get raw command buffer.
     ///
     /// # Safety
@@ -15,7 +19,7 @@ pub trait Encoder<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
     unsafe fn raw(&mut self) -> &mut B::CommandBuffer;
 }
 
-impl<B, C, U, L, R> Encoder<B, C> for CommandBuffer<B, C, RecordingState<U>, L, R>
+impl<'a, B, C, U, L, R> Encoder<B, C> for CommandBuffer<'a, B, C, RecordingState<U>, L, R>
 where
     B: gfx_hal::Backend,
 {

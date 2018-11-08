@@ -1,7 +1,7 @@
 //! Command buffer module docs.
 use std::borrow::Borrow;
 
-use crate::{capability::Capability};
+use crate::capability::{Capability, Supports};
 
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug, Default)]
@@ -111,7 +111,7 @@ pub struct SimultaneousUse;
 pub struct RenderPassContinue;
 
 /// Trait implemented by all usage types.
-pub trait Usage {
+pub trait Usage: Copy {
     /// State in which command buffer moves after completion.
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags;
 }
@@ -134,21 +134,56 @@ impl Usage for MultiShot<SimultaneousUse> {
     }
 }
 
+#[derive(Debug)]
+pub(crate) enum OwnedOrBorrowed<'a, T: 'a> {
+    Owned(T),
+    Borrowed(&'a mut T),
+}
+
+impl<'a, T> From<T> for OwnedOrBorrowed<'a, T> {
+    fn from(value: T) -> Self {
+        OwnedOrBorrowed::Owned(value)
+    }
+}
+
+impl<'a, T> From<&'a mut T> for OwnedOrBorrowed<'a, T> {
+    fn from(reference: &'a mut T) -> Self {
+        OwnedOrBorrowed::Borrowed(reference)
+    }
+}
+
+impl<'a, T> AsMut<T> for OwnedOrBorrowed<'a, T> {
+    fn as_mut(&mut self) -> &mut T {
+        match self {
+            OwnedOrBorrowed::Owned(value) => value,
+            OwnedOrBorrowed::Borrowed(reference) => reference,
+        }
+    }
+}
+
+impl<T> OwnedOrBorrowed<'static, T> {
+    fn into_owned(self) -> T {
+        match self {
+            OwnedOrBorrowed::Owned(value) => value,
+            OwnedOrBorrowed::Borrowed(_) => unreachable!(),
+        }
+    }
+}
+
 /// Command buffer wrapper.
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
 /// This way many methods become safe.
 #[derive(Debug)]
-pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
-    raw: B::CommandBuffer,
+pub struct CommandBuffer<'a, B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
+    raw: OwnedOrBorrowed<'a, B::CommandBuffer>,
     capability: C,
     state: S,
     level: L,
     reset: R,
     family: gfx_hal::queue::QueueFamilyId,
-    relevant: relevant::Relevant,
 }
 
-impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
+impl<'a, B, C, S, L, R> CommandBuffer<'a, B, C, S, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -162,8 +197,8 @@ where
     /// * command buffer must be allocated with specified `level`.
     /// * If `reset` is `IndividualReset` then buffer must be allocated from pool created with `IndividualReset` marker.
     /// * command buffer must be allocated from pool created for `family`.
-    pub unsafe fn from_raw(
-        raw: B::CommandBuffer,
+    pub(crate) unsafe fn from_raw(
+        raw: impl Into<OwnedOrBorrowed<'a, B::CommandBuffer>>,
         capability: C,
         state: S,
         level: L,
@@ -171,13 +206,12 @@ where
         family: gfx_hal::queue::QueueFamilyId,
     ) -> Self {
         CommandBuffer {
-            raw,
+            raw: raw.into(),
             capability,
             state,
             level,
             reset,
             family,
-            relevant: relevant::Relevant,
         }
     }
 
@@ -189,17 +223,7 @@ where
     /// Particularly command buffer must not change its state.
     /// Or `change_state` must be used to reflect accumulated change.
     pub unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
-        &mut self.raw
-    }
-
-    /// Get raw command buffer handle.
-    ///
-    /// # Safety
-    ///
-    /// * Valid usage for command buffer must not be violated.
-    pub unsafe fn into_raw(self) -> B::CommandBuffer {
-        self.relevant.dispose();
-        self.raw
+        self.raw.as_mut()
     }
 
     /// Change state of the command buffer.
@@ -207,7 +231,7 @@ where
     /// # Safety
     ///
     /// * This method must be used only to reflect state changed due to raw handle usage.
-    pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> CommandBuffer<B, C, U, L, R> {
+    pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> CommandBuffer<'a, B, C, U, L, R> {
         CommandBuffer {
             raw: self.raw,
             capability: self.capability,
@@ -215,7 +239,6 @@ where
             level: self.level,
             reset: self.reset,
             family: self.family,
-            relevant: self.relevant,
         }
     }
 
@@ -226,9 +249,75 @@ where
     {
         self.capability
     }
+
+    /// Convert capability level.
+    pub fn with_capability_value(self) -> CommandBuffer<'a, B, gfx_hal::QueueType, S, L, R>
+    where
+        C: Capability,
+    {
+        CommandBuffer {
+            raw: self.raw,
+            capability: self.capability.into_queue_type(),
+            state: self.state,
+            level: self.level,
+            reset: self.reset,
+            family: self.family,
+        }
+    }
+
+    /// Convert capability level.
+    pub fn with_capability<U>(self) -> Result<CommandBuffer<'a, B, U, S, L, R>, Self>
+    where
+        C: Supports<U>,
+    {
+        if let Some(capability) = self.capability.supports() {
+            Ok(CommandBuffer {
+                raw: self.raw,
+                capability: capability,
+                state: self.state,
+                level: self.level,
+                reset: self.reset,
+                family: self.family,
+            })
+        } else {
+            Err(self)
+        }
+    }
+
+    /// Reborrow
+    pub fn reborrow(&mut self) -> CommandBuffer<'_, B, C, S, L, R>
+    where
+        C: Capability,
+        S: Copy,
+        L: Level,
+        R: Reset,
+    {
+        CommandBuffer {
+                raw: self.raw.as_mut().into(),
+                capability: self.capability,
+                state: self.state,
+                level: self.level,
+                reset: self.reset,
+                family: self.family,
+        }
+    }
 }
 
-impl<B, C, R> CommandBuffer<B, C, InitialState, PrimaryLevel, R>
+impl<B, C, S, L, R> CommandBuffer<'static, B, C, S, L, R>
+where
+    B: gfx_hal::Backend,
+{
+    /// Get raw command buffer handle.
+    ///
+    /// # Safety
+    ///
+    /// * Valid usage for command buffer must not be violated.
+    pub unsafe fn into_raw(self) -> B::CommandBuffer {
+        self.raw.into_owned()
+    }
+}
+
+impl<'a, B, C, R> CommandBuffer<'a, B, C, InitialState, PrimaryLevel, R>
 where
     B: gfx_hal::Backend,
 {
@@ -240,13 +329,13 @@ where
     pub fn begin<U>(
         mut self,
         usage: U,
-    ) -> CommandBuffer<B, C, RecordingState<U>, PrimaryLevel, R>
+    ) -> CommandBuffer<'a, B, C, RecordingState<U>, PrimaryLevel, R>
     where
         U: Usage,
     {
         unsafe {
             gfx_hal::command::RawCommandBuffer::begin(
-                &mut self.raw,
+                self.raw.as_mut(),
                 usage.flags(),
                 gfx_hal::command::CommandBufferInheritanceInfo::default(),
             );
@@ -256,7 +345,7 @@ where
     }
 }
 
-impl<B, C, U, R> CommandBuffer<B, C, RecordingState<U>, PrimaryLevel, R>
+impl<'a, B, C, U, R> CommandBuffer<'a, B, C, RecordingState<U>, PrimaryLevel, R>
 where
     B: gfx_hal::Backend,
 {
@@ -265,12 +354,12 @@ where
     /// # Parameters
     pub fn finish(
         mut self,
-    ) -> CommandBuffer<B, C, ExecutableState<U>, PrimaryLevel, R>
+    ) -> CommandBuffer<'a, B, C, ExecutableState<U>, PrimaryLevel, R>
     where
         U: Usage,
     {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::finish(&mut self.raw);
+            gfx_hal::command::RawCommandBuffer::finish(self.raw.as_mut());
             self.change_state(|RecordingState(usage)| ExecutableState(usage))
         }
     }
@@ -284,7 +373,7 @@ pub struct Submit<B: gfx_hal::Backend> {
     family: gfx_hal::queue::QueueFamilyId,
 }
 
-impl<B> Submit<B>
+impl<'a, B> Submit<B>
 where
     B: gfx_hal::Backend,
 {
@@ -299,7 +388,7 @@ where
     }
 }
 
-impl<B, C, S, R> CommandBuffer<B, C, ExecutableState<S>, PrimaryLevel, R>
+impl<'a, B, C, S, R> CommandBuffer<'a, B, C, ExecutableState<S>, PrimaryLevel, R>
 where
     B: gfx_hal::Backend,
 {
@@ -308,12 +397,12 @@ where
         self,
     ) -> (
         Submit<B>,
-        CommandBuffer<B, C, PendingState<InvalidState>, PrimaryLevel, R>,
+        CommandBuffer<'a, B, C, PendingState<InvalidState>, PrimaryLevel, R>,
     ) {
-        let buffer = unsafe { self.change_state(|_| PendingState(InvalidState)) };
+        let mut buffer = unsafe { self.change_state(|_| PendingState(InvalidState)) };
 
         let submit = Submit {
-            raw: buffer.raw.clone(),
+            raw: buffer.raw.as_mut().clone(),
             family: buffer.family,
         };
 
@@ -321,7 +410,7 @@ where
     }
 }
 
-impl<B, C, S, R> CommandBuffer<B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R>
+impl<'a, B, C, S, R> CommandBuffer<'a, B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R>
 where
     B: gfx_hal::Backend,
 {
@@ -330,12 +419,12 @@ where
         self,
     ) -> (
         Submit<B>,
-        CommandBuffer<B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
+        CommandBuffer<'a, B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
     ) {
-        let buffer = unsafe { self.change_state(|state| PendingState(state)) };
+        let mut buffer = unsafe { self.change_state(|state| PendingState(state)) };
 
         let submit = Submit {
-            raw: buffer.raw.clone(),
+            raw: buffer.raw.as_mut().clone(),
             family: buffer.family,
         };
 
@@ -343,7 +432,7 @@ where
     }
 }
 
-impl<B, C, N, L, R> CommandBuffer<B, C, PendingState<N>, L, R>
+impl<'a, B, C, N, L, R> CommandBuffer<'a, B, C, PendingState<N>, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -357,36 +446,26 @@ where
     /// when [submitting] created [`Submit`] object or in later submission to the same queue.
     ///
     /// [`Submit`]: struct.Submit
-    /// [wait]: ../ash/version/trait.gfx_hal::Device<B>.html#method.wait_for_fences
-    /// [`Fence`]: ../ash/vk/struct.Fence.html
-    /// [submitting]: ../ash/version/trait.gfx_hal::Device<B>.html#method.queue_submit
-    pub unsafe fn complete(self) -> CommandBuffer<B, C, N, L, R> {
+    /// [wait]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
+    /// [`Fence`]: ..gfx_hal/trait.Backend.html#associatedtype.Fence
+    /// [submitting]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
+    pub unsafe fn complete(self) -> CommandBuffer<'a, B, C, N, L, R> {
         self.change_state(|PendingState(state)| state)
-    }
-
-    /// Release command buffer.
-    ///
-    /// # Safety
-    ///
-    /// * It must be owned by `OwningCommandPool`
-    /// TODO: Use lifetimes to tie `CommandCommand buffer` to `OwningCommandPool`.
-    pub unsafe fn release(self) {
-        self.relevant.dispose();
     }
 }
 
-impl<B, C, S, L> CommandBuffer<B, C, S, L, IndividualReset>
+impl<'a, B, C, S, L> CommandBuffer<'a, B, C, S, L, IndividualReset>
 where
     B: gfx_hal::Backend,
     S: Resettable,
 {
     /// Reset command buffer.
-    pub fn reset(self) -> CommandBuffer<B, C, InitialState, L, IndividualReset> {
+    pub fn reset(self) -> CommandBuffer<'a, B, C, InitialState, L, IndividualReset> {
         unsafe { self.change_state(|_| InitialState) }
     }
 }
 
-impl<B, C, S, L> CommandBuffer<B, C, S, L>
+impl<'a, B, C, S, L> CommandBuffer<'a, B, C, S, L>
 where
     B: gfx_hal::Backend,
     S: Resettable,
@@ -399,7 +478,7 @@ where
     /// For instance:
     /// * [`CommandPool::reset`](struct.CommandPool.html#method.reset) on pool from which the command buffer was allocated.
     /// * Raw handle usage.
-    pub unsafe fn mark_reset(self) -> CommandBuffer<B, C, InitialState, L> {
+    pub unsafe fn mark_reset(self) -> CommandBuffer<'a, B, C, InitialState, L> {
         self.change_state(|_| InitialState)
     }
 }

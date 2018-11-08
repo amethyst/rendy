@@ -32,7 +32,7 @@ pub use crate::{
         MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
         RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
     },
-    capability::{Capability, Compute, General, Graphics, Transfer},
+    capability::{Capability, Compute, General, Graphics, Transfer, Supports},
     encoder::Encoder,
     family::{families_from_device, Family},
     pool::{CommandPool, OwningCommandPool},

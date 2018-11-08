@@ -1,4 +1,3 @@
-extern crate rendy;
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -10,6 +9,26 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 type Factory = rendy::factory::Factory<Backend>;
+
+rendy::shader::compile_to_spirv!(
+    struct ComputeShader {
+        kind: Compute,
+        lang: GLSL,
+        file: "examples/simple.comp",
+    }
+
+    struct VertexShader {
+        kind: Vertex,
+        lang: GLSL,
+        file: "examples/simple.vert",
+    }
+
+    struct FragmentShader {
+        kind: Fragment,
+        lang: GLSL,
+        file: "examples/simple.frag",
+    }
+);
 
 fn main() -> Result<(), failure::Error> {
 

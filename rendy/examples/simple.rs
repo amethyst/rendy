@@ -461,7 +461,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
                         let ref family = factory.families()[family_index.0 as usize];
                         family
                             .create_pool(factory.device(), NoIndividualReset)?
-                            .from_flags()
+                            .from_queue_type()
                             .unwrap()
                     };
 

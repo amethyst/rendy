@@ -4,7 +4,7 @@ use std::borrow::Borrow;
 
 use command::{
     Capability, CommandBuffer, Encoder, ExecutableState, InitialState, MultiShot, OneShot,
-    OwningCommandPool, PrimaryLevel, RecordingState, Resettable, Submit,
+    OwningCommandPool, PrimaryLevel, RecordingState, Resettable, Submit, Supports,
 };
 
 /// Fences collection.
@@ -243,18 +243,13 @@ where
         );
         unimplemented!()
     }
-}
 
-impl<B, L> FramePool<B, gfx_hal::QueueType, L>
-where
-    B: gfx_hal::Backend,
-{
     /// Convert capability level
-    pub fn from_flags<C>(self) -> Result<FramePool<B, C, L>, Self>
+    pub fn with_capability<U>(self) -> Result<FramePool<B, U, L>, Self>
     where
-        C: Capability,
+        C: Supports<U>,
     {
-        match self.inner.from_flags::<C>() {
+        match self.inner.with_capability::<U>() {
             Ok(inner) => Ok(FramePool {
                 inner,
                 frame: self.frame,
@@ -287,7 +282,7 @@ where
     }
 }
 
-impl<'a, B, S, L, C> FrameBound<'a, CommandBuffer<B, C, S, L>>
+impl<'a, B, S, L, C> FrameBound<'a, CommandBuffer<'a, B, C, S, L>>
 where
     B: gfx_hal::Backend,
     S: Resettable,
@@ -300,7 +295,7 @@ where
     }
 }
 
-impl<'a, B, C, L> FrameBound<'a, CommandBuffer<B, C, ExecutableState<OneShot>, PrimaryLevel, L>>
+impl<'a, B, C, L> FrameBound<'a, CommandBuffer<'a, B, C, ExecutableState<OneShot>, PrimaryLevel, L>>
 where
     B: gfx_hal::Backend,
 {
@@ -310,7 +305,7 @@ where
     }
 }
 
-impl<'a, B, C, U, L> Encoder<B, C> for FrameBound<'a, CommandBuffer<B, C, RecordingState<U>, L>>
+impl<'a, B, C, U, L> Encoder<B, C> for FrameBound<'a, CommandBuffer<'a, B, C, RecordingState<U>, L>>
 where
     B: gfx_hal::Backend,
 {

@@ -2,7 +2,7 @@
 
 use crate::{
     buffer::{Level, NoIndividualReset, Reset},
-    capability::Capability,
+    capability::{Capability, Supports},
     pool::{CommandPool, OwningCommandPool},
 };
 
@@ -11,7 +11,7 @@ use crate::{
 /// All queues of the family have same capabilities.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct Family<B: gfx_hal::Backend, C: Capability = gfx_hal::QueueType> {
+pub struct Family<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
     index: gfx_hal::queue::QueueFamilyId,
     #[derivative(Debug = "ignore")] queues: Vec<B::CommandQueue>,
     // min_image_transfer_granularity: gfx_hal::image::Extent,
@@ -51,7 +51,7 @@ where
     }
 }
 
-impl<B, C: Capability> Family<B, C>
+impl<B, C> Family<B, C>
 where
     B: gfx_hal::Backend,
 {
@@ -79,6 +79,7 @@ where
     ) -> Result<CommandPool<B, C, R>, gfx_hal::device::OutOfMemory>
     where
         R: Reset,
+        C: Capability,
     {
         let pool = unsafe {
             // Is this family belong to specified device.
@@ -103,13 +104,17 @@ where
     ) -> Result<OwningCommandPool<B, C, L>, gfx_hal::device::OutOfMemory>
     where
         L: Level,
+        C: Capability,
     {
         self.create_pool(device, NoIndividualReset)
             .map(|pool| unsafe { OwningCommandPool::from_inner(pool, level) })
     }
 
     /// Get family capability.
-    pub fn capability(&self) -> C {
+    pub fn capability(&self) -> C
+    where
+        C: Capability
+    {
         self.capability
     }
 
@@ -122,38 +127,38 @@ where
 
         self.relevant.dispose();
     }
-}
 
-impl<B, C> Family<B, C>
-where
-    B: gfx_hal::Backend,
-    C: Capability,
-{
     /// Convert from some `Family<C>` where `C` is something that implements
     /// `Capability`
-    pub fn into_flags(self) -> Family<B, gfx_hal::QueueType> {
+    pub fn with_capability_value(self) -> Family<B, gfx_hal::QueueType>
+    where
+        C: Capability,
+    {
         Family {
             index: self.index,
             queues: self.queues,
             // min_image_transfer_granularity: self.min_image_transfer_granularity,
-            capability: self.capability.into_flags(),
+            capability: self.capability.into_queue_type(),
             relevant: self.relevant,
         }
     }
 
     /// Convert into a `Family<C>` where `C` something that implements
     /// `Capability`
-    pub fn from_flags(family: Family<B, gfx_hal::QueueType>) -> Option<Self> {
-        if let Some(capability) = C::from_flags(family.capability) {
-            Some(Family {
-                index: family.index,
-                queues: family.queues,
-                // min_image_transfer_granularity: family.min_image_transfer_granularity,
+    pub fn with_capability<U>(self) -> Result<Family<B, U>, Self>
+    where
+        C: Supports<U>,
+    {
+        if let Some(capability) = self.capability.supports() {
+            Ok(Family {
+                index: self.index,
+                queues: self.queues,
+                // min_image_transfer_granularity: self.min_image_transfer_granularity,
                 capability,
-                relevant: family.relevant,
+                relevant: self.relevant,
             })
         } else {
-            None
+            Err(self)
         }
     }
 }
