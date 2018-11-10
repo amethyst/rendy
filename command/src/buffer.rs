@@ -1,7 +1,10 @@
 //! Command buffer module docs.
 use std::borrow::Borrow;
 
-use crate::capability::{Capability, Supports};
+use crate::{
+    capability::{Capability, Supports},
+    encoder::Encoder,
+};
 
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug, Default)]
@@ -173,8 +176,10 @@ impl<T> OwnedOrBorrowed<'static, T> {
 /// Command buffer wrapper.
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
 /// This way many methods become safe.
-#[derive(Debug)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 pub struct CommandBuffer<'a, B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
+    #[derivative(Debug = "ignore")]
     raw: OwnedOrBorrowed<'a, B::CommandBuffer>,
     capability: C,
     state: S,
@@ -251,7 +256,7 @@ where
     }
 
     /// Convert capability level.
-    pub fn with_capability_value(self) -> CommandBuffer<'a, B, gfx_hal::QueueType, S, L, R>
+    pub fn with_value_capability(self) -> CommandBuffer<'a, B, gfx_hal::QueueType, S, L, R>
     where
         C: Capability,
     {
@@ -480,5 +485,68 @@ where
     /// * Raw handle usage.
     pub unsafe fn mark_reset(self) -> CommandBuffer<'a, B, C, InitialState, L> {
         self.change_state(|_| InitialState)
+    }
+}
+
+impl<'a, B, C, U, L, R> CommandBuffer<'a, B, C, RecordingState<U>, L, R>
+where
+    B: gfx_hal::Backend,
+    C: Capability,
+{
+    /// Acquire encoder for command buffer.
+    pub fn encoder<'b>(&'b mut self) -> CommandBufferEncoder<'b, 'a, B, C, C, U, L, R> {
+        self.into()
+    }
+}
+
+/// Command encoder.
+///
+///
+#[derive(Debug)]
+pub struct CommandBufferEncoder<'a, 'b: 'a, B: gfx_hal::Backend + 'a, C: 'a, X: 'a, U: 'a, L: 'a, R: 'a> {
+    buffer: &'a mut CommandBuffer<'b, B, C, RecordingState<U>, L, R>,
+    capability: X,
+}
+
+impl<'a, 'b, B, C, X, U, L, R> CommandBufferEncoder<'a, 'b, B, C, X, U, L, R>
+where
+    B: gfx_hal::Backend,
+{
+    /// Convert capability level
+    pub fn with_capability<Y>(self) -> Result<CommandBufferEncoder<'a, 'b, B, C, Y, U, L, R>, Self>
+    where
+        X: Supports<Y>,
+    {
+        if let Some(capability) = self.capability.supports() {
+            Ok(CommandBufferEncoder {
+                buffer: self.buffer,
+                capability,
+            })
+        } else {
+            Err(self)
+        }
+    }
+}
+
+impl<'a, 'b, B, C, X, U, L, R> Encoder<B, X> for CommandBufferEncoder<'a, 'b, B, C, X, U, L, R>
+where
+    B: gfx_hal::Backend,
+    C: Supports<X>,
+{
+    unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
+        self.buffer.raw()
+    }
+}
+
+impl<'a, 'b, B, C, U, L, R> From<&'a mut CommandBuffer<'b, B, C, RecordingState<U>, L, R>> for CommandBufferEncoder<'a, 'b, B, C, C, U, L, R>
+where
+    B: gfx_hal::Backend,
+    C: Capability,
+{
+    fn from(buffer: &'a mut CommandBuffer<'b, B, C, RecordingState<U>, L, R>) -> Self {
+        CommandBufferEncoder {
+            capability: buffer.capability(),
+            buffer,
+        }
     }
 }

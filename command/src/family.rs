@@ -128,9 +128,8 @@ where
         self.relevant.dispose();
     }
 
-    /// Convert from some `Family<C>` where `C` is something that implements
-    /// `Capability`
-    pub fn with_capability_value(self) -> Family<B, gfx_hal::QueueType>
+    /// Convert capability from type-level to value-level.
+    pub fn with_value_capability(self) -> Family<B, gfx_hal::QueueType>
     where
         C: Capability,
     {
@@ -143,8 +142,8 @@ where
         }
     }
 
-    /// Convert into a `Family<C>` where `C` something that implements
-    /// `Capability`
+    /// Convert capability into type-level one.
+    /// 
     pub fn with_capability<U>(self) -> Result<Family<B, U>, Self>
     where
         C: Supports<U>,

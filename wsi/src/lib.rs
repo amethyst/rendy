@@ -20,7 +20,7 @@ macro_rules! create_surface_for_backend {
             match b {$(
                 #[$feature]
                 _B::$backend => {
-                    if let Some(instance) = std::any::Any::downcast_ref($instance) {
+                    if let Some(instance) = std::any::Any::downcast_ref(&**$instance) {
                         let surface: Box<std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
                         return *surface.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
                     }
@@ -44,7 +44,7 @@ macro_rules! create_surface_for_backend {
     }};
 }
 
-fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn gfx_hal::Instance<Backend = B>>, window: &winit::Window) -> B::Surface {
+fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn std::any::Any>, window: &winit::Window) -> B::Surface {
     create_surface_for_backend!(instance, window);
 }
 
@@ -64,7 +64,7 @@ where
     B: gfx_hal::Backend,
 {
     pub fn new(
-        instance: &Box<dyn gfx_hal::Instance<Backend = B>>,
+        instance: &Box<dyn std::any::Any>,
         physical_device: &B::PhysicalDevice,
         device: &impl gfx_hal::Device<B>,
         window: winit::Window,
@@ -205,9 +205,9 @@ where
     }
 
     /// Present images by the queue.
-    /// 
+    ///
     /// # TODO
-    /// 
+    ///
     /// Use specific presentation error type.
     pub fn present(self, queue: &mut impl gfx_hal::queue::RawCommandQueue<B>, wait: &[B::Semaphore]) -> Result<(), failure::Error> {
         unsafe {

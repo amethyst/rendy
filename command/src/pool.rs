@@ -111,7 +111,7 @@ where
     }
 
     /// Convert capability level
-    pub fn with_capability_value(self) -> CommandPool<B, gfx_hal::QueueType, R>
+    pub fn with_value_capability(self) -> CommandPool<B, gfx_hal::QueueType, R>
     where
         C: Capability,
     {
@@ -254,12 +254,12 @@ where
     }
 
     /// Convert capability level.
-    pub fn with_capability_value(self) -> OwningCommandPool<B, gfx_hal::QueueType, L>
+    pub fn with_value_capability(self) -> OwningCommandPool<B, gfx_hal::QueueType, L>
     where
         C: Capability,
     {
         OwningCommandPool {
-            inner: self.inner.with_capability_value(),
+            inner: self.inner.with_value_capability(),
             level: self.level,
             buffers: self.buffers,
             next: self.next,

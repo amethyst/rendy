@@ -31,6 +31,7 @@ pub use crate::{
         CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
         MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
         RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
+        CommandBufferEncoder,
     },
     capability::{Capability, Compute, General, Graphics, Transfer, Supports},
     encoder::Encoder,

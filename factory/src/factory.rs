@@ -7,7 +7,7 @@ use wsi::Target;
 use config::{Config, HeapsConfigure, QueuesConfigure};
 
 pub struct Factory<B: gfx_hal::Backend> {
-    instance: Box<dyn gfx_hal::Instance<Backend = B>>,
+    instance: Box<dyn std::any::Any>,
     adapter: gfx_hal::Adapter<B>,
     device: B::Device,
     families: Vec<Family<B>>,
