@@ -9,6 +9,13 @@ pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &wi
 
 }
 
+#[cfg(feature = "vulkan")]
+mod gfx_backend_vulkan {
+    pub(super) fn create_surface(instance: &gfx_backend_vulkan::Instance, window: &winit::Window) -> <gfx_backend_vulkan::Backend as gfx_hal::Backend>::Surface {
+        instance.create_surface(window)
+    }
+}
+
 macro_rules! create_surface_for_backend {
     (match $instance:ident, $window:ident $(| $backend:ident @ $feature:meta)+) => {{
         #[allow(non_camel_case_types)]
