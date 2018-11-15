@@ -6,14 +6,11 @@ pub use self::usage::*;
 
 use memory::{Block, MemoryBlock};
 
-use escape::Escape;
+use crate::escape::{Escape, KeepAlive};
 
 /// Image info.
 #[derive(Clone, Copy, Debug)]
 pub struct Info {
-    /// Image memory alignment.
-    pub align: u64,
-
     /// Kind of the image.
     pub kind: gfx_hal::image::Kind, 
 
@@ -41,7 +38,7 @@ pub struct Info {
 /// `B` - raw image type.
 #[derive(Debug)]
 pub struct Image<B: gfx_hal::Backend> {
-    pub(super) inner: Escape<Inner<B>>,
+    pub(super) escape: Escape<Inner<B>>,
     pub(super) info: Info,
 }
 
@@ -56,14 +53,25 @@ impl<B> Image<B>
 where
     B: gfx_hal::Backend,
 {
-    /// Get buffers memory block.
-    pub fn block(&self) -> &impl Block<B> {
-        &self.inner.block
+    /// Creates [`KeepAlive`] handler to extend image lifetime.
+    /// 
+    /// [`KeepAlive`]: struct.KeepAlive.html
+    pub fn keep_alive(&self) -> KeepAlive {
+        Escape::keep_alive(&self.escape)
     }
 
-    /// Get buffers memory block.
+    /// Get images memory [`Block`].
+    /// 
+    /// [`Block`]: ../memory/trait.Block.html
+    pub fn block(&self) -> &impl Block<B> {
+        &self.escape.block
+    }
+
+    /// Get images memory [`Block`].
+    /// 
+    /// [`Block`]: ../memory/trait.Block.html
     pub fn block_mut(&mut self) -> &mut impl Block<B> {
-        &mut self.inner.block
+        &mut self.escape.block
     }
 
     /// Get raw image handle.
@@ -72,10 +80,19 @@ where
     ///
     /// Raw image handler should not be usage to violate this object valid usage.
     pub fn raw(&self) -> &B::Image {
-        &self.inner.raw
+        &self.escape.raw
     }
 
-    /// Get extent of the image.
+    /// Get image [`Info`].
+    /// 
+    /// [`Info`]: struct.Info.html
+    pub fn info(&self) -> Info {
+        self.info
+    }
+
+    /// Get [`Extent`] of the image.
+    /// 
+    /// [`Extent`]: ../gfx-hal/image/struct.Extent.html
     pub fn extent(&self) -> gfx_hal::image::Extent {
         self.info.kind.extent()
     }

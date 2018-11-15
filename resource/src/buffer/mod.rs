@@ -5,14 +5,11 @@ mod usage;
 pub use self::usage::*;
 use memory::{Block, MemoryBlock};
 
-use crate::escape::Escape;
+use crate::escape::{Escape, KeepAlive};
 
 /// Buffer info.
 #[derive(Clone, Copy, Debug)]
 pub struct Info {
-    /// Buffer memory alignment.
-    pub align: u64,
-
     /// Buffer size.
     pub size: u64,
 
@@ -28,7 +25,7 @@ pub struct Info {
 /// `B` - raw buffer type.
 #[derive(Debug)]
 pub struct Buffer<B: gfx_hal::Backend> {
-    pub(crate) inner: Escape<Inner<B>>,
+    pub(crate) escape: Escape<Inner<B>>,
     pub(crate) info: Info,
 }
 
@@ -43,14 +40,25 @@ impl<B> Buffer<B>
 where
     B: gfx_hal::Backend,
 {
-    /// Get buffers memory block.
-    pub fn block(&self) -> &impl Block<B> {
-        &self.inner.block
+    /// Creates [`KeepAlive`] handler to extend buffer lifetime.
+    /// 
+    /// [`KeepAlive`]: struct.KeepAlive.html
+    pub fn keep_alive(&self) -> KeepAlive {
+        Escape::keep_alive(&self.escape)
     }
 
-    /// Get buffers memory block.
+    /// Get buffers memory [`Block`].
+    /// 
+    /// [`Block`]: ../memory/trait.Block.html
+    pub fn block(&self) -> &impl Block<B> {
+        &self.escape.block
+    }
+
+    /// Get buffers memory [`Block`].
+    /// 
+    /// [`Block`]: ../memory/trait.Block.html
     pub fn block_mut(&mut self) -> &mut impl Block<B> {
-        &mut self.inner.block
+        &mut self.escape.block
     }
 
     /// Get raw buffer handle.
@@ -59,6 +67,6 @@ where
     ///
     /// Raw buffer handler should not be usage to violate this object valid usage.
     pub fn raw(&self) -> &B::Buffer {
-        &self.inner.raw
+        &self.escape.raw
     }
 }

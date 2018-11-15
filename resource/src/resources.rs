@@ -57,13 +57,12 @@ where
         }?;
 
         Ok(buffer::Buffer {
-            inner: self.buffers.escape(buffer::Inner {
+            escape: self.buffers.escape(buffer::Inner {
                 raw: buf,
                 block,
                 relevant: relevant::Relevant,
             }),
             info: buffer::Info {
-                align,
                 size,
                 usage: usage.flags(),
             }
@@ -73,7 +72,8 @@ where
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
     pub fn destroy_buffer(&mut self, buffer: buffer::Buffer<B>) {
-        self.dropped_buffers.push(Escape::into_inner(buffer.inner));
+        Escape::dispose(buffer.escape)
+            .map(|inner| self.dropped_buffers.push(inner));
     }
 
     /// Drop inner buffer representation.
@@ -81,7 +81,7 @@ where
     /// # Safety
     ///
     /// Device must not attempt to use the buffer.
-    unsafe fn destroy_buffer_inner(
+    unsafe fn actually_destroy_buffer(
         inner: buffer::Inner<B>,
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
@@ -131,13 +131,12 @@ where
         }?;
 
         Ok(image::Image {
-            inner: self.images.escape(image::Inner {
+            escape: self.images.escape(image::Inner {
                 raw: img,
                 block,
                 relevant: relevant::Relevant,
             }),
             info: image::Info {
-                align,
                 kind,
                 levels,
                 format,
@@ -154,7 +153,8 @@ where
         &mut self,
         image: image::Image<B>,
     ) {
-        self.dropped_images.push(Escape::into_inner(image.inner));
+        Escape::dispose(image.escape)
+            .map(|inner| self.dropped_images.push(inner));
     }
 
     /// Drop inner image representation.
@@ -179,7 +179,7 @@ where
     /// Device must not attempt to use previously dropped buffers and images.
     pub unsafe fn cleanup(&mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
         for buffer in self.dropped_buffers.drain(..) {
-            Self::destroy_buffer_inner(buffer, device, heaps);
+            Self::actually_destroy_buffer(buffer, device, heaps);
         }
 
         for image in self.dropped_images.drain(..) {

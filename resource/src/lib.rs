@@ -29,6 +29,7 @@ mod resources;
 pub mod buffer;
 pub mod image;
 
+pub use escape::KeepAlive;
 pub use buffer::Buffer;
 pub use image::Image;
 pub use resources::Resources;
