@@ -1,4 +1,5 @@
 
+
 #[cfg(feature = "metal")]
 mod gfx_backend_metal {
 
@@ -51,18 +52,22 @@ macro_rules! create_surface_for_backend {
     }};
 }
 
+#[allow(unused_variables)]
 fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn std::any::Any>, window: &winit::Window) -> B::Surface {
     create_surface_for_backend!(instance, window);
 }
 
 /// Rendering target bound to window.
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 pub struct Target<B: gfx_hal::Backend> {
-    window: winit::Window,
-    surface: B::Surface,
-    swapchain: B::Swapchain,
+    #[derivative(Debug = "ignore")] window: winit::Window,
+    #[derivative(Debug = "ignore")] surface: B::Surface,
+    #[derivative(Debug = "ignore")] swapchain: B::Swapchain,
     images: Vec<B::Image>,
     format: gfx_hal::format::Format,
     extent: gfx_hal::window::Extent2D,
+    usage: gfx_hal::image::Usage,
     relevant: relevant::Relevant,
 }
 
@@ -134,6 +139,7 @@ where
             images,
             format,
             extent: capabilities.current_extent.unwrap(),
+            usage,
             relevant: relevant::Relevant,
         })
     }
@@ -151,21 +157,22 @@ where
     }
 
     /// Get raw surface handle.
-    ///
-    /// # Safety
-    ///
-    /// Trait usage should not violate this type valid usage.
-    pub unsafe fn surface(&self) -> &impl gfx_hal::Surface<B> {
+    pub fn surface(&self) -> &B::Surface {
         &self.surface
     }
 
     /// Get raw surface handle.
+    pub fn swapchain(&self) -> &B::Swapchain {
+        &self.swapchain
+    }
+
+    /// Get swapchain impl trait.
     ///
     /// # Safety
     ///
     /// Trait usage should not violate this type valid usage.
-    pub unsafe fn swapchain(&self) -> &impl gfx_hal::Swapchain<B> {
-        &self.swapchain
+    pub unsafe fn swapchain_mut(&mut self) -> &mut impl gfx_hal::Swapchain<B> {
+        &mut self.swapchain
     }
 
     /// Get target current extent.
@@ -181,6 +188,17 @@ where
     /// Get raw handlers for the swapchain images.
     pub fn images(&self) -> &[B::Image] {
         &self.images
+    }
+
+    pub fn image_info(&self) -> rendy_resource::image::Info {
+        rendy_resource::image::Info {
+            kind: gfx_hal::Surface::kind(&self.surface),
+            levels: 1,
+            format: self.format,
+            tiling: gfx_hal::image::Tiling::Optimal,
+            view_caps: gfx_hal::image::ViewCapabilities::empty(),
+            usage: self.usage,
+        }
     }
 
     /// Acquire next image.

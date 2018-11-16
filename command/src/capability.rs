@@ -174,26 +174,11 @@ impl Supports<Graphics> for General {
     }
 }
 
-impl Supports<Transfer> for gfx_hal::QueueType {
-    fn supports(&self) -> Option<Transfer> {
-        Transfer::from_queue_type(*self)
-    }
-}
-
-impl Supports<Execute> for gfx_hal::QueueType {
-    fn supports(&self) -> Option<Execute> {
-        Execute::from_queue_type(*self)
-    }
-}
-
-impl Supports<Compute> for gfx_hal::QueueType {
-    fn supports(&self) -> Option<Compute> {
-        Compute::from_queue_type(*self)
-    }
-}
-
-impl Supports<Graphics> for gfx_hal::QueueType {
-    fn supports(&self) -> Option<Graphics> {
-        Graphics::from_queue_type(*self)
+impl<C> Supports<C> for gfx_hal::QueueType
+where
+    C: Capability,
+{
+    fn supports(&self) -> Option<C> {
+        C::from_queue_type(*self)
     }
 }

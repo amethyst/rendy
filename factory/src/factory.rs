@@ -10,9 +10,10 @@ pub struct Factory<B: gfx_hal::Backend> {
     instance: Box<dyn std::any::Any>,
     adapter: gfx_hal::Adapter<B>,
     device: B::Device,
-    families: Vec<Family<B>>,
     heaps: Heaps<B>,
     resources: Resources<B>,
+    families: Vec<Family<B>>,
+    families_indices: std::collections::HashMap<gfx_hal::queue::QueueFamilyId, usize>,
     relevant: relevant::Relevant,
 }
 
@@ -71,13 +72,16 @@ where
 
         let heaps = unsafe { Heaps::new(types, heaps) };
 
+        let families_indices = families.iter().enumerate().map(|(i, f)| (f.index(), i)).collect();
+
         let factory = Factory {
             instance: Box::new(instance),
             adapter,
             device,
-            families,
             heaps,
             resources: Resources::new(),
+            families,
+            families_indices,
             relevant: relevant::Relevant,
         };
 
@@ -229,6 +233,16 @@ where
         &mut self.families
     }
 
+    /// Get queue families of the factory.
+    pub fn family(&self, index: gfx_hal::queue::QueueFamilyId) -> &Family<B> {
+        &self.families[self.families_indices[&index]]
+    }
+
+    /// Get queue families of the factory.
+    pub fn family_mut(&mut self, index: gfx_hal::queue::QueueFamilyId) -> &mut Family<B> {
+        &mut self.families[self.families_indices[&index]]
+    }
+
     /// Get surface support for family.
     pub fn target_support(&self, family: gfx_hal::queue::QueueFamilyId, target: &Target<B>) -> bool {
         unsafe {
@@ -261,25 +275,31 @@ where
     }
 
     /// Wait for the fence become signeled.
-    /// TODO:
-    /// * Add timeout.
-    /// * Add multifence version.
     pub fn reset_fence(&self, fence: &B::Fence) -> Result<(), gfx_hal::device::OutOfMemory> {
         unsafe {
-            // TODO: Handle device lost.
-            gfx_hal::Device::reset_fences(&self.device, Some(fence))
+            gfx_hal::Device::reset_fence(&self.device, fence)
         }
     }
 
     /// Wait for the fence become signeled.
-    /// TODO:
-    /// * Add timeout.
-    /// * Add multifence version.
-    pub fn wait_for_fence(&self, fence: &B::Fence) -> Result<(), gfx_hal::device::OomOrDeviceLost> {
+    pub fn reset_fences(&self, fences: impl IntoIterator<Item = impl std::borrow::Borrow<B::Fence>>) -> Result<(), gfx_hal::device::OutOfMemory> {
         unsafe {
-            gfx_hal::Device::wait_for_fence(&self.device, fence, !0)?;
+            gfx_hal::Device::reset_fences(&self.device, fences)
         }
-        Ok(())
+    }
+
+    /// Wait for the fence become signeled.
+    pub fn wait_for_fence(&self, fence: &B::Fence, timeout_ns: u64) -> Result<bool, gfx_hal::device::OomOrDeviceLost> {
+        unsafe {
+            gfx_hal::Device::wait_for_fence(&self.device, fence, timeout_ns)
+        }
+    }
+
+    /// Wait for the fences become signeled.
+    pub fn wait_for_fences(&self, fences: impl IntoIterator<Item = impl std::borrow::Borrow<B::Fence>>, wait_for: gfx_hal::device::WaitFor, timeout_ns: u64) -> Result<bool, gfx_hal::device::OomOrDeviceLost> {
+        unsafe {
+            gfx_hal::Device::wait_for_fences(&self.device, fences, wait_for, timeout_ns)
+        }
     }
 
     // /// Inefficiently upload image data.

@@ -20,6 +20,8 @@ relevant = "0.2"
 smallvec = "0.6"
 winit = "0.17"
 
+rendy-resource = { path = "../resource" }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc = "0.2"
 cocoa = "0.18"

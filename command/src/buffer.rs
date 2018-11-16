@@ -391,6 +391,11 @@ where
     pub fn raw(&self) -> &B::CommandBuffer {
         &self.raw
     }
+
+    /// Get raw command buffer.
+    pub fn into_raw(self) -> B::CommandBuffer {
+        self.raw
+    }
 }
 
 impl<'a, B, C, S, R> CommandBuffer<'a, B, C, ExecutableState<S>, PrimaryLevel, R>

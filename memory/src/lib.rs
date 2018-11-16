@@ -34,5 +34,5 @@ pub use crate::{
     heaps::{Heaps, HeapsConfig, MemoryBlock, HeapsError},
     mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent},
     memory::Memory,
-    usage::MemoryUsage,
+    usage::{MemoryUsage, MemoryUsageValue},
 };

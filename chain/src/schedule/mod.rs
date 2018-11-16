@@ -37,14 +37,16 @@ impl<S> Schedule<S> {
         }
     }
 
+    /// Get total number of submissions.
+    pub fn total(&self) -> usize {
+        self.ordered.len()
+    }
+
     /// Iterate over submissions in ordered they must be submitted.
     pub fn ordered(&self) -> impl Iterator<Item = &Submission<S>> {
-        let Schedule {
-            ref map,
-            ref ordered,
-        } = *self;
+        let ref map = self.map;
 
-        ordered
+        self.ordered
             .iter()
             .map(move |&sid| map[&sid.family()].submission(sid).unwrap())
     }
@@ -111,13 +113,13 @@ impl<S> Schedule<S> {
 
     /// Get mutable reference to `Family` instance by the id.
     /// This function will add empty `Family` if id is not present.
-    fn ensure_family(&mut self, fid: gfx_hal::queue::QueueFamilyId) -> &mut Family<S> {
+    pub fn ensure_family(&mut self, fid: gfx_hal::queue::QueueFamilyId) -> &mut Family<S> {
         self.map.entry(fid).or_insert_with(|| Family::new(fid))
     }
 
     /// Get mutable reference to `Queue` instance by the id.
     /// This function will grow queues array if index is out of bounds.
-    fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
+    pub fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
         self.ensure_family(qid.family()).ensure_queue(qid)
     }
 }

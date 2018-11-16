@@ -143,3 +143,57 @@ impl MemoryUsage for Download {
     }
 }
 
+/// Well-known memory usage types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MemoryUsageValue {
+    /// See [`Data`]
+    /// 
+    /// [`Data`]: struct.Data.html
+    Data,
+
+    /// See [`Dynamic`]
+    /// 
+    /// [`Dynamic`]: struct.Dynamic.html
+    Dynamic,
+
+    /// See [`Upload`]
+    /// 
+    /// [`Upload`]: struct.Upload.html
+    Upload,
+
+    /// See [`Download`]
+    /// 
+    /// [`Download`]: struct.Download.html
+    Download,
+}
+
+
+/// Memory usage trait.
+impl MemoryUsage for MemoryUsageValue {
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        match self {
+            MemoryUsageValue::Data => Data.properties_required(),
+            MemoryUsageValue::Dynamic => Dynamic.properties_required(),
+            MemoryUsageValue::Upload => Upload.properties_required(),
+            MemoryUsageValue::Download => Download.properties_required(),
+        }
+    }
+
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        match self {
+            MemoryUsageValue::Data => Data.memory_fitness(properties),
+            MemoryUsageValue::Dynamic => Dynamic.memory_fitness(properties),
+            MemoryUsageValue::Upload => Upload.memory_fitness(properties),
+            MemoryUsageValue::Download => Download.memory_fitness(properties),
+        }
+    }
+
+    fn allocator_fitness(&self, kind: Kind) -> u32 {
+        match self {
+            MemoryUsageValue::Data => Data.allocator_fitness(kind),
+            MemoryUsageValue::Dynamic => Dynamic.allocator_fitness(kind),
+            MemoryUsageValue::Upload => Upload.allocator_fitness(kind),
+            MemoryUsageValue::Download => Download.allocator_fitness(kind),
+        }
+    }
+}

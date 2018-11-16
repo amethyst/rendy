@@ -20,7 +20,7 @@
 
 /// Unique resource id.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub u64);
+pub struct Id(pub usize);
 
 mod chain;
 mod collect;
@@ -30,7 +30,7 @@ mod schedule;
 mod sync;
 
 pub use crate::{
-    chain::Chain,
+    chain::{Chain, Link, LinkNode},
     collect::{collect, Chains, Unsynchronized},
     node::{Node, State, BufferState, ImageState},
     resource::{AccessFlags, Buffer, Image, Resource},

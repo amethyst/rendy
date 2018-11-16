@@ -54,7 +54,7 @@ impl<S> Family<S> {
     ///
     /// This function will panic if requested queue isn't part of this family.
     ///
-    pub(super) fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
+    pub fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
         assert_eq!(self.id, qid.family());
         let len = self.queues.len();
         self.queues

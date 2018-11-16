@@ -11,4 +11,6 @@ members = [
     "resource",
     "shader",
     "wsi",
+    "chain",
+    "graph",
 ]

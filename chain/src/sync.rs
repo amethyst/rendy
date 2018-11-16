@@ -367,7 +367,22 @@ where
     R: Resource,
 {
     let uid = id.into();
-    for (prev_link, link) in chain.links().windows(2).map(|pair| (&pair[0], &pair[1])) {
+
+    let pairs = chain
+        .links()
+        .windows(2)
+        .map(|pair| (&pair[0], &pair[1]))
+        .chain(
+            chain.links()
+                .first()
+                .and_then(|first| 
+                    chain.links()
+                        .last()
+                        .map(move |last| (last, first))
+                )
+        );
+
+    for (prev_link, link) in pairs {
         if prev_link.family() == link.family() {
             // Prefer to generate barriers on the acquire side, if possible.
             if prev_link.single_queue() && !link.single_queue() {

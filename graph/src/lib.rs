@@ -17,14 +17,29 @@
 #![warn(rust_2018_compatibility)]
 #![warn(rust_2018_idioms)]
 
-extern crate ash;
 extern crate rendy_chain as chain;
 extern crate rendy_command as command;
+extern crate rendy_frame as frame;
+extern crate rendy_factory as factory;
+extern crate rendy_memory as memory;
 extern crate rendy_resource as resource;
-extern crate smallvec;
+extern crate rendy_wsi as wsi;
+
+/// Wrapper for either [`Image`] or [`Target`]
+/// 
+/// [`Image`]: ../rendy-resource/image/struct.Image.html
+/// [`Target`]: ../rendy-wsi/struct.Target.html
+#[derive(Debug)]
+pub enum ImageOrTarget<B: gfx_hal::Backend> {
+    /// Image variant.
+    Image(resource::image::Image<B>),
+
+    /// Target variant.
+    Target(wsi::Target<B>),
+}
 
 mod node;
 mod graph;
 
-pub use node::{Node, NodeDesc, NodeBuilder};
-pub use graph::Graph;
+pub use node::*;
+pub use graph::*;

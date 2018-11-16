@@ -95,7 +95,7 @@ impl<S> Submission<S> {
     }
 
     /// Set synchronization to the `Submission`.
-    pub(crate) fn set_sync<T>(&self, sync: T) -> Submission<T> {
+    pub fn set_sync<T>(&self, sync: T) -> Submission<T> {
         Submission {
             node: self.node,
             resource_links: self.resource_links.clone(),
@@ -106,7 +106,8 @@ impl<S> Submission<S> {
         }
     }
 
-    pub(crate) fn set_link(&mut self, id: Id, link: usize) {
+    /// Set link index for given chain.
+    pub fn set_link(&mut self, id: Id, link: usize) {
         self.resource_links.insert(id, link);
     }
 }
