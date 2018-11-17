@@ -12,9 +12,12 @@ use std::{
 
 #[derive(Debug)]
 struct Inner<T> {
-    value: ManuallyDrop<T>,
+    value: ManuallyDrop<std::cell::UnsafeCell<T>>,
     sender: crossbeam_channel::Sender<T>,
 }
+
+unsafe impl<T: Send> Send for Inner<T> {}
+unsafe impl<T: Send + Sync> Sync for Inner<T> {}
 
 impl<T> Inner<T> {
     /// Unwrap the value.
@@ -28,7 +31,7 @@ impl<T> Inner<T> {
             let value = read(&mut *self.value);
             let sender = read(&mut self.sender);
             forget(self);
-            (value, sender)
+            (value.into_inner(), sender)
         }
     }
 }
@@ -40,7 +43,7 @@ impl<T> Drop for Inner<T> {
             // `ManuallyDrop` will prevent `self.value` from dropping.
             read(&mut *self.value)
         };
-        self.sender.send(value)
+        self.sender.send(value.into_inner())
     }
 }
 
@@ -72,7 +75,6 @@ pub struct KeepAlive(#[derivative(Debug = "ignore")] std::sync::Arc<dyn std::any
 /// In case `Terminal` is already dropped then value will be cast into oblivion via `std::mem::forget`.
 #[derive(Debug)]
 pub struct Escape<T> {
-    access: *mut T,
     inner: std::sync::Arc<Inner<T>>,
 }
 
@@ -99,7 +101,7 @@ impl<T> Deref for Escape<T> {
             // Only `Escape` has access to `T`.
             // `KeepAlive` doesn't access `T`.
             // `Inner` only access `T` when dropped.
-            &*self.access
+            &*self.inner.value.get()
         }
     }
 }
@@ -110,7 +112,7 @@ impl<T> DerefMut for Escape<T> {
             // Only `Escape` has access to `T`.
             // `KeepAlive` doesn't access `T`.
             // `Inner` only access `T` when dropped.
-            &mut*self.access
+            &mut *self.inner.value.get()
         }
     }
 }
@@ -141,16 +143,12 @@ impl<T> Terminal<T> {
 
     /// Wrap the value. It will be yielded by iterator returned by `Terminal::drain` if `Escape` will be dropped.
     pub fn escape(&self, value: T) -> Escape<T> {
-        let mut inner = std::sync::Arc::new(Inner {
-            value: ManuallyDrop::new(value),
+        let inner = std::sync::Arc::new(Inner {
+            value: ManuallyDrop::new(value.into()),
             sender: crossbeam_channel::Sender::clone(&self.sender),
         });
 
-        // can't fail
-        let access: *mut T = &mut *std::sync::Arc::get_mut(&mut inner).unwrap().value;
-
         Escape {
-            access,
             inner,
         }
     }
