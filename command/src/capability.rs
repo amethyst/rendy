@@ -41,7 +41,7 @@ impl Capability for gfx_hal::QueueType {
 }
 
 impl Capability for Transfer {
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+    fn from_queue_type(_queue_type: gfx_hal::QueueType) -> Option<Self> {
         Some(Transfer)
     }
 
@@ -53,8 +53,8 @@ impl Capability for Transfer {
 impl Capability for Execute {
     fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
         match queue_type {
-            _ => Some(Execute),
             gfx_hal::QueueType::Transfer => None,
+            _ => Some(Execute),
         }
     }
 

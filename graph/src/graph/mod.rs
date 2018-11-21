@@ -3,23 +3,20 @@
 //     sync::{atomic::AtomicUsize, Arc},
 // };
 
-use chain;
-use factory::Factory;
-use frame::{Frame, Frames};
-use memory::MemoryUsageValue;
-use resource::{buffer, image};
-use wsi::Target;
-
 use crate::{
-    ImageOrTarget,
-    node::{
-        AnyNode, NodeBuilder,
-    },
+    chain,
+    factory::Factory,
+    frame::Frames,
+    memory::MemoryUsageValue,
+    node::{AnyNode, NodeBuffer, NodeBuilder, NodeImage},
+    resource::{buffer, image},
+    wsi::Target,
 };
 
 #[derive(Debug)]
 struct Presentable<B: gfx_hal::Backend> {
     target: Target<B>,
+    source: usize,
     signal: usize,
     wait: Vec<usize>,
     owner: gfx_hal::queue::QueueFamilyId,
@@ -62,11 +59,7 @@ where
     ///               This function may not use all fences. Unused fences are left in signalled state.
     ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
     ///               So it's OK to start with empty `Vec`.
-    pub fn run<'a, Q: 'a>(
-        &mut self,
-        factory: &mut Factory<B>,
-        aux: &mut T,
-    ) {
+    pub fn run<'a, Q: 'a>(&mut self, factory: &mut Factory<B>, aux: &mut T) {
         if self.frames.next().index() >= self.inflight {
             let wait = self.frames.next().index() - self.inflight;
             self.frames.wait_complete(wait, factory);
@@ -95,11 +88,7 @@ where
             let qid = sid.queue();
 
             if let Some(node) = self.nodes.get_mut(submission.node()) {
-                let submit = node.run(
-                    factory,
-                    aux,
-                    &self.frames,
-                );
+                let submit = node.run(factory, aux, &self.frames);
 
                 let family = factory.family_mut(gfx_hal::queue::QueueFamilyId(qid.family().0));
                 let ref mut queue = family.queues_mut()[qid.index()];
@@ -115,9 +104,21 @@ where
 
                 let ref semaphores = self.semaphores;
 
-                ready.waits.extend(submission.sync().wait.iter().map(|wait|(&semaphores[*wait.semaphore()], wait.stage())));
+                ready.waits.extend(
+                    submission
+                        .sync()
+                        .wait
+                        .iter()
+                        .map(|wait| (&semaphores[*wait.semaphore()], wait.stage())),
+                );
                 ready.buffers.push(submit.into_raw());
-                ready.signals.extend(submission.sync().signal.iter().map(|signal| &semaphores[*signal.semaphore()]));
+                ready.signals.extend(
+                    submission
+                        .sync()
+                        .signal
+                        .iter()
+                        .map(|signal| &semaphores[*signal.semaphore()]),
+                );
 
                 unsafe {
                     gfx_hal::queue::RawCommandQueue::submit_raw(
@@ -141,7 +142,10 @@ where
             gfx_hal::queue::RawCommandQueue::present(
                 queue,
                 Some((presentable.target.swapchain(), presentable.next_index)),
-                presentable.wait.iter().map(|&index| &self.semaphores[index]),
+                presentable
+                    .wait
+                    .iter()
+                    .map(|&index| &self.semaphores[index]),
             ).expect("Device lost is not handled yet");
         }
     }
@@ -154,18 +158,17 @@ struct SubmitInfo<'a, B: gfx_hal::Backend> {
     signals: smallvec::SmallVec<[&'a B::Semaphore; 16]>,
 }
 
-#[derive(Clone, Copy, Debug)]
-enum ImageOrTargetInfo {
-    Image(image::Info, u64, MemoryUsageValue),
-    Target(usize, gfx_hal::image::Usage),
-}
-
 /// Build graph from nodes and resource.
 #[derive(Debug)]
 pub struct GraphBuilder<B: gfx_hal::Backend, T: ?Sized> {
     nodes: Vec<NodeBuilder<B, T>>,
     buffers: Vec<(buffer::Info, u64, MemoryUsageValue)>,
-    images_or_targets: Vec<(ImageOrTargetInfo, Option<gfx_hal::command::ClearValue>)>,
+    images: Vec<(
+        image::Info,
+        u64,
+        MemoryUsageValue,
+        Option<gfx_hal::command::ClearValue>,
+    )>,
     target_count: usize,
 }
 
@@ -191,26 +194,21 @@ where
         GraphBuilder {
             nodes: Vec::new(),
             buffers: Vec::new(),
-            images_or_targets: Vec::new(),
+            images: Vec::new(),
             target_count: 0,
         }
     }
 
     /// Create new buffer owned by graph.
-    pub fn create_buffer(&mut self,
+    pub fn create_buffer(
+        &mut self,
         size: u64,
         usage: gfx_hal::buffer::Usage,
         align: u64,
         memory: MemoryUsageValue,
     ) -> BufferId {
-        self.buffers.push((
-            buffer::Info {
-                size,
-                usage,
-            }, 
-            align,
-            memory,
-        ));
+        self.buffers
+            .push((buffer::Info { size, usage }, align, memory));
         BufferId(self.buffers.len() - 1)
     }
 
@@ -227,26 +225,20 @@ where
         memory: MemoryUsageValue,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
-        self.images_or_targets.push((ImageOrTargetInfo::Image(image::Info {
-            kind,
-            levels,
-            format,
-            tiling,
-            view_caps,
-            usage,
-        }, align, memory), clear));
-        ImageId(self.images_or_targets.len() - 1)
-    }
-
-    /// Create new image owned by graph.
-    pub fn add_target(
-        &mut self,
-        usage: gfx_hal::image::Usage,
-        clear: Option<gfx_hal::command::ClearValue>,
-    ) -> ImageId {
-        self.images_or_targets.push((ImageOrTargetInfo::Target(self.target_count, usage), clear));
-        self.target_count += 1;
-        ImageId(self.images_or_targets.len() - 1)
+        self.images.push((
+            image::Info {
+                kind,
+                levels,
+                format,
+                tiling,
+                view_caps,
+                usage,
+            },
+            align,
+            memory,
+            clear,
+        ));
+        ImageId(self.images.len() - 1)
     }
 
     /// Add node to the graph.
@@ -270,18 +262,17 @@ where
         self,
         factory: &mut Factory<B>,
         aux: &mut T,
-        targets: impl IntoIterator<Item = winit::Window>,
+        targets: impl IntoIterator<Item = (ImageId, Target<B>)>,
     ) -> Result<Graph<B, T>, failure::Error> {
         log::trace!("Schedule nodes execution");
-        let chain_nodes: Vec<chain::Node> = self.nodes
+        let chain_nodes: Vec<chain::Node> = self
+            .nodes
             .iter()
             .enumerate()
             .map(|(i, b)| b.chain(i, &factory))
             .collect();
 
-        let mut chains = chain::collect(chain_nodes, |qid| {
-            factory.family(qid).queues().len()
-        });
+        let mut chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
 
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
@@ -296,84 +287,73 @@ where
                     .get(&chain::Id(index))
                     .map_or(gfx_hal::buffer::Usage::empty(), |chain| chain.usage());
 
-                factory.create_buffer(
-                    align,
-                    info.size,
-                    (info.usage | usage, memory)
-                )
-            })
-            .collect::<Result<_, _>>()?;
+                factory.create_buffer(align, info.size, (info.usage | usage, memory))
+            }).collect::<Result<_, _>>()?;
 
-        let mut targets: Vec<_> = targets.into_iter().map(Some).collect();
-        let mut inflight = 3;
-
-        let mut presenting_sids = Vec::new();
-
-        log::trace!("Allocate images and create targets");
-        let images_or_targets = self
-            .images_or_targets
+        log::trace!("Allocate images");
+        let images: Vec<(image::Image<B>, _)> = self
+            .images
             .iter()
             .enumerate()
-            .map(|(index, (image, clear))| {
-                match image {
-                    &ImageOrTargetInfo::Image(ref info, align, memory) => {
-                        let usage = chains
-                            .images
-                            .get(&chain::Id(index + buffers.len()))
-                            .map_or(gfx_hal::image::Usage::empty(), |chain| chain.usage());
+            .map(|(index, (info, align, memory, clear))| {
+                let usage = chains
+                    .images
+                    .get(&chain::Id(index + buffers.len()))
+                    .map_or(gfx_hal::image::Usage::empty(), |chain| chain.usage());
 
-                        factory.create_image(
-                            align,
-                            info.kind,
-                            info.levels,
-                            info.format,
-                            info.tiling,
-                            info.view_caps,
-                            (info.usage | usage, memory),
-                        ).map(ImageOrTarget::Image)
+                factory
+                    .create_image(
+                        *align,
+                        info.kind,
+                        info.levels,
+                        info.format,
+                        info.tiling,
+                        info.view_caps,
+                        (info.usage | usage, *memory),
+                    ).map(|image| (image, *clear))
+            }).collect::<Result<_, _>>()?;
+
+        log::trace!("Handle targets");
+        let mut inflight = 3;
+        let mut presenting_sids = Vec::new();
+
+        let targets: Vec<_> = targets
+            .into_iter()
+            .enumerate()
+            .map(|(index, (source, target))| {
+                inflight = std::cmp::min(inflight, target.images().len());
+
+                // Add preseting quasi-submission.
+                let image_chain_id = chain::Id(index + images.len() + buffers.len());
+                let chain = chains.images.get_mut(&image_chain_id).unwrap();
+
+                let owner = chain.links().last().unwrap().family();
+                let family = chains.schedule.family_mut(owner).unwrap();
+                let imaginary_queue = family.queue_count();
+                let queue = family.ensure_queue(chain::QueueId::new(owner, imaginary_queue));
+                assert!(
+                    queue.iter().all(|s| s.node() == self.nodes.len()),
+                    "Only presenting quasi-submissions in imaginary queue"
+                );
+                let sid = queue.add_submission(self.nodes.len(), !0, !0, chain::Unsynchronized);
+
+                chain.add_link(chain::Link::new(chain::LinkNode {
+                    sid,
+                    state: chain::State {
+                        access: gfx_hal::image::Access::empty(),
+                        layout: gfx_hal::image::Layout::Present,
+                        stages: gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                        usage: gfx_hal::image::Usage::TRANSFER_DST,
                     },
+                }));
 
-                    &ImageOrTargetInfo::Target(target_index, usage) => {
-                        // Add preseting quasi-submission.
-                        let image_chain_id = chain::Id(index + buffers.len());
-                        let chain = chains.images.get_mut(&image_chain_id).unwrap();
+                let submission = queue.submission_mut(sid).unwrap();
+                submission.set_link(image_chain_id, chain.links().len() - 1);
 
-                        let owner = chain.links().last().unwrap().family();
-                        let family = chains.schedule.family_mut(owner).unwrap();
-                        let imaginary_queue = family.queue_count();
-                        let queue = family.ensure_queue(chain::QueueId::new(owner, imaginary_queue));
-                        assert!(queue.iter().all(|s| s.node() == self.nodes.len()), "Only presenting quasi-submissions in imaginary queue");
-                        let sid = queue.add_submission(
-                            self.nodes.len(),
-                            !0,
-                            !0,
-                            chain::Unsynchronized,
-                        );
+                presenting_sids.push(sid);
 
-                        chain.add_link(chain::Link::new(chain::LinkNode {
-                            sid,
-                            state: chain::State {
-                                access: gfx_hal::image::Access::empty(),
-                                layout: gfx_hal::image::Layout::Present,
-                                stages: gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
-                                usage: gfx_hal::image::Usage::empty(),
-                            }
-                        }));
-
-                        let submission = queue.submission_mut(sid).unwrap();
-                        submission.set_link(image_chain_id, chain.links().len() - 1);
-
-                        presenting_sids.push(sid);
-
-                        factory.create_target(targets[target_index].take().unwrap(), 3, usage)
-                            .map(|target| {
-                                inflight = std::cmp::min(inflight, target.images().len());
-                                ImageOrTarget::Target(target)
-                            })
-                    }
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                (source, target)
+            }).collect();
 
         log::trace!("Synchronize");
         let mut semaphores = 0..;
@@ -386,7 +366,7 @@ where
         let mut queues = 0;
 
         log::trace!("Build nodes");
-        let mut built_nodes: Vec<_> = (0 .. self.nodes.len()).map(|_| None).collect();
+        let mut built_nodes: Vec<_> = (0..self.nodes.len()).map(|_| None).collect();
         for family in schedule.iter() {
             log::trace!("For family {:#?}", family);
             for queue in family.iter() {
@@ -399,9 +379,32 @@ where
                     let node = builder.build(
                         factory,
                         aux,
-                        &buffers,
-                        &images_or_targets,
-                    );
+                        &buffers
+                            .iter()
+                            .enumerate()
+                            .map(|(index, buffer)| {
+                                let id = chain::Id(index);
+                                let state =
+                                    chains.buffers[&id].links()[submission.resource_link_index(id)]
+                                        .submission_state(submission.id());
+                                NodeBuffer { buffer, state }
+                            }).collect::<Vec<_>>(),
+                        &images
+                            .iter()
+                            .enumerate()
+                            .map(|(index, (iot, clear))| {
+                                let id = chain::Id(index + buffers.len());
+                                let state =
+                                    chains.images[&id].links()[submission.resource_link_index(id)]
+                                        .submission_state(submission.id());
+                                NodeImage {
+                                    image: iot,
+                                    state,
+                                    clear: *clear,
+                                }
+                            }).collect::<Vec<_>>(),
+                        family.id(),
+                    )?;
                     built_nodes[submission.node()] = Some(node);
                 }
             }
@@ -409,40 +412,55 @@ where
 
         log::trace!("Create {} semaphores", semaphores.start);
         let semaphores = (0..semaphores.start)
-                .map(|_| factory.create_semaphore())
-                .collect::<Result<_, _>>()?;
+            .map(|_| factory.create_semaphore())
+            .collect::<Result<_, _>>()?;
 
-        let mut images = Vec::new();
         let mut presentables = Vec::new();
-
         let mut presenting_sids = presenting_sids.into_iter();
 
-        images_or_targets.into_iter().enumerate().for_each(|(index, iot)| match iot {
-            ImageOrTarget::Image(image) => images.push(image),
-            ImageOrTarget::Target(target) => {
-                let sid = presenting_sids.next().unwrap();
-                let sync_data = schedule.submission(sid).unwrap().sync();
+        targets.into_iter().for_each(|(source, target)| {
+            let sid = presenting_sids.next().unwrap();
+            let sync_data = schedule.submission(sid).unwrap().sync();
 
-                assert!(sync_data.acquire.buffers.is_empty(), "Presentation can't insert barriers");
-                assert!(sync_data.acquire.images.is_empty(), "Presentation can't insert barriers");
-                assert!(sync_data.release.buffers.is_empty(), "Presentation can't insert barriers");
-                assert!(sync_data.release.images.is_empty(), "Presentation can't insert barriers");
+            assert!(
+                sync_data.acquire.buffers.is_empty(),
+                "Presentation can't insert barriers"
+            );
+            assert!(
+                sync_data.acquire.images.is_empty(),
+                "Presentation can't insert barriers"
+            );
+            assert!(
+                sync_data.release.buffers.is_empty(),
+                "Presentation can't insert barriers"
+            );
+            assert!(
+                sync_data.release.images.is_empty(),
+                "Presentation can't insert barriers"
+            );
 
-                let wait = sync_data.wait.iter().map(|wait| {
+            let wait = sync_data
+                .wait
+                .iter()
+                .map(|wait| {
                     assert_eq!(wait.stage(), gfx_hal::pso::PipelineStage::TOP_OF_PIPE);
                     *wait.semaphore()
                 }).collect();
 
-                assert_eq!(sync_data.signal.len(), 1, "Presentation can't signal more than 1 semaphore.");
+            assert_eq!(
+                sync_data.signal.len(),
+                1,
+                "Presentation can't signal more than 1 semaphore."
+            );
 
-                presentables.push(Presentable {
-                    target,
-                    wait,
-                    signal: *sync_data.signal[0].semaphore(),
-                    owner: sid.family(),
-                    next_index: 0,
-                })
-            }
+            presentables.push(Presentable {
+                target,
+                source: source.0,
+                wait,
+                signal: *sync_data.signal[0].semaphore(),
+                owner: sid.family(),
+                next_index: 0,
+            })
         });
 
         Ok(Graph {
@@ -450,7 +468,7 @@ where
             schedule,
             semaphores,
             buffers,
-            images,
+            images: images.into_iter().map(|(image, _)| image).collect(),
             presentables,
             inflight: inflight as u64,
             frames: Frames::new(factory, queues),

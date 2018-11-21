@@ -90,10 +90,17 @@ where
         self.info
     }
 
-    /// Get [`Extent`] of the image.
+    /// Get [`Kind`] of the image.
     /// 
-    /// [`Extent`]: ../gfx-hal/image/struct.Extent.html
-    pub fn extent(&self) -> gfx_hal::image::Extent {
-        self.info.kind.extent()
+    /// [`Kind`]: ../gfx-hal/image/struct.Kind.html
+    pub fn kind(&self) -> gfx_hal::image::Kind {
+        self.info.kind
+    }
+
+    /// Get [`Format`] of the image.
+    /// 
+    /// [`Format`]: ../gfx-hal/format/struct.Format.html
+    pub fn format(&self) -> gfx_hal::format::Format {
+        self.info.format
     }
 }

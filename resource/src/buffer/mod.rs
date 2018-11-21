@@ -69,4 +69,9 @@ where
     pub fn raw(&self) -> &B::Buffer {
         &self.escape.raw
     }
+
+    /// Get buffer info.
+    pub fn info(&self) -> &Info {
+        &self.info
+    }
 }

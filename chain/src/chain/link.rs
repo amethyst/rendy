@@ -116,6 +116,18 @@ where
     }
 
     /// Get usage.
+    pub fn submission_state(&self, sid: SubmissionId) -> State<R> {
+        assert_eq!(sid.family(), self.family);
+        let lqs = self.queues[sid.queue().index()].as_ref().unwrap();
+        State {
+            access: lqs.access,
+            layout: self.layout,
+            stages: lqs.stages,
+            usage: self.usage,
+        }
+    }
+
+    /// Get usage.
     pub fn state(&self) -> State<R> {
         State {
             access: self.access,

@@ -1,10 +1,18 @@
 //! Family module docs.
 
 use crate::{
-    buffer::{Level, NoIndividualReset, Reset},
+    buffer::{Reset, PrimaryLevel, Submittable},
     capability::{Capability, Supports},
-    pool::{CommandPool, OwningCommandPool},
+    pool::CommandPool,
 };
+
+/// Command queue submission.
+#[derive(Debug)]
+pub struct Submission<W, C, S> {
+    pub waits: W,
+    pub submits: C,
+    pub signals: S,
+}
 
 /// Family of the command queues.
 /// Queues from one family can share resources and execute command buffers associated with the family.
@@ -70,6 +78,47 @@ where
         &mut self.queues
     }
 
+    /// Submit commands to the queue of the family.
+    pub unsafe fn submit<'a>(&mut self,
+        queue: usize,
+        submissions: impl IntoIterator<Item = Submission<
+            impl IntoIterator<Item = (&'a B::Semaphore, gfx_hal::pso::PipelineStage)>,
+            impl IntoIterator<Item = impl Submittable<B>>,
+            impl IntoIterator<Item = &'a B::Semaphore>,
+        >>,
+        fence: Option<&B::Fence>,
+    ) {
+        let mut submissions = submissions.into_iter().peekable();
+        if submissions.peek().is_none() && fence.is_some() {
+            gfx_hal::queue::RawCommandQueue::submit_raw(
+                &mut self.queues[queue],
+                gfx_hal::queue::RawSubmission {
+                    cmd_buffers: std::iter::empty::<B::CommandBuffer>(),
+                    wait_semaphores: &[],
+                    signal_semaphores: &[],
+                },
+                fence,
+            );
+        } else {
+            let index = self.index;
+            while let Some(submission) = submissions.next() {
+                let submits: smallvec::SmallVec<[_; 32]> = submission.submits.into_iter().collect();
+                gfx_hal::queue::RawCommandQueue::submit_raw(
+                    &mut self.queues[queue],
+                    gfx_hal::queue::RawSubmission {
+                        cmd_buffers: submits.iter().map(|submit| {
+                            assert_eq!(submit.family(), index);
+                            submit.raw()
+                        }),
+                        wait_semaphores: &submission.waits.into_iter().collect::<smallvec::SmallVec<[_; 32]>>(),
+                        signal_semaphores: &submission.signals.into_iter().collect::<smallvec::SmallVec<[_; 32]>>(),
+                    },
+                    submissions.peek().map_or(fence, |_| None),
+                );
+            }
+        }
+    }
+
     /// Create command pool associated with the family.
     /// Command buffers created from the pool could be submitted to the queues of the family.
     pub fn create_pool<R>(
@@ -94,22 +143,6 @@ where
         Ok(pool)
     }
 
-    /// Create command pool associated with the family.
-    /// Command buffers created from the pool could be submitted to the queues of the family.
-    /// Created pool owns its command buffers.
-    pub fn create_owning_pool<L>(
-        &self,
-        device: &impl gfx_hal::Device<B>,
-        level: L,
-    ) -> Result<OwningCommandPool<B, C, L>, gfx_hal::device::OutOfMemory>
-    where
-        L: Level,
-        C: Capability,
-    {
-        self.create_pool(device, NoIndividualReset)
-            .map(|pool| unsafe { OwningCommandPool::from_inner(pool, level) })
-    }
-
     /// Get family capability.
     pub fn capability(&self) -> C
     where
@@ -119,7 +152,7 @@ where
     }
 
     /// Dispose of queue family container.
-    pub fn dispose(self, device: &impl gfx_hal::Device<B>) {
+    pub fn dispose(self) {
         for queue in self.queues {
             gfx_hal::queue::RawCommandQueue::wait_idle(&queue)
                 .unwrap();

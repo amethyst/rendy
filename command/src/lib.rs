@@ -18,11 +18,8 @@
 #![warn(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-extern crate failure;
-
 mod buffer;
 mod capability;
-mod encoder;
 mod family;
 mod pool;
 
@@ -31,10 +28,9 @@ pub use crate::{
         CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
         MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
         RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
-        CommandBufferEncoder,
+        CommandBufferEncoder, Reset, Submittable,
     },
     capability::{Capability, Compute, General, Graphics, Transfer, Supports},
-    encoder::Encoder,
     family::{families_from_device, Family},
-    pool::{CommandPool, OwningCommandPool},
+    pool::CommandPool,
 };

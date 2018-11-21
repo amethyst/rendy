@@ -1,12 +1,5 @@
 //! Frame module docs.
 
-use std::borrow::Borrow;
-
-use command::{
-    Capability, CommandBuffer, Encoder, ExecutableState, InitialState, MultiShot, OneShot,
-    OwningCommandPool, PrimaryLevel, RecordingState, Resettable, Submit, Supports,
-};
-
 use factory::Factory;
 
 /// Fences collection.
@@ -68,8 +61,10 @@ where
             free: Default::default(),
             next: Frame {
                 index: 0,
-                fences: (0 .. fences_count).map(|_| factory.create_fence(false).unwrap()).collect(),
-            }
+                fences: (0..fences_count)
+                    .map(|_| factory.create_fence(false).unwrap())
+                    .collect(),
+            },
         }
     }
 
@@ -82,10 +77,11 @@ where
     /// All fences of the next frame must be queued.
     pub unsafe fn advance(&mut self, factory: &mut Factory<B>, fences_count: usize) -> &Frame<B> {
         let mut fences: Fences<B> = self.free.pop().unwrap_or(Fences::<B>::new());
-        let add = (fences.len() .. fences_count).map(|_| factory.create_fence(false).unwrap());
+        let add = (fences.len()..fences_count).map(|_| factory.create_fence(false).unwrap());
         fences.extend(add);
         fences.truncate(fences_count);
-        self.pending.push_back(std::mem::replace(&mut self.next.fences, fences));
+        self.pending
+            .push_back(std::mem::replace(&mut self.next.fences, fences));
         self.next.index += 1;
         &self.next
     }
@@ -107,15 +103,15 @@ where
 
     /// Wait for completion of the frames until specified (inclusive)
     /// Returns proof.
-    /// 
+    ///
     /// # Parameters
-    /// 
-    /// `index` last index of frame that must complete.
+    ///
+    /// `target` - last index of frame that must complete.
     /// `factory` - The factory.
-    /// 
+    ///
     /// # Panics
-    /// 
-    /// This function will panic if `index` is greater than or equal to next frame.
+    ///
+    /// This function will panic if `target` is greater than or equal to next frame.
     pub fn wait_complete(&mut self, target: u64, factory: &Factory<B>) -> CompleteFrame {
         assert!(target <= self.next.index());
         if let Some(complete) = self.complete(target) {
@@ -125,12 +121,18 @@ where
             // p - n + t + 1 >= 1
             // count >= 1
             let count = self.pending.len() - (self.next.index() - target - 1) as usize;
-            let ready = factory.wait_for_fences(self.pending.iter().take(count).flatten(), gfx_hal::device::WaitFor::All, !0);
+            let ready = factory.wait_for_fences(
+                self.pending.iter().take(count).flatten(),
+                gfx_hal::device::WaitFor::All,
+                !0,
+            );
             assert_eq!(ready, Ok(true));
-            self.free.extend(self.pending.drain( .. count).inspect(|fences| factory.reset_fences(fences.iter()).unwrap()));
-            CompleteFrame {
-                index: target,
-            }
+            self.free.extend(
+                self.pending
+                    .drain(..count)
+                    .inspect(|fences| factory.reset_fences(fences.iter()).unwrap()),
+            );
+            CompleteFrame { index: target }
         }
     }
 }

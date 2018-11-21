@@ -1,9 +1,7 @@
 //! Command buffer module docs.
-use std::borrow::Borrow;
 
 use crate::{
     capability::{Capability, Supports},
-    encoder::Encoder,
 };
 
 /// Command buffers of this level can be submitted to the command queues.
@@ -47,7 +45,8 @@ pub struct IndividualReset;
 pub struct NoIndividualReset;
 
 /// Specify flags required for command pool creation to allow individual buffer reset.
-pub trait Reset: Copy {
+pub trait Reset: Copy + Default {
+    /// Get flags for reset parameter.
     fn flags(&self) -> gfx_hal::pool::CommandPoolCreateFlags;
 }
 
@@ -70,18 +69,18 @@ pub struct InitialState;
 
 /// Command buffer in recording state could be populated with commands.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct RecordingState<U>(U);
+pub struct RecordingState<U = MultiShot>(U);
 
 /// Command buffer in executable state can be submitted.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ExecutableState<U>(U);
+pub struct ExecutableState<U = MultiShot>(U);
 
 /// Command buffer in pending state are submitted to the device.
 /// Command buffer in pending state must never be invalidated or reset because device may read it at the moment.
 /// Proving device is done with buffer requires nontrivial strategies.
 /// Therefore moving buffer from pending state requires `unsafe` method.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct PendingState<N>(N);
+pub struct PendingState<N = ExecutableState>(N);
 
 /// One-shot buffers move to invalid state after execution.
 /// Invalidating any resource referenced in any command recorded to the buffer implicitly move it to the invalid state.
@@ -98,11 +97,11 @@ impl Resettable for InvalidState {}
 /// Command buffer with this usage flag will move to invalid state after execution.
 /// Resubmitting will require reset and rerecording commands.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct OneShot;
+pub struct OneShot<C = ()>(pub C);
 
 /// Command buffer with this usage flag will move back to executable state after execution.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MultiShot<S = ()>(pub S);
+pub struct MultiShot<S = (), P = ()>(pub S, pub P);
 
 /// Additional flag for `MultiShot` that allows to resubmit buffer in pending state.
 /// Note that resubmitting pending buffers can hurt performance.
@@ -114,7 +113,7 @@ pub struct SimultaneousUse;
 pub struct RenderPassContinue;
 
 /// Trait implemented by all usage types.
-pub trait Usage: Copy {
+pub trait Usage: Copy + Default {
     /// State in which command buffer moves after completion.
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags;
 }
@@ -122,6 +121,12 @@ pub trait Usage: Copy {
 impl Usage for OneShot {
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
         gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT
+    }
+}
+
+impl Usage for OneShot<RenderPassContinue> {
+    fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
+        gfx_hal::command::CommandBufferFlags::ONE_TIME_SUBMIT | gfx_hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
     }
 }
 
@@ -137,39 +142,15 @@ impl Usage for MultiShot<SimultaneousUse> {
     }
 }
 
-#[derive(Debug)]
-pub(crate) enum OwnedOrBorrowed<'a, T: 'a> {
-    Owned(T),
-    Borrowed(&'a mut T),
-}
-
-impl<'a, T> From<T> for OwnedOrBorrowed<'a, T> {
-    fn from(value: T) -> Self {
-        OwnedOrBorrowed::Owned(value)
+impl Usage for MultiShot<(), RenderPassContinue> {
+    fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
+        gfx_hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
     }
 }
 
-impl<'a, T> From<&'a mut T> for OwnedOrBorrowed<'a, T> {
-    fn from(reference: &'a mut T) -> Self {
-        OwnedOrBorrowed::Borrowed(reference)
-    }
-}
-
-impl<'a, T> AsMut<T> for OwnedOrBorrowed<'a, T> {
-    fn as_mut(&mut self) -> &mut T {
-        match self {
-            OwnedOrBorrowed::Owned(value) => value,
-            OwnedOrBorrowed::Borrowed(reference) => reference,
-        }
-    }
-}
-
-impl<T> OwnedOrBorrowed<'static, T> {
-    fn into_owned(self) -> T {
-        match self {
-            OwnedOrBorrowed::Owned(value) => value,
-            OwnedOrBorrowed::Borrowed(_) => unreachable!(),
-        }
+impl Usage for MultiShot<SimultaneousUse, RenderPassContinue> {
+    fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
+        gfx_hal::command::CommandBufferFlags::SIMULTANEOUS_USE | gfx_hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
     }
 }
 
@@ -178,9 +159,9 @@ impl<T> OwnedOrBorrowed<'static, T> {
 /// This way many methods become safe.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct CommandBuffer<'a, B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
+pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
     #[derivative(Debug = "ignore")]
-    raw: OwnedOrBorrowed<'a, B::CommandBuffer>,
+    raw: B::CommandBuffer,
     capability: C,
     state: S,
     level: L,
@@ -188,7 +169,7 @@ pub struct CommandBuffer<'a, B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = No
     family: gfx_hal::queue::QueueFamilyId,
 }
 
-impl<'a, B, C, S, L, R> CommandBuffer<'a, B, C, S, L, R>
+impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -203,7 +184,7 @@ where
     /// * If `reset` is `IndividualReset` then buffer must be allocated from pool created with `IndividualReset` marker.
     /// * command buffer must be allocated from pool created for `family`.
     pub(crate) unsafe fn from_raw(
-        raw: impl Into<OwnedOrBorrowed<'a, B::CommandBuffer>>,
+        raw: impl Into<B::CommandBuffer>,
         capability: C,
         state: S,
         level: L,
@@ -228,7 +209,7 @@ where
     /// Particularly command buffer must not change its state.
     /// Or `change_state` must be used to reflect accumulated change.
     pub unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
-        self.raw.as_mut()
+        &mut self.raw
     }
 
     /// Change state of the command buffer.
@@ -236,7 +217,7 @@ where
     /// # Safety
     ///
     /// * This method must be used only to reflect state changed due to raw handle usage.
-    pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> CommandBuffer<'a, B, C, U, L, R> {
+    pub unsafe fn change_state<U>(self, f: impl FnOnce(S) -> U) -> CommandBuffer<B, C, U, L, R> {
         CommandBuffer {
             raw: self.raw,
             capability: self.capability,
@@ -256,7 +237,7 @@ where
     }
 
     /// Convert capability level.
-    pub fn with_value_capability(self) -> CommandBuffer<'a, B, gfx_hal::QueueType, S, L, R>
+    pub fn with_value_capability(self) -> CommandBuffer<B, gfx_hal::QueueType, S, L, R>
     where
         C: Capability,
     {
@@ -271,7 +252,7 @@ where
     }
 
     /// Convert capability level.
-    pub fn with_capability<U>(self) -> Result<CommandBuffer<'a, B, U, S, L, R>, Self>
+    pub fn with_capability<U>(self) -> Result<CommandBuffer<B, U, S, L, R>, Self>
     where
         C: Supports<U>,
     {
@@ -288,27 +269,9 @@ where
             Err(self)
         }
     }
-
-    /// Reborrow
-    pub fn reborrow(&mut self) -> CommandBuffer<'_, B, C, S, L, R>
-    where
-        C: Capability,
-        S: Copy,
-        L: Level,
-        R: Reset,
-    {
-        CommandBuffer {
-                raw: self.raw.as_mut().into(),
-                capability: self.capability,
-                state: self.state,
-                level: self.level,
-                reset: self.reset,
-                family: self.family,
-        }
-    }
 }
 
-impl<B, C, S, L, R> CommandBuffer<'static, B, C, S, L, R>
+impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -318,11 +281,11 @@ where
     ///
     /// * Valid usage for command buffer must not be violated.
     pub unsafe fn into_raw(self) -> B::CommandBuffer {
-        self.raw.into_owned()
+        self.raw
     }
 }
 
-impl<'a, B, C, R> CommandBuffer<'a, B, C, InitialState, PrimaryLevel, R>
+impl<B, C, L, R> CommandBuffer<B, C, InitialState, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -334,13 +297,13 @@ where
     pub fn begin<U>(
         mut self,
         usage: U,
-    ) -> CommandBuffer<'a, B, C, RecordingState<U>, PrimaryLevel, R>
+    ) -> CommandBuffer<B, C, RecordingState<U>, L, R>
     where
         U: Usage,
     {
         unsafe {
             gfx_hal::command::RawCommandBuffer::begin(
-                self.raw.as_mut(),
+                &mut self.raw,
                 usage.flags(),
                 gfx_hal::command::CommandBufferInheritanceInfo::default(),
             );
@@ -350,7 +313,7 @@ where
     }
 }
 
-impl<'a, B, C, U, R> CommandBuffer<'a, B, C, RecordingState<U>, PrimaryLevel, R>
+impl<B, C, U, L, R> CommandBuffer<B, C, RecordingState<U>, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -359,12 +322,12 @@ where
     /// # Parameters
     pub fn finish(
         mut self,
-    ) -> CommandBuffer<'a, B, C, ExecutableState<U>, PrimaryLevel, R>
+    ) -> CommandBuffer<B, C, ExecutableState<U>, L, R>
     where
         U: Usage,
     {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::finish(self.raw.as_mut());
+            gfx_hal::command::RawCommandBuffer::finish(&mut self.raw);
             self.change_state(|RecordingState(usage)| ExecutableState(usage))
         }
     }
@@ -373,12 +336,16 @@ where
 /// Structure contains command buffer ready for submission.
 #[derive(Debug)]
 #[allow(missing_copy_implementations)]
-pub struct Submit<B: gfx_hal::Backend> {
+pub struct Submit<'a, B: gfx_hal::Backend, S = (), P = (), L = PrimaryLevel> {
     raw: B::CommandBuffer,
     family: gfx_hal::queue::QueueFamilyId,
+    pass_continue: P,
+    simultaneous: S,
+    level: L,
+    marker: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a, B> Submit<B>
+impl<'a, B, S, P, L> Submit<'a, B, S, P, L>
 where
     B: gfx_hal::Backend,
 {
@@ -398,51 +365,106 @@ where
     }
 }
 
-impl<'a, B, C, S, R> CommandBuffer<'a, B, C, ExecutableState<S>, PrimaryLevel, R>
+/// Submittable object.
+pub unsafe trait Submittable<B: gfx_hal::Backend> {
+
+    /// Get family that this submittable is belong to.
+    fn family(&self) -> gfx_hal::queue::QueueFamilyId;
+
+    /// Get raw command buffer.
+    fn raw(&self) -> &B::CommandBuffer;
+}
+
+unsafe impl<'a, B> Submittable<B> for Submit<'a, B>
 where
     B: gfx_hal::Backend,
 {
-    /// produce `Submit` object that can be used to populate submission.
-    pub fn submit_once(
-        self,
-    ) -> (
-        Submit<B>,
-        CommandBuffer<'a, B, C, PendingState<InvalidState>, PrimaryLevel, R>,
-    ) {
-        let mut buffer = unsafe { self.change_state(|_| PendingState(InvalidState)) };
+    fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+        self.family
+    }
 
-        let submit = Submit {
-            raw: buffer.raw.as_mut().clone(),
-            family: buffer.family,
-        };
-
-        (submit, buffer)
+    fn raw(&self) -> &B::CommandBuffer {
+        &self.raw
     }
 }
 
-impl<'a, B, C, S, R> CommandBuffer<'a, B, C, ExecutableState<MultiShot<S>>, PrimaryLevel, R>
+unsafe impl<'a, 'b, B> Submittable<B> for &'a Submit<'b, B, SimultaneousUse>
 where
     B: gfx_hal::Backend,
+{
+    fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+        self.family
+    }
+
+    fn raw(&self) -> &B::CommandBuffer {
+        &self.raw
+    }
+}
+
+impl<B, C, P, L, R> CommandBuffer<B, C, ExecutableState<OneShot<P>>, L, R>
+where
+    B: gfx_hal::Backend,
+    P: Copy,
+    L: Copy,
 {
     /// Produce `Submit` object that can be used to populate submission.
     pub fn submit(
         self,
     ) -> (
-        Submit<B>,
-        CommandBuffer<'a, B, C, PendingState<ExecutableState<MultiShot<S>>>, PrimaryLevel, R>,
+        Submit<'static, B, (), P, L>,
+        CommandBuffer<B, C, PendingState<InvalidState>, L, R>,
     ) {
-        let mut buffer = unsafe { self.change_state(|state| PendingState(state)) };
+        let OneShot(pass_continue) = self.state.0;
+        let level = self.level;
+
+        let buffer = unsafe { self.change_state(|_| PendingState(InvalidState)) };
 
         let submit = Submit {
-            raw: buffer.raw.as_mut().clone(),
+            raw: buffer.raw.clone(),
             family: buffer.family,
+            pass_continue,
+            simultaneous: (),
+            level,
+            marker: std::marker::PhantomData,
         };
 
         (submit, buffer)
     }
 }
 
-impl<'a, B, C, N, L, R> CommandBuffer<'a, B, C, PendingState<N>, L, R>
+impl<B, C, S, P, L, R> CommandBuffer<B, C, ExecutableState<MultiShot<S, P>>, L, R>
+where
+    B: gfx_hal::Backend,
+    P: Copy,
+    S: Copy,
+    L: Copy,
+{
+    /// Produce `Submit` object that can be used to populate submission.
+    pub fn submit(
+        self,
+    ) -> (
+        Submit<'static, B, S, P, L>,
+        CommandBuffer<B, C, PendingState<ExecutableState<MultiShot<S, P>>>, L, R>,
+    ) {
+        let MultiShot(simultaneous, pass_continue) = self.state.0;
+        let level = self.level;
+
+        let buffer = unsafe { self.change_state(|state| PendingState(state)) };
+
+        let submit = Submit {
+            raw: buffer.raw.clone(),
+            family: buffer.family,
+            pass_continue,
+            simultaneous,
+            level,
+            marker: std::marker::PhantomData,
+        };
+
+        (submit, buffer)
+    }
+}
+
+impl<B, C, N, L, R> CommandBuffer<B, C, PendingState<N>, L, R>
 where
     B: gfx_hal::Backend,
 {
@@ -459,23 +481,23 @@ where
     /// [wait]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
     /// [`Fence`]: ..gfx_hal/trait.Backend.html#associatedtype.Fence
     /// [submitting]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
-    pub unsafe fn complete(self) -> CommandBuffer<'a, B, C, N, L, R> {
+    pub unsafe fn complete(self) -> CommandBuffer<B, C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }
 }
 
-impl<'a, B, C, S, L> CommandBuffer<'a, B, C, S, L, IndividualReset>
+impl<B, C, S, L> CommandBuffer<B, C, S, L, IndividualReset>
 where
     B: gfx_hal::Backend,
     S: Resettable,
 {
     /// Reset command buffer.
-    pub fn reset(self) -> CommandBuffer<'a, B, C, InitialState, L, IndividualReset> {
+    pub fn reset(self) -> CommandBuffer<B, C, InitialState, L, IndividualReset> {
         unsafe { self.change_state(|_| InitialState) }
     }
 }
 
-impl<'a, B, C, S, L> CommandBuffer<'a, B, C, S, L>
+impl<B, C, S, L> CommandBuffer<B, C, S, L>
 where
     B: gfx_hal::Backend,
     S: Resettable,
@@ -488,18 +510,18 @@ where
     /// For instance:
     /// * [`CommandPool::reset`](struct.CommandPool.html#method.reset) on pool from which the command buffer was allocated.
     /// * Raw handle usage.
-    pub unsafe fn mark_reset(self) -> CommandBuffer<'a, B, C, InitialState, L> {
+    pub unsafe fn mark_reset(self) -> CommandBuffer<B, C, InitialState, L> {
         self.change_state(|_| InitialState)
     }
 }
 
-impl<'a, B, C, U, L, R> CommandBuffer<'a, B, C, RecordingState<U>, L, R>
+impl<B, C, U, L, R> CommandBuffer<B, C, RecordingState<U>, L, R>
 where
     B: gfx_hal::Backend,
     C: Capability,
 {
     /// Acquire encoder for command buffer.
-    pub fn encoder<'b>(&'b mut self) -> CommandBufferEncoder<'b, 'a, B, C, C, U, L, R> {
+    pub fn encoder<'a>(&'a mut self) -> CommandBufferEncoder<'a, B, C, C, U, L, R> {
         self.into()
     }
 }
@@ -508,17 +530,17 @@ where
 ///
 ///
 #[derive(Debug)]
-pub struct CommandBufferEncoder<'a, 'b: 'a, B: gfx_hal::Backend + 'a, C: 'a, X: 'a, U: 'a, L: 'a, R: 'a> {
-    buffer: &'a mut CommandBuffer<'b, B, C, RecordingState<U>, L, R>,
+pub struct CommandBufferEncoder<'a, B: gfx_hal::Backend, C: 'a, X, U: 'a, L: 'a, R: 'a> {
+    buffer: &'a mut CommandBuffer<B, C, RecordingState<U>, L, R>,
     capability: X,
 }
 
-impl<'a, 'b, B, C, X, U, L, R> CommandBufferEncoder<'a, 'b, B, C, X, U, L, R>
+impl<'a, B, C, X, U, L, R> CommandBufferEncoder<'a, B, C, X, U, L, R>
 where
     B: gfx_hal::Backend,
 {
     /// Convert capability level
-    pub fn with_capability<Y>(self) -> Result<CommandBufferEncoder<'a, 'b, B, C, Y, U, L, R>, Self>
+    pub fn with_capability<Y>(self) -> Result<CommandBufferEncoder<'a, B, C, Y, U, L, R>, Self>
     where
         X: Supports<Y>,
     {
@@ -533,22 +555,12 @@ where
     }
 }
 
-impl<'a, 'b, B, C, X, U, L, R> Encoder<B, X> for CommandBufferEncoder<'a, 'b, B, C, X, U, L, R>
-where
-    B: gfx_hal::Backend,
-    C: Supports<X>,
-{
-    unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
-        self.buffer.raw()
-    }
-}
-
-impl<'a, 'b, B, C, U, L, R> From<&'a mut CommandBuffer<'b, B, C, RecordingState<U>, L, R>> for CommandBufferEncoder<'a, 'b, B, C, C, U, L, R>
+impl<'a, B, C, U, L, R> From<&'a mut CommandBuffer<B, C, RecordingState<U>, L, R>> for CommandBufferEncoder<'a, B, C, C, U, L, R>
 where
     B: gfx_hal::Backend,
     C: Capability,
 {
-    fn from(buffer: &'a mut CommandBuffer<'b, B, C, RecordingState<U>, L, R>) -> Self {
+    fn from(buffer: &'a mut CommandBuffer<B, C, RecordingState<U>, L, R>) -> Self {
         CommandBufferEncoder {
             capability: buffer.capability(),
             buffer,

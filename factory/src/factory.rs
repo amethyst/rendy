@@ -1,5 +1,5 @@
 
-use command::{families_from_device, Family};
+use command::{families_from_device, Family, Reset, CommandPool};
 use memory::{Block, Heaps, Write};
 use resource::{buffer::{self, Buffer}, image::{self, Image}, Resources};
 use wsi::Target;
@@ -95,7 +95,7 @@ where
     pub fn dispose(mut self) {
         let _ = self.wait_idle();
         for family in self.families {
-            family.dispose(&self.device);
+            family.dispose();
         }
 
         unsafe {
@@ -301,43 +301,16 @@ where
             gfx_hal::Device::wait_for_fences(&self.device, fences, wait_for, timeout_ns)
         }
     }
-
-    // /// Inefficiently upload image data.
-    // pub fn _inefficiently_upload_image(
-    //     &mut self,
-    //     image: &mut Image,
-    //     data: &[u8],
-    //     layout: vk::ImageLayout,
-    // ) {
-    //     let mut staging_buffer = self.create_buffer(
-    //         vk::BufferCreateInfo::builder()
-    //             .size(data.len() as u64)
-    //             .usage(vk::BufferUsageFlags::TRANSFER_SRC)
-    //             .build(),
-    //         1,
-    //         Upload,
-    //     ).unwrap();
-
-    //     self.upload_visible_buffer(&mut staging_buffer, 0, data).unwrap();
-
-    //     let extent = image.extent();
-    //     let command_pool = self.families[0].create_owning_pool(&self.device, crate::command::PrimaryLevel).unwrap();
-    //     let command_buffer = command_pool.acquire_buffer(&self.device);
-    //     let command_buffer = command_buffer.begin(&self.device, crate::command::OneShot);
-    //     self.device.cmd_copy_buffer_to_image(
-    //         command_buffer.raw(),
-    //         staging_buffer.raw(),
-    //         image.raw(),
-    //         layout,
-    //         &[
-    //             vk::BufferImageCopy::builder()
-    //                 .buffer_row_length(extent.width * 4)
-    //                 .buffer_image_height(extent.height * extent.width * 4)
-    //                 .image_extent(extent)
-    //                 .build(),
-    //         ]
-    //     )
-    // }
+    
+    /// Create new command pool for specified family.
+    pub fn create_command_pool<R>(&self, family: gfx_hal::queue::QueueFamilyId, reset: R) -> Result<CommandPool<B, gfx_hal::QueueType, R>, failure::Error>
+    where
+        R: Reset,
+    {
+        self.family(family)
+            .create_pool(&self.device, reset)
+            .map_err(Into::into)
+    }
 }
 
 macro_rules! init_factory_for_backend {
@@ -387,3 +360,14 @@ where
     }
 }
 
+#[doc(hidden)]
+impl<B> std::ops::Deref for Factory<B>
+where
+    B: gfx_hal::Backend,
+{
+    type Target = B::Device;
+
+    fn deref(&self) -> &B::Device {
+        &self.device
+    }
+}
