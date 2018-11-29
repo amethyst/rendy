@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-gfx-hal = { path = "../../gfx/src/hal" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 crossbeam-channel = "0.2"
 derivative = "1.0"
 failure = "0.1"

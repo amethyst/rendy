@@ -8,7 +8,7 @@ either = "1.5"
 bitflags = "1.0"
 derivative = "1.0"
 failure = "0.1"
-gfx-hal = { path = "../../gfx/src/hal" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 log = "0.4"
 relevant = "0.2"
 rendy-chain = { path = "../chain" }

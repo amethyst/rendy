@@ -21,11 +21,11 @@ rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }
 
 gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", optional = true }
-gfx-backend-metal = { path = "../../gfx/src/backend/metal", optional = true }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", optional = true }
 gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", optional = true }
 
 [dev-dependencies]
-gfx-hal = { path = "../../gfx/src/hal" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 env_logger = "0.5"
 failure = "0.1"
 lazy_static = "1.0"

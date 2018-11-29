@@ -5,7 +5,7 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
 either = "1.5"
-gfx-hal = { path = "../../gfx/src/hal" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 failure = "0.1"
 log = "0.4"
 relevant = "0.2"

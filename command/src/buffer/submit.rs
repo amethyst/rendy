@@ -7,9 +7,10 @@ use super::{
 };
 
 /// Structure contains command buffer ready for submission.
-#[derive(Debug)]
-#[allow(missing_copy_implementations)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 pub struct Submit<'a, B: gfx_hal::Backend, S = (), P = (), L = PrimaryLevel> {
+    #[derivative(Debug = "ignore")]
     raw: B::CommandBuffer,
     family: gfx_hal::queue::QueueFamilyId,
     pass_continue: P,
