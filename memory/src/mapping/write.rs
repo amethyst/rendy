@@ -1,23 +1,20 @@
-use device::Device;
-use std::{ops::Range, ptr::copy_nonoverlapping};
+use std::ptr::copy_nonoverlapping;
 
 /// Trait for memory region suitable for host writes.
-pub trait Write<U: Copy> {
-    /// Get mutable slice of `U` bound to mapped range.
+pub trait Write<T: Copy> {
+    /// Get mutable slice of `T` bound to mapped range.
     ///
     /// # Safety
     ///
-    /// Slice returned by this function could be hazardous.
-    /// User must ensure that bit actual patterns represents valid values of `U`
-    /// or not attempt to read them.
-    unsafe fn slice(&mut self) -> &mut [U];
+    /// * Returned slice should not be read.
+    unsafe fn slice(&mut self) -> &mut [T];
 
     /// Write data into mapped memory sub-region.
     ///
     /// # Panic
     ///
     /// Panics if `data.len()` is greater than this sub-region len.
-    fn write(&mut self, data: &[U]) {
+    fn write(&mut self, data: &[T]) {
         unsafe {
             let slice = self.slice();
             assert!(data.len() <= slice.len());
@@ -27,50 +24,48 @@ pub trait Write<U: Copy> {
 }
 
 #[derive(Debug)]
-pub(super) struct WriteFlush<'a, U: 'a, T: 'static, D: Device<Memory = T> + 'a> {
-    pub(super) slice: &'a mut [U],
-    pub(super) flush: Option<(&'a D, &'a T, Range<u64>)>,
+pub(super) struct WriteFlush<'a, T: 'a, F: FnOnce() + 'a> {
+    pub(super) slice: &'a mut [T],
+    pub(super) flush: Option<F>,
 }
 
-impl<'a, U, T, D> Drop for WriteFlush<'a, U, T, D>
+impl<'a, T, F> Drop for WriteFlush<'a, T, F>
 where
-    U: 'a,
-    T: 'static,
-    D: Device<Memory = T> + 'a,
+    T: 'a,
+    F: FnOnce() + 'a,
 {
     fn drop(&mut self) {
-        if let Some((device, memory, range)) = self.flush.take() {
-            unsafe {
-                device
-                    .flush(Some((memory, range)))
-                    .expect("Should flush successfully");
-            }
-        }
+        self.flush.take().map(|f| f());
     }
 }
 
-impl<'a, U, T, D> Write<U> for WriteFlush<'a, U, T, D>
+impl<'a, T, F> Write<T> for WriteFlush<'a, T, F>
 where
-    U: Copy + 'a,
-    T: 'a,
-    D: Device<Memory = T> + 'a,
+    T: Copy + 'a,
+    F: FnOnce() + 'a,
 {
-    unsafe fn slice(&mut self) -> &mut [U] {
+    /// # Safety
+    ///
+    /// [See doc comment for trait method](trait.Write#method.slice)
+    unsafe fn slice(&mut self) -> &mut [T] {
         self.slice
     }
 }
 
 #[warn(dead_code)]
 #[derive(Debug)]
-pub(super) struct WriteCoherent<'a, U: 'a> {
-    pub(super) slice: &'a mut [U],
+pub(super) struct WriteCoherent<'a, T: 'a> {
+    pub(super) slice: &'a mut [T],
 }
 
-impl<'a, U> Write<U> for WriteCoherent<'a, U>
+impl<'a, T> Write<T> for WriteCoherent<'a, T>
 where
-    U: Copy + 'a,
+    T: Copy + 'a,
 {
-    unsafe fn slice(&mut self) -> &mut [U] {
+    /// # Safety
+    ///
+    /// [See doc comment for trait method](trait.Write#method.slice)
+    unsafe fn slice(&mut self) -> &mut [T] {
         self.slice
     }
 }

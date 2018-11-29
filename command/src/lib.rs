@@ -16,42 +16,25 @@
 #![deny(future_incompatible)]
 #![warn(rust_2018_compatibility)]
 #![warn(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
+mod buffer;
+mod encoder;
+mod capability;
+mod family;
+mod pool;
 
-#[macro_use]
-extern crate bitflags;
-#[macro_use]
-extern crate failure;
-extern crate relevant;
-
-extern crate rendy_chain as chain;
 extern crate rendy_resource as resource;
 
-#[cfg(feature = "hal")]
-extern crate gfx_hal as hal;
-
-#[cfg(feature = "ash")]
-extern crate ash;
-
-mod impls;
-
-mod device;
-mod error;
-mod family;
-mod fence;
-mod frame;
-mod buffer;
-mod capability;
-mod encoder;
-mod pool;
-mod queue;
-
-pub use buffer::{Buffer, Submit};
-pub use capability::{Capability, CapabilityFlags};
-pub use device::{CommandBuffer, Device};
-pub use encoder::Encoder;
-pub use family::{Family, FamilyId, Families};
-pub use fence::{FenceCreateInfo, FenceCreateFlags};
-pub use frame::{Frame, FrameBound, FrameIndex, CompleteFrame, FrameGen};
-pub use pool::{Pool, OwningPool, FramePool};
-pub use queue::{Submission, Queue};
+pub use crate::{
+    buffer::{
+        CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
+        MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
+        RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
+        Reset, Submittable,
+    },
+    encoder::{EncoderCommon, RenderPassEncoder, Encoder, RenderPassEncoderHRTB},
+    capability::{Capability, Compute, General, Graphics, Transfer, Supports},
+    family::{families_from_device, Family, Submission},
+    pool::CommandPool,
+};

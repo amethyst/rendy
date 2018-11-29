@@ -1,0 +1,31 @@
+#version 450
+
+layout(local_size_x = 32, local_size_y = 32) in;
+layout(set = 0, binding = 1, rgba32f) uniform imageBuffer bunnies;
+
+layout(push_constant) uniform Push {
+  float delta_time;
+};
+
+void main() {
+    vec4 bunny = imageLoad(bunnies, int(gl_GlobalInvocationID.x));
+    vec2 pos = bunny.rg;
+    vec2 vel = bunny.ba;
+
+    pos += vel + (delta_time * delta_time) / 2;
+    vel += delta_time;
+
+    float l = sign(pos.x);
+    float r = sign(1.0 - pos.x);
+
+    pos.x = 2.0 + r * l * pos.x - 2.0 * r;
+    vel.x = 2.0 + r * l * vel.x - 2.0 * r;
+
+    float b = sign(pos.y);
+    float t = sign(1.0 - pos.y);
+
+    pos.y = 2.0 + t * b * pos.y - 2.0 * t;
+    vel.y = 2.0 + t * b * vel.y - 2.0 * t;
+
+    imageStore(bunnies, int(gl_GlobalInvocationID.x), vec4(pos, vel));
+}

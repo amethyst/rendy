@@ -1,30 +1,5 @@
 //! Capability module docs.
 
-use chain::PipelineStageFlags;
-
-bitflags! {
-    /// Bitmask specifying capabilities of queues in a queue family.
-    /// See Vulkan docs for detailed info:
-    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkQueueFlagBits.html>
-    #[repr(transparent)]
-    pub struct CapabilityFlags: u32 {
-        /// Queues from families with this capability flag set are able to perform graphics commands.
-        const GRAPHICS = 0x00000001;
-
-        /// Queues from families with this capability flag set are able to perform compute commands.
-        const COMPUTE = 0x00000002;
-
-        /// Queues from families with this capability flag set are able to perform transfer commands.
-        const TRANSFER = 0x00000004;
-
-        /// ???
-        const SPARSE_BINDING = 0x00000008;
-
-        /// ???
-        const PROTECTED = 0x00000010;
-    }
-}
-
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]
 pub struct Transfer;
@@ -47,98 +22,95 @@ pub struct General;
 
 /// Abstract capability specifier.
 pub trait Capability: Copy {
-    /// Try to create capability instance from flags.
-    /// Instance will be created if all required flags set.
-    fn from_flags(flags: CapabilityFlags) -> Option<Self>;
+    /// Try to create capability instance from queue_type.
+    /// Instance will be created if all required queue_type set.
+    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self>;
 
-    /// Convert into `CapabilityFlags`
-    fn into_flags(self) -> CapabilityFlags;
+    /// Convert into `gfx_hal::QueueType`
+    fn into_queue_type(self) -> gfx_hal::QueueType;
 }
 
-impl Capability for CapabilityFlags {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        Some(flags)
+impl Capability for gfx_hal::QueueType {
+    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        Some(queue_type)
     }
 
-    fn into_flags(self) -> CapabilityFlags {
+    fn into_queue_type(self) -> gfx_hal::QueueType {
         self
     }
 }
 
 impl Capability for Transfer {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::TRANSFER) {
-            Some(Transfer)
-        } else {
-            None
-        }
+    fn from_queue_type(_queue_type: gfx_hal::QueueType) -> Option<Self> {
+        Some(Transfer)
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::TRANSFER
+    fn into_queue_type(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::Transfer
     }
 }
 
 impl Capability for Execute {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.intersects(CapabilityFlags::COMPUTE | CapabilityFlags::GRAPHICS) {
-            Some(Execute)
-        } else {
-            None
+    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::Transfer => None,
+            _ => Some(Execute),
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::COMPUTE | CapabilityFlags::GRAPHICS
+    fn into_queue_type(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::General
     }
 }
 
 impl Capability for Compute {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::COMPUTE) {
-            Some(Compute)
-        } else {
-            None
+    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::Compute | gfx_hal::QueueType::General => Some(Compute),
+            _ => None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::COMPUTE
+    fn into_queue_type(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::Compute
     }
 }
 
 impl Capability for Graphics {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::GRAPHICS) {
-            Some(Graphics)
-        } else {
-            None
+    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::Graphics | gfx_hal::QueueType::General => Some(Graphics),
+            _ => None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::GRAPHICS
+    fn into_queue_type(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::Graphics
     }
 }
 
 impl Capability for General {
-    fn from_flags(flags: CapabilityFlags) -> Option<Self> {
-        if flags.contains(CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE) {
-            Some(General)
-        } else {
-            None
+    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+        match queue_type {
+            gfx_hal::QueueType::General => Some(General),
+            _ => None
         }
     }
 
-    fn into_flags(self) -> CapabilityFlags {
-        CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE
+    fn into_queue_type(self) -> gfx_hal::QueueType {
+        gfx_hal::QueueType::General
     }
 }
 
 /// Check if capability supported.
-pub trait Supports<C> {
+pub trait Supports<C>: Capability {
     /// Check runtime capability.
     fn supports(&self) -> Option<C>;
+
+    /// Assert capability.
+    fn assert(&self) {
+        assert!(self.supports().is_some());
+    }
 }
 
 impl Supports<Transfer> for Transfer {
@@ -207,72 +179,11 @@ impl Supports<Graphics> for General {
     }
 }
 
-impl Supports<Transfer> for CapabilityFlags {
-    fn supports(&self) -> Option<Transfer> {
-        Transfer::from_flags(*self)
+impl<C> Supports<C> for gfx_hal::QueueType
+where
+    C: Capability,
+{
+    fn supports(&self) -> Option<C> {
+        C::from_queue_type(*self)
     }
-}
-
-impl Supports<Execute> for CapabilityFlags {
-    fn supports(&self) -> Option<Execute> {
-        Execute::from_flags(*self)
-    }
-}
-
-impl Supports<Compute> for CapabilityFlags {
-    fn supports(&self) -> Option<Compute> {
-        Compute::from_flags(*self)
-    }
-}
-
-impl Supports<Graphics> for CapabilityFlags {
-    fn supports(&self) -> Option<Graphics> {
-        Graphics::from_flags(*self)
-    }
-}
-
-/// Get capabilities required by pipeline stages.
-pub fn required_queue_capability(stages: PipelineStageFlags) -> CapabilityFlags {
-    let mut capability = CapabilityFlags::empty();
-    if stages.contains(PipelineStageFlags::DRAW_INDIRECT) {
-        capability |= CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE;
-    }
-    if stages.contains(PipelineStageFlags::VERTEX_INPUT) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::VERTEX_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::TESSELLATION_CONTROL_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::TESSELLATION_EVALUATION_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::GEOMETRY_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::FRAGMENT_SHADER) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::EARLY_FRAGMENT_TESTS) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::LATE_FRAGMENT_TESTS) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    if stages.contains(PipelineStageFlags::COMPUTE_SHADER) {
-        capability |= CapabilityFlags::COMPUTE;
-    }
-    if stages.contains(PipelineStageFlags::TRANSFER) {
-        capability |=
-            CapabilityFlags::GRAPHICS | CapabilityFlags::COMPUTE | CapabilityFlags::TRANSFER;
-    }
-    if stages.contains(PipelineStageFlags::ALL_GRAPHICS) {
-        capability |= CapabilityFlags::GRAPHICS;
-    }
-    capability
 }

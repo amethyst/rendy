@@ -3,23 +3,18 @@
 mod usage;
 
 pub use self::usage::*;
-use memory::MemoryBlock;
-use relevant::Relevant;
+use memory::{Block, MemoryBlock};
 
-use escape::Escape;
-use SharingMode;
+use crate::escape::{Escape, KeepAlive};
 
-/// Contains information required to create a buffer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CreateInfo {
-    /// Size of the buffer required.
+/// Buffer info.
+#[derive(Clone, Copy, Debug)]
+pub struct Info {
+    /// Buffer size.
     pub size: u64,
 
-    /// Intended usage flags. Limits memory types suitable for the buffer.
-    pub usage: UsageFlags,
-
-    /// Specifies command queues from which families can access the buffer.
-    pub sharing: SharingMode,
+    /// Buffer usage flags.
+    pub usage: gfx_hal::buffer::Usage,
 }
 
 /// Generic buffer object wrapper.
@@ -29,14 +24,54 @@ pub struct CreateInfo {
 /// `T` - type of the memory object of memory block.
 /// `B` - raw buffer type.
 #[derive(Debug)]
-pub struct Buffer<M, B> {
-    pub(crate) inner: Escape<Inner<M, B>>,
-    pub(crate) info: CreateInfo,
+pub struct Buffer<B: gfx_hal::Backend> {
+    pub(crate) escape: Escape<Inner<B>>,
+    pub(crate) info: Info,
 }
 
 #[derive(Debug)]
-pub(crate) struct Inner<M, B> {
-    pub(crate) block: MemoryBlock<M>,
-    pub(crate) raw: B,
-    pub(crate) relevant: Relevant,
+pub(crate) struct Inner<B: gfx_hal::Backend> {
+    pub(crate) block: MemoryBlock<B>,
+    pub(crate) raw: B::Buffer,
+    pub(crate) relevant: relevant::Relevant,
+}
+
+impl<B> Buffer<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Creates [`KeepAlive`] handler to extend buffer lifetime.
+    /// 
+    /// [`KeepAlive`]: struct.KeepAlive.html
+    pub fn keep_alive(&self) -> KeepAlive {
+        Escape::keep_alive(&self.escape)
+    }
+
+    /// Get buffers memory [`Block`].
+    /// 
+    /// [`Block`]: ../memory/trait.Block.html
+    pub fn block(&self) -> &impl Block<B> {
+        &self.escape.block
+    }
+
+    /// Get buffers memory [`Block`].
+    /// 
+    /// [`Block`]: ../memory/trait.Block.html
+    pub fn block_mut(&mut self) -> &mut impl Block<B> {
+        &mut self.escape.block
+    }
+
+    /// Get raw buffer handle.
+    ///
+    /// # Safety
+    ///
+    /// Raw buffer handler should not be usage to violate this object valid usage.
+    pub fn raw(&self) -> &B::Buffer {
+        &self.escape.raw
+    }
+
+    /// Get buffer info.
+    pub fn info(&self) -> &Info {
+        &self.info
+    }
 }

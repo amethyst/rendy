@@ -1,39 +1,30 @@
-use device::Device;
-use error::MappingError;
-use mapping::MappedRange;
-use memory::Properties;
-use std::{any::Any, ops::Range};
+use std::ops::Range;
+
+use crate::mapping::MappedRange;
 
 /// Block that owns a `Range` of the `Memory`.
 /// Implementor must ensure that there can't be any other blocks
 /// with overlapping range (either through type system or safety notes for unsafe functions).
 /// Provides access to safe memory range mapping.
-pub trait Block {
-    /// Memory type.
-    type Memory: Any;
-
+pub trait Block<B: gfx_hal::Backend> {
     /// Get memory properties of the block.
-    fn properties(&self) -> Properties;
+    fn properties(&self) -> gfx_hal::memory::Properties;
 
     /// Get raw memory object.
-    fn memory(&self) -> &Self::Memory;
+    fn memory(&self) -> &B::Memory;
 
     /// Get memory range owned by this block.
     fn range(&self) -> Range<u64>;
 
     /// Get mapping for the buffer range.
     /// Memory writes to the region performed by device become available for the host.
-    fn map<'a, D>(
+    fn map<'a>(
         &'a mut self,
-        device: &D,
+        device: &impl gfx_hal::Device<B>,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, Self::Memory>, MappingError>
-    where
-        D: Device<Memory = Self::Memory>;
+    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error>;
 
     /// Release memory mapping. Must be called after successful `map` call.
     /// No-op if block is not mapped.
-    fn unmap<D>(&mut self, device: &D)
-    where
-        D: Device<Memory = Self::Memory>;
+    fn unmap(&mut self, device: &impl gfx_hal::Device<B>);
 }

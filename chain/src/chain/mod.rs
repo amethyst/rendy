@@ -7,12 +7,13 @@
 mod link;
 
 use std::ops::BitOr;
-use fnv::FnvHashMap;
 
-use resource::{Buffer, Image, Resource};
-use Id;
+use crate::{
+    resource::{Buffer, Image, Resource},
+    Id,
+};
 
-pub(crate) use self::link::{Link, LinkNode};
+pub use self::link::{Link, LinkNode};
 
 /// This type corresponds to resource category.
 /// All resources from the same category must be accessed as permitted by links of the chain.
@@ -26,22 +27,22 @@ where
     R: Resource,
 {
     /// Get links slice
-    pub(crate) fn links(&self) -> &[Link<R>] {
+    pub fn links(&self) -> &[Link<R>] {
         &self.links
     }
 
     /// Create new empty `Chain`
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Chain { links: Vec::new() }
     }
 
     /// Get links slice
-    pub(crate) fn last_link_mut(&mut self) -> Option<&mut Link<R>> {
+    pub fn last_link_mut(&mut self) -> Option<&mut Link<R>> {
         self.links.last_mut()
     }
 
     /// Add new link to the chain.
-    pub(crate) fn add_link(&mut self, link: Link<R>) -> &mut Link<R> {
+    pub fn add_link(&mut self, link: Link<R>) -> &mut Link<R> {
         self.links.push(link);
         self.links.last_mut().unwrap()
     }
@@ -90,7 +91,7 @@ where
 }
 
 /// Type alias for map of chains by id for buffers.
-pub(crate) type BufferChains = FnvHashMap<Id, Chain<Buffer>>;
+pub(crate) type BufferChains = fnv::FnvHashMap<Id, Chain<Buffer>>;
 
 /// Type alias for map of chains by id for images.
-pub(crate) type ImageChains = FnvHashMap<Id, Chain<Image>>;
+pub(crate) type ImageChains = fnv::FnvHashMap<Id, Chain<Image>>;

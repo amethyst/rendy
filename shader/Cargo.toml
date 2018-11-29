@@ -1,0 +1,11 @@
+[package]
+name = "rendy-shader"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+failure = "0.1"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+rendy-shader-proc = { version = "0.1", path = "proc" }
+rendy-factory = { version = "0.1", path = "../factory" }
+shaderc = "0.3"

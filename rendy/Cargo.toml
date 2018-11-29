@@ -3,19 +3,32 @@ name = "rendy"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
-[dependencies]
-rendy-memory = { path = "../memory" }
-rendy-resource = { path = "../resource" }
-rendy-command = { path = "../command" }
-derivative = "1.0"
-winit = "0.17"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", optional = true }
-ash = { version = "0.24", optional = true }
-
 [features]
-hal = ["gfx-hal", "rendy-memory/hal", "rendy-resource/hal", "rendy-command/hal"]
-vulkan = ["ash", "rendy-memory/vulkan", "rendy-resource/vulkan", "rendy-command/vulkan"]
+dx12 = ["rendy-factory/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
+metal = ["rendy-factory/metal", "rendy-wsi/metal", "gfx-backend-metal"]
+vulkan = ["rendy-factory/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
 
-[[example]]
-name = "basic"
-required-features = ["hal"]
+[dependencies]
+rendy-command = { path = "../command" }
+rendy-factory = { path = "../factory" }
+rendy-frame = { path = "../frame" }
+rendy-graph = { path = "../graph" }
+rendy-memory = { path = "../memory" }
+rendy-mesh = { path = "../mesh" }
+rendy-shader = { path = "../shader" }
+rendy-renderer = { path = "../renderer" }
+rendy-resource = { path = "../resource" }
+rendy-wsi = { path = "../wsi" }
+
+gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", optional = true }
+
+[dev-dependencies]
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+env_logger = "0.5"
+failure = "0.1"
+lazy_static = "1.0"
+log = "0.4"
+winit = "0.17"
+

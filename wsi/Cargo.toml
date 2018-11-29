@@ -1,0 +1,27 @@
+[package]
+name = "rendy-wsi"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[features]
+dx12 = ["gfx-backend-dx12"]
+metal = ["gfx-backend-metal"]
+vulkan = ["gfx-backend-vulkan"]
+
+[dependencies]
+derivative = "1.0"
+failure = "0.1"
+gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+log = "0.4"
+relevant = "0.2"
+smallvec = "0.6"
+winit = "0.17"
+
+rendy-resource = { path = "../resource" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc = "0.2"
+cocoa = "0.18"

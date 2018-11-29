@@ -5,8 +5,6 @@ use std::{
     slice::{from_raw_parts, from_raw_parts_mut},
 };
 
-use error::MappingError;
-
 /// Get sub-range of memory mapping.
 /// `range` is in memory object space.
 pub(crate) fn mapped_fitting_range(
@@ -53,48 +51,36 @@ pub(crate) fn mapped_sub_range(
 /// User must ensure that:
 /// * this function won't create aliasing slices.
 /// * returned slice doesn't outlive mapping.
-pub(crate) unsafe fn mapped_slice_mut<'a, U>(
+pub(crate) unsafe fn mapped_slice_mut<'a, T>(
     ptr: NonNull<u8>,
     range: Range<u64>,
-) -> Result<&'a mut [U], MappingError> {
+) -> &'a mut [T] {
     let size = (range.end - range.start) as usize;
     assert_eq!(
-        size % size_of::<U>(),
+        size % size_of::<T>(),
         0,
         "Range length must be multiple of element size"
     );
     let offset = ptr.as_ptr() as usize;
-    if offset % align_of::<U>() > 0 {
-        return Err(MappingError::Unaligned {
-            align: align_of::<U>(),
-            offset,
-        });
-    }
-
-    Ok(from_raw_parts_mut(ptr.as_ptr() as *mut U, size))
+    assert_eq!(offset % align_of::<T>(), 0, "Range offset must be multiple of element alignment");
+    from_raw_parts_mut(ptr.as_ptr() as *mut T, size)
 }
 
 /// # Safety
 ///
 /// User must ensure that:
 /// * returned slice doesn't outlive mapping.
-pub(crate) unsafe fn mapped_slice<'a, U>(
+pub(crate) unsafe fn mapped_slice<'a, T>(
     ptr: NonNull<u8>,
     range: Range<u64>,
-) -> Result<&'a [U], MappingError> {
+) -> &'a [T] {
     let size = (range.end - range.start) as usize;
     assert_eq!(
-        size % size_of::<U>(),
+        size % size_of::<T>(),
         0,
         "Range length must be multiple of element size"
     );
     let offset = ptr.as_ptr() as usize;
-    if offset % align_of::<U>() > 0 {
-        return Err(MappingError::Unaligned {
-            align: align_of::<U>(),
-            offset,
-        });
-    }
-
-    Ok(from_raw_parts(ptr.as_ptr() as *const U, size))
+    assert_eq!(offset % align_of::<T>(), 0, "Range offset must be multiple of element alignment");
+    from_raw_parts(ptr.as_ptr() as *const T, size)
 }

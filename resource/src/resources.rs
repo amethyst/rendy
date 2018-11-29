@@ -1,151 +1,223 @@
 use std::cmp::max;
-use std::default::Default;
 
-use memory::{Block, Heaps, MemoryError, Usage as MemoryUsage};
-use relevant::Relevant;
+use memory::{Block, Heaps};
 
-use buffer;
-use device::Device;
-use error::ResourceError;
-use escape::{Escape, Terminal};
-use image;
+use crate::{
+    buffer,
+    escape::{Escape, Terminal},
+    image,
+};
 
 /// Resource manager.
 /// It can be used to create and destroy resources such as buffers and images.
 #[derive(Debug, Derivative)]
 #[derivative(Default(bound = ""))]
-pub struct Resources<M, B, I> {
-    buffers: Terminal<buffer::Inner<M, B>>,
-    images: Terminal<image::Inner<M, I>>,
+pub struct Resources<B: gfx_hal::Backend> {
+    buffers: Terminal<buffer::Inner<B>>,
+    images: Terminal<image::Inner<B>>,
+
+    dropped_buffers: Vec<buffer::Inner<B>>,
+    dropped_images: Vec<image::Inner<B>>,
 }
 
-impl<M: 'static, B: 'static, I: 'static> Resources<M, B, I> {
-    /// Create new Resource
+impl<B> Resources<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Create new `Resources` instance.
     pub fn new() -> Self {
-        Self::default()
+        Default::default()
     }
 
     /// Create a buffer and bind to the memory that support intended usage.
-    pub fn create_buffer<D, U>(
+    pub fn create_buffer(
         &mut self,
-        device: &D,
-        heaps: &mut Heaps<M>,
-        info: buffer::CreateInfo,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
         align: u64,
-        memory_usage: U,
-    ) -> Result<buffer::Buffer<M, B>, MemoryError>
-    where
-        D: Device<Memory = M, Buffer = B>,
-        U: MemoryUsage,
-    {
-        let ubuf = device.create_buffer(info)?;
-        let reqs = device.buffer_requirements(&ubuf);
+        size: u64,
+        usage: impl buffer::Usage,
+    ) -> Result<buffer::Buffer<B>, failure::Error> {
+        #[derive(Debug)] struct CreateBuffer<'a> {
+            align: &'a dyn std::fmt::Debug,
+            size: &'a dyn std::fmt::Debug,
+            usage: &'a dyn std::fmt::Debug,
+        };
+        log::trace!("{:#?}", CreateBuffer {
+            align: &align,
+            size: &size,
+            usage: &usage,
+        });
+
+        let buf = unsafe {
+            device.create_buffer(size, usage.flags())
+        }?;
+        let reqs = unsafe {
+            device.get_buffer_requirements(&buf)
+        };
         let block = heaps.allocate(
             device,
-            reqs.mask,
-            memory_usage,
+            reqs.type_mask as u32,
+            usage.memory(),
             reqs.size,
-            max(reqs.align, align),
+            max(reqs.alignment, align),
         )?;
 
         let buf = unsafe {
-            device
-                .bind_buffer(ubuf, block.memory(), block.range().start)
-                .unwrap()
-        };
+            device.bind_buffer_memory(block.memory(), block.range().start, buf)
+        }?;
 
         Ok(buffer::Buffer {
-            inner: self.buffers.escape(buffer::Inner {
+            escape: self.buffers.escape(buffer::Inner {
                 raw: buf,
                 block,
-                relevant: Relevant,
+                relevant: relevant::Relevant,
             }),
-            info,
+            info: buffer::Info {
+                size,
+                usage: usage.flags(),
+            }
         })
     }
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_buffer<D>(buffer: buffer::Buffer<M, B>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Buffer = B>,
-    {
-        Self::destroy_buffer_inner(Escape::into_inner(buffer.inner), device, heaps)
+    pub fn destroy_buffer(&mut self, buffer: buffer::Buffer<B>) {
+        Escape::dispose(buffer.escape)
+            .map(|inner| self.dropped_buffers.push(inner));
     }
 
-    unsafe fn destroy_buffer_inner<D>(inner: buffer::Inner<M, B>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Buffer = B>,
-    {
+    /// Drop inner buffer representation.
+    ///
+    /// # Safety
+    ///
+    /// Device must not attempt to use the buffer.
+    unsafe fn actually_destroy_buffer(
+        inner: buffer::Inner<B>,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
+    ) {
         device.destroy_buffer(inner.raw);
         heaps.free(device, inner.block);
+        inner.relevant.dispose();
     }
 
     /// Create an image and bind to the memory that support intended usage.
-    pub fn create_image<D, U>(
+    pub fn create_image(
         &mut self,
-        device: &D,
-        heaps: &mut Heaps<M>,
-        info: image::CreateInfo,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
         align: u64,
-        memory_usage: U,
-    ) -> Result<image::Image<M, I>, ResourceError>
-    where
-        D: Device<Memory = M, Image = I>,
-        U: MemoryUsage,
-    {
-        let uimg = device.create_image(info)?;
-        let reqs = device.image_requirements(&uimg);
+        kind: gfx_hal::image::Kind,
+        levels: gfx_hal::image::Level,
+        format: gfx_hal::format::Format,
+        tiling: gfx_hal::image::Tiling,
+        view_caps: gfx_hal::image::ViewCapabilities,
+        usage: impl image::Usage,
+    ) -> Result<image::Image<B>, failure::Error> {
+        #[derive(Debug)] struct CreateImage<'a> {
+            align: &'a dyn std::fmt::Debug,
+            kind: &'a dyn std::fmt::Debug,
+            levels: &'a dyn std::fmt::Debug,
+            format: &'a dyn std::fmt::Debug,
+            tiling: &'a dyn std::fmt::Debug,
+            view_caps: &'a dyn std::fmt::Debug,
+            usage: &'a dyn std::fmt::Debug,
+        };
+        log::trace!("{:#?}", CreateImage {
+            align: &align,
+            kind: &kind,
+            levels: &levels,
+            format: &format,
+            tiling: &tiling,
+            view_caps: &view_caps,
+            usage: &usage,
+        });
+
+        let img = unsafe {
+            device.create_image(
+                kind,
+                levels,
+                format,
+                tiling,
+                usage.flags(),
+                view_caps,
+            )
+        }?;
+        let reqs = unsafe {
+            device.get_image_requirements(&img)
+        };
         let block = heaps.allocate(
             device,
-            reqs.mask,
-            memory_usage,
+            reqs.type_mask as u32,
+            usage.memory(),
             reqs.size,
-            max(reqs.align, align),
+            max(reqs.alignment, align),
         )?;
 
-        let img = unsafe { device.bind_image(uimg, block.memory(), block.range().start)? };
+        let img = unsafe {
+            device
+                .bind_image_memory(block.memory(), block.range().start, img)
+        }?;
 
         Ok(image::Image {
-            inner: self.images.escape(image::Inner {
+            escape: self.images.escape(image::Inner {
                 raw: img,
                 block,
-                relevant: Relevant,
+                relevant: relevant::Relevant,
             }),
-            info,
+            info: image::Info {
+                kind,
+                levels,
+                format,
+                tiling,
+                view_caps,
+                usage: usage.flags(),
+            },
         })
     }
 
     /// Destroy image.
-    /// Buffer can be dropped but this method reduces overhead.
-    pub unsafe fn destroy_image<D>(image: image::Image<M, I>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Image = I>,
-    {
-        Self::destroy_image_inner(Escape::into_inner(image.inner), device, heaps)
+    /// Image can be dropped but this method reduces overhead.
+    pub fn destroy_image(
+        &mut self,
+        image: image::Image<B>,
+    ) {
+        Escape::dispose(image.escape)
+            .map(|inner| self.dropped_images.push(inner));
     }
 
-    unsafe fn destroy_image_inner<D>(inner: image::Inner<M, I>, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Image = I>,
-    {
+    /// Drop inner image representation.
+    ///
+    /// # Safety
+    ///
+    /// Device must not attempt to use the image.
+    unsafe fn actually_destroy_image(
+        inner: image::Inner<B>,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
+    ) {
         device.destroy_image(inner.raw);
         heaps.free(device, inner.block);
+        inner.relevant.dispose();
     }
 
     /// Recycle dropped resources.
-    pub unsafe fn cleanup<D>(&mut self, device: &D, heaps: &mut Heaps<M>)
-    where
-        D: Device<Memory = M, Buffer = B, Image = I>,
-    {
-        for buffer in self.buffers.drain() {
-            device.destroy_buffer(buffer.raw);
-            heaps.free(device, buffer.block);
+    ///
+    /// # Safety
+    ///
+    /// Device must not attempt to use previously dropped buffers and images.
+    pub unsafe fn cleanup(&mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+        log::trace!("Cleanup resources");
+        for buffer in self.dropped_buffers.drain(..) {
+            Self::actually_destroy_buffer(buffer, device, heaps);
         }
 
-        for image in self.images.drain() {
-            device.destroy_image(image.raw);
-            heaps.free(device, image.block);
+        for image in self.dropped_images.drain(..) {
+            Self::actually_destroy_image(image, device, heaps);
         }
+
+        self.dropped_buffers.extend(self.buffers.drain());
+        self.dropped_images.extend(self.images.drain());
     }
 }

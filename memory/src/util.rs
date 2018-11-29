@@ -48,15 +48,11 @@ impl IntegerFitting for u64 {
     }
 }
 
-#[cfg(
-    not(
-        any(
-            target_pointer_width = "16",
-            target_pointer_width = "32",
-            target_pointer_width = "64"
-        )
-    )
-)]
+#[cfg(not(any(
+    target_pointer_width = "16",
+    target_pointer_width = "32",
+    target_pointer_width = "64"
+)))]
 impl IntegerFitting for u64 {
     fn fits_usize(self) -> bool {
         true
@@ -123,14 +119,6 @@ impl IntegerFitting for u32 {
 pub(crate) fn fits_usize<T: IntegerFitting>(value: T) -> bool {
     value.fits_usize()
 }
-
-// pub(crate) fn fits_isize<T: IntegerFitting>(value: T) -> bool {
-//     value.fits_isize()
-// }
-
-// pub(crate) fn fits_u64(value: usize) -> bool {
-//     u64::usize_fits(value)
-// }
 
 pub(crate) fn fits_u32(value: usize) -> bool {
     u32::usize_fits(value)

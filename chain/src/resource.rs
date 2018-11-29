@@ -1,15 +1,60 @@
-use rendy_resource::{buffer, image};
 use std::{
     fmt::Debug,
     ops::{BitOr, BitOrAssign},
 };
 
-use access::AccessFlags;
+/// Trait to abstract of specific access flags.
+pub trait AccessFlags: Copy + Debug + BitOr<Output = Self> + BitOrAssign + 'static {
+    /// Get flags value with no flags set.
+    fn empty() -> Self;
+
+    /// Check if this access must be exclusive.
+    /// 
+    /// Basically this checks if all flags are known read flags.
+    fn exclusive(&self) -> bool;
+}
+
+impl AccessFlags for gfx_hal::buffer::Access {
+    #[inline]
+    fn empty() -> Self {
+        Self::empty()
+    }
+
+    #[inline]
+    fn exclusive(&self) -> bool {
+        self.intersects(
+            Self::SHADER_WRITE | Self::TRANSFER_WRITE | Self::HOST_WRITE | Self::MEMORY_WRITE
+        )
+    }
+}
+
+impl AccessFlags for gfx_hal::image::Access {
+    #[inline]
+    fn empty() -> Self {
+        Self::empty()
+    }
+
+    #[inline]
+    fn exclusive(&self) -> bool {
+        self.intersects(
+            Self::SHADER_WRITE | Self::COLOR_ATTACHMENT_WRITE | Self::DEPTH_STENCIL_ATTACHMENT_WRITE | Self::TRANSFER_WRITE | Self::HOST_WRITE | Self::MEMORY_WRITE
+        )
+    }
+}
+
+/// Trait to abstract of specific usage flags.
+pub trait UsageFlags: Copy + Debug + BitOr<Output = Self> + BitOrAssign + 'static {}
+
+impl UsageFlags for gfx_hal::buffer::Usage {}
+impl UsageFlags for gfx_hal::image::Usage {}
 
 /// Abstracts resource types that uses different usage flags and layouts types.
 pub trait Resource: 'static {
+    /// Access flags for resource type.
+    type Access: AccessFlags;
+
     /// Usage flags type for the resource.
-    type Usage: Copy + Debug + BitOr<Output = Self::Usage> + BitOrAssign + 'static;
+    type Usage: UsageFlags;
 
     /// Layout type for the resource.
     type Layout: Copy + Debug + 'static;
@@ -18,141 +63,81 @@ pub trait Resource: 'static {
     fn no_usage() -> Self::Usage;
 
     /// Layout suitable for specified accesses.
-    fn layout_for(access: AccessFlags) -> Self::Layout;
-
-    /// Check if all usage flags required for access are set.
-    fn valid_usage(access: AccessFlags, usage: Self::Usage) -> bool;
+    fn layout_for(access: Self::Access) -> Self::Layout;
 }
-
-const BUFFER_ACCESSES: [AccessFlags; 8] = [
-    AccessFlags::INDIRECT_COMMAND_READ,
-    AccessFlags::INDEX_READ,
-    AccessFlags::VERTEX_ATTRIBUTE_READ,
-    AccessFlags::UNIFORM_READ,
-    AccessFlags::SHADER_READ,
-    AccessFlags::SHADER_WRITE,
-    AccessFlags::TRANSFER_READ,
-    AccessFlags::TRANSFER_WRITE,
-];
 
 /// Buffer resource type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Buffer;
 
 impl Resource for Buffer {
-    type Usage = buffer::UsageFlags;
+    type Access = gfx_hal::buffer::Access;
+    type Usage = gfx_hal::buffer::Usage;
     type Layout = ();
 
     fn no_usage() -> Self::Usage {
-        buffer::UsageFlags::empty()
+        gfx_hal::buffer::Usage::empty()
     }
 
-    fn layout_for(_access: AccessFlags) {}
-
-    fn valid_usage(access: AccessFlags, usage: buffer::UsageFlags) -> bool {
-        BUFFER_ACCESSES.iter().all(|&access_bit| {
-            !access.contains(access_bit) || usage.intersects(match access_bit {
-                AccessFlags::INDIRECT_COMMAND_READ => buffer::UsageFlags::INDIRECT_BUFFER,
-                AccessFlags::INDEX_READ => buffer::UsageFlags::INDEX_BUFFER,
-                AccessFlags::VERTEX_ATTRIBUTE_READ => buffer::UsageFlags::VERTEX_BUFFER,
-                AccessFlags::UNIFORM_READ => buffer::UsageFlags::UNIFORM_BUFFER,
-                AccessFlags::SHADER_READ => {
-                    buffer::UsageFlags::STORAGE_BUFFER
-                        | buffer::UsageFlags::UNIFORM_TEXEL_BUFFER
-                        | buffer::UsageFlags::STORAGE_TEXEL_BUFFER
-                }
-                AccessFlags::SHADER_WRITE => {
-                    buffer::UsageFlags::STORAGE_BUFFER | buffer::UsageFlags::STORAGE_TEXEL_BUFFER
-                }
-                AccessFlags::TRANSFER_READ => buffer::UsageFlags::TRANSFER_SRC,
-                AccessFlags::TRANSFER_WRITE => buffer::UsageFlags::TRANSFER_DST,
-                _ => unreachable!(),
-            })
-        })
-    }
+    fn layout_for(_access: gfx_hal::buffer::Access) {}
 }
-
-const IMAGE_ACCESSES: [AccessFlags; 9] = [
-    AccessFlags::INPUT_ATTACHMENT_READ,
-    AccessFlags::COLOR_ATTACHMENT_READ,
-    AccessFlags::COLOR_ATTACHMENT_WRITE,
-    AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
-    AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-    AccessFlags::SHADER_READ,
-    AccessFlags::SHADER_WRITE,
-    AccessFlags::TRANSFER_READ,
-    AccessFlags::TRANSFER_WRITE,
-];
 
 /// Image resource type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Image;
 
 impl Resource for Image {
-    type Usage = image::UsageFlags;
 
-    type Layout = image::Layout;
+    type Access = gfx_hal::image::Access;
+
+    type Usage = gfx_hal::image::Usage;
+
+    type Layout = gfx_hal::image::Layout;
 
     fn no_usage() -> Self::Usage {
-        image::UsageFlags::empty()
+        gfx_hal::image::Usage::empty()
     }
 
-    fn layout_for(access: AccessFlags) -> image::Layout {
-        IMAGE_ACCESSES
-            .iter()
-            .fold(None, |acc, &access_bit| {
-                if access.contains(access_bit) {
-                    let layout = match access_bit {
-                        AccessFlags::INPUT_ATTACHMENT_READ => image::Layout::ShaderReadOnlyOptimal,
-                        AccessFlags::COLOR_ATTACHMENT_READ => image::Layout::ColorAttachmentOptimal,
-                        AccessFlags::COLOR_ATTACHMENT_WRITE => {
-                            image::Layout::ColorAttachmentOptimal
-                        }
-                        AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => {
-                            image::Layout::DepthStencilReadOnlyOptimal
-                        }
-                        AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => {
-                            image::Layout::DepthStencilAttachmentOptimal
-                        }
-                        AccessFlags::TRANSFER_READ => image::Layout::TransferSrcOptimal,
-                        AccessFlags::TRANSFER_WRITE => image::Layout::TransferDstOptimal,
-                        _ => unreachable!(),
-                    };
-                    Some(match (acc, layout) {
-                        (None, layout) => layout,
-                        (Some(left), right) if left == right => left,
-                        (
-                            Some(image::Layout::DepthStencilReadOnlyOptimal),
-                            image::Layout::DepthStencilAttachmentOptimal,
-                        ) => image::Layout::DepthStencilAttachmentOptimal,
-                        (
-                            Some(image::Layout::DepthStencilAttachmentOptimal),
-                            image::Layout::DepthStencilReadOnlyOptimal,
-                        ) => image::Layout::DepthStencilAttachmentOptimal,
-                        (Some(_), _) => image::Layout::General,
-                    })
-                } else {
-                    acc
-                }
-            }).unwrap_or(image::Layout::General)
+    fn layout_for(access: gfx_hal::image::Access) -> gfx_hal::image::Layout {
+        let mut acc = None;
+        if access.contains(gfx_hal::image::Access::INPUT_ATTACHMENT_READ) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::ShaderReadOnlyOptimal));
+        }
+        if access.contains(gfx_hal::image::Access::COLOR_ATTACHMENT_READ) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::ColorAttachmentOptimal));
+        }
+        if access.contains(gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::ColorAttachmentOptimal));
+        }
+        if access.contains(gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::DepthStencilReadOnlyOptimal));
+        }
+        if access.contains(gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::DepthStencilAttachmentOptimal));
+        }
+        if access.contains(gfx_hal::image::Access::TRANSFER_READ) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::TransferSrcOptimal));
+        }
+        if access.contains(gfx_hal::image::Access::TRANSFER_WRITE) {
+            acc = Some(common_layout(acc, gfx_hal::image::Layout::TransferDstOptimal));
+        }
+        acc.unwrap_or(gfx_hal::image::Layout::General)
     }
+}
 
-    fn valid_usage(access: AccessFlags, usage: image::UsageFlags) -> bool {
-        IMAGE_ACCESSES.iter().all(|&access_bit| {
-            !access.contains(access_bit) || usage.intersects(match access_bit {
-                AccessFlags::INPUT_ATTACHMENT_READ => image::UsageFlags::INPUT_ATTACHMENT,
-                AccessFlags::COLOR_ATTACHMENT_READ => image::UsageFlags::COLOR_ATTACHMENT,
-                AccessFlags::COLOR_ATTACHMENT_WRITE => image::UsageFlags::COLOR_ATTACHMENT,
-                AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ => {
-                    image::UsageFlags::DEPTH_STENCIL_ATTACHMENT
-                }
-                AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE => {
-                    image::UsageFlags::DEPTH_STENCIL_ATTACHMENT
-                }
-                AccessFlags::TRANSFER_READ => image::UsageFlags::TRANSFER_SRC,
-                AccessFlags::TRANSFER_WRITE => image::UsageFlags::TRANSFER_DST,
-                _ => unreachable!(),
-            })
-        })
+
+fn common_layout(acc: Option<gfx_hal::image::Layout>, layout: gfx_hal::image::Layout) -> gfx_hal::image::Layout {
+    match (acc, layout) {
+        (None, layout) => layout,
+        (Some(left), right) if left == right => left,
+        (
+            Some(gfx_hal::image::Layout::DepthStencilReadOnlyOptimal),
+            gfx_hal::image::Layout::DepthStencilAttachmentOptimal,
+        ) => gfx_hal::image::Layout::DepthStencilAttachmentOptimal,
+        (
+            Some(gfx_hal::image::Layout::DepthStencilAttachmentOptimal),
+            gfx_hal::image::Layout::DepthStencilReadOnlyOptimal,
+        ) => gfx_hal::image::Layout::DepthStencilAttachmentOptimal,
+        (Some(_), _) => gfx_hal::image::Layout::General,
     }
 }

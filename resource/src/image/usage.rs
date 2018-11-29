@@ -1,35 +1,79 @@
-bitflags! {
-    /// Bitmask specifying intended usage of an image.
-    /// See Vulkan docs for detailed info:
-    /// <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkImageUsageFlagBits.html>
-    #[repr(transparent)]
-    pub struct UsageFlags: u32 {
-        /// Specifies that the image can be used as the source of a transfer command.
-        const TRANSFER_SRC = 0x00000001;
+use memory::usage::{Data, MemoryUsage};
 
-        /// Specifies that the image can be used as the destination of a transfer command.
-        const TRANSFER_DST = 0x00000002;
+/// Usage trait that must implemented by usage types.
+/// This trait provides a way to convert type-level usage to the value-level flags.
+pub trait Usage: std::fmt::Debug {
+    /// Suggested memory usage type.
+    type MemoryUsage: MemoryUsage;
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for occupying a descriptor set slot either of
-        /// type `SAMPLED_IMAGE` or `COMBINED_IMAGE_SAMPLER`, and be sampled by a shader.
-        const SAMPLED = 0x00000004;
+    /// Convert usage to the flags.
+    fn flags(&self) -> gfx_hal::image::Usage;
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for occupying a descriptor set slot of type `STORAGE_IMAGE`.
-        const STORAGE = 0x00000008;
+    /// Get suggested memory usage.
+    fn memory(&self) -> Self::MemoryUsage;
+}
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for use as a color or resolve attachment in a `Framebuffer`.
-        const COLOR_ATTACHMENT = 0x00000010;
+impl<M> Usage for (gfx_hal::image::Usage, M)
+where
+    M: MemoryUsage,
+{
+    type MemoryUsage = M;
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for use as a depth/stencil attachment in a `Framebuffer`.
-        const DEPTH_STENCIL_ATTACHMENT = 0x00000020;
+    fn flags(&self) -> gfx_hal::image::Usage {
+        self.0
+    }
 
-        /// Specifies that the memory bound to this image will have been allocated with the VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
-        /// (see <https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#memory> for more detail).
-        /// This bit can be set for any image that can be used to create a `ImageView` suitable for use as a color, resolve, depth/stencil, or input attachment.
-        const TRANSIENT_ATTACHMENT = 0x00000040;
+    fn memory(&self) -> M {
+        self.1
+    }
+}
 
-        /// Specifies that the image can be used to create a `ImageView` suitable for occupying descriptor set slot of type `INPUT_ATTACHMENT`;
-        /// be read from a shader as an input attachment; and be used as an input attachment in a framebuffer.
-        const INPUT_ATTACHMENT = 0x00000080;
+/// Type that specify that image is intended to be used as texture.
+/// It implies `TRANSFER_DST` because device-local, host-invisible memory should be used
+/// and transfer is left the only way to fill the buffer.
+#[derive(Clone, Copy, Debug)]
+pub struct Texture;
+
+impl Usage for Texture {
+    type MemoryUsage = Data;
+
+    fn flags(&self) -> gfx_hal::image::Usage {
+        gfx_hal::image::Usage::TRANSFER_DST | gfx_hal::image::Usage::SAMPLED
+    }
+
+    fn memory(&self) -> Data {
+        Data
+    }
+}
+
+/// Type that specify that image is intended to be used as render target and storage image.
+#[derive(Clone, Copy, Debug)]
+pub struct RenderTargetStorage;
+
+impl Usage for RenderTargetStorage {
+    type MemoryUsage = Data;
+
+    fn flags(&self) -> gfx_hal::image::Usage {
+        gfx_hal::image::Usage::COLOR_ATTACHMENT | gfx_hal::image::Usage::STORAGE
+    }
+
+    fn memory(&self) -> Data {
+        Data
+    }
+}
+
+/// Type that specify that image is intended to be used as render target and sampled image.
+#[derive(Clone, Copy, Debug)]
+pub struct RenderTargetSampled;
+
+impl Usage for RenderTargetSampled {
+    type MemoryUsage = Data;
+
+    fn flags(&self) -> gfx_hal::image::Usage {
+        gfx_hal::image::Usage::COLOR_ATTACHMENT | gfx_hal::image::Usage::SAMPLED
+    }
+
+    fn memory(&self) -> Data {
+        Data
     }
 }

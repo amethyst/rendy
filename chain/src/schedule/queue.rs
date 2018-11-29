@@ -1,13 +1,12 @@
 use super::{
-    family::FamilyId,
     submission::{Submission, SubmissionId},
 };
 
 /// Queue id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct QueueId {
     /// Family id of the queue.
-    pub family: FamilyId,
+    pub family: gfx_hal::queue::QueueFamilyId,
 
     /// Index of the queue.
     pub index: usize,
@@ -15,7 +14,7 @@ pub struct QueueId {
 
 impl QueueId {
     /// Create queue id from family id and index.
-    pub fn new(family: FamilyId, index: usize) -> Self {
+    pub fn new(family: gfx_hal::queue::QueueFamilyId, index: usize) -> Self {
         QueueId {
             family: family,
             index,
@@ -23,7 +22,7 @@ impl QueueId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> FamilyId {
+    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
         self.family
     }
 

@@ -3,21 +3,17 @@ use super::{
     submission::{Submission, SubmissionId},
 };
 
-/// Family id value.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct FamilyId(pub u32);
-
 /// Instances of this type contains array of `Queue`s.
 /// All contained queues has identical capabilities.
 #[derive(Clone, Debug)]
 pub struct Family<S> {
-    id: FamilyId,
+    id: gfx_hal::queue::QueueFamilyId,
     queues: Vec<Queue<S>>,
 }
 
 impl<S> Family<S> {
     /// Create new empty `Family`
-    pub fn new(id: FamilyId) -> Self {
+    pub fn new(id: gfx_hal::queue::QueueFamilyId) -> Self {
         Family {
             id,
             queues: Vec::default(),
@@ -25,7 +21,7 @@ impl<S> Family<S> {
     }
 
     /// Get id of the family.
-    pub fn id(&self) -> FamilyId {
+    pub fn id(&self) -> gfx_hal::queue::QueueFamilyId {
         self.id
     }
 
@@ -58,7 +54,7 @@ impl<S> Family<S> {
     ///
     /// This function will panic if requested queue isn't part of this family.
     ///
-    pub(super) fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
+    pub fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
         assert_eq!(self.id, qid.family());
         let len = self.queues.len();
         self.queues

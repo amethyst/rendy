@@ -1,31 +1,19 @@
-// TODO: module docs
-
 pub extern crate rendy_command as command;
+pub extern crate rendy_factory as factory;
+pub extern crate rendy_frame as frame;
+pub extern crate rendy_graph as graph;
 pub extern crate rendy_memory as memory;
+pub extern crate rendy_mesh as mesh;
+pub extern crate rendy_renderer as renderer;
 pub extern crate rendy_resource as resource;
+pub extern crate rendy_shader as shader;
+pub extern crate rendy_wsi as wsi;
 
-extern crate winit;
+#[cfg(feature = "gfx-backend-dx12")]
+pub extern crate gfx_backend_dx12 as dx12;
 
-#[macro_use]
-extern crate derivative;
+#[cfg(feature = "gfx-backend-metal")]
+pub extern crate gfx_backend_metal as metal;
 
-#[cfg(feature = "hal")]
-pub extern crate gfx_hal as hal;
-
-#[cfg(feature = "ash")]
-pub extern crate ash;
-
-mod impls;
-
-mod config;
-mod device;
-mod factory;
-mod init;
-mod queue;
-mod render;
-
-pub use config::{Config, MemoryConfig, RenderBuilder, RenderConfig};
-pub use device::Device;
-pub use factory::Factory;
-pub use init::init;
-pub use queue::QueuesPicker;
+#[cfg(feature = "gfx-backend-vulkan")]
+pub extern crate gfx_backend_vulkan as vulkan;

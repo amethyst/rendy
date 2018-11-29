@@ -1,40 +1,64 @@
 use std::ops::Range;
 
-use allocator::*;
-use smallvec::SmallVec;
+use crate::{
+    allocator::*,
+    block::Block,
+    mapping::*,
+    usage::MemoryUsage,
+    util::*,
+};
 
-use block::Block;
-use device::Device;
-use error::*;
-use mapping::*;
-use memory::*;
-use usage::{Usage, UsageValue};
-use util::*;
+/// Possible errors returned by `Heaps`.
+#[allow(missing_copy_implementations)]
+#[derive(Debug, failure::Fail)]
+pub enum HeapsError {
+    /// Memory allocation failure.
+    #[fail(display = "{}", _0)]
+    AllocationError(gfx_hal::device::AllocationError),
+
+    /// No memory types among required for resource with requested properties was found.
+    #[fail(display = "Memory type among ({}) with properties ({:?}) not found", _0, _1)]
+    NoSuitableMemory(u32, gfx_hal::memory::Properties),
+}
+
+impl From<gfx_hal::device::AllocationError> for HeapsError {
+    fn from(error: gfx_hal::device::AllocationError) -> Self {
+        HeapsError::AllocationError(error)
+    }
+}
+
+impl From<gfx_hal::device::OutOfMemory> for HeapsError {
+    fn from(error: gfx_hal::device::OutOfMemory) -> Self {
+        HeapsError::AllocationError(error.into())
+    }
+}
 
 /// Config for `Heaps` allocator.
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Config {
-    /// Config for arena sub-allocator.
-    pub arena: Option<ArenaConfig>,
+pub struct HeapsConfig {
+    /// Config for linear sub-allocator.
+    pub linear: Option<LinearConfig>,
 
     /// Config for dynamic sub-allocator.
     pub dynamic: Option<DynamicConfig>,
-    // chunk: Option<ChunkConfig>,
 }
 
 /// Heaps available on particular physical device.
 #[derive(Debug)]
-pub struct Heaps<T> {
-    types: Vec<MemoryType<T>>,
+pub struct Heaps<B: gfx_hal::Backend> {
+    types: Vec<MemoryType<B>>,
     heaps: Vec<MemoryHeap>,
 }
 
-impl<T: 'static> Heaps<T> {
-    /// This must be called with `Properties` fetched from physical device.
+impl<B> Heaps<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// This must be called with `gfx_hal::memory::Properties` fetched from physical device.
     pub unsafe fn new<P, H>(types: P, heaps: H) -> Self
     where
-        P: IntoIterator<Item = (Properties, u32, Config)>,
+        P: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
     {
         let heaps = heaps
@@ -54,7 +78,7 @@ impl<T: 'static> Heaps<T> {
                         fits_usize(heap_index),
                         "Number of memory types must fit in u32 limit"
                     );
-                    let memory_type = index as u32;
+                    let memory_type = gfx_hal::MemoryTypeId(index);
                     let heap_index = heap_index as usize;
                     assert!(heap_index < heaps.len());
                     MemoryType::new(memory_type, heap_index, properties, config)
@@ -68,18 +92,14 @@ impl<T: 'static> Heaps<T> {
     /// for intended `usage`,
     /// with `size`
     /// and `align` requirements.
-    pub fn allocate<D, U>(
+    pub fn allocate(
         &mut self,
-        device: &D,
+        device: &impl gfx_hal::Device<B>,
         mask: u32,
-        usage: U,
+        usage: impl MemoryUsage,
         size: u64,
         align: u64,
-    ) -> Result<MemoryBlock<T>, MemoryError>
-    where
-        D: Device<Memory = T>,
-        U: Usage,
-    {
+    ) -> Result<MemoryBlock<B>, HeapsError> {
         debug_assert!(fits_u32(self.types.len()));
 
         let (memory_index, _, _) = {
@@ -89,23 +109,26 @@ impl<T: 'static> Heaps<T> {
                 .enumerate()
                 .filter(|(index, _)| (mask & (1u32 << index)) != 0)
                 .filter_map(|(index, mt)| {
-                    usage
-                        .memory_fitness(mt.properties)
-                        .map(move |fitness| (index, mt, fitness))
-                }).collect::<SmallVec<[_; 64]>>();
+                    if mt.properties.contains(usage.properties_required()) {
+                        let fitness = usage.memory_fitness(mt.properties);
+                        Some((index, mt, fitness))
+                    } else {
+                        None
+                    }
+                }).collect::<smallvec::SmallVec<[_; 64]>>();
 
             if suitable_types.is_empty() {
-                return Err(AllocationError::NoSuitableMemory(mask, usage.value()).into());
+                return Err(HeapsError::NoSuitableMemory(mask, usage.properties_required()));
             }
 
             suitable_types
                 .into_iter()
                 .filter(|(_, mt, _)| self.heaps[mt.heap_index].available() > size + align)
                 .max_by_key(|&(_, _, fitness)| fitness)
-                .ok_or(OutOfMemoryError::HeapsExhausted)?
+                .ok_or(gfx_hal::device::OutOfMemory::OutOfDeviceMemory)?
         };
 
-        self.allocate_from::<D, U>(device, memory_index as u32, usage, size, align)
+        self.allocate_from(device, memory_index as u32, usage, size, align)
     }
 
     /// Allocate memory block
@@ -113,25 +136,22 @@ impl<T: 'static> Heaps<T> {
     /// for intended `usage`,
     /// with `size`
     /// and `align` requirements.
-    fn allocate_from<D, U>(
+    fn allocate_from(
         &mut self,
-        device: &D,
+        device: &impl gfx_hal::Device<B>,
         memory_index: u32,
-        usage: U,
+        usage: impl MemoryUsage,
         size: u64,
         align: u64,
-    ) -> Result<MemoryBlock<T>, MemoryError>
-    where
-        D: Device<Memory = T>,
-        U: Usage,
-    {
+    ) -> Result<MemoryBlock<B>, HeapsError> {
+        // trace!("Alloc block: type '{}', usage '{:#?}', size: '{}', align: '{}'", memory_index, usage.value(), size, align);
         assert!(fits_usize(memory_index));
 
         let ref mut memory_type = self.types[memory_index as usize];
         let ref mut memory_heap = self.heaps[memory_type.heap_index];
 
         if memory_heap.available() < size {
-            return Err(OutOfMemoryError::HeapsExhausted.into());
+            return Err(gfx_hal::device::OutOfMemory::OutOfDeviceMemory.into());
         }
 
         let (block, allocated) = memory_type.alloc(device, usage, size, align)?;
@@ -146,10 +166,8 @@ impl<T: 'static> Heaps<T> {
     /// Free memory block.
     ///
     /// Memory block must be allocated from this heap.
-    pub fn free<D>(&mut self, device: &D, block: MemoryBlock<T>)
-    where
-        D: Device<Memory = T>,
-    {
+    pub fn free(&mut self, device: &impl gfx_hal::Device<B>, block: MemoryBlock<B>) {
+        // trace!("Free block '{:#?}'", block);
         let memory_index = block.memory_index;
         debug_assert!(fits_usize(memory_index));
 
@@ -162,10 +180,7 @@ impl<T: 'static> Heaps<T> {
     /// Dispose of allocator.
     /// Cleanup allocators before dropping.
     /// Will panic if memory instances are left allocated.
-    pub fn dispose<D>(self, device: &D)
-    where
-        D: Device<Memory = T>,
-    {
+    pub fn dispose(self, device: &impl gfx_hal::Device<B>) {
         for mt in self.types {
             mt.dispose(device)
         }
@@ -174,12 +189,15 @@ impl<T: 'static> Heaps<T> {
 
 /// Memory block allocated from `Heaps`.
 #[derive(Debug)]
-pub struct MemoryBlock<T> {
-    block: BlockFlavor<T>,
+pub struct MemoryBlock<B: gfx_hal::Backend> {
+    block: BlockFlavor<B>,
     memory_index: u32,
 }
 
-impl<T> MemoryBlock<T> {
+impl<B> MemoryBlock<B>
+where
+    B: gfx_hal::Backend
+{
     /// Get memory type id.
     pub fn memory_type(&self) -> u32 {
         self.memory_index
@@ -187,11 +205,11 @@ impl<T> MemoryBlock<T> {
 }
 
 #[derive(Debug)]
-enum BlockFlavor<T> {
-    Dedicated(DedicatedBlock<T>),
-    Arena(ArenaBlock<T>),
-    Dynamic(DynamicBlock<T>),
-    // Chunk(ChunkBlock<T>),
+enum BlockFlavor<B: gfx_hal::Backend> {
+    Dedicated(DedicatedBlock<B>),
+    Linear(LinearBlock<B>),
+    Dynamic(DynamicBlock<B>),
+    // Chunk(ChunkBlock<B>),
 }
 
 macro_rules! any_block {
@@ -199,7 +217,7 @@ macro_rules! any_block {
         use self::BlockFlavor::*;
         match $self.$block {
             Dedicated($block) => $expr,
-            Arena($block) => $expr,
+            Linear($block) => $expr,
             Dynamic($block) => $expr,
             // Chunk($block) => $expr,
         }
@@ -208,7 +226,7 @@ macro_rules! any_block {
         use self::BlockFlavor::*;
         match &$self.$block {
             Dedicated($block) => $expr,
-            Arena($block) => $expr,
+            Linear($block) => $expr,
             Dynamic($block) => $expr,
             // Chunk($block) => $expr,
         }
@@ -217,23 +235,24 @@ macro_rules! any_block {
         use self::BlockFlavor::*;
         match &mut $self.$block {
             Dedicated($block) => $expr,
-            Arena($block) => $expr,
+            Linear($block) => $expr,
             Dynamic($block) => $expr,
             // Chunk($block) => $expr,
         }
     }};
 }
 
-impl<T: 'static> Block for MemoryBlock<T> {
-    type Memory = T;
-
+impl<B> Block<B> for MemoryBlock<B>
+where
+    B: gfx_hal::Backend,
+{
     #[inline]
-    fn properties(&self) -> Properties {
+    fn properties(&self) -> gfx_hal::memory::Properties {
         any_block!(&self.block => block.properties())
     }
 
     #[inline]
-    fn memory(&self) -> &T {
+    fn memory(&self) -> &B::Memory {
         any_block!(&self.block => block.memory())
     }
 
@@ -242,21 +261,15 @@ impl<T: 'static> Block for MemoryBlock<T> {
         any_block!(&self.block => block.range())
     }
 
-    fn map<'a, D>(
+    fn map<'a>(
         &'a mut self,
-        device: &D,
+        device: &impl gfx_hal::Device<B>,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, T>, MappingError>
-    where
-        D: Device<Memory = T>,
-    {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         any_block!(&mut self.block => block.map(device, range))
     }
 
-    fn unmap<D>(&mut self, device: &D)
-    where
-        D: Device<Memory = T>,
-    {
+    fn unmap(&mut self, device: &impl gfx_hal::Device<B>) {
         any_block!(&mut self.block => block.unmap(device))
     }
 }
@@ -278,98 +291,93 @@ impl MemoryHeap {
 }
 
 #[derive(Debug)]
-struct MemoryType<T> {
+struct MemoryType<B: gfx_hal::Backend> {
     heap_index: usize,
-    properties: Properties,
-    dedicated: DedicatedAllocator<T>,
-    arena: Option<ArenaAllocator<T>>,
-    dynamic: Option<DynamicAllocator<T>>,
-    // chunk: Option<ChunkAllocator<T>>,
+    properties: gfx_hal::memory::Properties,
+    dedicated: DedicatedAllocator,
+    linear: Option<LinearAllocator<B>>,
+    dynamic: Option<DynamicAllocator<B>>,
+    // chunk: Option<ChunkAllocator>,
 }
 
-impl<T: 'static> MemoryType<T> {
-    fn new(memory_type: u32, heap_index: usize, properties: Properties, config: Config) -> Self {
+impl<B> MemoryType<B>
+where
+    B: gfx_hal::Backend
+{
+    fn new(
+        memory_type: gfx_hal::MemoryTypeId,
+        heap_index: usize,
+        properties: gfx_hal::memory::Properties,
+        config: HeapsConfig,
+    ) -> Self {
         MemoryType {
             properties,
             heap_index,
             dedicated: DedicatedAllocator::new(memory_type, properties),
-            arena: if properties.contains(ArenaAllocator::<T>::properties_required()) {
+            linear: if properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
                 config
-                    .arena
-                    .map(|config| ArenaAllocator::new(memory_type, properties, config))
+                    .linear
+                    .map(|config| LinearAllocator::new(memory_type, properties, config))
             } else {
                 None
             },
-            dynamic: if properties.contains(DynamicAllocator::<T>::properties_required()) {
-                config
-                    .dynamic
-                    .map(|config| DynamicAllocator::new(memory_type, properties, config))
-            } else {
-                None
-            },
-            // chunk: if properties.contains(ChunkAllocator::<T>::properties_required()) {
-            //     config.chunk.map(|config| ChunkAllocator::new(memory_type, properties, config))
-            // } else {
-            //     None
-            // },
+            dynamic: config
+                .dynamic
+                .map(|config| DynamicAllocator::new(memory_type, properties, config)),
         }
     }
 
-    fn alloc<D, U>(
+    fn alloc(
         &mut self,
-        device: &D,
-        usage: U,
+        device: &impl gfx_hal::Device<B>,
+        usage: impl MemoryUsage,
         size: u64,
         align: u64,
-    ) -> Result<(BlockFlavor<T>, u64), MemoryError>
-    where
-        D: Device<Memory = T>,
-        U: Usage,
-    {
-        match (usage.value(), self.arena.as_mut(), self.dynamic.as_mut()) {
-            (UsageValue::Upload, Some(ref mut arena), _)
-            | (UsageValue::Download, Some(ref mut arena), _)
-                if size <= arena.max_allocation() =>
-            {
-                arena
-                    .alloc(device, size, align)
-                    .map(|(block, allocated)| (BlockFlavor::Arena(block), allocated))
+    ) -> Result<(BlockFlavor<B>, u64), gfx_hal::device::AllocationError> {
+        match (self.dynamic.as_mut(), self.linear.as_mut()) {
+            (Some(dynamic), Some(linear)) => {
+                if usage.allocator_fitness(Kind::Dynamic) > usage.allocator_fitness(Kind::Linear) {
+                    dynamic.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dynamic(block), size))
+                } else if usage.allocator_fitness(Kind::Linear) > 0 {
+                    linear.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Linear(block), size))
+                } else {
+                    self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+                }
+            },
+            (Some(dynamic), None) => {
+                if usage.allocator_fitness(Kind::Dynamic) > 0 {
+                    dynamic.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dynamic(block), size))
+                } else {
+                    self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+                }
+            },
+            (None, Some(linear)) => {
+                if usage.allocator_fitness(Kind::Dynamic) > 0 {
+                    linear.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Linear(block), size))
+                } else {
+                    self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+                }
+            },
+            (None, None) => {
+                self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
             }
-            (UsageValue::Dynamic, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
-                dynamic
-                    .alloc(device, size, align)
-                    .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
-            }
-            (UsageValue::Data, _, Some(ref mut dynamic)) if size <= dynamic.max_allocation() => {
-                dynamic
-                    .alloc(device, size, align)
-                    .map(|(block, allocated)| (BlockFlavor::Dynamic(block), allocated))
-            }
-            _ => self
-                .dedicated
-                .alloc(device, size, align)
-                .map(|(block, allocated)| (BlockFlavor::Dedicated(block), allocated)),
         }
     }
 
-    fn free<D>(&mut self, device: &D, block: BlockFlavor<T>) -> u64
-    where
-        D: Device<Memory = T>,
-    {
+    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: BlockFlavor<B>) -> u64 {
         match block {
             BlockFlavor::Dedicated(block) => self.dedicated.free(device, block),
-            BlockFlavor::Arena(block) => self.arena.as_mut().unwrap().free(device, block),
+            BlockFlavor::Linear(block) => self.linear.as_mut().unwrap().free(device, block),
             BlockFlavor::Dynamic(block) => self.dynamic.as_mut().unwrap().free(device, block),
-            // BlockFlavor::Chunk(block) => self.chunk.free(device, block),
         }
     }
 
-    fn dispose<D>(self, device: &D)
-    where
-        D: Device<Memory = T>,
-    {
-        if let Some(arena) = self.arena {
-            arena.dispose(device);
+    fn dispose(self, device: &impl gfx_hal::Device<B>) {
+        if let Some(linear) = self.linear {
+            linear.dispose(device);
+        }
+        if let Some(dynamic) = self.dynamic {
+            dynamic.dispose();
         }
     }
 }

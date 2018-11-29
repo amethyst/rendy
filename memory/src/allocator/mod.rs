@@ -1,58 +1,50 @@
 //! This module provides `Allocator` trait and few allocators that implements the trait.
 
-use std::{any::Any, fmt};
-
-mod arena;
+mod linear;
 mod dedicated;
 mod dynamic;
-// mod chunk;
 
-use block::Block;
-use device::Device;
-use error::MemoryError;
-use memory::Memory;
+use crate::block::Block;
 
 pub use self::{
-    arena::{ArenaAllocator, ArenaBlock, ArenaConfig},
+    linear::{LinearAllocator, LinearBlock, LinearConfig},
     dedicated::{DedicatedAllocator, DedicatedBlock},
     dynamic::{DynamicAllocator, DynamicBlock, DynamicConfig},
 };
 
-/// Allocator trait implemented for various allocators.
-pub trait Allocator {
-    /// Memory type.
-    type Memory: Any;
+/// Allocator kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Kind {
+    /// Memory object per allocation.
+    Dedicated,
 
+    /// General purpose allocator.
+    Dynamic,
+
+    /// Allocates linearly.
+    /// Fast and low overhead.
+    /// Suitable for one-time-use allocations.
+    Linear,
+}
+
+/// Allocator trait implemented for various allocators.
+pub trait Allocator<B: gfx_hal::Backend> {
     /// Block type returned by allocator.
-    type Block: Block<Memory = Self::Memory>;
+    type Block: Block<B>;
+
+    /// Get allocator kind.
+    fn kind() -> Kind;
 
     /// Allocate block of memory.
     /// On success returns allocated block and amount of memory consumed from device.
-    fn alloc<D>(
+    fn alloc(
         &mut self,
-        device: &D,
+        device: &impl gfx_hal::Device<B>,
         size: u64,
         align: u64,
-    ) -> Result<(Self::Block, u64), MemoryError>
-    where
-        D: Device<Memory = Self::Memory>;
+    ) -> Result<(Self::Block, u64), gfx_hal::device::AllocationError>;
 
     /// Free block of memory.
     /// Returns amount of memory returned to the device.
-    fn free<D>(&mut self, device: &D, block: Self::Block) -> u64
-    where
-        D: Device<Memory = Self::Memory>;
-}
-
-fn memory_ptr_fmt<T: fmt::Debug>(
-    memory: &*const Memory<T>,
-    fmt: &mut fmt::Formatter<'_>,
-) -> Result<(), fmt::Error> {
-    unsafe {
-        if fmt.alternate() {
-            write!(fmt, "*const {:#?}", **memory)
-        } else {
-            write!(fmt, "*const {:?}", **memory)
-        }
-    }
+    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: Self::Block) -> u64;
 }

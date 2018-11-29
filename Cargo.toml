@@ -1,12 +1,16 @@
 [workspace]
 
 members = [
-    "chain",
-    "memory",
-    "resource",
     "command",
-    "layout",
-    "layout-derive",
+    "factory",
+    "frame",
+    "memory",
+    "mesh",
+    "renderer",
+    "rendy",
+    "resource",
+    "shader",
+    "wsi",
+    "chain",
     "graph",
-    "rendy"
 ]

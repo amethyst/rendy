@@ -1,71 +1,137 @@
-//! Pool module docs.
+//! CommandPool module docs.
 
-use std::fmt::Debug;
-
-use relevant::Relevant;
-
-use buffer::*;
-use capability::*;
-use device::{CommandBuffer, Device};
-use family::FamilyId;
-use frame::{CompleteFrame, Frame, FrameBound, FrameIndex};
+use crate::{buffer::*, capability::*};
 
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
-/// Wraps raw buffers into `Buffer`.
-#[derive(Debug)]
-pub struct Pool<P, C, R = ()> {
-    inner: P,
+/// Wraps raw buffers into `CommandCommand buffer`.
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
+pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndividualReset> {
+    #[derivative(Debug = "ignore")]raw: B::CommandPool,
     capability: C,
     reset: R,
-    family: FamilyId,
-    relevant: Relevant,
+    family: gfx_hal::queue::QueueFamilyId,
+    relevant: relevant::Relevant,
 }
 
-impl<P, C, R> Pool<P, C, R> {
-    /// Allocate new buffer.
-    fn allocate_buffers<D, L>(
+impl<B, C, R> CommandPool<B, C, R>
+where
+    B: gfx_hal::Backend,
+    R: Reset,
+{
+    /// Wrap raw command pool.
+    ///
+    /// # Safety
+    ///
+    /// * `raw` must be valid command pool handle.
+    /// * The command pool must be created for specified `family` index.
+    /// * `capability` must be subset of capabilites of the `family` the pool was created for.
+    /// * if `reset` is `IndividualReset` the pool must be created with individual command buffer reset flag set.
+    pub unsafe fn from_raw(
+        raw: B::CommandPool,
+        capability: C,
+        reset: R,
+        family: gfx_hal::queue::QueueFamilyId,
+    ) -> Self {
+        CommandPool {
+            raw,
+            capability,
+            reset,
+            family,
+            relevant: relevant::Relevant,
+        }
+    }
+
+    /// Allocate new command buffers.
+    pub fn allocate_buffers<L: Level>(
         &mut self,
-        device: &D,
         level: L,
         count: usize,
-    ) -> Vec<Buffer<D::CommandBuffer, C, InitialState, L, R>>
+    ) -> Vec<CommandBuffer<B, C, InitialState, L, R>>
     where
-        P: Debug,
-        D: Device<CommandPool = P>,
+        L: Level,
+        C: Capability,
     {
-        unimplemented!()
+        let buffers = gfx_hal::pool::RawCommandPool::allocate(
+            &mut self.raw,
+            count,
+            level.level(),
+        );
+
+        buffers
+            .into_iter()
+            .map(|raw| unsafe {
+                CommandBuffer::from_raw(
+                    raw,
+                    self.capability,
+                    InitialState,
+                    level,
+                    self.reset,
+                    self.family,
+                )
+            }).collect()
     }
 
     /// Free buffers.
     /// Buffers must be in droppable state.
-    fn free_buffers<D, L, S>(
+    /// TODO: Validate buffers were allocated from this pool.
+    pub unsafe fn free_buffers(
         &mut self,
-        device: &D,
-        buffers: Vec<Buffer<D::CommandBuffer, C, S, L, R>>,
-    ) where
-        P: Debug,
-        D: Device<CommandPool = P>,
-        S: Droppable,
-    {
-        unimplemented!()
+        buffers: impl IntoIterator<Item = CommandBuffer<B, C, impl Resettable, impl Level, R>>,
+    ) {
+        let buffers = buffers
+            .into_iter()
+            .map(|buffer| unsafe { buffer.into_raw() })
+            .collect::<Vec<_>>();
+
+        unsafe {
+            gfx_hal::pool::RawCommandPool::free(&mut self.raw, buffers);
+        }
     }
 
     /// Reset all buffers of this pool.
+    ///
+    /// # Safety
+    ///
+    /// All buffers allocated from this pool must be marked reset.
+    /// See [`CommandBuffer::mark_reset`](struct.Command buffer.html#method.mark_reset)
     pub unsafe fn reset(&mut self) {
-        unimplemented!()
+        gfx_hal::pool::RawCommandPool::reset(&mut self.raw);
     }
-}
 
-impl<P, R> Pool<P, CapabilityFlags, R> {
+    /// Dispose of command pool.
+    ///
+    /// # Safety
+    ///
+    /// * All buffers allocated from this pool must be [freed](#method.free_buffers).
+    pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) {
+        device.destroy_command_pool(self.raw);
+        self.relevant.dispose();
+    }
+
     /// Convert capability level
-    pub fn cast_capability<C>(self) -> Result<Pool<P, C, R>, Self>
+    pub fn with_queue_type(self) -> CommandPool<B, gfx_hal::QueueType, R>
     where
         C: Capability,
     {
-        if let Some(capability) = C::from_flags(self.capability) {
-            Ok(Pool {
-                inner: self.inner,
+        CommandPool {
+            raw: self.raw,
+            capability: self.capability.into_queue_type(),
+            reset: self.reset,
+            family: self.family,
+            relevant: self.relevant,
+        }
+    }
+
+    /// Convert capability level
+    pub fn with_capability<U>(self) -> Result<CommandPool<B, U, R>, Self>
+    where
+        C: Supports<U>,
+    {
+        if let Some(capability) = self.capability.supports() {
+            Ok(CommandPool {
+                raw: self.raw,
                 capability,
                 reset: self.reset,
                 family: self.family,
@@ -74,161 +140,5 @@ impl<P, R> Pool<P, CapabilityFlags, R> {
         } else {
             Err(self)
         }
-    }
-}
-
-/// Command pool that owns allocated buffers.
-/// It can be used to borrow buffers one by one.
-/// All buffers will be reset together via pool.
-/// Prior reset user must ensure all buffers are complete.
-#[derive(Debug)]
-pub struct OwningPool<P, B, C, R = ()> {
-    inner: Pool<P, C, R>,
-    buffers: Vec<B>,
-    next: usize,
-}
-
-impl<P, B, C, R> OwningPool<P, B, C, R> {
-    /// Reserve at least `count` buffers.
-    /// Allocate if there are not enough unused buffers.
-    pub fn reserve(&mut self, count: usize) {
-        unimplemented!()
-    }
-
-    /// Acquire command buffer from pool.
-    /// The command buffer could be submitted only as part of submission for associated frame.
-    /// TODO: Check that buffer cannot be moved out.
-    pub fn acquire_buffer<D, L>(
-        &mut self,
-        device: &D,
-        level: L,
-    ) -> Buffer<&mut B, C, InitialState, L>
-    where
-        B: CommandBuffer + Debug + 'static,
-        D: Device<CommandBuffer = B, Submit = B::Submit>,
-    {
-        unimplemented!()
-    }
-
-    /// Reset all buffers at once.
-    ///
-    /// # Safety
-    ///
-    /// All buffers from this pool must be in resettable state.
-    /// Any primary buffer that references secondary buffer from this pool will be invalidated.
-    pub unsafe fn reset(&mut self) {
-        unimplemented!()
-    }
-}
-
-impl<P, B, R> OwningPool<P, B, CapabilityFlags, R> {
-    /// Convert capability level
-    pub fn cast_capability<C>(self) -> Result<OwningPool<P, B, C, R>, Self>
-    where
-        C: Capability,
-    {
-        match self.inner.cast_capability::<C>() {
-            Ok(inner) => Ok(OwningPool {
-                inner,
-                buffers: self.buffers,
-                next: self.next,
-            }),
-            Err(inner) => Err(OwningPool {
-                inner,
-                buffers: self.buffers,
-                next: self.next,
-            }),
-        }
-    }
-}
-
-/// `OwningPool` that can be bound to frame execution.
-/// All command buffers acquired from bound `FramePool` are guarantee
-/// to complete when frame's fence is set, and buffers can be reset.
-#[derive(Debug)]
-pub struct FramePool<P, B, C> {
-    inner: OwningPool<P, B, C>,
-    frame: Option<FrameIndex>,
-}
-
-impl<P, B, C> FramePool<P, B, C> {
-    /// Bind pool to particular frame.
-    ///
-    /// Command pools acquired from the bound pool could be submitted only within frame borrowing lifetime.
-    /// This ensures that frame's fences will be signaled after all commands from all command buffers from this pool
-    /// are complete.
-    ///
-    /// `reset` method must be called with `CompleteFrame` created from the bound `Frame` before binding to the another `Frame`.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if pool is still bound to frame.
-    ///
-    pub fn bind<'a, 'b, F>(&'a mut self, frame: &'b Frame<F>) -> FrameBound<'b, F, &'a mut Self> {
-        assert!(
-            self.frame.is_none(),
-            "`FramePool::reset` must be called before binding to another frame"
-        );
-
-        self.frame = Some(frame.index());
-
-        FrameBound::bind(self, frame)
-    }
-
-    /// Reset all buffers at once.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if pool wasn't bound to the specified frame.
-    ///
-    pub fn reset<F>(&mut self, complete: &CompleteFrame<F>) {
-        assert_eq!(
-            self.frame.take(),
-            Some(complete.index()),
-            "Pool must be bound to the specified frame"
-        );
-        unimplemented!()
-    }
-}
-
-impl<P, B> FramePool<P, B, CapabilityFlags> {
-    /// Convert capability level
-    pub fn cast_capability<C>(self) -> Result<FramePool<P, B, C>, Self>
-    where
-        C: Capability,
-    {
-        match self.inner.cast_capability::<C>() {
-            Ok(inner) => Ok(FramePool {
-                inner,
-                frame: self.frame,
-            }),
-            Err(inner) => Err(FramePool {
-                inner,
-                frame: self.frame,
-            }),
-        }
-    }
-}
-
-impl<'a, 'b, P: 'b, B: 'b, C: 'b, F: 'a> FrameBound<'a, F, &'b mut FramePool<P, B, C>> {
-    /// Reserve at least `count` buffers.
-    /// Allocate if there are not enough unused buffers.
-    pub fn reserve(&mut self, count: usize) {
-        unimplemented!()
-    }
-
-    /// Acquire command buffer from pool.
-    /// The command buffer could be submitted only as part of submission for associated frame.
-    /// TODO: Check that buffer cannot be moved out.
-    pub fn acquire_buffer<D, L>(
-        &mut self,
-        device: &D,
-        level: L,
-    ) -> Buffer<FrameBound<'b, &mut B, F>, C, InitialState, L>
-    where
-        B: CommandBuffer + Debug + 'static,
-        D: Device<CommandBuffer = B, Submit = B::Submit>,
-    {
-        unimplemented!()
     }
 }

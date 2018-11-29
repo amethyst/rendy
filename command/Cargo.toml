@@ -4,16 +4,9 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-bitflags = "1.0"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+derivative = "1.0"
 failure = "0.1"
 relevant = "0.2"
-rendy-memory = { path = "../memory" }
+smallvec = "0.6"
 rendy-resource = { path = "../resource" }
-rendy-chain = { path = "../chain" }
-gfx-hal = { git = "https://github.com/gfx-rs/gfx.git", optional = true }
-ash = { version = "0.24", optional = true }
-share = "0.1"
-
-[features]
-hal = ["gfx-hal", "rendy-memory/hal", "rendy-resource/hal"]
-vulkan = ["ash", "rendy-memory/vulkan", "rendy-resource/vulkan"]

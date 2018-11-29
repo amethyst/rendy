@@ -10,58 +10,119 @@ use std::{
     ptr::read,
 };
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+#[derive(Debug)]
+struct Inner<T> {
+    value: ManuallyDrop<std::cell::UnsafeCell<T>>,
+    sender: crossbeam_channel::Sender<T>,
+}
+
+unsafe impl<T: Send> Send for Inner<T> {}
+unsafe impl<T: Send + Sync> Sync for Inner<T> {}
+
+impl<T> Inner<T> {
+    /// Unwrap the value.
+
+    fn into_inner(self) -> T {
+        self.deconstruct().0
+    }
+
+    fn deconstruct(mut self) -> (T, crossbeam_channel::Sender<T>) {
+        unsafe {
+            let value = read(&mut *self.value);
+            let sender = read(&mut self.sender);
+            forget(self);
+            (value.into_inner(), sender)
+        }
+    }
+}
+
+impl<T> Drop for Inner<T> {
+    fn drop(&mut self) {
+        let value = unsafe {
+            // `self.value` cannot be accessed after this function.
+            // `ManuallyDrop` will prevent `self.value` from dropping.
+            read(&mut *self.value)
+        };
+        self.sender.send(value.into_inner())
+    }
+}
+
+/// Values of `KeepAlive` keeps resources from destroying.
+/// 
+/// # Example
+/// 
+/// ```no_run
+/// # extern crate rendy_resource;
+/// # use rendy_resource::*;
+/// 
+/// fn foo(buffer: Buffer<B>) {
+///     let kp: KeepAlive = buffer.keep_alive();
+/// 
+///     // `kp` keeps this buffer from being destroyed.
+///     // It still can be referenced by command buffer on used by GPU.
+///     drop(buffer);
+/// 
+///     // If there is no `KeepAlive` instances created from this buffer
+///     // then it can be destrouyed after this line.
+///     drop(kp);
+/// }
+/// ```
+#[derive(Clone, derivative::Derivative)]
+#[derivative(Debug)]
+pub struct KeepAlive(#[derivative(Debug = "ignore")] std::sync::Arc<dyn std::any::Any + Send + Sync>);
 
 /// Wraps value of any type and send it to the `Terminal` from which the wrapper was created.
 /// In case `Terminal` is already dropped then value will be cast into oblivion via `std::mem::forget`.
-#[derive(Debug, Clone)]
-pub(crate) struct Escape<T> {
-    value: ManuallyDrop<T>,
-    sender: Sender<T>,
+#[derive(Debug)]
+pub struct Escape<T> {
+    inner: std::sync::Arc<Inner<T>>,
 }
 
 impl<T> Escape<T> {
-    /// Unwrap the value.
-    pub(crate) fn into_inner(escape: Self) -> T {
-        Self::deconstruct(escape).0
+    pub fn keep_alive(escape: &Self) -> KeepAlive
+    where
+        T: Send + Sync + 'static,
+    {
+        KeepAlive(escape.inner.clone() as _)
     }
 
-    fn deconstruct(mut escape: Self) -> (T, Sender<T>) {
-        unsafe {
-            let value = read(&mut *escape.value);
-            let sender = read(&mut escape.sender);
-            forget(escape);
-            (value, sender)
-        }
+    /// Try to avoid channel sending if resource is not references elsewhere.
+    pub fn dispose(escape: Self) -> Option<T> {
+        std::sync::Arc::try_unwrap(escape.inner)
+            .ok()
+            .map(Inner::into_inner)
     }
 }
 
 impl<T> Deref for Escape<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        &*self.value
+        unsafe {
+            // Only `Escape` has access to `T`.
+            // `KeepAlive` doesn't access `T`.
+            // `Inner` only access `T` when dropped.
+            &*self.inner.value.get()
+        }
     }
 }
 
 impl<T> DerefMut for Escape<T> {
     fn deref_mut(&mut self) -> &mut T {
-        &mut *self.value
-    }
-}
-
-impl<T> Drop for Escape<T> {
-    fn drop(&mut self) {
-        let value = unsafe { read(&mut *self.value) };
-        self.sender.send(value)
+        unsafe {
+            // Only `Escape` has access to `T`.
+            // `KeepAlive` doesn't access `T`.
+            // `Inner` only access `T` when dropped.
+            &mut *self.inner.value.get()
+        }
     }
 }
 
 /// This types allows the user to create `Escape` wrappers.
 /// Receives values from dropped `Escape` instances that was created by this `Terminal`.
 #[derive(Debug)]
-pub(crate) struct Terminal<T> {
-    receiver: Receiver<T>,
-    sender: ManuallyDrop<Sender<T>>,
+pub struct Terminal<T: 'static> {
+    receiver: crossbeam_channel::Receiver<T>,
+    sender: ManuallyDrop<crossbeam_channel::Sender<T>>,
 }
 
 impl<T> Default for Terminal<T> {
@@ -72,8 +133,8 @@ impl<T> Default for Terminal<T> {
 
 impl<T> Terminal<T> {
     /// Create new `Terminal`.
-    pub(crate) fn new() -> Self {
-        let (sender, receiver) = unbounded();
+    pub fn new() -> Self {
+        let (sender, receiver) = crossbeam_channel::unbounded();
         Terminal {
             sender: ManuallyDrop::new(sender),
             receiver,
@@ -81,21 +142,32 @@ impl<T> Terminal<T> {
     }
 
     /// Wrap the value. It will be yielded by iterator returned by `Terminal::drain` if `Escape` will be dropped.
-    pub(crate) fn escape(&self, value: T) -> Escape<T> {
+    pub fn escape(&self, value: T) -> Escape<T> {
+        let inner = std::sync::Arc::new(Inner {
+            value: ManuallyDrop::new(value.into()),
+            sender: crossbeam_channel::Sender::clone(&self.sender),
+        });
+
         Escape {
-            value: ManuallyDrop::new(value),
-            sender: Sender::clone(&self.sender),
+            inner,
         }
     }
 
     // /// Check if `Escape` will send value to this `Terminal`.
-    // pub(crate) fn owns(&self, escape: &Escape<T>) -> bool {
+    // pub fn owns(&self, escape: &Escape<T>) -> bool {
     //     *self.sender == escape.sender
     // }
 
     /// Get iterator over values from dropped `Escape` instances that was created by this `Terminal`.
-    pub(crate) fn drain<'a>(&'a mut self) -> impl Iterator<Item = T> + 'a {
-        repeat(()).scan((), move |&mut (), ()| self.receiver.try_recv())
+    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = T> + 'a {
+        repeat(()).scan((), move |&mut (), ()| {
+            // trace!("Drain escape");
+            if !self.receiver.is_empty() {
+                self.receiver.recv()
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -105,8 +177,8 @@ impl<T> Drop for Terminal<T> {
             ManuallyDrop::drop(&mut self.sender);
             match self.receiver.recv() {
                 None => {}
-                _ => {
-                    panic!("Terminal must be dropped after all `Escape`s");
+                Some(_) => {
+                    error!("Terminal must be dropped after all `Escape`s");
                 }
             }
         }

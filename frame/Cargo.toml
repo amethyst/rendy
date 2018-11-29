@@ -1,0 +1,16 @@
+[package]
+name = "rendy-frame"
+version = "0.1.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+
+[dependencies]
+either = "1.5"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+failure = "0.1"
+log = "0.4"
+relevant = "0.2"
+smallvec = "0.6"
+rendy-command = { path = "../command" }
+rendy-factory = { path = "../factory" }
+rendy-memory = { path = "../memory" }
+rendy-resource = { path = "../resource" }

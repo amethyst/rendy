@@ -1,21 +1,25 @@
-use access::AccessFlags;
-use node::State;
-use resource::Resource;
-use schedule::{FamilyId, QueueId, SubmissionId};
-use stage::PipelineStageFlags;
+
+use crate::{
+    node::State,
+    resource::{AccessFlags, Resource},
+    schedule::{QueueId, SubmissionId},
+};
 
 /// State of the link associated with queue.
 /// Contains submissions range, combined access and stages bits by submissions from the range.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct LinkQueueState {
-    pub(crate) first: usize,
-    pub(crate) last: usize,
-    pub(crate) access: AccessFlags,
-    pub(crate) stages: PipelineStageFlags,
+pub struct LinkQueueState<R: Resource> {
+    pub first: usize,
+    pub last: usize,
+    pub access: R::Access,
+    pub stages: gfx_hal::pso::PipelineStage,
 }
 
-impl LinkQueueState {
-    fn new<R: Resource>(node: &LinkNode<R>) -> Self {
+impl<R> LinkQueueState<R>
+where
+    R: Resource,
+{
+    fn new(node: &LinkNode<R>) -> Self {
         LinkQueueState {
             first: node.sid.index(),
             last: node.sid.index(),
@@ -24,7 +28,7 @@ impl LinkQueueState {
         }
     }
 
-    fn push<R: Resource>(&mut self, node: &LinkNode<R>) {
+    fn push(&mut self, node: &LinkNode<R>) {
         assert!(self.last < node.sid.index());
         self.access |= node.state.access;
         self.stages |= node.state.stages;
@@ -37,9 +41,9 @@ impl LinkQueueState {
 /// Those commands doesn't required to perform actions with all access types declared by the link.
 /// But performing actions with access types not declared by the link is prohibited.
 #[derive(Clone, Debug)]
-pub(crate) struct Link<R: Resource> {
+pub struct Link<R: Resource> {
     /// Combination of all accesses.
-    access: AccessFlags,
+    access: R::Access,
 
     /// Combination of all usages.
     usage: R::Usage,
@@ -48,26 +52,26 @@ pub(crate) struct Link<R: Resource> {
     layout: R::Layout,
 
     /// Combination of all stages.
-    stages: PipelineStageFlags,
+    stages: gfx_hal::pso::PipelineStage,
 
     /// Number of queues involved.
     queue_count: usize,
 
     /// State per queue.
-    queues: Vec<Option<LinkQueueState>>,
+    queues: Vec<Option<LinkQueueState<R>>>,
 
     /// Family of queues.
-    family: FamilyId,
+    family: gfx_hal::queue::QueueFamilyId,
 }
 
 /// Node for the link.
 #[derive(Debug)]
-pub(crate) struct LinkNode<R: Resource> {
+pub struct LinkNode<R: Resource> {
     /// Submission id of the node.
-    pub(crate) sid: SubmissionId,
+    pub sid: SubmissionId,
 
     /// Resource state of the node.
-    pub(crate) state: State<R>,
+    pub state: State<R>,
 }
 
 impl<R> Link<R>
@@ -80,7 +84,7 @@ where
     ///
     /// `access`    - Access flags performed in submission.
     /// `usage`     - Usage flags required by submission.
-    pub(crate) fn new(node: LinkNode<R>) -> Self {
+    pub fn new(node: LinkNode<R>) -> Self {
         let mut link = Link {
             access: node.state.access,
             usage: node.state.usage,
@@ -107,12 +111,24 @@ where
 
     /// Get queue family that owns the resource at the link.
     /// All associated submissions must be from the same queue family.
-    pub(crate) fn family(&self) -> FamilyId {
+    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
         self.family
     }
 
     /// Get usage.
-    pub(crate) fn state(&self) -> State<R> {
+    pub fn submission_state(&self, sid: SubmissionId) -> State<R> {
+        assert_eq!(sid.family(), self.family);
+        let lqs = self.queues[sid.queue().index()].as_ref().unwrap();
+        State {
+            access: lqs.access,
+            layout: self.layout,
+            stages: lqs.stages,
+            usage: self.usage,
+        }
+    }
+
+    /// Get usage.
+    pub fn state(&self) -> State<R> {
         State {
             access: self.access,
             layout: self.layout,
@@ -122,35 +138,35 @@ where
     }
 
     /// Get access.
-    pub(crate) fn access(&self) -> AccessFlags {
+    pub fn access(&self) -> R::Access {
         self.access
     }
 
     /// Get layout.
-    pub(crate) fn layout(&self) -> R::Layout {
+    pub fn layout(&self) -> R::Layout {
         self.layout
     }
 
     /// Get usage.
-    pub(crate) fn usage(&self) -> R::Usage {
+    pub fn usage(&self) -> R::Usage {
         self.usage
     }
 
     // /// Get usage.
-    // pub(crate) fn stages(&self) -> PipelineStageFlags {
+    // pub fn stages(&self) -> gfx_hal::pso::PipelineStage {
     //     self.stages
     // }
 
     /// Check if the link is associated with only one queue.
-    pub(crate) fn single_queue(&self) -> bool {
+    pub fn single_queue(&self) -> bool {
         self.queue_count == 1
     }
 
     /// Check if the given state and submission are compatible with link.
     /// If compatible then the submission can be associated with the link.
-    pub(crate) fn compatible(&self, node: &LinkNode<R>) -> bool {
+    pub fn compatible(&self, node: &LinkNode<R>) -> bool {
         // If queue the same and states are compatible.
-        self.family == node.sid.family() && !(self.access | node.state.access).is_write()
+        self.family == node.sid.family() && !(self.access | node.state.access).exclusive()
     }
 
     /// Insert submission with specified state to the link.
@@ -164,7 +180,7 @@ where
     /// This function will panic if `state` and `sid` are not compatible.
     /// E.g. `Link::compatible` didn't return `true` for the arguments.
     ///
-    pub(crate) fn add_node(&mut self, node: LinkNode<R>) {
+    pub fn add_node(&mut self, node: LinkNode<R>) {
         assert_eq!(self.family, node.sid.family());
         self.ensure_queue(node.sid.queue().index());
 
@@ -184,12 +200,12 @@ where
     }
 
     // /// Check if ownership transfer is required between those links.
-    // pub(crate) fn transfer_required(&self, next: &Self) -> bool {
+    // pub fn transfer_required(&self, next: &Self) -> bool {
     //     self.family != next.family
     // }
 
     /// Iterate over queues.
-    pub(crate) fn queues(&self) -> impl Iterator<Item = (QueueId, &LinkQueueState)> {
+    pub fn queues(&self) -> impl Iterator<Item = (QueueId, &LinkQueueState<R>)> {
         let family = self.family;
         self.queues
             .iter()
@@ -202,7 +218,7 @@ where
     }
 
     /// Get particular queue
-    pub(crate) fn queue(&self, qid: QueueId) -> &LinkQueueState {
+    pub fn queue(&self, qid: QueueId) -> &LinkQueueState<R> {
         assert_eq!(qid.family(), self.family);
         self.queues[qid.index()].as_ref().unwrap()
     }

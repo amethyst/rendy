@@ -4,12 +4,21 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
+either = "1.5"
 bitflags = "1.0"
 derivative = "1.0"
 failure = "0.1"
-serde = { version = "1.0", optional = true, features = ["derive"] }
-smallvec = "0.6"
-rendy-memory = { path = "../memory" }
-rendy-resource = { path = "../resource" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+log = "0.4"
+relevant = "0.2"
 rendy-chain = { path = "../chain" }
 rendy-command = { path = "../command" }
+rendy-factory = { path = "../factory" }
+rendy-frame = { path = "../frame" }
+rendy-memory = { path = "../memory" }
+rendy-renderer = { path = "../renderer" }
+rendy-resource = { path = "../resource" }
+rendy-wsi = { path = "../wsi" }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+smallvec = "0.6"
+winit = "0.17"

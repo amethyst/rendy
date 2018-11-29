@@ -1,10 +1,9 @@
-use fnv::FnvHashMap;
 
-use super::{family::FamilyId, queue::QueueId};
-use Id;
+use super::queue::QueueId;
+use crate::Id;
 
 /// Submission id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SubmissionId {
     /// Queue id of the submission.
     pub queue: QueueId,
@@ -20,7 +19,7 @@ impl SubmissionId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> FamilyId {
+    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
         self.queue.family()
     }
 
@@ -40,7 +39,7 @@ impl SubmissionId {
 pub struct Submission<S> {
     node: usize,
     id: SubmissionId,
-    resource_links: FnvHashMap<Id, usize>,
+    resource_links: fnv::FnvHashMap<Id, usize>,
     wait_factor: usize,
     submit_order: usize,
     sync: S,
@@ -52,7 +51,7 @@ impl<S> Submission<S> {
         self.node
     }
 
-    /// Get synchronization for `Submission`.
+    /// Get id of the `Submission`.
     pub fn id(&self) -> SubmissionId {
         self.id
     }
@@ -78,10 +77,16 @@ impl<S> Submission<S> {
     }
 
     /// Create new submission with specified pass.
-    pub(crate) fn new(node: usize, wait_factor: usize, submit_order: usize, id: SubmissionId, sync: S) -> Self {
+    pub(crate) fn new(
+        node: usize,
+        wait_factor: usize,
+        submit_order: usize,
+        id: SubmissionId,
+        sync: S,
+    ) -> Self {
         Submission {
             node,
-            resource_links: FnvHashMap::default(),
+            resource_links: fnv::FnvHashMap::default(),
             id,
             wait_factor,
             submit_order,
@@ -90,7 +95,7 @@ impl<S> Submission<S> {
     }
 
     /// Set synchronization to the `Submission`.
-    pub(crate) fn set_sync<T>(&self, sync: T) -> Submission<T> {
+    pub fn set_sync<T>(&self, sync: T) -> Submission<T> {
         Submission {
             node: self.node,
             resource_links: self.resource_links.clone(),
@@ -101,7 +106,8 @@ impl<S> Submission<S> {
         }
     }
 
-    pub(crate) fn set_link(&mut self, id: Id, link: usize) {
+    /// Set link index for given chain.
+    pub fn set_link(&mut self, id: Id, link: usize) {
         self.resource_links.insert(id, link);
     }
 }
