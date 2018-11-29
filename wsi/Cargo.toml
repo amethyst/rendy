@@ -18,7 +18,7 @@ gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 log = "0.4"
 relevant = "0.2"
 smallvec = "0.6"
-winit = "0.17"
+winit = "0.18"
 
 rendy-resource = { path = "../resource" }
 

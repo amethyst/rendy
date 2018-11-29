@@ -30,5 +30,5 @@ env_logger = "0.5"
 failure = "0.1"
 lazy_static = "1.0"
 log = "0.4"
-winit = "0.17"
+winit = "0.18"
 

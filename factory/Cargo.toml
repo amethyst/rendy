@@ -19,7 +19,7 @@ log = "0.4"
 relevant = "0.2"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
-winit = "0.17"
+winit = "0.18"
 
 rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }

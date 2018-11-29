@@ -21,4 +21,4 @@ rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
-winit = "0.17"
+winit = "0.18"
