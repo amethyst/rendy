@@ -2,12 +2,10 @@
 
 #[cfg(feature = "metal")]
 mod gfx_backend_metal {
-
-pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
-    let nsview = winit::os::macos::WindowExt::get_nsview(window);
-    instance.create_surface_from_nsview(nsview)
-}
-
+    pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
+        let nsview = winit::os::macos::WindowExt::get_nsview(window);
+        instance.create_surface_from_nsview(nsview)
+    }
 }
 
 #[cfg(feature = "vulkan")]
@@ -58,34 +56,52 @@ fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn std::any::Any>, window
 }
 
 /// Rendering target bound to window.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
-pub struct Target<B: gfx_hal::Backend> {
-    #[derivative(Debug = "ignore")] window: winit::Window,
-    #[derivative(Debug = "ignore")] surface: B::Surface,
-    #[derivative(Debug = "ignore")] swapchain: B::Swapchain,
-    images: Vec<B::Image>,
-    format: gfx_hal::format::Format,
-    extent: gfx_hal::window::Extent2D,
-    usage: gfx_hal::image::Usage,
-    relevant: relevant::Relevant,
+pub struct Surface<B: gfx_hal::Backend> {
+    window: winit::Window,
+    raw: B::Surface,
 }
 
-impl<B> Target<B>
+impl<B> std::fmt::Debug for Surface<B>
 where
     B: gfx_hal::Backend,
 {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("Target")
+            .field("window", &self.window.id())
+            .finish()
+    }
+}
+
+impl<B> Surface<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Create surface for the window.
     pub fn new(
         instance: &Box<dyn std::any::Any>,
+        window: winit::Window,
+    ) -> Self {
+        let raw = create_surface::<B>(instance, &window);
+        Surface {
+            window,
+            raw,
+        }
+    }
+
+    /// Get surface image kind.
+    pub fn kind(&self) -> gfx_hal::image::Kind {
+        gfx_hal::Surface::kind(&self.raw)
+    }
+
+    /// Cast surface into render target.
+    pub fn into_target(
+        mut self,
         physical_device: &B::PhysicalDevice,
         device: &impl gfx_hal::Device<B>,
-        window: winit::Window,
         image_count: u32,
         usage: gfx_hal::image::Usage,
-    ) -> Result<Self, failure::Error> {
-        let mut surface = create_surface::<B>(instance, &window);
-
-        let (capabilities, formats, present_modes) = gfx_hal::Surface::compatibility(&surface, physical_device);
+    ) -> Result<Target<B>, failure::Error> {
+        let (capabilities, formats, present_modes) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
 
         let present_mode = *present_modes.iter().max_by_key(|mode| match mode {
             gfx_hal::PresentMode::Immediate => 0,
@@ -101,7 +117,7 @@ where
         let format = *formats.iter().max_by_key(|format| {
             let base = format.base_format();
             let desc = base.0.desc();
-            (!desc.is_compressed(), desc.bits, base.1 == gfx_hal::format::ChannelType::Srgb)
+            (!desc.is_compressed(), base.1 == gfx_hal::format::ChannelType::Srgb, desc.bits)
         }).unwrap();
 
         log::info!("Surface formats: {:#?}. Pick {:#?}", formats, format);
@@ -114,7 +130,7 @@ where
         assert!(capabilities.usage.contains(usage));
 
         let (swapchain, backbuffer) = device.create_swapchain(
-            &mut surface,
+            &mut self.raw,
             gfx_hal::SwapchainConfig {
                 present_mode,
                 format,
@@ -126,33 +142,66 @@ where
             None,
         )?;
 
-        let images = if let gfx_hal::Backbuffer::Images(images) = backbuffer {
-            images
-        } else {
-            panic!("Framebuffer backbuffer is not supported");
-        };
-
         Ok(Target {
-            window,
-            surface,
+            relevant: relevant::Relevant,
+            window: self.window,
+            surface: self.raw,
             swapchain,
-            images,
+            backbuffer,
             format,
             extent: capabilities.current_extent.unwrap(),
             usage,
-            relevant: relevant::Relevant,
         })
     }
+}
 
-    /// Strip the target to the internal parts.
+/// Rendering target bound to window.
+/// With swapchain created.
+pub struct Target<B: gfx_hal::Backend> {
+    relevant: relevant::Relevant,
+    window: winit::Window,
+    surface: B::Surface,
+    swapchain: B::Swapchain,
+    backbuffer: gfx_hal::Backbuffer<B>,
+    format: gfx_hal::format::Format,
+    extent: gfx_hal::window::Extent2D,
+    usage: gfx_hal::image::Usage,
+}
+
+impl<B> std::fmt::Debug for Target<B>
+where
+    B: gfx_hal::Backend,
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut debug = fmt.debug_struct("Target");
+
+        debug.field("window", &self.window.id());
+
+        match self.backbuffer {
+            gfx_hal::Backbuffer::Images(ref images) => debug.field("images", &images.len()),
+            gfx_hal::Backbuffer::Framebuffer(_) => debug.field("framebuffer", &()),
+        };
+
+        debug.field("format", &self.format)
+          .field("extent", &self.extent)
+          .field("usage", &self.usage)
+          .finish()
+    }
+}
+
+impl<B> Target<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Dispose of target.
     ///
     /// # Safety
     ///
     /// Swapchain must be not in use.
     pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) -> winit::Window {
+        self.relevant.dispose();
         device.destroy_swapchain(self.swapchain);
         drop(self.surface);
-        self.relevant.dispose();
         self.window
     }
 
@@ -175,6 +224,11 @@ where
         &mut self.swapchain
     }
 
+    /// Get image kind of the target images.
+    pub fn kind(&self) -> gfx_hal::image::Kind {
+        gfx_hal::image::Kind::D2(self.extent.width, self.extent.height, 1, 1)
+    }
+
     /// Get target current extent.
     pub fn extent(&self) -> gfx_hal::window::Extent2D {
         self.extent
@@ -186,38 +240,23 @@ where
     }
 
     /// Get raw handlers for the swapchain images.
-    pub fn images(&self) -> &[B::Image] {
-        &self.images
-    }
-
-    pub fn image_info(&self) -> rendy_resource::image::Info {
-        rendy_resource::image::Info {
-            kind: gfx_hal::Surface::kind(&self.surface),
-            levels: 1,
-            format: self.format,
-            tiling: gfx_hal::image::Tiling::Optimal,
-            view_caps: gfx_hal::image::ViewCapabilities::empty(),
-            usage: self.usage,
-        }
+    pub fn backbuffer(&self) -> &gfx_hal::Backbuffer<B> {
+        &self.backbuffer
     }
 
     /// Acquire next image.
-    pub fn next_image(&mut self, signal: &B::Semaphore) -> Result<NextImages<'_, B>, gfx_hal::AcquireError> {
-        let index = unsafe {
-            gfx_hal::Swapchain::acquire_image(&mut self.swapchain, !0, gfx_hal::FrameSync::Semaphore(signal))
-        }?;
+    pub unsafe fn next_image(&mut self, signal: &B::Semaphore) -> Result<NextImages<'_, B>, gfx_hal::AcquireError> {
+        let index = gfx_hal::Swapchain::acquire_image(&mut self.swapchain, !0, gfx_hal::FrameSync::Semaphore(signal))?;
 
         Ok(NextImages {
-            swapchains: std::iter::once((&self.swapchain, index)).collect(),
+            targets: std::iter::once((&*self, index)).collect(),
         })
     }
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct NextImages<'a, B: gfx_hal::Backend> {
-    #[derivative(Debug = "ignore")]
-    swapchains: smallvec::SmallVec<[(&'a B::Swapchain, u32); 8]>,
+    targets: smallvec::SmallVec<[(&'a Target<B>, u32); 8]>,
 }
 
 impl<'a, B> NextImages<'a, B>
@@ -226,7 +265,7 @@ where
 {
     /// Get indices.
     pub fn indices(&self) -> impl IntoIterator<Item = u32> + '_ {
-        self.swapchains.iter().map(|(_s, i)| *i)
+        self.targets.iter().map(|(_s, i)| *i)
     }
 
     /// Present images by the queue.
@@ -234,12 +273,21 @@ where
     /// # TODO
     ///
     /// Use specific presentation error type.
-    pub fn present(self, queue: &mut impl gfx_hal::queue::RawCommandQueue<B>, wait: &[B::Semaphore]) -> Result<(), failure::Error> {
-        unsafe {
-            queue.present(
-                self.swapchains.iter().cloned(),
-                wait,
-            ).map_err(|()| failure::format_err!("Suboptimal or out of date?"))
-        }
+    pub unsafe fn present(self, queue: &mut impl gfx_hal::queue::RawCommandQueue<B>, wait: impl IntoIterator<Item = impl std::borrow::Borrow<B::Semaphore>>) -> Result<(), failure::Error> {
+        queue.present(
+            self.targets.iter().map(|(target, index)| (&target.swapchain, *index)),
+            wait,
+        ).map_err(|()| failure::format_err!("Suboptimal or out of date?"))
+    }
+}
+
+impl<'a, B> std::ops::Index<usize> for NextImages<'a, B>
+where
+    B: gfx_hal::Backend,
+{
+    type Output = u32;
+
+    fn index(&self, index: usize) -> &u32 {
+        &self.targets[index].1
     }
 }

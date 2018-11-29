@@ -37,7 +37,7 @@ impl AccessFlags for gfx_hal::image::Access {
     #[inline]
     fn exclusive(&self) -> bool {
         self.intersects(
-            Self::INPUT_ATTACHMENT_READ | Self::SHADER_READ | Self::SHADER_WRITE | Self::COLOR_ATTACHMENT_READ | Self::COLOR_ATTACHMENT_WRITE | Self::DEPTH_STENCIL_ATTACHMENT_READ | Self::DEPTH_STENCIL_ATTACHMENT_WRITE | Self::TRANSFER_READ | Self::TRANSFER_WRITE | Self::HOST_READ | Self::HOST_WRITE | Self::MEMORY_READ | Self::MEMORY_WRITE
+            Self::SHADER_WRITE | Self::COLOR_ATTACHMENT_WRITE | Self::DEPTH_STENCIL_ATTACHMENT_WRITE | Self::TRANSFER_WRITE | Self::HOST_WRITE | Self::MEMORY_WRITE
         )
     }
 }

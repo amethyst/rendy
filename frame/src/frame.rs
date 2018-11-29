@@ -7,24 +7,16 @@ pub type Fences<B> = smallvec::SmallVec<[<B as gfx_hal::Backend>::Fence; 8]>;
 
 /// Single frame rendering task.
 /// Command buffers can be submitted as part of the `Frame`.
-#[allow(missing_copy_implementations)]
 #[derive(Debug)]
-pub struct Frame<B: gfx_hal::Backend> {
+#[allow(missing_copy_implementations)]
+pub struct Frame {
     index: u64,
-    fences: Fences<B>,
 }
 
-impl<B> Frame<B>
-where
-    B: gfx_hal::Backend,
-{
+impl Frame {
     /// Get frame index.
     pub fn index(&self) -> u64 {
         self.index
-    }
-
-    pub fn fences(&self) -> &[B::Fence] {
-        &self.fences
     }
 }
 
@@ -46,8 +38,7 @@ impl CompleteFrame {
 #[derive(Debug)]
 pub struct Frames<B: gfx_hal::Backend> {
     pending: std::collections::VecDeque<Fences<B>>,
-    free: Vec<Fences<B>>,
-    next: Frame<B>,
+    next: Frame,
 }
 
 impl<B> Frames<B>
@@ -55,35 +46,26 @@ where
     B: gfx_hal::Backend,
 {
     /// Create new `Frames` instance.
-    pub fn new(factory: &mut Factory<B>, fences_count: usize) -> Self {
+    pub fn new() -> Self {
         Frames {
             pending: Default::default(),
-            free: Default::default(),
             next: Frame {
                 index: 0,
-                fences: (0..fences_count)
-                    .map(|_| factory.create_fence(false).unwrap())
-                    .collect(),
             },
         }
     }
 
     /// Get next frame reference.
-    pub fn next(&self) -> &Frame<B> {
+    pub fn next(&self) -> &Frame {
         &self.next
     }
 
     /// Advance to the next frame.
     /// All fences of the next frame must be queued.
-    pub unsafe fn advance(&mut self, factory: &mut Factory<B>, fences_count: usize) -> &Frame<B> {
-        let mut fences: Fences<B> = self.free.pop().unwrap_or(Fences::<B>::new());
-        let add = (fences.len()..fences_count).map(|_| factory.create_fence(false).unwrap());
-        fences.extend(add);
-        fences.truncate(fences_count);
+    pub unsafe fn advance(&mut self, fences: Fences<B>) {
         self.pending
-            .push_back(std::mem::replace(&mut self.next.fences, fences));
+            .push_back(fences);
         self.next.index += 1;
-        &self.next
     }
 
     /// Get upper bound of complete frames.
@@ -112,7 +94,7 @@ where
     /// # Panics
     ///
     /// This function will panic if `target` is greater than or equal to next frame.
-    pub fn wait_complete(&mut self, target: u64, factory: &Factory<B>) -> CompleteFrame {
+    pub fn wait_complete(&mut self, target: u64, factory: &Factory<B>, free: impl FnMut(Fences<B>)) -> CompleteFrame {
         assert!(target <= self.next.index());
         if let Some(complete) = self.complete(target) {
             complete
@@ -127,12 +109,27 @@ where
                 !0,
             );
             assert_eq!(ready, Ok(true));
-            self.free.extend(
-                self.pending
-                    .drain(..count)
-                    .inspect(|fences| factory.reset_fences(fences.iter()).unwrap()),
-            );
+            self.pending
+                .drain(..count)
+                .for_each(free);
             CompleteFrame { index: target }
         }
+    }
+
+    pub fn dispose(mut self, factory: &mut Factory<B>) {
+        let ready = factory.wait_for_fences(
+            self.pending.iter().flatten(),
+            gfx_hal::device::WaitFor::All,
+            !0,
+        );
+        assert_eq!(ready, Ok(true));
+
+        self.pending.drain(..).flatten().for_each(|fence| unsafe { // Waited before destroying
+            factory.destroy_fence(fence)
+        });
+    }
+
+    pub fn range(&self) -> std::ops::Range<u64> {
+        self.complete_upper_bound() .. self.next.index
     }
 }

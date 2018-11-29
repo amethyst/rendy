@@ -4,42 +4,43 @@ use crate::{
     command::{
         Capability, CommandBuffer, CommandPool, ExecutableState, IndividualReset, RecordingState, Submit,
         InitialState, Level, MultiShot, PendingState, Usage, PrimaryLevel,
+        EncoderCommon, RenderPassEncoder, Encoder, Supports, Graphics, RenderPassEncoderHRTB, Transfer,
     },
+    factory::Factory,
+    resource::{Buffer, Image},
     frame::Frames,
 };
 
 #[derive(Debug)]
-pub struct CommandCirque<B: gfx_hal::Backend, C, P = (), S = (), L = PrimaryLevel> {
-    pool: CommandPool<B, C, IndividualReset>,
-    pendings: VecDeque<Pending<B, C, P, S, L>>,
-    executables: VecDeque<Executable<B, C, P, S, L>>,
+pub struct CommandCirque<B: gfx_hal::Backend, C, S = (), P = (), L = PrimaryLevel> {
+    pendings: VecDeque<Pending<B, C, S, P, L>>,
+    executables: VecDeque<Executable<B, C, S, P, L>>,
     level: L,
     counter: usize,
 }
 
 #[derive(Debug)]
-struct Pending<B: gfx_hal::Backend, C, P, S, L> {
-    buffer: CommandBuffer<B, C, PendingState<ExecutableState<MultiShot<P, S>>>, L, IndividualReset>,
+struct Pending<B: gfx_hal::Backend, C, S, P, L> {
+    buffer: CommandBuffer<B, C, PendingState<ExecutableState<MultiShot<S>, P>>, L, IndividualReset>,
     index: usize,
-    frame_index: u64,
+    frame: u64,
 }
 
 #[derive(Debug)]
-struct Executable<B: gfx_hal::Backend, C, P, S, L> {
-    buffer: CommandBuffer<B, C, ExecutableState<MultiShot<P, S>>, L, IndividualReset>,
+struct Executable<B: gfx_hal::Backend, C, S, P, L> {
+    buffer: CommandBuffer<B, C, ExecutableState<MultiShot<S>, P>, L, IndividualReset>,
     index: usize,
 }
 
-impl<B, C, P, S, L> CommandCirque<B, C, P, S, L>
+impl<B, C, S, P, L> CommandCirque<B, C, S, P, L>
 where
     B: gfx_hal::Backend,
     C: Capability,
     L: Level,
 {
     /// Create new command cirque for pool.
-    pub fn new(pool: CommandPool<B, C, IndividualReset>, level: L) -> Self {
+    pub fn new(level: L) -> Self {
         CommandCirque {
-            pool,
             pendings: VecDeque::new(),
             executables: VecDeque::new(),
             level,
@@ -47,24 +48,35 @@ where
         }
     }
 
+    /// All buffers must complete.
+    /// Usually this function is called after waiting for device idle.
+    pub unsafe fn dispose(mut self, pool: &mut CommandPool<B, C, IndividualReset>, factory: &Factory<B>) {
+        pool.free_buffers(self.pendings.drain(..).map(|p| p.buffer.complete()).chain(self.executables.drain(..).map(|e| e.buffer)));
+    }
+
     /// Get executable buffer from this cirque.
+    /// 
+    /// # Parameters
+    /// 
+    /// `frames` - range of frame indices. `oldest_pending_frame .. next_frame`.
+    /// Typically obtained with `Frames::range()`.
     ///
     /// # Safety
-    ///
-    /// This function must be called for the same `Frames` instance.
-    pub unsafe fn get<'a, 'b>(
-        &'a mut self,
-        frames: &'b Frames<B>,
+    /// 
+    /// ???
+    pub unsafe fn get(
+        &mut self,
+        frames: std::ops::Range<u64>,
+        pool: &mut CommandPool<B, C, IndividualReset>,
     ) -> either::Either<
-        CirqueEncoder<'a, 'b, B, C, P, S, L, ExecutableState<MultiShot<P, S>>>,
-        CirqueEncoder<'a, 'b, B, C, P, S, L, InitialState>,
+        CirqueEncoder<'_, B, C, ExecutableState<MultiShot<S>, P>, S, P, L>,
+        CirqueEncoder<'_, B, C, InitialState, S, P, L>,
     > {
-        let upper = frames.complete_upper_bound();
         while self
             .pendings
             .front()
             .as_ref()
-            .map_or(false, |pending| pending.frame_index < upper)
+            .map_or(false, |pending| pending.frame < frames.start)
         {
             let pending = self.pendings.pop_front().unwrap();
             // All commands from this buffer are complete.
@@ -80,17 +92,17 @@ where
                 buffer: executable.buffer,
                 index: executable.index,
                 cirque: self,
-                frames,
+                frame: frames.end,
             })
         } else {
-            let buffer = self.pool.allocate_buffers(self.level, 1).remove(0);
+            let buffer = pool.allocate_buffers(self.level, 1).remove(0);
             self.counter += 1;
 
             either::Right(CirqueEncoder {
                 buffer,
                 index: self.counter,
                 cirque: self,
-                frames,
+                frame: frames.end,
             })
         }
     }
@@ -99,44 +111,92 @@ where
 /// Buffer borrowed from `CommandCirque`.
 /// It is bound to `Frames` reference lifetime to ensure it can't be used with another frame.
 #[derive(Debug)]
-pub struct CirqueEncoder<'a, 'b, B: gfx_hal::Backend, C: 'a, P: 'a = (), S: 'a = (), L: 'a = PrimaryLevel, X = MultiShot<P, S>> {
+pub struct CirqueEncoder<'a, B: gfx_hal::Backend, C: 'a, X = RecordingState<MultiShot>, S: 'a = (), P: 'a = (), L: 'a = PrimaryLevel> {
     buffer: CommandBuffer<B, C, X, L, IndividualReset>,
-    frames: &'b Frames<B>,
-    cirque: &'a mut CommandCirque<B, C, P, S, L>,
+    frame: u64,
+    cirque: &'a mut CommandCirque<B, C, S, P, L>,
     index: usize,
 }
 
-impl<'a, 'b, B, C, P, S, L> CirqueEncoder<'a, 'b, B, C, P, S, L, InitialState>
+impl<'a, B, C, X, S, P, L> CirqueEncoder<'a, B, C, X, S, P, L>
+where
+    B: gfx_hal::Backend,
+{
+    /// Cirque index of the encoder.
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
+
+impl<'a, B, C, S, P, L> CirqueEncoder<'a, B, C, InitialState, S, P, L>
 where
     B: gfx_hal::Backend,
 {
     /// Begin recording command buffer.
-    pub fn begin(self) -> CirqueEncoder<'a, 'b, B, C, P, S, L, RecordingState<MultiShot<P, S>>>
+    pub fn begin(self) -> CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
     where
-        MultiShot<P, S>: Usage,
+        MultiShot<S>: Usage,
+        P: Usage,
     {
         CirqueEncoder {
-            buffer: self.buffer.begin(Default::default()),
-            frames: self.frames,
+            buffer: self.buffer.begin(Default::default(), Default::default()),
+            frame: self.frame,
             cirque: self.cirque,
             index: self.index,
         }
     }
 }
 
-impl<'a, 'b, B, C, P, S, L> CirqueEncoder<'a, 'b, B, C, P, S, L, RecordingState<MultiShot<P, S>>>
+impl<'a, B, C, S, P, L> EncoderCommon<B, C> for CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
 where
     B: gfx_hal::Backend,
 {
-    /// Begin render pass encoding.
-    pub unsafe fn begin_render_pass_inline(
+    fn bind_index_buffer(&mut self, buffer: &Buffer<B>, offset: u64, index_type: gfx_hal::IndexType)
+    where
+        C: Supports<Graphics>,
+    {
+        self.buffer.bind_index_buffer(buffer, offset, index_type)
+    }
+
+    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b Buffer<B>, u64)>)
+    where
+        C: Supports<Graphics>,
+    {
+        self.buffer.bind_vertex_buffers(first_binding, buffers)
+    }
+
+    fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline)
+    where
+        C: Supports<Graphics>,
+    {
+        self.buffer.bind_graphics_pipeline(pipeline)
+    }
+}
+
+impl<'a, 'b, B, C, S, P, L>  RenderPassEncoderHRTB<'b, B, C> for CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
+where
+    B: gfx_hal::Backend,
+{
+    type RenderPassEncoder = CirqueRenderPassInlineEncoder<'b, B>;
+}
+
+impl<'a, B, C, S, P, L> Encoder<B, C> for CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
+where
+    B: gfx_hal::Backend,
+{
+    fn begin_render_pass_inline(
         &mut self,
         render_pass: &B::RenderPass, 
         framebuffer: &B::Framebuffer, 
         render_area: gfx_hal::pso::Rect, 
         clear_values: &[gfx_hal::command::ClearValueRaw],
-    ) -> CirqueRenderPassInlineEncoder<'_, B> {
-        let buffer = self.buffer.raw();
+    ) -> CirqueRenderPassInlineEncoder<'_, B>
+    where
+        C: Supports<Graphics>,
+    {
+        self.buffer.capability().assert();
+
+        let buffer = unsafe { self.buffer.raw() };
         unsafe {
             gfx_hal::command::RawCommandBuffer::begin_render_pass(
                 buffer,
@@ -155,32 +215,61 @@ where
         }
     }
 
-    /// Finish recording command buffer.
-    pub fn finish(self) -> CirqueEncoder<'a, 'b, B, C, P, S, L, ExecutableState<MultiShot<P, S>>>
+    fn copy_image(
+        &mut self, 
+        src: &B::Image, 
+        src_layout: gfx_hal::image::Layout, 
+        dst: &B::Image, 
+        dst_layout: gfx_hal::image::Layout, 
+        regions: impl IntoIterator<Item = gfx_hal::command::ImageCopy>
+    )
     where
-        MultiShot<P, S>: Usage,
+        C: Supports<Transfer>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::copy_image(
+                self.buffer.raw(),
+                src,
+                src_layout,
+                dst,
+                dst_layout,
+                regions,
+            )
+        }
+    }
+}
+
+impl<'a, B, C, S, P, L> CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
+where
+    B: gfx_hal::Backend,
+{
+    /// Finish recording command buffer.
+    pub fn finish(self) -> CirqueEncoder<'a, B, C, ExecutableState<MultiShot<S>, P>, S, P, L>
+    where
+        MultiShot<S>: Usage,
+        P: Usage,
     {
         CirqueEncoder {
             buffer: self.buffer.finish(),
-            frames: self.frames,
+            frame: self.frame,
             cirque: self.cirque,
             index: self.index,
         }
     }
 }
 
-impl<'a, 'b, B, C, P, S, L> CirqueEncoder<'a, 'b, B, C, P, S, L, ExecutableState<MultiShot<P, S>>>
+impl<'a, B, C, S, P, L> CirqueEncoder<'a, B, C, ExecutableState<MultiShot<S>, P>, S, P, L>
 where
     B: gfx_hal::Backend,
-    P: Copy,
     S: Copy,
+    P: Copy,
     L: Copy,
 {
     /// Reset command buffer.
-    pub fn reset(self) -> CirqueEncoder<'a, 'b, B, C, P, S, L, InitialState> {
+    pub fn reset(self) -> CirqueEncoder<'a, B, C, InitialState, S, P, L> {
         CirqueEncoder {
             buffer: self.buffer.reset(),
-            frames: self.frames,
+            frame: self.frame,
             cirque: self.cirque,
             index: self.index,
         }
@@ -193,12 +282,12 @@ where
     ///
     /// Command buffer is returned to `CommandCirque` as pending with frame index attached.
     /// Once frame is complete command buffer can be reused.
-    pub fn submit(self) -> Submit<'b, B, P, S, L> {
+    pub fn submit(self) -> Submit<'static, B, S, P, L> {
         let (submit, buffer) = self.buffer.submit();
         self.cirque.pendings.push_back(Pending {
             buffer,
             index: self.index,
-            frame_index: self.frames.next().index(),
+            frame: self.frame,
         });
 
         submit
@@ -215,7 +304,71 @@ impl<'a, B> CirqueRenderPassInlineEncoder<'a, B>
 where
     B: gfx_hal::Backend,
 {
+    /// Get cirque index of the encoder.
+    pub fn index(&self) -> usize {
+        self.index
+    }
+}
 
+impl<'a, B> EncoderCommon<B, Graphics> for CirqueRenderPassInlineEncoder<'a, B>
+where
+    B: gfx_hal::Backend,
+{
+    fn bind_index_buffer(&mut self, buffer: &Buffer<B>, offset: u64, index_type: gfx_hal::IndexType) {
+        gfx_hal::command::RawCommandBuffer::bind_index_buffer(
+            self.buffer,
+            gfx_hal::buffer::IndexBufferView {
+                buffer: buffer.raw(),
+                offset,
+                index_type,
+            }
+        )
+    }
+
+    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b Buffer<B>, u64)>) {
+        gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
+            self.buffer,
+            first_binding,
+            buffers.into_iter().map(|(buffer, offset)| (buffer.raw(), offset)),
+        )
+    }
+
+    fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline) {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(self.buffer, pipeline);
+        }
+    }
+}
+
+impl<'a, B> RenderPassEncoder<B> for CirqueRenderPassInlineEncoder<'a, B>
+where
+    B: gfx_hal::Backend,
+{
+    fn draw(
+        &mut self, 
+        vertices: std::ops::Range<u32>, 
+        instances: std::ops::Range<u32>,
+    ) {
+        gfx_hal::command::RawCommandBuffer::draw(
+            self.buffer,
+            vertices,
+            instances,
+        )
+    }
+
+    fn draw_indexed(
+        &mut self, 
+        indices: std::ops::Range<u32>, 
+        base_vertex: i32, 
+        instances: std::ops::Range<u32>,
+    ) {
+        gfx_hal::command::RawCommandBuffer::draw_indexed(
+            self.buffer,
+            indices,
+            base_vertex,
+            instances,
+        )
+    }
 }
 
 impl<'a, B> Drop for CirqueRenderPassInlineEncoder<'a, B>

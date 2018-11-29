@@ -1,7 +1,7 @@
 //! Family module docs.
 
 use crate::{
-    buffer::{Reset, PrimaryLevel, Submittable},
+    buffer::{Reset, Submittable},
     capability::{Capability, Supports},
     pool::CommandPool,
 };
@@ -9,9 +9,14 @@ use crate::{
 /// Command queue submission.
 #[derive(Debug)]
 pub struct Submission<W, C, S> {
+    /// Iterator over semaphores with stage flag to wait on.
     pub waits: W,
-    pub submits: C,
+
+    /// Iterator over semaphores to signal.
     pub signals: S,
+
+    /// Iterator over submittables.
+    pub submits: C,
 }
 
 /// Family of the command queues.
@@ -162,7 +167,7 @@ where
     }
 
     /// Convert capability from type-level to value-level.
-    pub fn with_value_capability(self) -> Family<B, gfx_hal::QueueType>
+    pub fn with_queue_type(self) -> Family<B, gfx_hal::QueueType>
     where
         C: Capability,
     {

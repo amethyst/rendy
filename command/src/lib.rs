@@ -19,18 +19,22 @@
 #![allow(unused_unsafe)]
 
 mod buffer;
+mod encoder;
 mod capability;
 mod family;
 mod pool;
+
+extern crate rendy_resource as resource;
 
 pub use crate::{
     buffer::{
         CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
         MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
         RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
-        CommandBufferEncoder, Reset, Submittable,
+        Reset, Submittable,
     },
+    encoder::{EncoderCommon, RenderPassEncoder, Encoder, RenderPassEncoderHRTB},
     capability::{Capability, Compute, General, Graphics, Transfer, Supports},
-    family::{families_from_device, Family},
+    family::{families_from_device, Family, Submission},
     pool::CommandPool,
 };

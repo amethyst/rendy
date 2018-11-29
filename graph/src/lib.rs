@@ -22,8 +22,21 @@ extern crate rendy_command as command;
 extern crate rendy_factory as factory;
 extern crate rendy_frame as frame;
 extern crate rendy_memory as memory;
+extern crate rendy_renderer as renderer;
 extern crate rendy_resource as resource;
 extern crate rendy_wsi as wsi;
+
+/// Id of the buffer in graph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BufferId(usize);
+
+/// Id of the image (or target) in graph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ImageId(usize);
+
+/// Id of the node in graph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NodeId(usize);
 
 mod graph;
 mod node;

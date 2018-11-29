@@ -566,6 +566,7 @@ impl RendererBuilder<()> for SimpleRendererBuilder {
 fn main() -> Result<(), failure::Error> {
     env_logger::Builder::from_default_env()
         .default_format_timestamp_nanos(true)
+        .filter_module("simple", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();

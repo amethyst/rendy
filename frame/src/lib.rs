@@ -6,4 +6,4 @@ extern crate rendy_resource as resource;
 pub mod cirque;
 mod frame;
 
-pub use frame::{CompleteFrame, Frame, Frames};
+pub use frame::{CompleteFrame, Frame, Frames, Fences};

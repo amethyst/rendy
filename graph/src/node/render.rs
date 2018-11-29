@@ -1,7 +1,7 @@
 use crate::{
     chain,
     command::{
-        ExecutableState, Graphics, IndividualReset, Submit, PrimaryLevel,
+        ExecutableState, Graphics, CommandPool, IndividualReset, Submit, PrimaryLevel, Encoder, RenderPassEncoder,
     },
     factory::Factory,
     frame::{Frames, cirque::{CommandCirque, CirqueEncoder, CirqueRenderPassInlineEncoder}},
@@ -38,20 +38,18 @@ pub struct Pipeline {
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct RenderPassNode<B: gfx_hal::Backend, R> {
-    pass: R,
-
     extent: gfx_hal::image::Extent,
+    clears: Vec<gfx_hal::command::ClearValueRaw>,
 
     render_pass: B::RenderPass,
     pipeline_layouts: Vec<B::PipelineLayout>,
     set_layouts: Vec<Vec<B::DescriptorSetLayout>>,
     graphics_pipelines: Vec<B::GraphicsPipeline>,
-
     views: Vec<B::ImageView>,
     framebuffer: B::Framebuffer,
-    clears: Vec<gfx_hal::command::ClearValueRaw>,
-
+    command_pool: CommandPool<B, Graphics, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,
+    pass: R,
     relevant: relevant::Relevant,
 }
 
@@ -93,11 +91,18 @@ where
         }]
     }
 
+    fn vertices() -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+    )> {
+        Vec::new()
+    }
+
     /// Graphics pipelines
     fn pipelines() -> Vec<Pipeline> {
         vec![Pipeline {
             layout: 0,
-            vertices: Vec::new(),
+            vertices: Self::vertices(),
             colors: (0..Self::colors())
                 .map(|_| {
                     gfx_hal::pso::ColorBlendDesc(
@@ -125,7 +130,7 @@ where
     where
         Self: Sized,
     {
-        NodeBuilder::new(Box::<std::marker::PhantomData<Self>>::new(std::marker::PhantomData))
+        std::marker::PhantomData::<Self>.builder()
     }
 
     /// Load shader set.
@@ -226,9 +231,9 @@ where
         &self,
         factory: &mut Factory<B>,
         aux: &mut T,
+        family: gfx_hal::queue::QueueFamilyId,
         buffers: impl IntoIterator<Item = NodeBuffer<'a, B>>,
         images: impl IntoIterator<Item = NodeImage<'a, B>>,
-        family: gfx_hal::queue::QueueFamilyId,
     ) -> Result<Self::Node, failure::Error> {
         log::trace!("Creating RenderPass instance for '{}'", R::name());
 
@@ -426,9 +431,12 @@ where
 
             let pipelines = R::pipelines();
 
+            log::trace!("Load shader sets for '{}'", R::name());
+            let shader_sets = R::load_shader_sets(&mut shaders, factory, aux);
+
             let descs = pipelines
                 .iter()
-                .zip(R::load_shader_sets(&mut shaders, factory, aux))
+                .zip(shader_sets)
                 .enumerate()
                 .map(|(index, (pipeline, shader_set))| {
                     assert_eq!(pipeline.colors.len(), R::colors());
@@ -482,8 +490,7 @@ where
             let pipelines =
                 gfx_hal::Device::create_graphics_pipelines(factory.device(), descs, None)
                     .into_iter()
-                    .collect::<Result<Vec<_>, _>>()
-                    .unwrap();
+                    .collect::<Result<Vec<_>, _>>()?;
             log::trace!("Graphics pipeline created for '{}'", R::name());
             pipelines
         };
@@ -502,10 +509,11 @@ where
             aux,
         );
 
-        let command_cirque = factory.create_command_pool(family, IndividualReset)?
+        let command_pool = factory.create_command_pool(family, IndividualReset)?
                 .with_capability()
-                .map(|pool| CommandCirque::new(pool, PrimaryLevel))
                 .expect("Graph must specify family that supports `Graphics`");
+
+        let command_cirque = CommandCirque::new(PrimaryLevel);
 
         Ok(RenderPassNode {
             pass,
@@ -517,6 +525,7 @@ where
             views,
             framebuffer,
             clears,
+            command_pool,
             command_cirque,
             relevant: relevant::Relevant,
         })
@@ -542,7 +551,7 @@ where
 
         let encoder = unsafe {
             /// Graph supplies same `frames`.
-            self.command_cirque.get(frames)
+            self.command_cirque.get(frames.range(), &mut self.command_pool)
         };
 
         let mut recording = match encoder {
@@ -583,8 +592,31 @@ where
         recording.finish().submit()
     }
 
-    fn dispose(self, factory: &mut Factory<B>, aux: &mut T) {
-        unimplemented!()
+    unsafe fn dispose(mut self, factory: &mut Factory<B>, aux: &mut T) {
+        self.relevant.dispose();
+        self.pass.dispose(factory, aux);
+        self.command_cirque.dispose(&mut self.command_pool, factory);
+        factory.destroy_command_pool(self.command_pool.with_queue_type());
+        gfx_hal::Device::destroy_framebuffer(factory.device(), self.framebuffer);
+        for view in self.views {
+            gfx_hal::Device::destroy_image_view(factory.device(), view);
+        }
+        for pipeline in self.graphics_pipelines {
+            gfx_hal::Device::destroy_graphics_pipeline(
+                factory.device(),
+                pipeline,
+            );
+        }
+        for layout in self.pipeline_layouts {
+            gfx_hal::Device::destroy_pipeline_layout(
+                factory.device(),
+                layout,
+            );
+        }
+        for set_layout in self.set_layouts.into_iter().flatten() {
+            gfx_hal::Device::destroy_descriptor_set_layout(factory.device(), set_layout);
+        }
+        gfx_hal::Device::destroy_render_pass(factory.device(), self.render_pass);
     }
 }
 

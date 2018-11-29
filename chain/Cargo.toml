@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-hal = { path = "../../gfx/src/hal" }
 fnv = "1.0"
+log = "0.4"

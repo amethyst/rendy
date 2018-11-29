@@ -13,6 +13,7 @@ struct Input {
     kind_ident: syn::Ident,
     lang_ident: syn::Ident,
     file_lit: syn::LitStr,
+    entry_lit: syn::LitStr,
 }
 
 impl syn::parse::Parse for Input {
@@ -21,12 +22,14 @@ impl syn::parse::Parse for Input {
         let kind_ident = syn::Ident::parse(stream)?;
         let lang_ident = syn::Ident::parse(stream)?;
         let file_lit = <syn::LitStr as syn::parse::Parse>::parse(stream)?;
+        let entry_lit = <syn::LitStr as syn::parse::Parse>::parse(stream)?;
 
         Ok(Input {
             name_ident,
             kind_ident,
             lang_ident,
             file_lit,
+            entry_lit,
         })
     }
 }
@@ -66,25 +69,29 @@ pub fn compile_to_spirv_proc(input: TokenStream) -> TokenStream {
         kind_ident,
         lang_ident,
         file_lit,
+        entry_lit,
     } = syn::parse_macro_input!(input);
 
     let file = file_lit.value();
-    let glsl = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(&file);
+    let file_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(&file);
 
-    let glsl_code = std::fs::read_to_string(&glsl).unwrap();
-    let glsl_code_lit = syn::LitStr::new(&glsl_code, file_lit.span());
+    let code = std::fs::read_to_string(&file_path).unwrap();
+    let code_lit = syn::LitStr::new(&code, file_lit.span());
+
+    let entry = entry_lit.value();
 
     let spirv = shaderc::Compiler::new()
         .unwrap()
         .compile_into_spirv(
-            &glsl_code,
+            &code,
             kind(&kind_ident.to_string()),
-            &glsl.to_string_lossy(),
-            "main",
+            &file_path.to_string_lossy(),
+            &entry,
             Some({
                 let mut ops = shaderc::CompileOptions::new().unwrap();
                 ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                 ops.set_source_language(lang(&lang_ident.to_string()));
+                ops.set_optimization_level(shaderc::OptimizationLevel::Performance);
                 ops
             }).as_ref(),
         ).unwrap();
@@ -97,8 +104,9 @@ pub fn compile_to_spirv_proc(input: TokenStream) -> TokenStream {
 
         impl #name_ident {
             const FILE: &'static str = #file;
-            const GLSL: &'static str = #glsl_code_lit;
+            const CODE: &'static str = #code_lit;
             const SPIRV: &'static [u8] = #spirv_code_lit;
+            const ENTRY: &'static [u8] = #entry_lit;
         }
     };
 

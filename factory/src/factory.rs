@@ -2,7 +2,7 @@
 use command::{families_from_device, Family, Reset, CommandPool};
 use memory::{Block, Heaps, Write};
 use resource::{buffer::{self, Buffer}, image::{self, Image}, Resources};
-use wsi::Target;
+use wsi::{Surface, Target};
 
 use config::{Config, HeapsConfigure, QueuesConfigure};
 
@@ -101,6 +101,7 @@ where
         unsafe {
             // All queues complete.
             self.resources.cleanup(&self.device, &mut self.heaps);
+            self.resources.cleanup(&self.device, &mut self.heaps);
         }
 
         self.heaps.dispose(&self.device);
@@ -136,11 +137,11 @@ where
     /// * Buffer must be created by this `Factory`.
     /// * Caller must ensure that device won't write to or read from
     /// the memory region occupied by this buffer.
-    pub unsafe fn upload_buffer(
+    pub unsafe fn upload_buffer<T>(
         &mut self,
         buffer: &mut Buffer<B>,
         offset: u64,
-        content: &[u8],
+        content: &[T],
         family: gfx_hal::queue::QueueFamilyId,
         access: gfx_hal::buffer::Access,
     ) -> Result<(), failure::Error> {
@@ -161,11 +162,11 @@ where
     ///
     /// * Caller must ensure that device won't write to or read from
     /// the memory region occupied by this buffer.
-    pub unsafe fn upload_visible_buffer(
+    pub unsafe fn upload_visible_buffer<T>(
         &mut self,
         buffer: &mut Buffer<B>,
         offset: u64,
-        content: &[u8],
+        content: &[T],
     ) -> Result<(), failure::Error> {
         let block = buffer.block_mut();
         assert!(
@@ -173,6 +174,11 @@ where
                 .properties()
                 .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
         );
+
+        let content = unsafe {
+            std::slice::from_raw_parts(content.as_ptr() as *const u8, content.len() * std::mem::size_of::<T>())
+        };
+
         let mut mapped = block.map(&self.device, offset..offset + content.len() as u64)?;
         mapped
             .write(&self.device, 0..content.len() as u64)?
@@ -205,13 +211,19 @@ where
             )
     }
 
-    /// Create render target from window.
-    pub fn create_target(&self, window: winit::Window, image_count: u32, usage: gfx_hal::image::Usage) -> Result<Target<B>, failure::Error> {
-        Target::new(
+    /// Create rendering surface from window.
+    pub fn create_surface(&self, window: winit::Window) -> Surface<B> {
+        Surface::new(
             &self.instance,
+            window,
+        )
+    }
+
+    /// Create target out of rendering surface.
+    pub fn create_target(&self, surface: Surface<B>, image_count: u32, usage: gfx_hal::image::Usage) -> Result<Target<B>, failure::Error> {
+        surface.into_target(
             &self.adapter.physical_device,
             &self.device,
-            window,
             image_count,
             usage,
         )
@@ -267,6 +279,13 @@ where
         }
     }
 
+    /// Destroy semaphore
+    pub fn destroy_semaphore(&self, semaphore: B::Semaphore) {
+        unsafe {
+            gfx_hal::Device::destroy_semaphore(&self.device, semaphore);
+        }
+    }
+
     /// Create new fence
     pub fn create_fence(&self, signaled: bool) -> Result<B::Fence, gfx_hal::device::OutOfMemory> {
         unsafe {
@@ -301,6 +320,11 @@ where
             gfx_hal::Device::wait_for_fences(&self.device, fences, wait_for, timeout_ns)
         }
     }
+
+    /// Destroy fence.
+    pub unsafe fn destroy_fence(&self, fence: B::Fence) {
+        gfx_hal::Device::destroy_fence(&self.device, fence)
+    }
     
     /// Create new command pool for specified family.
     pub fn create_command_pool<R>(&self, family: gfx_hal::queue::QueueFamilyId, reset: R) -> Result<CommandPool<B, gfx_hal::QueueType, R>, failure::Error>
@@ -310,6 +334,14 @@ where
         self.family(family)
             .create_pool(&self.device, reset)
             .map_err(Into::into)
+    }
+    
+    /// Create new command pool for specified family.
+    pub unsafe fn destroy_command_pool<R>(&self, pool: CommandPool<B, gfx_hal::QueueType, R>)
+    where
+        R: Reset,
+    {
+        pool.dispose(&self.device);
     }
 }
 

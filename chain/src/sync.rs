@@ -383,9 +383,10 @@ where
         );
 
     for (prev_link, link) in pairs {
+        log::trace!("Sync {:#?}:{:#?}", prev_link.access(), link.access());
         if prev_link.family() == link.family() {
             // Prefer to generate barriers on the acquire side, if possible.
-            if prev_link.single_queue() && !link.single_queue() {
+            if prev_link.access().exclusive() && !link.access().exclusive() {
                 let signal_sid = latest(prev_link, schedule);
 
                 // Generate barrier in prev link's last submission.
@@ -414,7 +415,7 @@ where
                     .pick()
                     .insert(id, Barrier::new(prev_link.state()..link.state()));
 
-                if !link.single_queue() {
+                if !link.access().exclusive() {
                     unimplemented!("This case is unimplemented");
                 }
             }
@@ -422,7 +423,7 @@ where
             let signal_sid = latest(prev_link, schedule);
             let wait_sid = earliest(link, schedule);
 
-            if !prev_link.single_queue() {
+            if !prev_link.access().exclusive() {
                 unimplemented!("This case is unimplemented");
             }
 
@@ -447,7 +448,7 @@ where
                 ),
             );
 
-            if !link.single_queue() {
+            if !link.access().exclusive() {
                 unimplemented!("This case is unimplemented");
             }
         }

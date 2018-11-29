@@ -38,6 +38,17 @@ where
         size: u64,
         usage: impl buffer::Usage,
     ) -> Result<buffer::Buffer<B>, failure::Error> {
+        #[derive(Debug)] struct CreateBuffer<'a> {
+            align: &'a dyn std::fmt::Debug,
+            size: &'a dyn std::fmt::Debug,
+            usage: &'a dyn std::fmt::Debug,
+        };
+        log::trace!("{:#?}", CreateBuffer {
+            align: &align,
+            size: &size,
+            usage: &usage,
+        });
+
         let buf = unsafe {
             device.create_buffer(size, usage.flags())
         }?;
@@ -104,6 +115,25 @@ where
         view_caps: gfx_hal::image::ViewCapabilities,
         usage: impl image::Usage,
     ) -> Result<image::Image<B>, failure::Error> {
+        #[derive(Debug)] struct CreateImage<'a> {
+            align: &'a dyn std::fmt::Debug,
+            kind: &'a dyn std::fmt::Debug,
+            levels: &'a dyn std::fmt::Debug,
+            format: &'a dyn std::fmt::Debug,
+            tiling: &'a dyn std::fmt::Debug,
+            view_caps: &'a dyn std::fmt::Debug,
+            usage: &'a dyn std::fmt::Debug,
+        };
+        log::trace!("{:#?}", CreateImage {
+            align: &align,
+            kind: &kind,
+            levels: &levels,
+            format: &format,
+            tiling: &tiling,
+            view_caps: &view_caps,
+            usage: &usage,
+        });
+
         let img = unsafe {
             device.create_image(
                 kind,
@@ -162,7 +192,7 @@ where
     /// # Safety
     ///
     /// Device must not attempt to use the image.
-    unsafe fn destroy_image_inner(
+    unsafe fn actually_destroy_image(
         inner: image::Inner<B>,
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
@@ -178,12 +208,13 @@ where
     ///
     /// Device must not attempt to use previously dropped buffers and images.
     pub unsafe fn cleanup(&mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+        log::trace!("Cleanup resources");
         for buffer in self.dropped_buffers.drain(..) {
             Self::actually_destroy_buffer(buffer, device, heaps);
         }
 
         for image in self.dropped_images.drain(..) {
-            Self::destroy_image_inner(image, device, heaps);
+            Self::actually_destroy_image(image, device, heaps);
         }
 
         self.dropped_buffers.extend(self.buffers.drain());

@@ -2,11 +2,8 @@
 
 use std::{borrow::Cow, fmt::Debug};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Attribute {
-    pub format: gfx_hal::format::Format,
-    pub offset: u32,
-}
+/// Vertex attribute type.
+pub type Attribute = gfx_hal::pso::Element<gfx_hal::format::Format>;
 
 /// Trait for vertex attributes to implement
 pub trait AsAttribute: Debug + PartialEq + Copy + Send + Sync {
@@ -128,6 +125,13 @@ pub struct VertexFormat<'a> {
 
     /// Size of single vertex.
     pub stride: u32,
+}
+
+impl<'a> VertexFormat<'a> {
+    /// Convert into gfx digestible type.
+    pub fn gfx_vertex_input_desc(&self) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride) {
+        (self.attributes.clone().into_owned(), self.stride)
+    }
 }
 
 /// Trait implemented by all valid vertex formats.

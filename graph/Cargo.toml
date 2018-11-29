@@ -8,7 +8,7 @@ either = "1.5"
 bitflags = "1.0"
 derivative = "1.0"
 failure = "0.1"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-hal = { path = "../../gfx/src/hal" }
 log = "0.4"
 relevant = "0.2"
 rendy-chain = { path = "../chain" }
@@ -16,6 +16,7 @@ rendy-command = { path = "../command" }
 rendy-factory = { path = "../factory" }
 rendy-frame = { path = "../frame" }
 rendy-memory = { path = "../memory" }
+rendy-renderer = { path = "../renderer" }
 rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }
 serde = { version = "1.0", optional = true, features = ["derive"] }

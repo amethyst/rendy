@@ -4,5 +4,8 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 
 [dependencies]
+failure = "0.1"
+gfx-hal = { path = "../../gfx/src/hal" }
+rendy-shader-proc = { version = "0.1", path = "proc" }
+rendy-factory = { version = "0.1", path = "../factory" }
 shaderc = "0.3"
-rendy-shader-proc = { path = "proc" }

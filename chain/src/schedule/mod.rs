@@ -105,12 +105,6 @@ impl<S> Schedule<S> {
             .and_then(|queue| queue.submission_mut(sid))
     }
 
-    /// Set queue to the schedule
-    pub fn set_queue(&mut self, queue: Queue<S>) {
-        let qid = queue.id();
-        *self.ensure_queue(qid) = queue;
-    }
-
     /// Get mutable reference to `Family` instance by the id.
     /// This function will add empty `Family` if id is not present.
     pub fn ensure_family(&mut self, fid: gfx_hal::queue::QueueFamilyId) -> &mut Family<S> {
@@ -121,6 +115,40 @@ impl<S> Schedule<S> {
     /// This function will grow queues array if index is out of bounds.
     pub fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
         self.ensure_family(qid.family()).ensure_queue(qid)
+    }
+
+    /// Set queue to the schedule.
+    pub(crate) fn set_queue(&mut self, queue: Queue<S>) {
+        let qid = queue.id();
+        *self.ensure_queue(qid) = queue;
+    }
+
+    /// Make ordered.
+    pub fn build_order(&mut self) {
+        let mut oredered: Vec<SubmissionId> = Vec::new();
+
+        {
+            let submissions = self.iter().flat_map(|family| {
+                family.iter().flat_map(|queue| {
+                    queue.iter()
+                })
+            });
+
+            for submission in submissions {
+                if submission.submit_order() == !0 {
+                    continue;
+                }
+                let len = oredered.len();
+                if len <= submission.submit_order() {
+                    oredered.extend((len .. submission.submit_order() + 1).map(|_| submission.id()));
+                } else {
+                    oredered[submission.submit_order()] = submission.id();
+                }
+            }
+        }
+
+        log::debug!("Schedule order: {:#?}", oredered);
+        self.ordered = oredered;
     }
 }
 

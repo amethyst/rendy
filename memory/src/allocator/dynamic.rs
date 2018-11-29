@@ -235,7 +235,7 @@ where
         device: &impl gfx_hal::Device<B>,
         size: u64,
     ) -> Result<(Chunk<B>, u64), gfx_hal::device::AllocationError> {
-        // trace!("Allocate new chunk: size: {}", size);
+        log::trace!("Allocate new chunk: size: {}", size);
         if size > self.max_block_size() {
             // Allocate from device.
             let (memory, mapping) = unsafe {
@@ -249,7 +249,7 @@ where
                     .memory_properties
                     .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
                 {
-                    // trace!("Map new memory object");
+                    log::trace!("Map new memory object");
                     match device.map_memory(&raw, 0 .. size) {
                         Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
                         Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
@@ -275,7 +275,7 @@ where
     /// Allocate super-block to use as chunk memory.
     #[warn(dead_code)]
     fn free_chunk(&mut self, device: &impl gfx_hal::Device<B>, chunk: Chunk<B>) -> u64 {
-        // trace!("Free chunk: {:#?}", chunk);
+        log::trace!("Free chunk: {:#?}", chunk);
         match chunk {
             Chunk::Dedicated(boxed, _) => {
                 let size = boxed.size();
@@ -284,7 +284,7 @@ where
                         .memory_properties
                         .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
                     {
-                        // trace!("Unmap memory: {:#?}", boxed);
+                        log::trace!("Unmap memory: {:#?}", boxed);
                         device.unmap_memory(boxed.raw());
                     }
                     device.free_memory(boxed.into_raw());
@@ -301,7 +301,7 @@ where
         device: &impl gfx_hal::Device<B>,
         size: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        // trace!("Allocate block. type: {}, size: {}", self.memory_type, size);
+        log::trace!("Allocate block. type: {}, size: {}", self.memory_type.0, size);
         let size_index = self.size_index(size);
         let (block_index, allocated) = match hibitset::BitSetLike::iter(&self.sizes[size_index].blocks).next() {
             Some(block_index) => {
@@ -353,7 +353,7 @@ where
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(self) {
         for size in self.sizes {
-            assert_eq!(size.total_chunks, 0);
+            assert_eq!(size.total_chunks, 0, "Allocator is still used");
         }
     }
 }
@@ -382,7 +382,7 @@ where
     }
 
     fn free(&mut self, device: &impl gfx_hal::Device<B>, block: DynamicBlock<B>) -> u64 {
-        // trace!("Free block: {:#?}", block);
+        log::trace!("Free block: {:#?}", block);
         let size_index = self.size_index(block.size());
         let block_index = block.index;
         block.dispose();

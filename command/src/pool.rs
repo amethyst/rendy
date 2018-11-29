@@ -76,7 +76,7 @@ where
     /// Free buffers.
     /// Buffers must be in droppable state.
     /// TODO: Validate buffers were allocated from this pool.
-    pub fn free_buffers(
+    pub unsafe fn free_buffers(
         &mut self,
         buffers: impl IntoIterator<Item = CommandBuffer<B, C, impl Resettable, impl Level, R>>,
     ) {
@@ -111,7 +111,7 @@ where
     }
 
     /// Convert capability level
-    pub fn with_value_capability(self) -> CommandPool<B, gfx_hal::QueueType, R>
+    pub fn with_queue_type(self) -> CommandPool<B, gfx_hal::QueueType, R>
     where
         C: Capability,
     {
