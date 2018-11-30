@@ -22,6 +22,13 @@ mod gfx_backend_vulkan {
     }
 }
 
+#[cfg(feature = "dx12")]
+mod gfx_backend_dx12 {
+    pub(super) fn create_surface(instance: &gfx_backend_dx12::Instance, window: &winit::Window) -> <gfx_backend_dx12::Backend as gfx_hal::Backend>::Surface {
+        instance.create_surface(window)
+    }
+}
+
 macro_rules! create_surface_for_backend {
     (match $instance:ident, $window:ident $(| $backend:ident @ $feature:meta)+) => {{
         #[allow(non_camel_case_types)]
