@@ -1,16 +1,40 @@
 language: rust
-rust:
-  - stable
-  - beta
-  - nightly
+cache:
+  cargo: true
+  directories:
+   - $HOME/deps
+
+compiler: clang
+
 matrix:
-  allow_failures:
-    - rust: nightly
-  fast_finish: true
-script:
-  - cargo test --verbose --all
+  include:
+    # Linux 64bit
+    - os: linux
+      rust: stable
+    - os: linux
+      rust: nightly
+
+    # macOS 64bit
+    - env: MACOSX_DEPLOYMENT_TARGET=10.9
+      os: osx
+      rust: stable
+      osx_image: xcode9
+    - env: MACOSX_DEPLOYMENT_TARGET=10.9
+      os: osx
+      rust: nightly
+      osx_image: xcode9
+
+    # iPhoneOS 64bit
+    - env: TARGET=aarch64-apple-ios
+      os: osx
+      osx_image: xcode9
+      rust: nightly
+
 branches:
   only:
     - staging
     - trying
     - master
+
+script:
+  - make

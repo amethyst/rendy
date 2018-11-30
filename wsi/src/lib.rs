@@ -1,5 +1,12 @@
 
 
+#[cfg(feature = "empty")]
+mod gfx_backend_empty {
+    pub(super) fn create_surface(instance: &gfx_backend_empty::Instance, window: &winit::Window) -> gfx_backend_empty::Surface {
+        unimplemented!()
+    }
+}
+
 #[cfg(feature = "metal")]
 mod gfx_backend_metal {
     pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
@@ -43,6 +50,7 @@ macro_rules! create_surface_for_backend {
 
     ($instance:ident, $window:ident) => {{
         create_surface_for_backend!(match $instance, $window
+            | gfx_backend_empty @ cfg(feature = "empty")
             | gfx_backend_dx12 @ cfg(feature = "dx12")
             | gfx_backend_metal @ cfg(feature = "metal")
             | gfx_backend_vulkan @ cfg(feature = "vulkan")
@@ -127,7 +135,7 @@ where
             .max(capabilities.image_count.start);
 
         log::info!("Surface capabilities: {:#?}. Pick {} images", capabilities.image_count, image_count);
-        assert!(capabilities.usage.contains(usage));
+        assert!(capabilities.usage.contains(usage), "Surface supports {:?}, but {:?} was requested");
 
         let (swapchain, backbuffer) = device.create_swapchain(
             &mut self.raw,

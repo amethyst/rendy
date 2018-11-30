@@ -51,11 +51,11 @@ impl<T> Drop for Inner<T> {
 /// 
 /// # Example
 /// 
-/// ```no_run
+/// ```
 /// # extern crate rendy_resource;
 /// # use rendy_resource::*;
 /// 
-/// fn foo(buffer: Buffer<B>) {
+/// fn foo<B: gfx_hal::Backend>(buffer: Buffer<B>) {
 ///     let kp: KeepAlive = buffer.keep_alive();
 /// 
 ///     // `kp` keeps this buffer from being destroyed.
