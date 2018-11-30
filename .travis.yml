@@ -8,9 +8,10 @@ matrix:
     - rust: nightly
   fast_finish: true
 script:
-  - cargo test --verbose --all
+  - make
 branches:
   only:
     - staging
     - trying
     - master
+cache: cargo

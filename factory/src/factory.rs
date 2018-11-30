@@ -374,6 +374,7 @@ macro_rules! init_factory_for_backend {
 
     ($target:ident, $config:ident) => {{
         init_factory_for_backend!(match $target, $config
+            | gfx_backend_empty @ cfg(feature = "empty")
             | gfx_backend_dx12 @ cfg(feature = "dx12")
             | gfx_backend_metal @ cfg(feature = "metal")
             | gfx_backend_vulkan @ cfg(feature = "vulkan")
