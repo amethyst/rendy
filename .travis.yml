@@ -8,7 +8,7 @@ matrix:
     - rust: nightly
   fast_finish: true
 script:
-  - cargo test --verbose --all --all-features
+  - cargo test --verbose --all
 branches:
   only:
     - staging
