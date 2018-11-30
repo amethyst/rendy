@@ -9,6 +9,11 @@ pub extern crate rendy_resource as resource;
 pub extern crate rendy_shader as shader;
 pub extern crate rendy_wsi as wsi;
 
+pub extern crate gfx_hal as hal;
+
+#[cfg(feature = "gfx-backend-empty")]
+pub extern crate gfx_backend_empty as empty;
+
 #[cfg(feature = "gfx-backend-dx12")]
 pub extern crate gfx_backend_dx12 as dx12;
 

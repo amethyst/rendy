@@ -19,6 +19,9 @@ use winit::{
     EventsLoop, WindowBuilder,
 };
 
+#[cfg(feature = "empty")]
+type Backend = rendy::empty::Backend;
+
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
 
