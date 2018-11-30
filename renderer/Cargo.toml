@@ -9,7 +9,7 @@ derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = "0.2"
-winit = "0.17"
+winit = "0.18"
 
 rendy-wsi = { path = "../wsi" }
 rendy-factory = { path = "../factory" }
