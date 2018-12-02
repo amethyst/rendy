@@ -5,6 +5,7 @@ use crate::{
         Capability, CommandBuffer, CommandPool, ExecutableState, IndividualReset, RecordingState, Submit,
         InitialState, Level, MultiShot, PendingState, Usage, PrimaryLevel,
         EncoderCommon, RenderPassEncoder, Encoder, Supports, Graphics, RenderPassEncoderHRTB, Transfer,
+        Compute,
     },
     factory::Factory,
     resource::{Buffer, Image},
@@ -171,6 +172,13 @@ where
     {
         self.buffer.bind_graphics_pipeline(pipeline)
     }
+
+    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
+    where
+        C: Supports<Compute>,
+    {
+        self.buffer.bind_compute_pipeline(pipeline)
+    }
 }
 
 impl<'a, 'b, B, C, S, P, L>  RenderPassEncoderHRTB<'b, B, C> for CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
@@ -234,6 +242,31 @@ where
                 dst,
                 dst_layout,
                 regions,
+            )
+        }
+    }
+
+    fn dispatch(&mut self, x: u32, y: u32, z: u32)
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::dispatch(
+                self.buffer.raw(),
+                [x, y, z],
+            )
+        }
+    }
+
+    fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::dispatch_indirect(
+                self.buffer.raw(),
+                buffer,
+                offset,
             )
         }
     }
@@ -336,6 +369,12 @@ where
     fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline) {
         unsafe {
             gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(self.buffer, pipeline);
+        }
+    }
+
+    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline) {
+        unsafe { // No way to call this function.
+            std::hint::unreachable_unchecked()
         }
     }
 }

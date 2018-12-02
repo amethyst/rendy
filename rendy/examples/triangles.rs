@@ -3,10 +3,10 @@ extern crate rendy;
 extern crate winit;
 
 use rendy::{
-    command::{Graphics, Encoder, EncoderCommon, RenderPassEncoder},
+    command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel},
     factory::{Config, Factory},
-    frame::{cirque::CirqueRenderPassInlineEncoder},
-    graph::{GraphBuilder, Graph, render::RenderPass, present::PresentNode},
+    frame::{cirque::CirqueRenderPassInlineEncoder, Frames},
+    graph::{GraphBuilder, Graph, render::RenderPass, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable},
     memory::usage::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -45,7 +45,16 @@ lazy_static::lazy_static! {
         SourceLanguage::GLSL,
         "main",
     );
+
+    static ref compute: StaticShaderInfo = StaticShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangles.comp"),
+        ShaderKind::Compute,
+        SourceLanguage::GLSL,
+        "main",
+    );
 }
+
+const MAX_TRIANGLES: u64 = 1024 * 1024;
 
 #[derive(Debug)]
 struct TrianglesRenderPass<B: gfx_hal::Backend> {
@@ -161,12 +170,204 @@ where
     }
 }
 
+#[derive(Debug)]
+struct GravBounce<B: gfx_hal::Backend> {
+    set_layout: B::DescriptorSetLayout,
+    pipeline_layout: B::PipelineLayout,
+    pipeline: B::ComputePipeline,
+
+    descriptor_pool: B::DescriptorPool,
+    descriptor_set: B::DescriptorSet,
+    buffer_view: B::BufferView,
+
+    command_pool: CommandPool<B, Compute>,
+    command_buffer: CommandBuffer<B, Compute, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
+    submit: Submit<'static, B, SimultaneousUse>,
+}
+
+impl<'a, B> NodeSubmittable<'a, B> for GravBounce<B>
+where
+    B: gfx_hal::Backend,
+{
+    type Submittable = &'a Submit<'a, B, SimultaneousUse>;
+    type Submittables = &'a [Submit<'a, B, SimultaneousUse>];
+}
+
+impl<B, T> Node<B, T> for GravBounce<B>
+where
+    B: gfx_hal::Backend,
+    T: ?Sized,
+{
+    type Capability = Compute;
+
+    type Desc = GravBounceDesc;
+
+    fn run<'a>(
+        &'a mut self,
+        factory: &mut Factory<B>,
+        aux: &mut T,
+        frames: &'a Frames<B>,
+    ) -> &'a [Submit<'a, B, SimultaneousUse>] {
+        std::slice::from_ref(&self.submit)
+    }
+
+    unsafe fn dispose(self, factory: &mut Factory<B>, aux: &mut T) {
+        
+    }
+}
+
+#[derive(Debug, Default)]
+struct GravBounceDesc;
+
+impl<B, T> NodeDesc<B, T> for GravBounceDesc
+where
+    B: gfx_hal::Backend,
+    T: ?Sized,
+{
+    type Node = GravBounce<B>;
+
+    fn buffers(&self) -> Vec<BufferAccess> {
+        vec![BufferAccess {
+            access: gfx_hal::buffer::Access::SHADER_READ | gfx_hal::buffer::Access::SHADER_WRITE,
+            stages: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
+            usage: gfx_hal::buffer::Usage::STORAGE_TEXEL,
+        }]
+    }
+
+    fn build<'a>(
+        &self,
+        factory: &mut Factory<B>,
+        aux: &mut T,
+        family: gfx_hal::queue::QueueFamilyId,
+        buffers: &[NodeBuffer<'a, B>],
+        images: &[NodeImage<'a, B>],
+    ) -> Result<Self::Node, failure::Error> {
+        assert!(images.is_empty());
+        assert_eq!(buffers.len(), 1);
+
+        log::trace!("Load shader module '{:#?}'", *compute);
+        let module = compute.module(factory)?;
+
+        let set_layout = gfx_hal::Device::create_descriptor_set_layout(
+            factory.device(),
+            std::iter::once(gfx_hal::pso::DescriptorSetLayoutBinding {
+                binding: 0,
+                ty: gfx_hal::pso::DescriptorType::StorageTexelBuffer,
+                count: 1,
+                stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
+                immutable_samplers: false,
+            }),
+            std::iter::empty::<B::Sampler>(),
+        )?;
+
+        let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
+            factory.device(),
+            std::iter::once(&set_layout),
+            std::iter::empty::<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
+        )?;
+
+        let pipeline = gfx_hal::Device::create_compute_pipeline(
+            factory.device(),
+            &gfx_hal::pso::ComputePipelineDesc {
+                shader: gfx_hal::pso::EntryPoint {
+                    entry: "main",
+                    module: &module,
+                    specialization: gfx_hal::pso::Specialization::default(),
+                },
+                layout: &pipeline_layout,
+                flags: gfx_hal::pso::PipelineCreationFlags::empty(),
+                parent: gfx_hal::pso::BasePipeline::None,
+            },
+            None,
+        )?;
+
+        let (descriptor_pool, descriptor_set, buffer_view) = unsafe {
+            let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(
+                factory.device(),
+                1,
+                std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
+                    ty: gfx_hal::pso::DescriptorType::StorageTexelBuffer,
+                    count: 1,
+                }),
+            )?;
+
+            let descriptor_set = gfx_hal::pso::DescriptorPool::allocate_set(
+                &mut descriptor_pool,
+                &set_layout
+            )?;
+
+            let buffer_view = gfx_hal::Device::create_buffer_view(
+                factory.device(),
+                buffers[0].buffer.raw(),
+                Some(gfx_hal::format::Format::Rgba32Float),
+                0 .. buffers[0].buffer.size(),
+            )?;
+
+            gfx_hal::Device::write_descriptor_sets(
+                factory.device(),
+                std::iter::once(gfx_hal::pso::DescriptorSetWrite {
+                    set: &descriptor_set,
+                    binding: 0,
+                    array_offset: 0,
+                    descriptors: std::iter::once(gfx_hal::pso::Descriptor::StorageTexelBuffer(&buffer_view)),
+                }),
+            );
+
+            (descriptor_pool, descriptor_set, buffer_view)
+        };
+
+        let mut command_pool = factory.create_command_pool(family, ())?
+            .with_capability::<Compute>()
+            .expect("Graph builder must provide family with Compute capability");
+        let command_buffer = command_pool.allocate_buffers(PrimaryLevel, 1).remove(0);
+        let mut encoder = command_buffer.begin(MultiShot(SimultaneousUse), ());
+        encoder.bind_compute_pipeline(&pipeline);
+        // encoder.dispatch(0, 0, 0);
+        let command_buffer = encoder.finish();
+        let (submit, command_buffer) = command_buffer.submit();
+
+        Ok(GravBounce {
+            set_layout,
+            pipeline_layout,
+            pipeline,
+            descriptor_pool,
+            descriptor_set,
+            buffer_view,
+            command_pool,
+            command_buffer,
+            submit,
+        })
+    }
+}
+
 fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut renderer: impl Renderer<Backend, ()>) -> Result<(), failure::Error> {
-    for _ in 0 .. 200 {
+
+    let started = std::time::Instant::now();
+
+    std::thread::spawn(move || {
+        while started.elapsed() < std::time::Duration::new(30, 0) {
+            std::thread::sleep(std::time::Duration::new(1, 0));
+        }
+
+        std::process::abort();
+    });
+
+    let mut frames = 0u64 ..;
+    let mut elapsed = started.elapsed();
+
+    for _ in &mut frames {
         event_loop.poll_events(|_| ());
         renderer.run(factory, &mut ());
-        std::thread::sleep_ms(16);
+
+        elapsed = started.elapsed();
+        if elapsed >= std::time::Duration::new(5, 0) {
+            break;
+        }
     }
+
+    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+
+    log::info!("Elapsed: {:?}. Frames: {}. FPS: {}", elapsed, frames.start, frames.start * 1_000_000_000 / elapsed_ns);
 
     renderer.dispose(factory, &mut ());
     Ok(())
@@ -174,6 +375,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut renderer
 
 fn main() {
     env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
         .filter_module("triangles", log::LevelFilter::Trace)
         .init();
 
@@ -193,6 +395,11 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
+    let posvel = graph_builder.create_buffer(
+        MAX_TRIANGLES * std::mem::size_of::<[f32; 4]>() as u64,
+        MemoryUsageValue::Dynamic,
+    );
+
     let color = graph_builder.create_image(
         surface.kind(),
         1,
@@ -201,9 +408,15 @@ fn main() {
         Some(gfx_hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
+    let grav = graph_builder.add_node(
+        GravBounce::builder()
+            .with_buffer(posvel)
+    );
+
     let pass = graph_builder.add_node(
         TrianglesRenderPass::builder()
             .with_image(color)
+            .with_dependency(grav)
     );
 
     graph_builder.add_node(

@@ -1,8 +1,25 @@
 
 use crate::{
-    capability::{Supports, Graphics, Transfer},
+    capability::{Supports, Graphics, Transfer, Compute},
     resource::{Buffer, Image},
 };
+
+/// Draw command for indirect draw.
+#[repr(C)]
+pub struct DrawCommand {
+    vertex_count: u32,
+    instance_count: u32,
+    first_vertex: u32,
+    first_instance: u32,
+}
+
+/// Draw command for dispatch.
+#[repr(C)]
+pub struct DispatchCommand {
+    x: u32,
+    y: u32,
+    z: u32,
+}
 
 /// Trait to encode commands.
 pub trait EncoderCommon<B: gfx_hal::Backend, C> {
@@ -22,6 +39,12 @@ pub trait EncoderCommon<B: gfx_hal::Backend, C> {
     fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline)
     where
         C: Supports<Graphics>,
+    ;
+
+    /// Bind graphics pipeline.
+    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
+    where
+        C: Supports<Compute>,
     ;
 }
 
@@ -76,5 +99,17 @@ pub trait Encoder<B: gfx_hal::Backend, C>: EncoderCommon<B, C> + for<'a> RenderP
     )
     where
         C: Supports<Transfer>,
+    ;
+
+    /// Dispatch compute.
+    fn dispatch(&mut self, x: u32, y: u32, z: u32)
+    where
+        C: Supports<Compute>,
+    ;
+
+    /// Dispatch compute.
+    fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
+    where
+        C: Supports<Compute>,
     ;
 }

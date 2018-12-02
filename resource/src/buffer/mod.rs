@@ -74,4 +74,9 @@ where
     pub fn info(&self) -> &Info {
         &self.info
     }
+
+    /// Get buffer info.
+    pub fn size(&self) -> u64 {
+        self.info.size
+    }
 }

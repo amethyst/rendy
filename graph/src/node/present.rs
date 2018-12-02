@@ -1,13 +1,12 @@
 use crate::{
-    chain::{ImageState, QueueId},
+    chain::QueueId,
     command::{CommandPool, CommandBuffer, ExecutableState, PendingState, PrimaryLevel, MultiShot, SimultaneousUse, Encoder, Family, Submission, Submit},
     factory::Factory,
     frame::Frames,
     wsi::{Surface, Target},
+    node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess},
     ImageId,
 };
-
-use super::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder};
 
 #[derive(Debug)]
 struct ForImage<B: gfx_hal::Backend> {
@@ -63,8 +62,8 @@ where
         families.get(0).map(Family::index)
     }
 
-    fn images(&self) -> Vec<ImageState> {
-        vec![ImageState {
+    fn images(&self) -> Vec<ImageAccess> {
+        vec![ImageAccess {
             access: gfx_hal::image::Access::TRANSFER_READ,
             layout: gfx_hal::image::Layout::TransferSrcOptimal,
             usage: gfx_hal::image::Usage::TRANSFER_SRC,
@@ -94,7 +93,7 @@ where
                     let mut encoder = initial.begin(MultiShot(SimultaneousUse), ());
                     encoder.copy_image(
                         input_image.image.raw(),
-                        input_image.state.layout,
+                        input_image.layout,
                         &target_image,
                         gfx_hal::image::Layout::TransferDstOptimal,
                         Some(gfx_hal::command::ImageCopy {

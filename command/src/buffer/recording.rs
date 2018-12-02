@@ -2,7 +2,7 @@
 use {
     crate::{
         encoder::{Encoder, EncoderCommon, RenderPassEncoder, RenderPassEncoderHRTB},
-        capability::{Supports, Graphics, Transfer},
+        capability::{Supports, Graphics, Transfer, Compute},
         resource::{Buffer, Image},
     },
     super::{
@@ -78,6 +78,17 @@ where
             gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(&mut self.raw, pipeline);
         }
     }
+
+    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
+    where
+        C: Supports<Compute>,
+    {
+        self.capability.assert();
+
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_compute_pipeline(&mut self.raw, pipeline);
+        }
+    }
 }
 
 impl<'a, B, C, U, L, R> RenderPassEncoderHRTB<'a, B, C> for CommandBuffer<B, C, RecordingState<U>, L, R>
@@ -139,6 +150,31 @@ where
             )
         }
     }
+
+    fn dispatch(&mut self, x: u32, y: u32, z: u32)
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::dispatch(
+                self.raw(),
+                [x, y, z],
+            )
+        }
+    }
+
+    fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::dispatch_indirect(
+                self.raw(),
+                buffer,
+                offset,
+            )
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -172,6 +208,12 @@ where
     fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline) {
         unsafe {
             gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
+        }
+    }
+
+    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline) {
+        unsafe { // No way to call this function.
+            std::hint::unreachable_unchecked()
         }
     }
 }

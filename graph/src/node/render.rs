@@ -1,11 +1,10 @@
 use crate::{
-    chain,
     command::{
         ExecutableState, Graphics, CommandPool, IndividualReset, Submit, PrimaryLevel, Encoder, RenderPassEncoder,
     },
     factory::Factory,
     frame::{Frames, cirque::{CommandCirque, CirqueEncoder, CirqueRenderPassInlineEncoder}},
-    node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage},
+    node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable},
     resource::{Buffer, Image},
 };
 
@@ -187,24 +186,24 @@ where
 {
     type Node = RenderPassNode<B, R>;
 
-    fn buffers(&self) -> Vec<chain::BufferState> {
+    fn buffers(&self) -> Vec<BufferAccess> {
         Vec::new()
     }
 
-    fn images(&self) -> Vec<chain::ImageState> {
-        let sampled = (0..R::sampled()).map(|_| chain::ImageState {
+    fn images(&self) -> Vec<ImageAccess> {
+        let sampled = (0..R::sampled()).map(|_| ImageAccess {
             usage: gfx_hal::image::Usage::SAMPLED,
             access: gfx_hal::image::Access::SHADER_READ,
             layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
             stages: all_graphics_shaders_stages(),
         });
-        let storage = (0..R::storage()).map(|_| chain::ImageState {
+        let storage = (0..R::storage()).map(|_| ImageAccess {
             usage: gfx_hal::image::Usage::STORAGE,
             access: gfx_hal::image::Access::SHADER_READ,
             layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
             stages: all_graphics_shaders_stages(),
         });
-        let colors = (0..R::colors()).map(|_| chain::ImageState {
+        let colors = (0..R::colors()).map(|_| ImageAccess {
             usage: gfx_hal::image::Usage::COLOR_ATTACHMENT,
             access: gfx_hal::image::Access::COLOR_ATTACHMENT_READ
                 | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE,
@@ -212,7 +211,7 @@ where
             stages: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT,
         });
         let depth = if R::depth() {
-            Some(chain::ImageState {
+            Some(ImageAccess {
                 usage: gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT,
                 access: gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
                     | gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE,
@@ -232,14 +231,12 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: impl IntoIterator<Item = NodeBuffer<'a, B>>,
-        images: impl IntoIterator<Item = NodeImage<'a, B>>,
+        buffers: &[NodeBuffer<'a, B>],
+        images: &[NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error> {
         log::trace!("Creating RenderPass instance for '{}'", R::name());
 
-        assert!(buffers.into_iter().all(|_| false));
-        let images: Vec<_> = images.into_iter().collect();
-
+        // assert!(buffers.is_empty());
         assert_eq!(
             R::sampled() + R::storage() + R::colors() + R::depth() as usize,
             images.len()
@@ -262,7 +259,7 @@ where
                     },
                     stencil_ops: gfx_hal::pass::AttachmentOps::DONT_CARE,
                     layouts: {
-                        let layout = color(index).state.layout;
+                        let layout = color(index).layout;
                         let from = if color(index).clear.is_some() {
                             gfx_hal::image::Layout::Undefined
                         } else {
@@ -284,7 +281,7 @@ where
                         },
                         stencil_ops: gfx_hal::pass::AttachmentOps::DONT_CARE,
                         layouts: {
-                            let layout = depth().state.layout;
+                            let layout = depth().layout;
                             let from = if depth().clear.is_some() {
                                 gfx_hal::image::Layout::Undefined
                             } else {
@@ -299,10 +296,10 @@ where
                 });
 
             let colors = (0..R::colors())
-                .map(|index| (index, color(index).state.layout))
+                .map(|index| (index, color(index).layout))
                 .collect::<Vec<_>>();
             let depth = if R::depth() {
-                Some((R::colors(), depth().state.layout))
+                Some((R::colors(), depth().layout))
             } else {
                 None
             };
@@ -532,6 +529,14 @@ where
     }
 }
 
+impl<'a, B, R> NodeSubmittable<'a, B> for RenderPassNode<B, R>
+where
+    B: gfx_hal::Backend,
+{
+    type Submittable = Submit<'a, B>;
+    type Submittables = std::iter::Once<Submit<'a, B>>;
+}
+
 impl<B, T, R> Node<B, T> for RenderPassNode<B, R>
 where
     B: gfx_hal::Backend,
@@ -546,7 +551,7 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         frames: &'a Frames<B>,
-    ) -> Submit<'a, B> {
+    ) -> std::iter::Once<Submit<'a, B>> {
         let redraw = self.pass.prepare(&self.set_layouts, factory, aux);
 
         let encoder = unsafe {
@@ -557,7 +562,7 @@ where
         let mut recording = match encoder {
             either::Left(executable) => {
                 if !redraw {
-                    return executable.submit();
+                    return std::iter::once(executable.submit());
                 }
                 executable.reset()
             }
@@ -589,7 +594,7 @@ where
             );
         }
 
-        recording.finish().submit()
+        std::iter::once(recording.finish().submit())
     }
 
     unsafe fn dispose(mut self, factory: &mut Factory<B>, aux: &mut T) {

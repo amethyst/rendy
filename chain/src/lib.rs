@@ -33,7 +33,7 @@ pub use crate::{
     chain::{Chain, Link, LinkNode},
     collect::{collect, Chains, Unsynchronized},
     node::{Node, State, BufferState, ImageState},
-    resource::{AccessFlags, Buffer, Image, Resource},
+    resource::{AccessFlags, Buffer, Image, Resource, UsageFlags},
     schedule::{Family, Queue, QueueId, Schedule, Submission, SubmissionId},
     sync::{sync, SyncData, Barriers, BufferBarriers, ImageBarriers, Guard, Wait, Signal},
 };
