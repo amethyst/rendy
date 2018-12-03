@@ -42,7 +42,7 @@ pub fn cast_slice<T>(slice: &[T]) -> &[u8] {
     unsafe { from_raw_parts(ptr as _, len) }
 }
 
-pub fn cast_cow<T>(cow: Cow<[T]>) -> Cow<[u8]>
+pub fn cast_cow<T>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]>
 where
     T: Clone,
 {

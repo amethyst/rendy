@@ -4,9 +4,10 @@ mod usage;
 
 pub use self::usage::*;
 
-use memory::{Block, MemoryBlock};
-
-use crate::escape::{Escape, KeepAlive};
+use crate::{
+    escape::{Escape, KeepAlive},
+    memory::{Block, MemoryBlock},
+};
 
 /// Image info.
 #[derive(Clone, Copy, Debug)]

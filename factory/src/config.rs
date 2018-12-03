@@ -1,7 +1,8 @@
 use std::cmp::min;
 
-use memory::{allocator, HeapsConfig};
+use crate::memory::{allocator, HeapsConfig};
 
+/// Factory initialization config.
 #[derive(Clone, derivative::Derivative)]
 #[derivative(Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -13,18 +14,21 @@ pub struct Config<H = BasicHeapsConfigure, Q = OneGraphicsQueue> {
     pub queues: Q,
 }
 
-/// Trait that represents some method to select a queue family.
+/// Queues configuration.
 pub unsafe trait QueuesConfigure {
+    /// Slice of priorities.
     type Priorities: AsRef<[f32]>;
+
+    /// Iterator over families to create.
     type Families: IntoIterator<Item = (gfx_hal::queue::QueueFamilyId, Self::Priorities)>;
 
+    /// Configure.
     fn configure(self, families: &[impl gfx_hal::queue::QueueFamily]) -> Self::Families;
 }
 
-/// QueuePicket that picks first graphics queue family.
+/// QueuePicker that picks first graphics queue family.
 /// If possible it checks that queues of the family are capabile of presenting.
-
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OneGraphicsQueue;
 
@@ -52,10 +56,15 @@ unsafe impl QueuesConfigure for SavedQueueConfig {
     }
 }
 
+/// Heaps configuration.
 pub unsafe trait HeapsConfigure {
+    /// Iterator over memory types.
     type Types: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>;
+
+    /// Iterator over heaps.
     type Heaps: IntoIterator<Item = u64>;
 
+    /// Configure.
     fn configure(
         self,
         properties: &gfx_hal::adapter::MemoryProperties,
@@ -63,7 +72,7 @@ pub unsafe trait HeapsConfigure {
 }
 
 /// Basic heaps config.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BasicHeapsConfigure;
 

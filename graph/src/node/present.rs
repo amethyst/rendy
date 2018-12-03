@@ -1,3 +1,5 @@
+//! Defines present node.
+
 use crate::{
     chain::QueueId,
     command::{CommandPool, CommandBuffer, ExecutableState, PendingState, PrimaryLevel, MultiShot, SimultaneousUse, Encoder, Family, Submission, Submit},
@@ -5,7 +7,6 @@ use crate::{
     frame::Frames,
     wsi::{Surface, Target},
     node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess},
-    ImageId,
 };
 
 #[derive(Debug)]
@@ -16,6 +17,7 @@ struct ForImage<B: gfx_hal::Backend> {
     buffer: CommandBuffer<B, gfx_hal::QueueType, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
 }
 
+/// Node that presents images to the surface.
 #[derive(Debug)]
 pub struct PresentNode<B: gfx_hal::Backend> {
     per_image: Vec<ForImage<B>>,
@@ -34,6 +36,7 @@ where
     }
 }
 
+/// Presentation node description.
 #[derive(Debug)]
 pub struct PresentDesc<B: gfx_hal::Backend> {
     surface: Surface<B>,
@@ -74,7 +77,7 @@ where
     fn build<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
         buffers: &[NodeBuffer<'a, B>],
         images: &[NodeImage<'a, B>],
@@ -147,7 +150,7 @@ where
     unsafe fn run<'a>(
         &mut self,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
         _frames: &Frames<B>,
         qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
@@ -177,7 +180,7 @@ where
         }
     }
 
-    unsafe fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T) {
+    unsafe fn dispose(self: Box<Self>, _factory: &mut Factory<B>, _aux: &mut T) {
         unimplemented!()
     }
 }

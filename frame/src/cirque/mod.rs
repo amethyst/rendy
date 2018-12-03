@@ -1,4 +1,6 @@
 
+//! Ring buffers for using with frames.
+
 mod command;
 
 // use std::collections::VecDeque;

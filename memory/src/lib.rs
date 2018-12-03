@@ -14,9 +14,9 @@
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
-#![warn(unused_unsafe)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
 extern crate failure;
 

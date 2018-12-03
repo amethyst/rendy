@@ -11,11 +11,11 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
-// #![deny(unused)]
+#![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
 mod buffer;
@@ -24,8 +24,6 @@ mod capability;
 mod family;
 mod pool;
 
-extern crate rendy_resource as resource;
-
 pub use crate::{
     buffer::{
         CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
@@ -33,7 +31,7 @@ pub use crate::{
         RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
         Reset, Submittable,
     },
-    encoder::{EncoderCommon, RenderPassEncoder, Encoder, RenderPassEncoderHRTB},
+    encoder::{EncoderCommon, RenderPassEncoder, Encoder, RenderPassEncoderHRTB, DrawCommand, DispatchCommand},
     capability::{Capability, Compute, General, Graphics, Transfer, Supports},
     family::{families_from_device, Family, Submission},
     pool::CommandPool,

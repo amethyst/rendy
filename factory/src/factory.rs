@@ -1,15 +1,20 @@
 
-use command::{families_from_device, Family, Reset, CommandPool};
-use memory::{Block, Heaps, Write};
-use resource::{buffer::{self, Buffer}, image::{self, Image}, Resources};
-use wsi::{Surface, Target};
+use crate::{
+    command::{families_from_device, Family, Reset, CommandPool},
+    memory::{Block, Heaps, Write},
+    resource::{buffer::{self, Buffer}, image::{self, Image}, Resources},
+    wsi::{Surface, Target},
+    config::{Config, HeapsConfigure, QueuesConfigure},
+};
 
-use config::{Config, HeapsConfigure, QueuesConfigure};
-
+/// Higher level device interface.
+/// Manges memory, resources and queue families.
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 pub struct Factory<B: gfx_hal::Backend> {
-    instance: Box<dyn std::any::Any>,
-    adapter: gfx_hal::Adapter<B>,
-    device: B::Device,
+    #[derivative(Debug = "ignore")] instance: Box<dyn std::any::Any>,
+    #[derivative(Debug = "ignore")] adapter: gfx_hal::Adapter<B>,
+    #[derivative(Debug = "ignore")] device: B::Device,
     heaps: Heaps<B>,
     resources: Resources<B>,
     families: Vec<Family<B>>,
@@ -42,7 +47,18 @@ where
                 _ => 4,
             }).unwrap();
 
-        log::info!("Physical device picked: {}", adapter.info.name);
+        #[derive(Debug)]
+        struct PhysicalDeviceInfo<'a> {
+            name: &'a str,
+            features: gfx_hal::Features,
+            limits: gfx_hal::Limits,
+        }
+
+        log::info!("Physical device picked: {:#?}", PhysicalDeviceInfo {
+            name: &adapter.info.name,
+            features: gfx_hal::adapter::PhysicalDevice::features(&adapter.physical_device),
+            limits: gfx_hal::adapter::PhysicalDevice::limits(&adapter.physical_device),
+        });
 
         let (device, families) = {
             let families = config.queues.configure(&adapter.queue_families)
@@ -88,10 +104,14 @@ where
         Ok(factory)
     }
 
+    /// Wait for whole device become idle.
+    /// This function is very heavy and
+    /// usually used only for teardown.
     pub fn wait_idle(&self) -> Result<(), gfx_hal::error::HostExecutionError> {
         gfx_hal::Device::wait_idle(&self.device)
     }
 
+    /// Dispose of the `Factory`.
     pub fn dispose(mut self) {
         let _ = self.wait_idle();
         for family in self.families {
@@ -142,8 +162,8 @@ where
         buffer: &mut Buffer<B>,
         offset: u64,
         content: &[T],
-        family: gfx_hal::queue::QueueFamilyId,
-        access: gfx_hal::buffer::Access,
+        _family: gfx_hal::queue::QueueFamilyId,
+        _access: gfx_hal::buffer::Access,
     ) -> Result<(), failure::Error> {
         if buffer
             .block()
@@ -358,7 +378,7 @@ macro_rules! init_factory_for_backend {
                 _B::$backend => {
                     if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
                         let instance = $backend::Instance::create("Rendy", 1);
-                        let factory: Box<std::any::Any> = Box::new(Factory::init(instance, $config)?);
+                        let factory: Box<dyn std::any::Any> = Box::new(Factory::init(instance, $config)?);
                         return Ok(*factory.downcast::<Factory<$target>>().unwrap());
                     }
                 })+

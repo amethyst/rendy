@@ -4,8 +4,7 @@ use crate::{
     factory::Factory,
     frame::{Frames, Fences},
     memory::MemoryUsageValue,
-    node::{AnyNode, NodeBuffer, NodeBuilder, NodeImage},
-    renderer::Renderer,
+    node::{AnyNode, NodeBuilder},
     resource::{buffer, image},
     BufferId,
     ImageId,
@@ -56,7 +55,7 @@ where
             let wait = self.frames.next().index() - self.inflight;
             let ref mut self_fences = self.fences;
             self.frames.wait_complete(wait, factory, |fences| {
-                factory.reset_fences(&fences);
+                factory.reset_fences(&fences).unwrap();
                 self_fences.push(fences);
             });
         }
@@ -117,18 +116,9 @@ where
             self.frames.advance(fences);
         }
     }
-}
 
-impl<B, T> Renderer<B, T> for Graph<B, T>
-where
-    B: gfx_hal::Backend,
-    T: ?Sized,
-{
-    fn run(&mut self, factory: &mut Factory<B>, data: &mut T) {
-        Graph::run(self, factory, data);
-    }
-
-    fn dispose(self, factory: &mut Factory<B>, data: &mut T) {
+    /// Dispose of the `Graph`.
+    pub fn dispose(self, factory: &mut Factory<B>, data: &mut T) {
         assert!(factory.wait_idle().is_ok());
         self.frames.dispose(factory);
 
@@ -238,7 +228,7 @@ where
             .map(|(i, b)| b.chain(i, &factory, self.buffers.len()))
             .collect();
 
-        let mut chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
+        let chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
         log::trace!("Allocate buffers");

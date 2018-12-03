@@ -6,7 +6,7 @@ pub mod present;
 
 use crate::{
     chain,
-    command::{Capability, Family, Submit, Supports, Submission, Submittable},
+    command::{Capability, Family, Supports, Submission, Submittable},
     factory::Factory,
     frame::Frames,
     resource::{Buffer, Image},
@@ -101,7 +101,10 @@ pub struct NodeImage<'a, B: gfx_hal::Backend> {
 
 /// NodeSubmittable
 pub trait NodeSubmittable<'a, B: gfx_hal::Backend> {
+    /// Submittable type returned from `Node`.
     type Submittable: Submittable<B> + 'a;
+
+    /// Iterator over submittables returned from `Node`.
     type Submittables: IntoIterator<Item = Self::Submittable>;
 }
 

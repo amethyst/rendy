@@ -1,6 +1,6 @@
 //! Frame module docs.
 
-use factory::Factory;
+use crate::factory::Factory;
 
 /// Fences collection.
 pub type Fences<B> = smallvec::SmallVec<[<B as gfx_hal::Backend>::Fence; 8]>;
@@ -116,6 +116,7 @@ where
         }
     }
 
+    /// Dispose of the `Frames`
     pub fn dispose(mut self, factory: &mut Factory<B>) {
         let ready = factory.wait_for_fences(
             self.pending.iter().flatten(),
@@ -129,6 +130,8 @@ where
         });
     }
 
+    /// Get range of frame indices in this form: 
+    /// `upper bound of finished frames .. next frame`.
     pub fn range(&self) -> std::ops::Range<u64> {
         self.complete_upper_bound() .. self.next.index
     }

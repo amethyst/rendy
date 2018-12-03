@@ -7,11 +7,9 @@ use crate::{
         EncoderCommon, RenderPassEncoder, Encoder, Supports, Graphics, RenderPassEncoderHRTB, Transfer,
         Compute,
     },
-    factory::Factory,
-    resource::{Buffer, Image},
-    frame::Frames,
 };
 
+/// Command ring buffer.
 #[derive(Debug)]
 pub struct CommandCirque<B: gfx_hal::Backend, C, S = (), P = (), L = PrimaryLevel> {
     pendings: VecDeque<Pending<B, C, S, P, L>>,
@@ -51,7 +49,7 @@ where
 
     /// All buffers must complete.
     /// Usually this function is called after waiting for device idle.
-    pub unsafe fn dispose(mut self, pool: &mut CommandPool<B, C, IndividualReset>, factory: &Factory<B>) {
+    pub unsafe fn dispose(mut self, pool: &mut CommandPool<B, C, IndividualReset>) {
         pool.free_buffers(self.pendings.drain(..).map(|p| p.buffer.complete()).chain(self.executables.drain(..).map(|e| e.buffer)));
     }
 
@@ -110,7 +108,6 @@ where
 }
 
 /// Buffer borrowed from `CommandCirque`.
-/// It is bound to `Frames` reference lifetime to ensure it can't be used with another frame.
 #[derive(Debug)]
 pub struct CirqueEncoder<'a, B: gfx_hal::Backend, C: 'a, X = RecordingState<MultiShot>, S: 'a = (), P: 'a = (), L: 'a = PrimaryLevel> {
     buffer: CommandBuffer<B, C, X, L, IndividualReset>,
@@ -152,14 +149,14 @@ impl<'a, B, C, S, P, L> EncoderCommon<B, C> for CirqueEncoder<'a, B, C, Recordin
 where
     B: gfx_hal::Backend,
 {
-    fn bind_index_buffer(&mut self, buffer: &Buffer<B>, offset: u64, index_type: gfx_hal::IndexType)
+    fn bind_index_buffer(&mut self, buffer: &B::Buffer, offset: u64, index_type: gfx_hal::IndexType)
     where
         C: Supports<Graphics>,
     {
         self.buffer.bind_index_buffer(buffer, offset, index_type)
     }
 
-    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b Buffer<B>, u64)>)
+    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>)
     where
         C: Supports<Graphics>,
     {
@@ -178,6 +175,19 @@ where
         C: Supports<Compute>,
     {
         self.buffer.bind_compute_pipeline(pipeline)
+    }
+
+    fn bind_compute_descriptor_sets<'b>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    )
+    where
+        C: Supports<Compute>,
+    {
+        self.buffer.bind_compute_descriptor_sets(layout, first_set, sets, offsets)
     }
 }
 
@@ -327,6 +337,7 @@ where
     }
 }
 
+/// Borrowed buffer from `CommandCirque` ready for render pass encoding.
 #[derive(Debug)]
 pub struct CirqueRenderPassInlineEncoder<'a, B: gfx_hal::Backend> {
     buffer: &'a mut B::CommandBuffer,
@@ -347,22 +358,22 @@ impl<'a, B> EncoderCommon<B, Graphics> for CirqueRenderPassInlineEncoder<'a, B>
 where
     B: gfx_hal::Backend,
 {
-    fn bind_index_buffer(&mut self, buffer: &Buffer<B>, offset: u64, index_type: gfx_hal::IndexType) {
+    fn bind_index_buffer(&mut self, buffer: &B::Buffer, offset: u64, index_type: gfx_hal::IndexType) {
         gfx_hal::command::RawCommandBuffer::bind_index_buffer(
             self.buffer,
             gfx_hal::buffer::IndexBufferView {
-                buffer: buffer.raw(),
+                buffer,
                 offset,
                 index_type,
             }
         )
     }
 
-    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b Buffer<B>, u64)>) {
+    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>) {
         gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
             self.buffer,
             first_binding,
-            buffers.into_iter().map(|(buffer, offset)| (buffer.raw(), offset)),
+            buffers,
         )
     }
 
@@ -372,7 +383,19 @@ where
         }
     }
 
-    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline) {
+    fn bind_compute_pipeline(&mut self, _pipeline: &B::ComputePipeline) {
+        unsafe { // No way to call this function.
+            std::hint::unreachable_unchecked()
+        }
+    }
+
+    fn bind_compute_descriptor_sets<'b>(
+        &mut self,
+        _layout: &B::PipelineLayout,
+        _first_set: u32,
+        _sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        _offsets: impl IntoIterator<Item = u32>,
+    ) {
         unsafe { // No way to call this function.
             std::hint::unreachable_unchecked()
         }
@@ -406,6 +429,22 @@ where
             indices,
             base_vertex,
             instances,
+        )
+    }
+
+    fn draw_indirect(
+        &mut self,
+        buffer: &B::Buffer, 
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        gfx_hal::command::RawCommandBuffer::draw_indirect(
+            self.buffer,
+            buffer,
+            offset,
+            draw_count,
+            stride,
         )
     }
 }

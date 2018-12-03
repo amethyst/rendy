@@ -1,5 +1,5 @@
 
-use memory::usage::{Data, Download, Dynamic, MemoryUsage, Upload};
+use crate::memory::usage::{Data, Download, Dynamic, MemoryUsage, Upload};
 
 /// Usage trait that must implemented by usage types.
 /// This trait provides a way to convert type-level usage to the value-level flags.
