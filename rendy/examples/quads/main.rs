@@ -119,7 +119,7 @@ where
         unsafe {
             factory.upload_visible_buffer(&mut indirect, 0, &[DrawCommand {
                 vertex_count: 6,
-                instance_count: 1,
+                instance_count: 10,
                 first_vertex: 0,
                 first_instance: 0,
             }]).unwrap();
