@@ -1,3 +1,22 @@
+//! Enable compile time shader compilation.
+
+#![forbid(overflowing_literals)]
+#![deny(missing_copy_implementations)]
+#![deny(missing_debug_implementations)]
+// #![deny(missing_docs)]
+#![deny(intra_doc_link_resolution_failure)]
+#![deny(path_statements)]
+#![deny(trivial_bounds)]
+#![deny(type_alias_bounds)]
+#![deny(unconditional_recursion)]
+#![deny(unions_with_drop_fields)]
+#![deny(while_true)]
+#![deny(unused)]
+#![deny(bad_style)]
+#![deny(future_incompatible)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
 extern crate proc_macro;
 
@@ -17,7 +36,7 @@ struct Input {
 }
 
 impl syn::parse::Parse for Input {
-    fn parse(stream: syn::parse::ParseStream) -> Result<Self, syn::parse::Error> {
+    fn parse(stream: syn::parse::ParseStream<'_>) -> Result<Self, syn::parse::Error> {
         let name_ident = syn::Ident::parse(stream)?;
         let kind_ident = syn::Ident::parse(stream)?;
         let lang_ident = syn::Ident::parse(stream)?;
@@ -62,6 +81,7 @@ fn lang(ident: &str) -> shaderc::SourceLanguage {
     }
 }
 
+/// This function implements shader compilation macro.
 #[proc_macro]
 pub fn compile_to_spirv_proc(input: TokenStream) -> TokenStream {
     let Input {

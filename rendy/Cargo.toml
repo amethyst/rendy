@@ -17,7 +17,6 @@ rendy-graph = { path = "../graph" }
 rendy-memory = { path = "../memory" }
 rendy-mesh = { path = "../mesh" }
 rendy-shader = { path = "../shader" }
-rendy-renderer = { path = "../renderer" }
 rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }
 
@@ -33,4 +32,5 @@ failure = "0.1"
 lazy_static = "1.0"
 log = "0.4"
 winit = "0.18"
-
+palette = "0.4"
+rand = "0.6"

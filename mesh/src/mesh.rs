@@ -2,14 +2,17 @@
 //! Manage vertex and index buffers of single objects with ease.
 //!
 
-use std::borrow::Cow;
-use std::mem::size_of;
+use std::{
+    borrow::Cow,
+    mem::size_of,
+};
 
-use factory::Factory;
-use resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer};
-
-use utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key};
-use vertex::{AsVertex, VertexFormat};
+use crate::{
+    factory::Factory,
+    resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer},
+    utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
+    vertex::{AsVertex, VertexFormat},
+};
 
 /// Vertex buffer with it's format
 #[derive(Debug)]
@@ -252,7 +255,7 @@ where
     /// Bind buffers to specified attribute locations.
     pub fn bind<'a>(
         &'a self,
-        formats: &[VertexFormat],
+        formats: &[VertexFormat<'_>],
     ) -> Result<Bind<'a, B>, Incompatible> {
         debug_assert!(is_slice_sorted(formats));
         debug_assert!(is_slice_sorted_by_key(&self.vbufs, |vbuf| &vbuf.format));
@@ -352,7 +355,7 @@ where
 }
 
 /// Helper function to find buffer with compatible format.
-fn find_compatible_buffer<B>(vbufs: &[VertexBuffer<B>], format: &VertexFormat) -> Option<usize>
+fn find_compatible_buffer<B>(vbufs: &[VertexBuffer<B>], format: &VertexFormat<'_>) -> Option<usize>
 where
     B: gfx_hal::Backend,
 {
@@ -368,7 +371,7 @@ where
 
 /// Check is vertex format `left` is compatible with `right`.
 /// `left` must have same `stride` and contain all attributes from `right`.
-fn is_compatible(left: &VertexFormat, right: &VertexFormat) -> bool {
+fn is_compatible(left: &VertexFormat<'_>, right: &VertexFormat<'_>) -> bool {
     if left.stride != right.stride {
         return false;
     }

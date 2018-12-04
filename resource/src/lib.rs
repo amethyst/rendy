@@ -15,9 +15,9 @@
 #![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
-#![warn(unused_unsafe)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
 #[macro_use] extern crate derivative;
 #[macro_use] extern crate log;
@@ -29,7 +29,9 @@ mod resources;
 pub mod buffer;
 pub mod image;
 
-pub use escape::KeepAlive;
-pub use buffer::Buffer;
-pub use image::Image;
-pub use resources::Resources;
+pub use crate::{
+    escape::KeepAlive,
+    buffer::Buffer,
+    image::Image,
+    resources::Resources,
+};

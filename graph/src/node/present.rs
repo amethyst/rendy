@@ -1,13 +1,13 @@
+//! Defines present node.
+
 use crate::{
-    chain::{ImageState, QueueId},
+    chain::QueueId,
     command::{CommandPool, CommandBuffer, ExecutableState, PendingState, PrimaryLevel, MultiShot, SimultaneousUse, Encoder, Family, Submission, Submit},
     factory::Factory,
     frame::Frames,
     wsi::{Surface, Target},
-    ImageId,
+    node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess},
 };
-
-use super::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder};
 
 #[derive(Debug)]
 struct ForImage<B: gfx_hal::Backend> {
@@ -17,6 +17,7 @@ struct ForImage<B: gfx_hal::Backend> {
     buffer: CommandBuffer<B, gfx_hal::QueueType, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
 }
 
+/// Node that presents images to the surface.
 #[derive(Debug)]
 pub struct PresentNode<B: gfx_hal::Backend> {
     per_image: Vec<ForImage<B>>,
@@ -35,6 +36,7 @@ where
     }
 }
 
+/// Presentation node description.
 #[derive(Debug)]
 pub struct PresentDesc<B: gfx_hal::Backend> {
     surface: Surface<B>,
@@ -63,8 +65,8 @@ where
         families.get(0).map(Family::index)
     }
 
-    fn images(&self) -> Vec<ImageState> {
-        vec![ImageState {
+    fn images(&self) -> Vec<ImageAccess> {
+        vec![ImageAccess {
             access: gfx_hal::image::Access::TRANSFER_READ,
             layout: gfx_hal::image::Layout::TransferSrcOptimal,
             usage: gfx_hal::image::Usage::TRANSFER_SRC,
@@ -75,10 +77,10 @@ where
     fn build<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
         assert_eq!(buffers.len(), 0);
         assert_eq!(images.len(), 1);
@@ -94,7 +96,7 @@ where
                     let mut encoder = initial.begin(MultiShot(SimultaneousUse), ());
                     encoder.copy_image(
                         input_image.image.raw(),
-                        input_image.state.layout,
+                        input_image.layout,
                         &target_image,
                         gfx_hal::image::Layout::TransferDstOptimal,
                         Some(gfx_hal::command::ImageCopy {
@@ -148,7 +150,7 @@ where
     unsafe fn run<'a>(
         &mut self,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
         _frames: &Frames<B>,
         qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
@@ -178,7 +180,7 @@ where
         }
     }
 
-    unsafe fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T) {
+    unsafe fn dispose(self: Box<Self>, _factory: &mut Factory<B>, _aux: &mut T) {
         unimplemented!()
     }
 }

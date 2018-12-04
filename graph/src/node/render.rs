@@ -1,36 +1,48 @@
+
+//! Defines render pass node.
+
 use crate::{
-    chain,
     command::{
-        ExecutableState, Graphics, CommandPool, IndividualReset, Submit, PrimaryLevel, Encoder, RenderPassEncoder,
+        Graphics, CommandPool, IndividualReset, Submit, PrimaryLevel, Encoder,
     },
     factory::Factory,
-    frame::{Frames, cirque::{CommandCirque, CirqueEncoder, CirqueRenderPassInlineEncoder}},
-    node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage},
-    resource::{Buffer, Image},
+    frame::{Frames, cirque::{CommandCirque, CirqueRenderPassInlineEncoder}},
+    node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable},
 };
 
 /// Set layout
 #[derive(Clone, Debug, Default)]
 pub struct SetLayout {
+    /// Set layout bindings.
     pub bindings: Vec<gfx_hal::pso::DescriptorSetLayoutBinding>,
 }
 
 /// Pipeline layout
 #[derive(Clone, Debug)]
 pub struct Layout {
+    /// Sets in pipeline layout.
     pub sets: Vec<SetLayout>,
+
+    /// Push constants in pipeline layout.
     pub push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>,
 }
 
 /// Pipeline info
 #[derive(Clone, Debug)]
 pub struct Pipeline {
+    /// Layout for pipeline.
     pub layout: usize,
+
+    /// Vertex input for pipeline.
     pub vertices: Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
     )>,
+
+    /// Colors for pipeline.
     pub colors: Vec<gfx_hal::pso::ColorBlendDesc>,
+
+    /// Depth stencil for pipeline.
     pub depth_stencil: gfx_hal::pso::DepthStencilDesc,
 }
 
@@ -45,7 +57,7 @@ pub struct RenderPassNode<B: gfx_hal::Backend, R> {
     pipeline_layouts: Vec<B::PipelineLayout>,
     set_layouts: Vec<Vec<B::DescriptorSetLayout>>,
     graphics_pipelines: Vec<B::GraphicsPipeline>,
-    views: Vec<B::ImageView>,
+    attachment_views: Vec<B::ImageView>,
     framebuffer: B::Framebuffer,
     command_pool: CommandPool<B, Graphics, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,
@@ -63,14 +75,14 @@ where
     /// Pass name.
     fn name() -> &'static str;
 
-    /// Number of images to sample.
-    fn sampled() -> usize {
-        0
+    /// Get set or buffer resources the node uses.
+    fn buffers() -> Vec<BufferAccess> {
+        Vec::new()
     }
 
-    /// Number of images to use as storage.
-    fn storage() -> usize {
-        0
+    /// Get set or image resources the node uses.
+    fn images() -> Vec<ImageAccess> {
+        Vec::new()
     }
 
     /// Number of color output images.
@@ -91,6 +103,7 @@ where
         }]
     }
 
+    /// Get vertex input.
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
@@ -151,17 +164,18 @@ where
     ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>>;
 
     /// Build pass instance.
-    fn build(
-        sampled: &[B::ImageView],
-        storage: &[B::ImageView],
+    fn build<'a>(
         factory: &mut Factory<B>,
         aux: &mut T,
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
+        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self;
 
     /// Prepare to record drawing commands.
     /// 
     /// Should return true if commands must be re-recorded.
-    fn prepare(&mut self, sets: &[impl AsRef<[B::DescriptorSetLayout]>], factory: &mut Factory<B>, aux: &T) -> bool {
+    fn prepare(&mut self, _factory: &mut Factory<B>, _aux: &T) -> bool {
         false
     }
 
@@ -187,24 +201,12 @@ where
 {
     type Node = RenderPassNode<B, R>;
 
-    fn buffers(&self) -> Vec<chain::BufferState> {
-        Vec::new()
+    fn buffers(&self) -> Vec<BufferAccess> {
+        R::buffers()
     }
 
-    fn images(&self) -> Vec<chain::ImageState> {
-        let sampled = (0..R::sampled()).map(|_| chain::ImageState {
-            usage: gfx_hal::image::Usage::SAMPLED,
-            access: gfx_hal::image::Access::SHADER_READ,
-            layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
-            stages: all_graphics_shaders_stages(),
-        });
-        let storage = (0..R::storage()).map(|_| chain::ImageState {
-            usage: gfx_hal::image::Usage::STORAGE,
-            access: gfx_hal::image::Access::SHADER_READ,
-            layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
-            stages: all_graphics_shaders_stages(),
-        });
-        let colors = (0..R::colors()).map(|_| chain::ImageState {
+    fn images(&self) -> Vec<ImageAccess> {
+        let colors = (0..R::colors()).map(|_| ImageAccess {
             usage: gfx_hal::image::Usage::COLOR_ATTACHMENT,
             access: gfx_hal::image::Access::COLOR_ATTACHMENT_READ
                 | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE,
@@ -212,7 +214,7 @@ where
             stages: gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT,
         });
         let depth = if R::depth() {
-            Some(chain::ImageState {
+            Some(ImageAccess {
                 usage: gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT,
                 access: gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
                     | gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE,
@@ -224,7 +226,7 @@ where
             None
         };
 
-        sampled.chain(storage).chain(colors).chain(depth).collect()
+        colors.chain(depth).chain(R::images()).collect()
     }
 
     fn build<'a>(
@@ -232,21 +234,51 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: impl IntoIterator<Item = NodeBuffer<'a, B>>,
-        images: impl IntoIterator<Item = NodeImage<'a, B>>,
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error> {
         log::trace!("Creating RenderPass instance for '{}'", R::name());
 
-        assert!(buffers.into_iter().all(|_| false));
-        let images: Vec<_> = images.into_iter().collect();
+        let (attachments, images) = images.split_at_mut(R::colors() + R::depth() as usize);
 
-        assert_eq!(
-            R::sampled() + R::storage() + R::colors() + R::depth() as usize,
-            images.len()
+        log::trace!("Creating layouts for '{}'", R::name());
+
+        let (pipeline_layouts, set_layouts): (Vec<_>, Vec<_>) = R::layouts()
+            .into_iter()
+            .map(|layout| {
+                let set_layouts = layout
+                    .sets
+                    .into_iter()
+                    .map(|set| {
+                        gfx_hal::Device::create_descriptor_set_layout(
+                            factory.device(),
+                            set.bindings,
+                            std::iter::empty::<B::Sampler>(),
+                        )
+                    }).collect::<Result<Vec<_>, _>>()?;
+                let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
+                    factory.device(),
+                    &set_layouts,
+                    layout.push_constants,
+                )?;
+                Ok((pipeline_layout, set_layouts))
+            }).collect::<Result<Vec<_>, failure::Error>>()?
+            .into_iter()
+            .unzip();
+
+        let pass = R::build(
+            factory,
+            aux,
+            buffers,
+            images,
+            &set_layouts,
         );
 
-        let color = |index| &images[R::sampled() + R::storage() + index];
-        let depth = || &images[R::sampled() + R::storage() + R::colors()];
+        drop(images);
+        drop(buffers);
+
+        let color = |index| &attachments[index];
+        let depth = || &attachments[R::colors()];
 
         let render_pass: B::RenderPass = {
             let attachments = (0..R::colors())
@@ -262,7 +294,7 @@ where
                     },
                     stencil_ops: gfx_hal::pass::AttachmentOps::DONT_CARE,
                     layouts: {
-                        let layout = color(index).state.layout;
+                        let layout = color(index).layout;
                         let from = if color(index).clear.is_some() {
                             gfx_hal::image::Layout::Undefined
                         } else {
@@ -284,7 +316,7 @@ where
                         },
                         stencil_ops: gfx_hal::pass::AttachmentOps::DONT_CARE,
                         layouts: {
-                            let layout = depth().state.layout;
+                            let layout = depth().layout;
                             let from = if depth().clear.is_some() {
                                 gfx_hal::image::Layout::Undefined
                             } else {
@@ -299,10 +331,10 @@ where
                 });
 
             let colors = (0..R::colors())
-                .map(|index| (index, color(index).state.layout))
+                .map(|index| (index, color(index).layout))
                 .collect::<Vec<_>>();
             let depth = if R::depth() {
-                Some((R::colors(), depth().state.layout))
+                Some((R::colors(), depth().layout))
             } else {
                 None
             };
@@ -343,26 +375,23 @@ where
 
         let mut extent = None;
 
-        let views: Vec<B::ImageView> = images
+        let attachment_views: Vec<B::ImageView> = attachments
             .iter()
-            .enumerate()
-            .map(|(i, image)| {
-                if i >= R::sampled() + R::storage() {
-                    // This is color or depth attachment.
-                    assert!(
-                        match image.image.kind() {
-                            gfx_hal::image::Kind::D2(_, _, _, _) => true,
-                            _ => false,
-                        },
-                        "Attachments must be D2 images"
-                    );
+            .map(|image| {
+                // This is color or depth attachment.
+                assert!(
+                    match image.image.kind() {
+                        gfx_hal::image::Kind::D2(_, _, _, _) => true,
+                        _ => false,
+                    },
+                    "Attachments must be D2 images"
+                );
 
-                    assert!(
-                        extent.map_or(true, |e| e == image.image.kind().extent()),
-                        "All attachments must have same `Extent`"
-                    );
-                    extent = Some(image.image.kind().extent());
-                }
+                assert!(
+                    extent.map_or(true, |e| e == image.image.kind().extent()),
+                    "All attachments must have same `Extent`"
+                );
+                extent = Some(image.image.kind().extent());
 
                 let view_kind = match image.image.kind() {
                     gfx_hal::image::Kind::D1(_, _) => gfx_hal::image::ViewKind::D1,
@@ -398,31 +427,6 @@ where
             w: extent.width as _,
             h: extent.height as _,
         };
-
-        log::trace!("Creating layouts for '{}'", R::name());
-
-        let (pipeline_layouts, set_layouts): (Vec<_>, Vec<_>) = R::layouts()
-            .into_iter()
-            .map(|layout| {
-                let set_layouts = layout
-                    .sets
-                    .into_iter()
-                    .map(|set| {
-                        gfx_hal::Device::create_descriptor_set_layout(
-                            factory.device(),
-                            set.bindings,
-                            std::iter::empty::<B::Sampler>(),
-                        )
-                    }).collect::<Result<Vec<_>, _>>()?;
-                let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
-                    factory.device(),
-                    &set_layouts,
-                    layout.push_constants,
-                )?;
-                Ok((pipeline_layout, set_layouts))
-            }).collect::<Result<Vec<_>, failure::Error>>()?
-            .into_iter()
-            .unzip();
 
         log::trace!("Creating graphics pipelines for '{}'", R::name());
 
@@ -498,16 +502,9 @@ where
         let framebuffer = gfx_hal::Device::create_framebuffer(
             factory.device(),
             &render_pass,
-            views.iter(),
+            &attachment_views,
             extent,
         )?;
-
-        let pass = R::build(
-            &views[..R::sampled()],
-            &views[R::sampled()..R::sampled() + R::storage()],
-            factory,
-            aux,
-        );
 
         let command_pool = factory.create_command_pool(family, IndividualReset)?
                 .with_capability()
@@ -522,7 +519,7 @@ where
             pipeline_layouts,
             set_layouts,
             graphics_pipelines,
-            views,
+            attachment_views,
             framebuffer,
             clears,
             command_pool,
@@ -530,6 +527,14 @@ where
             relevant: relevant::Relevant,
         })
     }
+}
+
+impl<'a, B, R> NodeSubmittable<'a, B> for RenderPassNode<B, R>
+where
+    B: gfx_hal::Backend,
+{
+    type Submittable = Submit<'a, B>;
+    type Submittables = std::iter::Once<Submit<'a, B>>;
 }
 
 impl<B, T, R> Node<B, T> for RenderPassNode<B, R>
@@ -546,18 +551,18 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         frames: &'a Frames<B>,
-    ) -> Submit<'a, B> {
-        let redraw = self.pass.prepare(&self.set_layouts, factory, aux);
+    ) -> std::iter::Once<Submit<'a, B>> {
+        let redraw = self.pass.prepare(factory, aux);
 
         let encoder = unsafe {
-            /// Graph supplies same `frames`.
+            // Graph supplies same `frames`.
             self.command_cirque.get(frames.range(), &mut self.command_pool)
         };
 
         let mut recording = match encoder {
             either::Left(executable) => {
                 if !redraw {
-                    return executable.submit();
+                    return std::iter::once(executable.submit());
                 }
                 executable.reset()
             }
@@ -589,16 +594,16 @@ where
             );
         }
 
-        recording.finish().submit()
+        std::iter::once(recording.finish().submit())
     }
 
     unsafe fn dispose(mut self, factory: &mut Factory<B>, aux: &mut T) {
         self.relevant.dispose();
         self.pass.dispose(factory, aux);
-        self.command_cirque.dispose(&mut self.command_pool, factory);
+        self.command_cirque.dispose(&mut self.command_pool);
         factory.destroy_command_pool(self.command_pool.with_queue_type());
         gfx_hal::Device::destroy_framebuffer(factory.device(), self.framebuffer);
-        for view in self.views {
+        for view in self.attachment_views {
             gfx_hal::Device::destroy_image_view(factory.device(), view);
         }
         for pipeline in self.graphics_pipelines {
@@ -618,14 +623,6 @@ where
         }
         gfx_hal::Device::destroy_render_pass(factory.device(), self.render_pass);
     }
-}
-
-fn all_graphics_shaders_stages() -> gfx_hal::pso::PipelineStage {
-    gfx_hal::pso::PipelineStage::VERTEX_SHADER
-        // | gfx_hal::pso::PipelineStage::DOMAIN_SHADER
-        // | gfx_hal::pso::PipelineStage::HULL_SHADER
-        // | gfx_hal::pso::PipelineStage::GEOMETRY_SHADER
-        | gfx_hal::pso::PipelineStage::FRAGMENT_SHADER
 }
 
 fn push_vertex_desc(

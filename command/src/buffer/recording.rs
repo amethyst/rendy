@@ -2,8 +2,7 @@
 use {
     crate::{
         encoder::{Encoder, EncoderCommon, RenderPassEncoder, RenderPassEncoderHRTB},
-        capability::{Supports, Graphics, Transfer},
-        resource::{Buffer, Image},
+        capability::{Supports, Graphics, Transfer, Compute},
     },
     super::{
         CommandBuffer,
@@ -36,7 +35,7 @@ impl<B, C, U, P, L, R> EncoderCommon<B, C> for CommandBuffer<B, C, RecordingStat
 where
     B: gfx_hal::Backend,
 {
-    fn bind_index_buffer(&mut self, buffer: &Buffer<B>, offset: u64, index_type: gfx_hal::IndexType)
+    fn bind_index_buffer(&mut self, buffer: &B::Buffer, offset: u64, index_type: gfx_hal::IndexType)
     where
         C: Supports<Graphics>,
     {
@@ -46,7 +45,7 @@ where
             gfx_hal::command::RawCommandBuffer::bind_index_buffer(
                 self.raw(),
                 gfx_hal::buffer::IndexBufferView {
-                    buffer: buffer.raw(),
+                    buffer: buffer,
                     offset,
                     index_type,
                 }
@@ -54,7 +53,7 @@ where
         }
     }
 
-    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b Buffer<B>, u64)>)
+    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>)
     where
         C: Supports<Graphics>,
     {
@@ -63,7 +62,7 @@ where
             gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
                 self.raw(),
                 first_binding,
-                buffers.into_iter().map(|(buffer, offset)| (buffer.raw(), offset)),
+                buffers,
             )
         }
     }
@@ -76,6 +75,62 @@ where
 
         unsafe {
             gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(&mut self.raw, pipeline);
+        }
+    }
+
+    fn bind_graphics_descriptor_sets<'b>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    )
+    where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
+                &mut self.raw,
+                layout,
+                first_set as _,
+                sets,
+                offsets,
+            );
+        }
+    }
+
+    fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
+    where
+        C: Supports<Compute>,
+    {
+        self.capability.assert();
+
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_compute_pipeline(&mut self.raw, pipeline);
+        }
+    }
+
+    /// Bind descriptor sets to compute pipeline.
+    fn bind_compute_descriptor_sets<'a>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'a B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    )
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_compute_descriptor_sets(
+                &mut self.raw,
+                layout,
+                first_set as usize,
+                sets,
+                offsets,
+            );
         }
     }
 }
@@ -139,6 +194,31 @@ where
             )
         }
     }
+
+    fn dispatch(&mut self, x: u32, y: u32, z: u32)
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::dispatch(
+                self.raw(),
+                [x, y, z],
+            )
+        }
+    }
+
+    fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
+    where
+        C: Supports<Compute>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::dispatch_indirect(
+                self.raw(),
+                buffer,
+                offset,
+            )
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -150,28 +230,64 @@ impl<'a, B> EncoderCommon<B, Graphics> for RenderPassInlineEncoder<'a, B>
 where
     B: gfx_hal::Backend,
 {
-    fn bind_index_buffer(&mut self, buffer: &Buffer<B>, offset: u64, index_type: gfx_hal::IndexType) {
+    fn bind_index_buffer(&mut self, buffer: &B::Buffer, offset: u64, index_type: gfx_hal::IndexType) {
         gfx_hal::command::RawCommandBuffer::bind_index_buffer(
             self.raw,
             gfx_hal::buffer::IndexBufferView {
-                buffer: buffer.raw(),
+                buffer: buffer,
                 offset,
                 index_type,
             }
         )
     }
 
-    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b Buffer<B>, u64)>) {
+    fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>) {
         gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
             self.raw,
             first_binding,
-            buffers.into_iter().map(|(buffer, offset)| (buffer.raw(), offset)),
+            buffers,
         )
     }
 
     fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline) {
         unsafe {
             gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
+        }
+    }
+
+    fn bind_graphics_descriptor_sets<'b>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    ) {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
+                self.raw,
+                layout,
+                first_set as _,
+                sets,
+                offsets,
+            );
+        }
+    }
+
+    fn bind_compute_pipeline(&mut self, _pipeline: &B::ComputePipeline) {
+        unsafe { // No way to call this function.
+            std::hint::unreachable_unchecked()
+        }
+    }
+
+    fn bind_compute_descriptor_sets<'b>(
+        &mut self,
+        _layout: &B::PipelineLayout,
+        _first_set: u32,
+        _sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        _offsets: impl IntoIterator<Item = u32>,
+    ) {
+        unsafe { // No way to call this function.
+            std::hint::unreachable_unchecked()
         }
     }
 }
@@ -203,6 +319,22 @@ where
             indices,
             base_vertex,
             instances,
+        )
+    }
+
+    fn draw_indirect(
+        &mut self,
+        buffer: &B::Buffer, 
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        gfx_hal::command::RawCommandBuffer::draw_indirect(
+            self.raw,
+            buffer,
+            offset,
+            draw_count,
+            stride,
         )
     }
 }

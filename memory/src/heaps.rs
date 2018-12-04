@@ -125,7 +125,10 @@ where
                 .into_iter()
                 .filter(|(_, mt, _)| self.heaps[mt.heap_index].available() > size + align)
                 .max_by_key(|&(_, _, fitness)| fitness)
-                .ok_or(gfx_hal::device::OutOfMemory::OutOfDeviceMemory)?
+                .ok_or_else(|| {
+                    log::error!("All suitable heaps are exhausted. {:#?}", self);
+                    gfx_hal::device::OutOfMemory::OutOfDeviceMemory
+                })?
         };
 
         self.allocate_from(device, memory_index as u32, usage, size, align)
@@ -336,23 +339,23 @@ where
     ) -> Result<(BlockFlavor<B>, u64), gfx_hal::device::AllocationError> {
         match (self.dynamic.as_mut(), self.linear.as_mut()) {
             (Some(dynamic), Some(linear)) => {
-                if usage.allocator_fitness(Kind::Dynamic) > usage.allocator_fitness(Kind::Linear) {
+                if dynamic.max_allocation() >= size && usage.allocator_fitness(Kind::Dynamic) > usage.allocator_fitness(Kind::Linear) {
                     dynamic.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dynamic(block), size))
-                } else if usage.allocator_fitness(Kind::Linear) > 0 {
+                } else if linear.max_allocation() >= size && usage.allocator_fitness(Kind::Linear) > 0 {
                     linear.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Linear(block), size))
                 } else {
                     self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
                 }
             },
             (Some(dynamic), None) => {
-                if usage.allocator_fitness(Kind::Dynamic) > 0 {
+                if dynamic.max_allocation() >= size && usage.allocator_fitness(Kind::Dynamic) > 0 {
                     dynamic.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dynamic(block), size))
                 } else {
                     self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
                 }
             },
             (None, Some(linear)) => {
-                if usage.allocator_fitness(Kind::Dynamic) > 0 {
+                if linear.max_allocation() >= size && usage.allocator_fitness(Kind::Linear) > 0 {
                     linear.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Linear(block), size))
                 } else {
                     self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))

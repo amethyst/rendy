@@ -6,7 +6,6 @@ members = [
     "frame",
     "memory",
     "mesh",
-    "renderer",
     "rendy",
     "resource",
     "shader",

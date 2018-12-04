@@ -6,17 +6,35 @@
 //! vertex attributes required by shader interface.
 //!
 
-extern crate rendy_command as command;
+#![forbid(overflowing_literals)]
+#![deny(missing_copy_implementations)]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+#![deny(intra_doc_link_resolution_failure)]
+#![deny(path_statements)]
+#![deny(trivial_bounds)]
+#![deny(type_alias_bounds)]
+#![deny(unconditional_recursion)]
+#![deny(unions_with_drop_fields)]
+#![deny(while_true)]
+#![deny(unused)]
+#![deny(bad_style)]
+#![deny(future_incompatible)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
+
 extern crate rendy_factory as factory;
-extern crate rendy_memory as memory;
 extern crate rendy_resource as resource;
 
 mod mesh;
 mod utils;
 mod vertex;
 
-pub use mesh::{Bind, Incompatible, IndexBuffer, Indices, Mesh, MeshBuilder, VertexBuffer};
-pub use vertex::{
-    AsAttribute, AsVertex, Attribute, Color, Normal, PosColor, PosNorm, PosNormTangTex, PosNormTex,
-    PosTex, Position, Query, Tangent, TexCoord, VertexFormat, WithAttribute,
+pub use crate::{
+    mesh::{Bind, Incompatible, IndexBuffer, Indices, Mesh, MeshBuilder, VertexBuffer},
+    vertex::{
+        AsAttribute, AsVertex, Attribute, Color, Normal, PosColor, PosNorm, PosNormTangTex, PosNormTex,
+        PosTex, Position, Query, Tangent, TexCoord, VertexFormat, WithAttribute,
+    },
 };

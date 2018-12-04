@@ -3,9 +3,11 @@
 mod usage;
 
 pub use self::usage::*;
-use memory::{Block, MemoryBlock};
 
-use crate::escape::{Escape, KeepAlive};
+use crate::{
+    escape::{Escape, KeepAlive},
+    memory::{Block, MemoryBlock},
+};
 
 /// Buffer info.
 #[derive(Clone, Copy, Debug)]
@@ -73,5 +75,10 @@ where
     /// Get buffer info.
     pub fn info(&self) -> &Info {
         &self.info
+    }
+
+    /// Get buffer info.
+    pub fn size(&self) -> u64 {
+        self.info.size
     }
 }

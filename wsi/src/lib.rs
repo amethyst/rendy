@@ -1,4 +1,23 @@
 
+//! Window system integration.
+
+#![forbid(overflowing_literals)]
+#![deny(missing_copy_implementations)]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+#![deny(intra_doc_link_resolution_failure)]
+#![deny(path_statements)]
+#![deny(trivial_bounds)]
+#![deny(type_alias_bounds)]
+#![deny(unconditional_recursion)]
+#![deny(unions_with_drop_fields)]
+#![deny(while_true)]
+#![deny(unused)]
+#![deny(bad_style)]
+#![deny(future_incompatible)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
@@ -41,7 +60,7 @@ macro_rules! create_surface_for_backend {
                 #[$feature]
                 _B::$backend => {
                     if let Some(instance) = std::any::Any::downcast_ref(&**$instance) {
-                        let surface: Box<std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
+                        let surface: Box<dyn std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
                         return *surface.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
                     }
                 })+
@@ -80,7 +99,7 @@ impl<B> std::fmt::Debug for Surface<B>
 where
     B: gfx_hal::Backend,
 {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Target")
             .field("window", &self.window.id())
             .finish()
@@ -187,7 +206,7 @@ impl<B> std::fmt::Debug for Target<B>
 where
     B: gfx_hal::Backend,
 {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debug = fmt.debug_struct("Target");
 
         debug.field("window", &self.window.id());
@@ -269,6 +288,7 @@ where
     }
 }
 
+/// Represents acquire frames that will be presented next.
 #[derive(Debug)]
 pub struct NextImages<'a, B: gfx_hal::Backend> {
     targets: smallvec::SmallVec<[(&'a Target<B>, u32); 8]>,

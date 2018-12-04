@@ -3,24 +3,19 @@ extern crate rendy;
 extern crate winit;
 
 use rendy::{
-    command::{Graphics, Encoder, EncoderCommon, RenderPassEncoder},
+    command::{EncoderCommon, RenderPassEncoder},
     factory::{Config, Factory},
     frame::{cirque::CirqueRenderPassInlineEncoder},
-    graph::{GraphBuilder, Graph, render::RenderPass, present::PresentNode},
+    graph::{Graph, GraphBuilder, render::RenderPass, present::PresentNode, NodeBuffer, NodeImage},
     memory::usage::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
-    wsi::{Surface, Target},
-    renderer::Renderer,
     resource::buffer::Buffer,
 };
 
 use winit::{
     EventsLoop, WindowBuilder,
 };
-
-#[cfg(feature = "empty")]
-type Backend = rendy::empty::Backend;
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -33,14 +28,14 @@ type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref vertex: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangles.vert"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
     static ref fragment: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangles.frag"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -48,17 +43,17 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug)]
-struct TrianglesRenderPass<B: gfx_hal::Backend> {
+struct TriangleRenderPass<B: gfx_hal::Backend> {
     vertex: Option<Buffer<B>>,
 }
 
-impl<B, T> RenderPass<B, T> for TrianglesRenderPass<B>
+impl<B, T> RenderPass<B, T> for TriangleRenderPass<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
     fn name() -> &'static str {
-        "Triangles"
+        "Triangle"
     }
 
     fn vertices() -> Vec<(
@@ -71,7 +66,7 @@ where
     fn load_shader_sets<'a>(
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
     ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
         storage.clear();
 
@@ -98,21 +93,24 @@ where
         }]
     }
 
-    fn build(
-        sampled: &[B::ImageView],
-        storage: &[B::ImageView],
+    fn build<'a>(
         _factory: &mut Factory<B>,
         _aux: &mut T,
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
+        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self {
-        assert!(sampled.is_empty());
-        assert!(storage.is_empty());
+        assert!(buffers.is_empty());
+        assert!(images.is_empty());
+        assert_eq!(sets.len(), 1);
+        assert!(sets[0].as_ref().is_empty());
 
-        TrianglesRenderPass {
+        TriangleRenderPass {
             vertex: None,
         }
     }
 
-    fn prepare(&mut self, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], factory: &mut Factory<B>, aux: &T) -> bool {
+    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
         if self.vertex.is_some() {
             return false;
         }
@@ -121,7 +119,7 @@ where
             .unwrap();
 
         unsafe {
-            /// Fresh buffer.
+            // Fresh buffer.
             factory.upload_visible_buffer(&mut vbuf, 0, &[
                 PosColor {
                     position: [0.0, -0.5, 0.0].into(),
@@ -152,7 +150,7 @@ where
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
         encoder.bind_graphics_pipeline(&pipelines[0]);
-        encoder.bind_vertex_buffers(0, Some((vbuf, 0)));
+        encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
         encoder.draw(0..3, 0..1);
     }
 
@@ -161,20 +159,45 @@ where
     }
 }
 
-fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut renderer: impl Renderer<Backend, ()>) -> Result<(), failure::Error> {
-    for _ in 0 .. 200 {
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
+fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: Graph<Backend, ()>) -> Result<(), failure::Error> {
+
+    let started = std::time::Instant::now();
+
+    std::thread::spawn(move || {
+        while started.elapsed() < std::time::Duration::new(30, 0) {
+            std::thread::sleep(std::time::Duration::new(1, 0));
+        }
+
+        std::process::abort();
+    });
+
+    let mut frames = 0u64 ..;
+    let mut elapsed = started.elapsed();
+
+    for _ in &mut frames {
         event_loop.poll_events(|_| ());
-        renderer.run(factory, &mut ());
-        std::thread::sleep_ms(16);
+        graph.run(factory, &mut ());
+
+        elapsed = started.elapsed();
+        if elapsed >= std::time::Duration::new(5, 0) {
+            break;
+        }
     }
 
-    renderer.dispose(factory, &mut ());
+    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+
+    log::info!("Elapsed: {:?}. Frames: {}. FPS: {}", elapsed, frames.start, frames.start * 1_000_000_000 / elapsed_ns);
+
+    graph.dispose(factory, &mut ());
     Ok(())
 }
 
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_module("triangles", log::LevelFilter::Trace)
+        .filter_level(log::LevelFilter::Info)
+        .filter_module("triangle", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();
@@ -202,7 +225,7 @@ fn main() {
     );
 
     let pass = graph_builder.add_node(
-        TrianglesRenderPass::builder()
+        TriangleRenderPass::builder()
             .with_image(color)
     );
 
@@ -217,4 +240,9 @@ fn main() {
     run(&mut event_loop, &mut factory, graph).unwrap();
 
     factory.dispose();
+}
+
+#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
+fn main() {
+    panic!("Specify feature: { dx12, metal, vulkan }");
 }

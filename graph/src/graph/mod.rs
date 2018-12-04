@@ -4,8 +4,7 @@ use crate::{
     factory::Factory,
     frame::{Frames, Fences},
     memory::MemoryUsageValue,
-    node::{AnyNode, NodeBuffer, NodeBuilder, NodeImage},
-    renderer::Renderer,
+    node::{AnyNode, NodeBuilder},
     resource::{buffer, image},
     BufferId,
     ImageId,
@@ -56,7 +55,7 @@ where
             let wait = self.frames.next().index() - self.inflight;
             let ref mut self_fences = self.fences;
             self.frames.wait_complete(wait, factory, |fences| {
-                factory.reset_fences(&fences);
+                factory.reset_fences(&fences).unwrap();
                 self_fences.push(fences);
             });
         }
@@ -66,7 +65,7 @@ where
         let ref semaphores = self.semaphores;
 
         for submission in self.schedule.ordered() {
-            log::info!("Run node {}", submission.node());
+            log::trace!("Run node {}", submission.node());
             let sid = submission.id();
             let qid = sid.queue();
 
@@ -93,7 +92,7 @@ where
                             .wait
                             .iter()
                             .map(|wait| {
-                                log::info!("Node {} waits for {}", submission.node(), *wait.semaphore());
+                                log::trace!("Node {} waits for {}", submission.node(), *wait.semaphore());
                                 (&semaphores[*wait.semaphore()], wait.stage())
                             })
                             .collect::<smallvec::SmallVec<[_; 16]>>(),
@@ -102,7 +101,7 @@ where
                             .signal
                             .iter()
                             .map(|signal| {
-                                log::info!("Node {} signals {}", submission.node(), *signal.semaphore());
+                                log::trace!("Node {} signals {}", submission.node(), *signal.semaphore());
                                 &semaphores[*signal.semaphore()]
                             })
                             .collect::<smallvec::SmallVec<[_; 16]>>(),
@@ -117,18 +116,9 @@ where
             self.frames.advance(fences);
         }
     }
-}
 
-impl<B, T> Renderer<B, T> for Graph<B, T>
-where
-    B: gfx_hal::Backend,
-    T: ?Sized,
-{
-    fn run(&mut self, factory: &mut Factory<B>, data: &mut T) {
-        Graph::run(self, factory, data);
-    }
-
-    fn dispose(self, factory: &mut Factory<B>, data: &mut T) {
+    /// Dispose of the `Graph`.
+    pub fn dispose(self, factory: &mut Factory<B>, data: &mut T) {
         assert!(factory.wait_idle().is_ok());
         self.frames.dispose(factory);
 
@@ -238,46 +228,47 @@ where
             .map(|(i, b)| b.chain(i, &factory, self.buffers.len()))
             .collect();
 
-        let mut chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
+        let chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
         log::trace!("Allocate buffers");
-        let buffers: Vec<buffer::Buffer<B>> = self
+        let mut buffers: Vec<Option<buffer::Buffer<B>>> = self
             .buffers
             .iter()
             .enumerate()
             .map(|(index, &(ref info, memory))| {
-                let usage = chains
+                chains
                     .buffers
                     .get(&chain::Id(index))
-                    .unwrap()
-                    .usage();
-
-                factory.create_buffer(UNIVERSAL_ALIGNMENT, info.size, (usage, memory))
+                    .map(|buffer| {
+                        factory.create_buffer(UNIVERSAL_ALIGNMENT, info.size, (buffer.usage(), memory))
+                            .map(Some)
+                    })
+                    .unwrap_or(Ok(None))
             }).collect::<Result<_, _>>()?;
 
         log::trace!("Allocate images");
-        let images: Vec<(image::Image<B>, _)> = self
+        let mut images: Vec<Option<(image::Image<B>, _)>> = self
             .images
             .iter()
             .enumerate()
             .map(|(index, (info, memory, clear))| {
-                let usage = chains
+                chains
                     .images
                     .get(&chain::Id(index + buffers.len()))
-                    .unwrap()
-                    .usage();
-
-                factory
-                    .create_image(
-                        UNIVERSAL_ALIGNMENT,
-                        info.kind,
-                        info.levels,
-                        info.format,
-                        info.tiling,
-                        info.view_caps,
-                        (usage, *memory),
-                    ).map(|image| (image, *clear))
+                    .map(|image| {
+                        factory
+                            .create_image(
+                                UNIVERSAL_ALIGNMENT,
+                                info.kind,
+                                info.levels,
+                                info.format,
+                                info.tiling,
+                                info.view_caps,
+                                (image.usage(), *memory),
+                            ).map(|image| Some((image, *clear)))
+                    })
+                    .unwrap_or(Ok(None))
             }).collect::<Result<_, _>>()?;
 
         log::trace!("Synchronize");
@@ -304,8 +295,8 @@ where
                         factory,
                         aux,
                         family.id(),
-                        &buffers,
-                        &images,
+                        &mut buffers,
+                        &mut images,
                         &chains,
                         &submission,
                     )?;
@@ -324,8 +315,8 @@ where
             nodes: built_nodes.into_iter().map(Option::unwrap).collect(),
             schedule,
             semaphores,
-            buffers,
-            images: images.into_iter().map(|(image, _)| image).collect(),
+            buffers: buffers.into_iter().filter_map(|x|x).collect(),
+            images: images.into_iter().filter_map(|x|x).map(|(image, _)| image).collect(),
             inflight: 3,
             frames: Frames::new(),
             fences: Vec::new(),

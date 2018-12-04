@@ -1,11 +1,10 @@
 use std::cmp::max;
 
-use memory::{Block, Heaps};
-
 use crate::{
     buffer,
     escape::{Escape, Terminal},
     image,
+    memory::{Block, Heaps},
 };
 
 /// Resource manager.

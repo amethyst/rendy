@@ -6,7 +6,7 @@ pub mod present;
 
 use crate::{
     chain,
-    command::{Capability, Family, Submit, Supports, Submission},
+    command::{Capability, Family, Supports, Submission, Submittable},
     factory::Factory,
     frame::Frames,
     resource::{Buffer, Image},
@@ -45,27 +45,67 @@ pub enum Barrier {
     },
 }
 
-/// Buffer shared between nodes.
+/// Buffer access node wants to perform.
 #[derive(Clone, Copy, Debug)]
+pub struct BufferAccess {
+    /// Access flags.
+    pub access: gfx_hal::buffer::Access,
+
+    /// Intended usage flags for buffer.
+    /// TODO: Could derive from access?
+    pub usage: gfx_hal::buffer::Usage,
+
+    /// Pipeline stages at which buffer is accessd.
+    pub stages: gfx_hal::pso::PipelineStage,
+}
+
+/// Image access node wants to perform.
+#[derive(Clone, Copy, Debug)]
+pub struct ImageAccess {
+    /// Access flags.
+    pub access: gfx_hal::image::Access,
+
+    /// Intended usage flags for image.
+    /// TODO: Could derive from access?
+    pub usage: gfx_hal::image::Usage,
+
+    /// Preferred layout for access.
+    /// Actual layout will be reported int `NodeImage`.
+    /// Actual layout is guaranteed to support same operations.
+    /// TODO: Could derive from access?
+    pub layout: gfx_hal::image::Layout,
+
+    /// Pipeline stages at which image is accessd.
+    pub stages: gfx_hal::pso::PipelineStage,
+}
+
+/// Buffer shared between nodes.
+#[derive(Debug)]
 pub struct NodeBuffer<'a, B: gfx_hal::Backend> {
     /// Buffer reference.
-    pub buffer: &'a Buffer<B>,
-
-    /// Buffer state for node.
-    pub state: chain::BufferState,
+    pub buffer: &'a mut Buffer<B>,
 }
 
 /// Image shared between nodes.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct NodeImage<'a, B: gfx_hal::Backend> {
     /// Image reference.
-    pub image: &'a Image<B>,
+    pub image: &'a mut Image<B>,
 
     /// Image state for node.
-    pub state: chain::ImageState,
+    pub layout: gfx_hal::image::Layout,
 
     /// Specify that node should clear image to this value.
     pub clear: Option<gfx_hal::command::ClearValue>,
+}
+
+/// NodeSubmittable
+pub trait NodeSubmittable<'a, B: gfx_hal::Backend> {
+    /// Submittable type returned from `Node`.
+    type Submittable: Submittable<B> + 'a;
+
+    /// Iterator over submittables returned from `Node`.
+    type Submittables: IntoIterator<Item = Self::Submittable>;
 }
 
 /// The node is building block of the framegraph.
@@ -78,7 +118,7 @@ pub struct NodeImage<'a, B: gfx_hal::Backend> {
 /// `T` - auxiliary data type.
 ///
 pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
-    std::fmt::Debug + Sized + Sync + Send + 'static
+    for<'a> NodeSubmittable<'a, B> + std::fmt::Debug + Sized + Sync + Send + 'static
 {
     /// Capability required by node.
     /// Graph will execute this node on command queue that supports this capability level.
@@ -97,7 +137,7 @@ pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
     }
 
     /// Builder creation.
-    fn builder(self) -> NodeBuilder<B, T>
+    fn builder() -> NodeBuilder<B, T>
     where
         Self::Desc: Default,
     {
@@ -107,11 +147,11 @@ pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
     /// Record commands required by node.
     /// Returned submits are guaranteed to be submitted within specified frame.
     fn run<'a>(
-        &mut self,
+        &'a mut self,
         factory: &mut Factory<B>,
         aux: &mut T,
         frames: &'a Frames<B>,
-    ) -> Submit<'a, B>;
+    ) -> <Self as NodeSubmittable<'a, B>>::Submittables;
 
     /// Dispose of the node.
     /// 
@@ -139,12 +179,12 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
     }
 
     /// Get set or buffer resources the node uses.
-    fn buffers(&self) -> Vec<chain::BufferState> {
+    fn buffers(&self) -> Vec<BufferAccess> {
         Vec::new()
     }
 
     /// Get set or image resources the node uses.
-    fn images(&self) -> Vec<chain::ImageState> {
+    fn images(&self) -> Vec<ImageAccess> {
         Vec::new()
     }
 
@@ -163,8 +203,8 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: impl IntoIterator<Item = NodeBuffer<'a, B>>,
-        images: impl IntoIterator<Item = NodeImage<'a, B>>,
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error>;
 }
 
@@ -209,13 +249,13 @@ where
         signals: &[&'a B::Semaphore],
         fence: Option<&B::Fence>,
     ) {
-        let submit = Node::run(&mut self.0, factory, aux, frames);
+        let submittables = Node::run(&mut self.0, factory, aux, frames);
         factory.family_mut(qid.family()).submit(
             qid.index(),
             Some(Submission {
                 waits: waits.iter().cloned(),
                 signals: signals.iter().cloned(),
-                submits: Some(submit),
+                submits: submittables,
             }),
             fence,
         )
@@ -232,10 +272,10 @@ pub trait AnyNodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
     fn family(&self, families: &[Family<B>]) -> Option<gfx_hal::queue::QueueFamilyId>;
 
     /// Get buffer resource states.
-    fn buffers(&self) -> Vec<chain::BufferState> { Vec::new() }
+    fn buffers(&self) -> Vec<BufferAccess> { Vec::new() }
 
     /// Get image resource states.
-    fn images(&self) -> Vec<chain::ImageState> { Vec::new() }
+    fn images(&self) -> Vec<ImageAccess> { Vec::new() }
 
     /// Build the node.
     fn build<'a>(
@@ -243,8 +283,8 @@ pub trait AnyNodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error>;
 
     /// Make node builder.
@@ -276,11 +316,11 @@ where
             }).map(|family| family.index())
     }
 
-    fn buffers(&self) -> Vec<chain::BufferState> {
+    fn buffers(&self) -> Vec<BufferAccess> {
         N::buffers(&self.0)
     }
 
-    fn images(&self) -> Vec<chain::ImageState> {
+    fn images(&self) -> Vec<ImageAccess> {
         N::images(&self.0)
     }
 
@@ -289,16 +329,16 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
         let node = NodeDesc::build(
             &self.0,
             factory,
             aux,
             family,
-            buffers.iter().cloned(),
-            images.iter().cloned(),
+            buffers,
+            images,
         )?;
         Ok(Box::new((node,)))
     }
@@ -362,6 +402,12 @@ where
     }
 
     pub(crate) fn chain(&self, id: usize, factory: &Factory<B>, buffers: usize) -> chain::Node {
+        let desc_buffers = self.desc.buffers();
+        assert_eq!(self.buffers.len(), desc_buffers.len());
+
+        let desc_images = self.desc.images();
+        assert_eq!(self.images.len(), desc_images.len());
+
         chain::Node {
             id,
             family: self.desc.family(factory.families()).unwrap(),
@@ -370,13 +416,29 @@ where
                 .buffers
                 .iter()
                 .map(|id| chain::Id(id.0))
-                .zip(self.desc.buffers())
+                .zip(desc_buffers)
+                .map(|(id, access)| {
+                    (id, chain::BufferState {
+                        access: access.access,
+                        stages: access.stages,
+                        layout: (),
+                        usage: access.usage,
+                    })
+                })
                 .collect(),
             images: self
                 .images
                 .iter()
                 .map(|id| chain::Id(id.0 + buffers))
-                .zip(self.desc.images())
+                .zip(desc_images)
+                .map(|(id, access)| {
+                    (id, chain::ImageState {
+                        access: access.access,
+                        stages: access.stages,
+                        layout: access.layout,
+                        usage: access.usage,
+                    })
+                })
                 .collect(),
         }
     }
@@ -388,29 +450,31 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[Buffer<B>],
-        images: &[(Image<B>, Option<gfx_hal::command::ClearValue>)],
+        buffers: &mut [Option<Buffer<B>>],
+        images: &mut [Option<(Image<B>, Option<gfx_hal::command::ClearValue>)>],
         chains: &chain::Chains,
         submission: &chain::Submission<chain::SyncData<usize, usize>>,
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
+        let buffers_len = buffers.len();
         self.desc.build(
             factory,
             aux,
             family,
-            &self.buffers.iter().map(|&BufferId(index)| {
+            &mut self.buffers.iter().zip(buffers).map(|(&BufferId(index), resource)| {
                 let id = chain::Id(index);
+                let buffer = resource.as_mut().expect("Buffer referenced from at least one node must be instantiated");
                 NodeBuffer {
-                    buffer: &buffers[index],
-                    state: chains.buffers[&id].links()[submission.resource_link_index(id)].submission_state(submission.id()),
+                    buffer,
                 }
             }).collect::<Vec<_>>(),
-            &self.images.iter().map(|&ImageId(index)| {
-                let id = chain::Id(index + buffers.len());
+            &mut self.images.iter().zip(images).map(|(&ImageId(index), resource)| {
+                let id = chain::Id(index + buffers_len);
+                let (image, clear) = resource.as_mut().expect("Image referenced from at least one node must be instantiated");
                 NodeImage {
-                    image: &images[index].0,
-                    state: chains.images[&id].links()[submission.resource_link_index(id)].submission_state(submission.id()),
+                    image,
+                    layout: chains.images[&id].links()[submission.resource_link_index(id)].submission_state(submission.id()).layout,
                     clear: if submission.resource_link_index(id) == 0 {
-                        images[index].1
+                        *clear
                     } else {
                         None
                     }

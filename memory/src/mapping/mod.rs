@@ -73,8 +73,8 @@ where
             range.clone(),
         )?;
         assert!(
-            (ptr as usize).wrapping_neg() <= (range.end - range.start) as usize,
-            "Resulting pointer value + range length must fit in usize",
+            (ptr as usize).wrapping_neg() >= (range.end - range.start) as usize,
+            "Resulting pointer value + range length must fit in usize. Pointer: {:p}, range {:?}", ptr, range,
         );
 
         Ok(Self::from_raw(
