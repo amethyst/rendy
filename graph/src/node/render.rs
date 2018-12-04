@@ -167,14 +167,15 @@ where
     fn build<'a>(
         factory: &mut Factory<B>,
         aux: &mut T,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
+        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self;
 
     /// Prepare to record drawing commands.
     /// 
     /// Should return true if commands must be re-recorded.
-    fn prepare(&mut self, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _factory: &mut Factory<B>, _aux: &T) -> bool {
+    fn prepare(&mut self, _factory: &mut Factory<B>, _aux: &T) -> bool {
         false
     }
 
@@ -233,17 +234,51 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error> {
         log::trace!("Creating RenderPass instance for '{}'", R::name());
 
-        // assert!(buffers.is_empty());
-        let attachments_total = R::colors() + R::depth() as usize;
-        assert!(attachments_total <= images.len());
+        let (attachments, images) = images.split_at_mut(R::colors() + R::depth() as usize);
 
-        let color = |index| &images[index];
-        let depth = || &images[R::colors()];
+        log::trace!("Creating layouts for '{}'", R::name());
+
+        let (pipeline_layouts, set_layouts): (Vec<_>, Vec<_>) = R::layouts()
+            .into_iter()
+            .map(|layout| {
+                let set_layouts = layout
+                    .sets
+                    .into_iter()
+                    .map(|set| {
+                        gfx_hal::Device::create_descriptor_set_layout(
+                            factory.device(),
+                            set.bindings,
+                            std::iter::empty::<B::Sampler>(),
+                        )
+                    }).collect::<Result<Vec<_>, _>>()?;
+                let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
+                    factory.device(),
+                    &set_layouts,
+                    layout.push_constants,
+                )?;
+                Ok((pipeline_layout, set_layouts))
+            }).collect::<Result<Vec<_>, failure::Error>>()?
+            .into_iter()
+            .unzip();
+
+        let pass = R::build(
+            factory,
+            aux,
+            buffers,
+            images,
+            &set_layouts,
+        );
+
+        drop(images);
+        drop(buffers);
+
+        let color = |index| &attachments[index];
+        let depth = || &attachments[R::colors()];
 
         let render_pass: B::RenderPass = {
             let attachments = (0..R::colors())
@@ -340,9 +375,8 @@ where
 
         let mut extent = None;
 
-        let attachment_views: Vec<B::ImageView> = images
+        let attachment_views: Vec<B::ImageView> = attachments
             .iter()
-            .take(attachments_total)
             .map(|image| {
                 // This is color or depth attachment.
                 assert!(
@@ -393,31 +427,6 @@ where
             w: extent.width as _,
             h: extent.height as _,
         };
-
-        log::trace!("Creating layouts for '{}'", R::name());
-
-        let (pipeline_layouts, set_layouts): (Vec<_>, Vec<_>) = R::layouts()
-            .into_iter()
-            .map(|layout| {
-                let set_layouts = layout
-                    .sets
-                    .into_iter()
-                    .map(|set| {
-                        gfx_hal::Device::create_descriptor_set_layout(
-                            factory.device(),
-                            set.bindings,
-                            std::iter::empty::<B::Sampler>(),
-                        )
-                    }).collect::<Result<Vec<_>, _>>()?;
-                let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
-                    factory.device(),
-                    &set_layouts,
-                    layout.push_constants,
-                )?;
-                Ok((pipeline_layout, set_layouts))
-            }).collect::<Result<Vec<_>, failure::Error>>()?
-            .into_iter()
-            .unzip();
 
         log::trace!("Creating graphics pipelines for '{}'", R::name());
 
@@ -497,13 +506,6 @@ where
             extent,
         )?;
 
-        let pass = R::build(
-            factory,
-            aux,
-            &buffers,
-            &images[attachments_total .. ],
-        );
-
         let command_pool = factory.create_command_pool(family, IndividualReset)?
                 .with_capability()
                 .expect("Graph must specify family that supports `Graphics`");
@@ -550,7 +552,7 @@ where
         aux: &mut T,
         frames: &'a Frames<B>,
     ) -> std::iter::Once<Submit<'a, B>> {
-        let redraw = self.pass.prepare(&self.set_layouts, factory, aux);
+        let redraw = self.pass.prepare(factory, aux);
 
         let encoder = unsafe {
             // Graph supplies same `frames`.

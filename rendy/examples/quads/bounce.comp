@@ -1,23 +1,42 @@
 #version 450
 
-layout(local_size_x = 64, local_size_y = 64, local_size_z = 64) in;
-layout(set = 0, binding = 1, rgba32f) uniform imageBuffer vecposbuff;
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+// layout(set = 0, binding = 0, rgba32f) uniform imageBuffer posvelbuff;
+
+layout(std430, set = 0, binding = 0) buffer _ {
+    vec4 posvel[];
+} posvelbuff;
 
 void main() {
-  int index = int(gl_GlobalInvocationIndex.x) + 1024 * int(gl_GlobalInvocationIndex.y);
-  float delta_time = 0.01;
-  vec4 vecpos = imageLoad(vecposbuff, index);
-  vec2 pos = vecpos.rg;
-  vec2 vel = vecpos.ba;
+  float delta_time = 0.0001;
+  int index = int(gl_GlobalInvocationID.x) + 1024 * int(gl_GlobalInvocationID.y);
+  vec4 posvel = posvelbuff.posvel[index];
+  vec2 pos = posvel.rg;
+  vec2 vel = posvel.ba;
   pos += vel + (delta_time * delta_time) / 2;
-  vel += delta_time;
-  float l = sign(pos.x);
-  float r = sign(1.0 - pos.x);
-  pos.x = 2.0 + r * l * pos.x - 2.0 * r;
-  vel.x = 2.0 + r * l * vel.x - 2.0 * r;
-  float b = sign(pos.y);
-  float t = sign(1.0 - pos.y);
-  pos.y = 2.0 + t * b * pos.y - 2.0 * t;
-  vel.y = 2.0 + t * b * vel.y - 2.0 * t;
-  imageStore(vecposbuff, index, vec4(pos, vel));
+  vel.y -= delta_time;
+  
+  if (pos.y < 0.0) {
+    pos.y = -pos.y;
+    vel.y *= -1.0;
+  }
+
+  if (pos.y > 1.0) {
+    pos.y = 2.0 - pos.y;
+    vel.y *= -1.0;
+  }
+  
+  if (pos.x < 0.0) {
+    pos.x = -pos.x;
+    vel.x *= -1.0;
+  }
+
+  if (pos.x > 1.0) {
+    pos.x = 2.0 - pos.x;
+    vel.x *= -1.0;
+  }
+
+  vel = clamp(vel, vec2(-0.02, -0.02), vec2(0.02, 0.02));
+
+  posvelbuff.posvel[index] = vec4(pos, vel);
 }

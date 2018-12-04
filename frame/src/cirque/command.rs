@@ -170,6 +170,19 @@ where
         self.buffer.bind_graphics_pipeline(pipeline)
     }
 
+    fn bind_graphics_descriptor_sets<'b>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    )
+    where
+        C: Supports<Graphics>,
+    {
+        self.buffer.bind_graphics_descriptor_sets(layout, first_set, sets, offsets)
+    }
+
     fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
     where
         C: Supports<Compute>,
@@ -380,6 +393,24 @@ where
     fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline) {
         unsafe {
             gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(self.buffer, pipeline);
+        }
+    }
+
+    fn bind_graphics_descriptor_sets<'b>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    ) {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
+                self.buffer,
+                layout,
+                first_set as _,
+                sets,
+                offsets,
+            );
         }
     }
 

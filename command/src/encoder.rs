@@ -54,6 +54,18 @@ pub trait EncoderCommon<B: gfx_hal::Backend, C> {
         C: Supports<Graphics>,
     ;
 
+    /// Bind descriptor sets to graphics pipeline.
+    fn bind_graphics_descriptor_sets<'a>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        first_set: u32,
+        sets: impl IntoIterator<Item = &'a B::DescriptorSet>,
+        offsets: impl IntoIterator<Item = u32>,
+    )
+    where
+        C: Supports<Graphics>,
+    ;
+
     /// Bind graphics pipeline.
     fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
     where

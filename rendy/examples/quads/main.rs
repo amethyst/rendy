@@ -6,7 +6,7 @@ use rendy::{
     command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel, DrawCommand},
     factory::{Config, Factory},
     frame::{cirque::CirqueRenderPassInlineEncoder, Frames},
-    graph::{Graph, GraphBuilder, render::RenderPass, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable},
+    graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable},
     memory::usage::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -50,12 +50,16 @@ lazy_static::lazy_static! {
     );
 }
 
-const MAX_QUADS: u64 = 1024 * 1024;
+const QUADS: u32 = 2_000_000;
 
 #[derive(Debug)]
 struct QuadsRenderPass<B: gfx_hal::Backend> {
     indirect: Buffer<B>,
     vertices: Buffer<B>,
+
+    descriptor_pool: B::DescriptorPool,
+    descriptor_set: B::DescriptorSet,
+    // buffer_view: B::BufferView,
 }
 
 impl<B, T> RenderPass<B, T> for QuadsRenderPass<B>
@@ -104,14 +108,40 @@ where
         }]
     }
 
+    fn buffers() -> Vec<BufferAccess> {
+        vec![BufferAccess {
+            access: gfx_hal::buffer::Access::SHADER_READ,
+            stages: gfx_hal::pso::PipelineStage::VERTEX_SHADER,
+            usage: gfx_hal::buffer::Usage::UNIFORM,
+        }]
+    }
+
+    fn layouts() -> Vec<Layout> {
+        vec![Layout {
+            sets: vec![SetLayout {
+                bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
+                    binding: 0,
+                    ty: gfx_hal::pso::DescriptorType::UniformBuffer,
+                    count: 1,
+                    stage_flags: gfx_hal::pso::ShaderStageFlags::VERTEX,
+                    immutable_samplers: false,
+                }]
+            }],
+            push_constants: Vec::new(),
+        }]
+    }
+
     fn build<'a>(
         factory: &mut Factory<B>,
         _aux: &mut T,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
+        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self {
-        assert!(buffers.is_empty());
+        assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
+
+        let ref mut posvelbuff = buffers[0].buffer;
 
         let mut indirect = factory.create_buffer(512, std::mem::size_of::<DrawCommand>() as u64, (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic))
             .unwrap();
@@ -119,7 +149,7 @@ where
         unsafe {
             factory.upload_visible_buffer(&mut indirect, 0, &[DrawCommand {
                 vertex_count: 6,
-                instance_count: 10,
+                instance_count: QUADS,
                 first_vertex: 0,
                 first_instance: 0,
             }]).unwrap();
@@ -137,26 +167,80 @@ where
                 Color({ let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0)).into_components(); [r, g, b, 1.0] }),
                 Color({ let (r, g, b) = palette::Srgb::from(palette::Hsv::new(270.0, 1.0, 1.0)).into_components(); [r, g, b, 1.0] }),
             ]).unwrap();
+
+            let mut rng = rand::thread_rng();
+            let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+
+            #[repr(C)] struct PosVel { pos: [f32; 2], vel: [f32; 2], }
+            factory.upload_visible_buffer(posvelbuff, 0, &(0 .. QUADS).map(|index| PosVel {
+                pos: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
+                vel: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
+            }).collect::<Vec<PosVel>>()).unwrap();
         }
+
+        // let buffer_view = gfx_hal::Device::create_buffer_view(
+        //     factory.device(),
+        //     posvelbuff.raw(),
+        //     Some(gfx_hal::format::Format::Rgba32Float),
+        //     0 .. posvelbuff.size(),
+        // ).unwrap();
+
+        assert_eq!(sets.len(), 1);
+        let set_layouts = sets[0].as_ref();
+        assert_eq!(set_layouts.len(), 1);
+
+        let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(
+            factory.device(),
+            1,
+            std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
+                ty: gfx_hal::pso::DescriptorType::UniformBuffer,
+                count: 1,
+            }),
+        ).unwrap();
+
+        let descriptor_set = gfx_hal::pso::DescriptorPool::allocate_set(
+            &mut descriptor_pool,
+            &set_layouts[0],
+        ).unwrap();
+
+        gfx_hal::Device::write_descriptor_sets(
+            factory.device(),
+            std::iter::once(gfx_hal::pso::DescriptorSetWrite {
+                set: &descriptor_set,
+                binding: 0,
+                array_offset: 0,
+                descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(posvelbuff.raw(), Some(0) .. Some(posvelbuff.size() as u64))),
+            }),
+        );
 
         QuadsRenderPass {
             indirect,
             vertices,
+
+            // buffer_view,
+            descriptor_pool,
+            descriptor_set,
         }
     }
 
-    fn prepare(&mut self, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _factory: &mut Factory<B>, _aux: &T) -> bool {
+    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
         false
     }
 
     fn draw(
         &mut self,
-        _layouts: &[B::PipelineLayout],
+        layouts: &[B::PipelineLayout],
         pipelines: &[B::GraphicsPipeline],
         encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
         _aux: &T,
     ) {
         encoder.bind_graphics_pipeline(&pipelines[0]);
+        encoder.bind_graphics_descriptor_sets(
+            &layouts[0],
+            0,
+            std::iter::once(&self.descriptor_set),
+            std::iter::empty::<u32>(),
+        );
         encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
         encoder.draw_indirect(self.indirect.raw(), 0, 1, std::mem::size_of::<DrawCommand>() as u32);
     }
@@ -226,7 +310,7 @@ where
         vec![BufferAccess {
             access: gfx_hal::buffer::Access::SHADER_READ | gfx_hal::buffer::Access::SHADER_WRITE,
             stages: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
-            usage: gfx_hal::buffer::Usage::STORAGE_TEXEL,
+            usage: gfx_hal::buffer::Usage::STORAGE,
         }]
     }
 
@@ -235,11 +319,13 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error> {
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
+
+        let ref mut posvelbuff = buffers[0].buffer;
 
         log::trace!("Load shader module '{:#?}'", *bounce_compute);
         let module = bounce_compute.module(factory)?;
@@ -248,7 +334,7 @@ where
             factory.device(),
             std::iter::once(gfx_hal::pso::DescriptorSetLayoutBinding {
                 binding: 0,
-                ty: gfx_hal::pso::DescriptorType::StorageTexelBuffer,
+                ty: gfx_hal::pso::DescriptorType::StorageBuffer,
                 count: 1,
                 stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
                 immutable_samplers: false,
@@ -282,7 +368,7 @@ where
                 factory.device(),
                 1,
                 std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
-                    ty: gfx_hal::pso::DescriptorType::StorageTexelBuffer,
+                    ty: gfx_hal::pso::DescriptorType::StorageBuffer,
                     count: 1,
                 }),
             )?;
@@ -294,9 +380,9 @@ where
 
             let buffer_view = gfx_hal::Device::create_buffer_view(
                 factory.device(),
-                buffers[0].buffer.raw(),
+                posvelbuff.raw(),
                 Some(gfx_hal::format::Format::Rgba32Float),
-                0 .. buffers[0].buffer.size(),
+                0 .. posvelbuff.size(),
             )?;
 
             gfx_hal::Device::write_descriptor_sets(
@@ -305,7 +391,7 @@ where
                     set: &descriptor_set,
                     binding: 0,
                     array_offset: 0,
-                    descriptors: std::iter::once(gfx_hal::pso::Descriptor::StorageTexelBuffer(&buffer_view)),
+                    descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(posvelbuff.raw(), Some(0) .. Some(posvelbuff.size()))),
                 }),
             );
 
@@ -325,7 +411,7 @@ where
             std::iter::empty::<u32>(),
         );
 
-        encoder.dispatch(1, 1, 1);
+        encoder.dispatch(QUADS, 1, 1);
         let command_buffer = encoder.finish();
         let (submit, command_buffer) = command_buffer.submit();
 
@@ -349,7 +435,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
     let started = std::time::Instant::now();
 
     std::thread::spawn(move || {
-        while started.elapsed() < std::time::Duration::new(30, 0) {
+        while started.elapsed() < std::time::Duration::new(300, 0) {
             std::thread::sleep(std::time::Duration::new(1, 0));
         }
 
@@ -364,7 +450,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
         graph.run(factory, &mut ());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
+        if elapsed >= std::time::Duration::new(30, 0) {
             break;
         }
     }
@@ -400,10 +486,10 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    // let posvel = graph_builder.create_buffer(
-    //     MAX_QUADS * std::mem::size_of::<[f32; 4]>() as u64,
-    //     MemoryUsageValue::Dynamic,
-    // );
+    let posvel = graph_builder.create_buffer(
+        QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64,
+        MemoryUsageValue::Dynamic,
+    );
 
     let color = graph_builder.create_image(
         surface.kind(),
@@ -413,15 +499,16 @@ fn main() {
         Some(gfx_hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
-    // let grav = graph_builder.add_node(
-    //     GravBounce::builder()
-    //         .with_buffer(posvel)
-    // );
+    let grav = graph_builder.add_node(
+        GravBounce::builder()
+            .with_buffer(posvel)
+    );
 
     let pass = graph_builder.add_node(
         QuadsRenderPass::builder()
             .with_image(color)
-            // .with_dependency(grav)
+            .with_buffer(posvel)
+            .with_dependency(grav)
     );
 
     graph_builder.add_node(

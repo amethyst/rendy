@@ -232,7 +232,7 @@ where
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
         log::trace!("Allocate buffers");
-        let buffers: Vec<Option<buffer::Buffer<B>>> = self
+        let mut buffers: Vec<Option<buffer::Buffer<B>>> = self
             .buffers
             .iter()
             .enumerate()
@@ -248,7 +248,7 @@ where
             }).collect::<Result<_, _>>()?;
 
         log::trace!("Allocate images");
-        let images: Vec<Option<(image::Image<B>, _)>> = self
+        let mut images: Vec<Option<(image::Image<B>, _)>> = self
             .images
             .iter()
             .enumerate()
@@ -295,8 +295,8 @@ where
                         factory,
                         aux,
                         family.id(),
-                        &buffers,
-                        &images,
+                        &mut buffers,
+                        &mut images,
                         &chains,
                         &submission,
                     )?;

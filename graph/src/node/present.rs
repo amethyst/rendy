@@ -79,8 +79,8 @@ where
         factory: &mut Factory<B>,
         _aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
         assert_eq!(buffers.len(), 0);
         assert_eq!(images.len(), 1);

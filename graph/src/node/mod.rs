@@ -80,17 +80,17 @@ pub struct ImageAccess {
 }
 
 /// Buffer shared between nodes.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct NodeBuffer<'a, B: gfx_hal::Backend> {
     /// Buffer reference.
-    pub buffer: &'a Buffer<B>,
+    pub buffer: &'a mut Buffer<B>,
 }
 
 /// Image shared between nodes.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub struct NodeImage<'a, B: gfx_hal::Backend> {
     /// Image reference.
-    pub image: &'a Image<B>,
+    pub image: &'a mut Image<B>,
 
     /// Image state for node.
     pub layout: gfx_hal::image::Layout,
@@ -203,8 +203,8 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error>;
 }
 
@@ -283,8 +283,8 @@ pub trait AnyNodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error>;
 
     /// Make node builder.
@@ -329,8 +329,8 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
         let node = NodeDesc::build(
             &self.0,
@@ -450,25 +450,26 @@ where
         factory: &mut Factory<B>,
         aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
-        buffers: &[Option<Buffer<B>>],
-        images: &[Option<(Image<B>, Option<gfx_hal::command::ClearValue>)>],
+        buffers: &mut [Option<Buffer<B>>],
+        images: &mut [Option<(Image<B>, Option<gfx_hal::command::ClearValue>)>],
         chains: &chain::Chains,
         submission: &chain::Submission<chain::SyncData<usize, usize>>,
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
+        let buffers_len = buffers.len();
         self.desc.build(
             factory,
             aux,
             family,
-            &self.buffers.iter().map(|&BufferId(index)| {
+            &mut self.buffers.iter().zip(buffers).map(|(&BufferId(index), resource)| {
                 let id = chain::Id(index);
-                let buffer = buffers[index].as_ref().expect("Buffer referenced from at least one node must be instantiated");
+                let buffer = resource.as_mut().expect("Buffer referenced from at least one node must be instantiated");
                 NodeBuffer {
                     buffer,
                 }
             }).collect::<Vec<_>>(),
-            &self.images.iter().map(|&ImageId(index)| {
-                let id = chain::Id(index + buffers.len());
-                let (image, clear) = images[index].as_ref().expect("Image referenced from at least one node must be instantiated");
+            &mut self.images.iter().zip(images).map(|(&ImageId(index), resource)| {
+                let id = chain::Id(index + buffers_len);
+                let (image, clear) = resource.as_mut().expect("Image referenced from at least one node must be instantiated");
                 NodeImage {
                     image,
                     layout: chains.images[&id].links()[submission.resource_link_index(id)].submission_state(submission.id()).layout,

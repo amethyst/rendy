@@ -96,18 +96,21 @@ where
     fn build<'a>(
         _factory: &mut Factory<B>,
         _aux: &mut T,
-        buffers: &[NodeBuffer<'a, B>],
-        images: &[NodeImage<'a, B>],
+        buffers: &mut [NodeBuffer<'a, B>],
+        images: &mut [NodeImage<'a, B>],
+        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
+        assert_eq!(sets.len(), 1);
+        assert!(sets[0].as_ref().is_empty());
 
         TriangleRenderPass {
             vertex: None,
         }
     }
 
-    fn prepare(&mut self, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], factory: &mut Factory<B>, _aux: &T) -> bool {
+    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
         if self.vertex.is_some() {
             return false;
         }
