@@ -258,7 +258,7 @@ struct GravBounce<B: gfx_hal::Backend> {
 
     descriptor_pool: B::DescriptorPool,
     descriptor_set: B::DescriptorSet,
-    buffer_view: B::BufferView,
+    // buffer_view: B::BufferView,
 
     command_pool: CommandPool<B, Compute>,
     command_buffer: CommandBuffer<B, Compute, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
@@ -363,7 +363,7 @@ where
             None,
         )?;
 
-        let (descriptor_pool, descriptor_set, buffer_view) = unsafe {
+        let (descriptor_pool, descriptor_set/*, buffer_view*/) = unsafe {
             let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(
                 factory.device(),
                 1,
@@ -378,12 +378,12 @@ where
                 &set_layout
             )?;
 
-            let buffer_view = gfx_hal::Device::create_buffer_view(
-                factory.device(),
-                posvelbuff.raw(),
-                Some(gfx_hal::format::Format::Rgba32Float),
-                0 .. posvelbuff.size(),
-            )?;
+            // let buffer_view = gfx_hal::Device::create_buffer_view(
+            //     factory.device(),
+            //     posvelbuff.raw(),
+            //     Some(gfx_hal::format::Format::Rgba32Float),
+            //     0 .. posvelbuff.size(),
+            // )?;
 
             gfx_hal::Device::write_descriptor_sets(
                 factory.device(),
@@ -395,7 +395,7 @@ where
                 }),
             );
 
-            (descriptor_pool, descriptor_set, buffer_view)
+            (descriptor_pool, descriptor_set/*, buffer_view*/)
         };
 
         let mut command_pool = factory.create_command_pool(family, ())?
@@ -421,7 +421,7 @@ where
             pipeline,
             descriptor_pool,
             descriptor_set,
-            buffer_view,
+            // buffer_view,
             command_pool,
             command_buffer,
             submit,
