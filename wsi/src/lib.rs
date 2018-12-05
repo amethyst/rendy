@@ -163,18 +163,28 @@ where
         log::info!("Surface capabilities: {:#?}. Pick {} images", capabilities.image_count, image_count);
         assert!(capabilities.usage.contains(usage), "Surface supports {:?}, but {:?} was requested");
 
-        let (swapchain, backbuffer) = device.create_swapchain(
-            &mut self.raw,
-            gfx_hal::SwapchainConfig {
-                present_mode,
-                format,
-                extent: capabilities.current_extent.unwrap(),
-                image_count,
-                image_layers: 1,
-                image_usage: usage,
-            },
-            None,
-        )?;
+        let hidpi_factor = self.window.get_hidpi_factor();
+        let (window_width, window_height) = self.window
+            .get_inner_size()
+            .unwrap()
+            .to_physical(hidpi_factor)
+            .into();
+
+        let default_extent = gfx_hal::window::Extent2D {
+            width: window_width,
+            height: window_height,
+        };
+
+        let mut swap_config = gfx_hal::window::SwapchainConfig::from_caps(&capabilities, format, default_extent);
+        swap_config.present_mode = present_mode;
+        swap_config.image_count = image_count;
+        swap_config.image_usage = usage;
+
+        log::info!("Swap Config: {:#?}", swap_config);
+
+        let extent = swap_config.extent.clone();
+
+        let (swapchain, backbuffer) = device.create_swapchain(&mut self.raw, swap_config, None)?;
 
         Ok(Target {
             relevant: relevant::Relevant,
@@ -183,7 +193,7 @@ where
             swapchain,
             backbuffer,
             format,
-            extent: capabilities.current_extent.unwrap(),
+            extent,
             usage,
         })
     }
