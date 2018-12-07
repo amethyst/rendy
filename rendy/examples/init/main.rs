@@ -1,6 +1,6 @@
 
-extern crate rendy;
-extern crate winit;
+
+
 
 use rendy::{
     factory::{Config, Factory},

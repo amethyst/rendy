@@ -378,7 +378,7 @@ macro_rules! init_factory_for_backend {
                 _B::$backend => {
                     if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
                         let instance = $backend::Instance::create("Rendy", 1);
-                        let factory: Box<std::any::Any> = Box::new(Factory::init(instance, $config)?);
+                        let factory: Box<dyn std::any::Any> = Box::new(Factory::init(instance, $config)?);
                         return Ok(*factory.downcast::<Factory<$target>>().unwrap());
                     }
                 })+

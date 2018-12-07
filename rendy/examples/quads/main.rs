@@ -1,6 +1,6 @@
 
-extern crate rendy;
-extern crate winit;
+
+
 
 use rendy::{
     command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel, DrawCommand},
