@@ -18,7 +18,7 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-extern crate failure;
+use failure;
 
 mod block;
 mod heaps;

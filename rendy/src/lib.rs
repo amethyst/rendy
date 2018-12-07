@@ -20,17 +20,17 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-pub extern crate rendy_command as command;
-pub extern crate rendy_factory as factory;
-pub extern crate rendy_frame as frame;
-pub extern crate rendy_graph as graph;
-pub extern crate rendy_memory as memory;
-pub extern crate rendy_mesh as mesh;
-pub extern crate rendy_resource as resource;
-pub extern crate rendy_shader as shader;
-pub extern crate rendy_wsi as wsi;
+pub use rendy_command as command;
+pub use rendy_factory as factory;
+pub use rendy_frame as frame;
+pub use rendy_graph as graph;
+pub use rendy_memory as memory;
+pub use rendy_mesh as mesh;
+pub use rendy_resource as resource;
+pub use rendy_shader as shader;
+pub use rendy_wsi as wsi;
 
-pub extern crate gfx_hal as hal;
+pub use gfx_hal as hal;
 
 #[cfg(feature = "gfx-backend-empty")]
 pub extern crate gfx_backend_empty as empty;

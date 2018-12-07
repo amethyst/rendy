@@ -19,7 +19,7 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-extern crate rendy_shader_proc;
+
 
 #[doc(hidden)] pub extern crate failure;
 #[doc(hidden)] pub extern crate rendy_factory;

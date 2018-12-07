@@ -109,7 +109,7 @@ where
 
 /// Buffer borrowed from `CommandCirque`.
 #[derive(Debug)]
-pub struct CirqueEncoder<'a, B: gfx_hal::Backend, C: 'a, X = RecordingState<MultiShot>, S: 'a = (), P: 'a = (), L: 'a = PrimaryLevel> {
+pub struct CirqueEncoder<'a, B: gfx_hal::Backend, C, X = RecordingState<MultiShot>, S = (), P = (), L = PrimaryLevel> {
     buffer: CommandBuffer<B, C, X, L, IndividualReset>,
     frame: u64,
     cirque: &'a mut CommandCirque<B, C, S, P, L>,

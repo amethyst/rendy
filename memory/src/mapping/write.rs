@@ -24,7 +24,7 @@ pub trait Write<T: Copy> {
 }
 
 #[derive(Debug)]
-pub(super) struct WriteFlush<'a, T: 'a, F: FnOnce() + 'a> {
+pub(super) struct WriteFlush<'a, T, F: FnOnce() + 'a> {
     pub(super) slice: &'a mut [T],
     pub(super) flush: Option<F>,
 }
@@ -54,7 +54,7 @@ where
 
 #[warn(dead_code)]
 #[derive(Debug)]
-pub(super) struct WriteCoherent<'a, T: 'a> {
+pub(super) struct WriteCoherent<'a, T> {
     pub(super) slice: &'a mut [T],
 }
 

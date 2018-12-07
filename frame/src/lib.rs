@@ -19,8 +19,8 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-extern crate rendy_command as command;
-extern crate rendy_factory as factory;
+use rendy_command as command;
+use rendy_factory as factory;
 
 pub mod cirque;
 mod frame;
