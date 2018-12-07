@@ -24,8 +24,8 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-extern crate rendy_factory as factory;
-extern crate rendy_resource as resource;
+use rendy_factory as factory;
+use rendy_resource as resource;
 
 mod mesh;
 mod utils;

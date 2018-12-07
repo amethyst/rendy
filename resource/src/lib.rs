@@ -21,7 +21,7 @@
 
 #[macro_use] extern crate derivative;
 #[macro_use] extern crate log;
-extern crate rendy_memory as memory;
+use rendy_memory as memory;
 
 mod escape;
 mod resources;

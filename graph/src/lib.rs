@@ -18,13 +18,13 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-extern crate rendy_chain as chain;
-extern crate rendy_command as command;
-extern crate rendy_factory as factory;
-extern crate rendy_frame as frame;
-extern crate rendy_memory as memory;
-extern crate rendy_resource as resource;
-extern crate rendy_wsi as wsi;
+use rendy_chain as chain;
+use rendy_command as command;
+use rendy_factory as factory;
+use rendy_frame as frame;
+use rendy_memory as memory;
+use rendy_resource as resource;
+use rendy_wsi as wsi;
 
 /// Id of the buffer in graph.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
