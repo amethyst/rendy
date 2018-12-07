@@ -163,12 +163,27 @@ where
         log::info!("Surface capabilities: {:#?}. Pick {} images", capabilities.image_count, image_count);
         assert!(capabilities.usage.contains(usage), "Surface supports {:?}, but {:?} was requested");
 
+        let extent = capabilities.current_extent.unwrap_or({
+            let hidpi_factor = self.window.get_hidpi_factor();
+            let start = capabilities.extents.start;
+            let end = capabilities.extents.end;
+            let (window_width, window_height) = self.window
+                .get_inner_size()
+                .unwrap()
+                .to_physical(hidpi_factor)
+                .into();
+            gfx_hal::window::Extent2D {
+                width: end.width.min(start.width.max(window_width)),
+                height: end.height.min(start.height.max(window_height)),
+            }
+        });
+
         let (swapchain, backbuffer) = device.create_swapchain(
             &mut self.raw,
             gfx_hal::SwapchainConfig {
                 present_mode,
                 format,
-                extent: capabilities.current_extent.unwrap(),
+                extent,
                 image_count,
                 image_layers: 1,
                 image_usage: usage,
@@ -183,7 +198,7 @@ where
             swapchain,
             backbuffer,
             format,
-            extent: capabilities.current_extent.unwrap(),
+            extent,
             usage,
         })
     }
