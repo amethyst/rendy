@@ -2,6 +2,7 @@
 name = "rendy-factory"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
+edition = "2018"
 
 [features]
 empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty"]
