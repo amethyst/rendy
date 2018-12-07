@@ -14,7 +14,8 @@ use crate::{
 // TODO: Use actual limits.
 const UNIVERSAL_ALIGNMENT: u64 = 512;
 
-/// Graph that renders whole frame.
+/// The final graph that assembles all nodes and resources together and schedules
+/// the rendering of a whole frame.
 #[derive(Debug)]
 pub struct Graph<B: gfx_hal::Backend, T: ?Sized> {
     nodes: Vec<Box<dyn AnyNode<B, T>>>,
@@ -37,19 +38,9 @@ where
     ///
     /// # Parameters
     ///
-    /// `command_queues`   - function to get `CommandQueue` by `QueueFamilyId` and index.
-    ///               `Graph` guarantees that it will submit only command buffers
-    ///               allocated from the command pool associated with specified `QueueFamilyId`.
-    ///
-    /// `device`    - `Device<B>` implementation. `B::Device` or wrapper.
+    /// `factory`   - an implementation of Factory<B>
     ///
     /// `aux`       - auxiliary data that `Node`s use.
-    ///
-    /// `fences`    - vector of fences that will be signaled after all commands are complete.
-    ///               Fences that are attached to last submissions of every queue are reset.
-    ///               This function may not use all fences. Unused fences are left in signalled state.
-    ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
-    ///               So it's OK to start with empty `Vec`.
     pub fn run(&mut self, factory: &mut Factory<B>, aux: &mut T) {
         if self.frames.next().index() >= self.inflight {
             let wait = self.frames.next().index() - self.inflight;
@@ -135,7 +126,8 @@ where
     }
 }
 
-/// Build graph from nodes and resource.
+/// Build a `Graph` from nodes and resources. The main way to
+/// interact with `rendy` in addition to implementing render passes.
 #[derive(Debug)]
 pub struct GraphBuilder<B: gfx_hal::Backend, T: ?Sized> {
     nodes: Vec<NodeBuilder<B, T>>,
@@ -163,7 +155,8 @@ where
         }
     }
 
-    /// Create new buffer owned by graph.
+    /// Create a new buffer owned by the graph. Returns an opaque handle to the buffer.
+    /// Use this when you need to share a buffer between multiple nodes of the graph.
     pub fn create_buffer(
         &mut self,
         size: u64,
@@ -174,7 +167,8 @@ where
         BufferId(self.buffers.len() - 1)
     }
 
-    /// Create new image owned by graph.
+    /// Create a new image owned by the graph. Returns an opaque handle to the image.
+    /// Use this when you need to share an image between multiple nodes of the graph.
     pub fn create_image(
         &mut self,
         kind: gfx_hal::image::Kind,
@@ -198,7 +192,9 @@ where
         ImageId(self.images.len() - 1)
     }
 
-    /// Add node to the graph.
+    /// Add node to the graph. Returns an opaque handle to the node which can be used
+    /// to create dependency chains between nodes and schedule execution times between
+    /// the nodes.
     pub fn add_node(&mut self, builder: NodeBuilder<B, T>) -> NodeId {
         self.nodes.push(builder);
         NodeId(self.nodes.len() - 1)
@@ -208,11 +204,7 @@ where
     ///
     /// # Parameters
     ///
-    /// `frames`        - maximum number of frames `Graph` will render simultaneously.
-    ///
-    /// `families`      - `Iterator` of `B::QueueFamily`s.
-    ///
-    /// `device`    - `Device<B>` implementation. `B::Device` or wrapper.
+    /// `factory`   - Factory<B> implemenation.
     ///
     /// `aux`       - auxiliary data that `Node`s use.
     pub fn build(

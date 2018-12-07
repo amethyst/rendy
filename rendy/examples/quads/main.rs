@@ -1,7 +1,3 @@
-
-
-
-
 use rendy::{
     command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel, DrawCommand},
     factory::{Config, Factory},
@@ -118,7 +114,7 @@ where
 
     fn layouts() -> Vec<Layout> {
         vec![Layout {
-            sets: vec![SetLayout {
+            set_layouts: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
                     ty: gfx_hal::pso::DescriptorType::UniformBuffer,
@@ -136,7 +132,7 @@ where
         _aux: &mut T,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
+        set_layouts: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
@@ -185,9 +181,9 @@ where
         //     0 .. posvelbuff.size(),
         // ).unwrap();
 
-        assert_eq!(sets.len(), 1);
-        let set_layouts = sets[0].as_ref();
         assert_eq!(set_layouts.len(), 1);
+        let set_layout = set_layouts[0].as_ref();
+        assert_eq!(set_layout.len(), 1);
 
         let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(
             factory.device(),
@@ -200,7 +196,7 @@ where
 
         let descriptor_set = gfx_hal::pso::DescriptorPool::allocate_set(
             &mut descriptor_pool,
-            &set_layouts[0],
+            &set_layout,
         ).unwrap();
 
         gfx_hal::Device::write_descriptor_sets(

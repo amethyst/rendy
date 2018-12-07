@@ -59,6 +59,17 @@ pub struct BufferAccess {
     pub stages: gfx_hal::pso::PipelineStage,
 }
 
+impl From<BufferAccess> for chain::BufferState {
+    fn from(access: BufferAccess) -> Self {
+        chain::BufferState {
+            access: access.access,
+            stages: access.stages,
+            layout: (),
+            usage: access.usage,
+        }
+    }
+}
+
 /// Image access node wants to perform.
 #[derive(Clone, Copy, Debug)]
 pub struct ImageAccess {
@@ -77,6 +88,17 @@ pub struct ImageAccess {
 
     /// Pipeline stages at which image is accessd.
     pub stages: gfx_hal::pso::PipelineStage,
+}
+
+impl From<ImageAccess> for chain::ImageState {
+    fn from(access: ImageAccess) -> Self {
+        chain::ImageState {
+            access: access.access,
+            stages: access.stages,
+            layout: access.layout,
+            usage: access.usage,
+        }
+    }
 }
 
 /// Buffer shared between nodes.
@@ -192,12 +214,11 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
     ///
     /// # Parameters
     ///
-    /// `factory`    - factory instance.
+    /// `factory`   - factory instance.
     /// `aux`       - auxiliary data.
     /// `family`    - id of the family this node will be executed on.
-    /// `resources` - set of transient resources managed by graph.
-    ///               with barriers required for interface resources.
-    ///
+    /// `buffers`   - set of transient buffers managed by graph.
+    /// `images`    - set of transient images managed by graph.
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
@@ -213,7 +234,6 @@ pub trait AnyNode<B: gfx_hal::Backend, T: ?Sized>:
     std::fmt::Debug + Sync + Send
 {
     /// Record commands required by node.
-    /// Recorded buffers go into `submits`.
     unsafe fn run<'a>(
         &mut self,
         factory: &mut Factory<B>,
@@ -417,28 +437,14 @@ where
                 .iter()
                 .map(|id| chain::Id(id.0))
                 .zip(desc_buffers)
-                .map(|(id, access)| {
-                    (id, chain::BufferState {
-                        access: access.access,
-                        stages: access.stages,
-                        layout: (),
-                        usage: access.usage,
-                    })
-                })
+                .map(|(id, access)| (id, chain::BufferState::from(access)))
                 .collect(),
             images: self
                 .images
                 .iter()
                 .map(|id| chain::Id(id.0 + buffers))
                 .zip(desc_images)
-                .map(|(id, access)| {
-                    (id, chain::ImageState {
-                        access: access.access,
-                        stages: access.stages,
-                        layout: access.layout,
-                        usage: access.usage,
-                    })
-                })
+                .map(|(id, access)| (id, chain::ImageState::from(access)))
                 .collect(),
         }
     }

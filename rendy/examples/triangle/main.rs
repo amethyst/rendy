@@ -1,7 +1,3 @@
-
-
-
-
 use rendy::{
     command::{EncoderCommon, RenderPassEncoder},
     factory::{Config, Factory},
@@ -44,7 +40,7 @@ lazy_static::lazy_static! {
 
 #[derive(Debug)]
 struct TriangleRenderPass<B: gfx_hal::Backend> {
-    vertex: Option<Buffer<B>>,
+    vertex_buffer: Option<Buffer<B>>,
 }
 
 impl<B, T> RenderPass<B, T> for TriangleRenderPass<B>
@@ -94,7 +90,7 @@ where
     }
 
     fn build<'a>(
-        _factory: &mut Factory<B>,
+        factory: &mut Factory<B>,
         _aux: &mut T,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
@@ -104,16 +100,6 @@ where
         assert!(images.is_empty());
         assert_eq!(sets.len(), 1);
         assert!(sets[0].as_ref().is_empty());
-
-        TriangleRenderPass {
-            vertex: None,
-        }
-    }
-
-    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
-        if self.vertex.is_some() {
-            return false;
-        }
 
         let mut vbuf = factory.create_buffer(512, PosColor::VERTEX.stride as u64 * 3, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
             .unwrap();
@@ -136,9 +122,9 @@ where
             ]).unwrap();
         }
 
-        self.vertex = Some(vbuf);
-
-        true
+        TriangleRenderPass {
+            vertex_buffer: Some(vbuf),
+        }
     }
 
     fn draw(
@@ -148,7 +134,7 @@ where
         encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
         _aux: &T,
     ) {
-        let vbuf = self.vertex.as_ref().unwrap();
+        let vbuf = self.vertex_buffer.as_ref().unwrap();
         encoder.bind_graphics_pipeline(&pipelines[0]);
         encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
         encoder.draw(0..3, 0..1);

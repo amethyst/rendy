@@ -1,4 +1,3 @@
-
 //! Defines render pass node.
 
 use crate::{
@@ -10,27 +9,30 @@ use crate::{
     node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable},
 };
 
-/// Set layout
+/// A Descriptor Set Layout, which tells a pipeline layout the type of
+/// descriptors to expect to be bound at each binding point.
 #[derive(Clone, Debug, Default)]
 pub struct SetLayout {
     /// Set layout bindings.
     pub bindings: Vec<gfx_hal::pso::DescriptorSetLayoutBinding>,
 }
 
-/// Pipeline layout
+/// A Pipeline Layout, which tells the graphics pipeline the layout of
+/// resources which will be used.
 #[derive(Clone, Debug)]
 pub struct Layout {
-    /// Sets in pipeline layout.
-    pub sets: Vec<SetLayout>,
+    /// Descriptor Set Layouts
+    pub set_layouts: Vec<SetLayout>,
 
-    /// Push constants in pipeline layout.
+    /// Push Constants
     pub push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>,
 }
 
-/// Pipeline info
+/// Information about a pipeline for a render pass.
 #[derive(Clone, Debug)]
 pub struct Pipeline {
-    /// Layout for pipeline.
+    /// Layout for pipeline. Corresponds to an index in a `RenderPass`'s `Layout`s, which are
+    /// given by the implementation of `RenderPass::layouts`.
     pub layout: usize,
 
     /// Vertex input for pipeline.
@@ -66,7 +68,8 @@ pub struct RenderPassNode<B: gfx_hal::Backend, R> {
 }
 
 
-/// Render pass.
+/// A Render Pass represents a collection of resources, how they should be assembled,
+/// and how to use them to draw into one or more render targets.
 pub trait RenderPass<B, T>: std::fmt::Debug + Send + Sync + 'static
 where
     B: gfx_hal::Backend,
@@ -75,12 +78,12 @@ where
     /// Pass name.
     fn name() -> &'static str;
 
-    /// Get set or buffer resources the node uses.
+    /// Buffer resources the node uses. Will usually be overwritten in client implementation.
     fn buffers() -> Vec<BufferAccess> {
         Vec::new()
     }
 
-    /// Get set or image resources the node uses.
+    /// Image resources the node uses. Will usually be overwritten in client implementation.
     fn images() -> Vec<ImageAccess> {
         Vec::new()
     }
@@ -95,15 +98,15 @@ where
         false
     }
 
-    /// Pipeline layouts
+    /// Pipeline layouts. Will usually be overwritten in client implementation.
     fn layouts() -> Vec<Layout> {
         vec![Layout {
-            sets: Vec::new(),
+            set_layouts: Vec::new(),
             push_constants: Vec::new(),
         }]
     }
 
-    /// Get vertex input.
+    /// Vertex input layout. Will usually be overwritten in client implementation.
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
@@ -111,7 +114,7 @@ where
         Vec::new()
     }
 
-    /// Graphics pipelines
+    /// Graphics pipelines. Usually does not need to be overwritten by client implementation.
     fn pipelines() -> Vec<Pipeline> {
         vec![Pipeline {
             layout: 0,
@@ -164,12 +167,17 @@ where
     ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>>;
 
     /// Build pass instance.
+    /// 
+    /// This function should assemble the necessary buffers, images, and descriptor set layouts
+    /// and use the given Factory to create any auxiliary resources needed to create
+    /// an instance of itself. This often includes allocating and writing descriptor sets,
+    /// creating and initializing vertex buffers, etc.
     fn build<'a>(
         factory: &mut Factory<B>,
         aux: &mut T,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
+        set_layouts: &[impl AsRef<[B::DescriptorSetLayout]>],
     ) -> Self;
 
     /// Prepare to record drawing commands.
@@ -247,7 +255,7 @@ where
             .into_iter()
             .map(|layout| {
                 let set_layouts = layout
-                    .sets
+                    .set_layouts
                     .into_iter()
                     .map(|set| {
                         gfx_hal::Device::create_descriptor_set_layout(
