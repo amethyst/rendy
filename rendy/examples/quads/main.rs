@@ -81,7 +81,7 @@ where
     fn load_shader_sets<'a>(
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
     ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
         storage.clear();
 
@@ -172,7 +172,7 @@ where
             let uniform = rand::distributions::Uniform::new(0.0, 1.0);
 
             #[repr(C)] struct PosVel { pos: [f32; 2], vel: [f32; 2], }
-            factory.upload_visible_buffer(posvelbuff, 0, &(0 .. QUADS).map(|index| PosVel {
+            factory.upload_visible_buffer(posvelbuff, 0, &(0 .. QUADS).map(|_index| PosVel {
                 pos: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
                 vel: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
             }).collect::<Vec<PosVel>>()).unwrap();
@@ -223,7 +223,7 @@ where
         }
     }
 
-    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
+    fn prepare(&mut self, _factory: &mut Factory<B>, _aux: &T) -> bool {
         false
     }
 
@@ -284,14 +284,14 @@ where
 
     fn run<'a>(
         &'a mut self,
-        factory: &mut Factory<B>,
-        aux: &mut T,
-        frames: &'a Frames<B>,
+        _factory: &mut Factory<B>,
+        _aux: &mut T,
+        _frames: &'a Frames<B>,
     ) -> &'a [Submit<'a, B, SimultaneousUse>] {
         std::slice::from_ref(&self.submit)
     }
 
-    unsafe fn dispose(self, factory: &mut Factory<B>, aux: &mut T) {
+    unsafe fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
         
     }
 }
@@ -317,7 +317,7 @@ where
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        _aux: &mut T,
         family: gfx_hal::queue::QueueFamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
