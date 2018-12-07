@@ -60,7 +60,7 @@ macro_rules! create_surface_for_backend {
                 #[$feature]
                 _B::$backend => {
                     if let Some(instance) = std::any::Any::downcast_ref(&**$instance) {
-                        let surface: Box<dyn std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
+                        let surface: Box<std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
                         return *surface.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
                     }
                 })+
