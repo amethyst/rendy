@@ -104,4 +104,14 @@ where
     pub fn format(&self) -> gfx_hal::format::Format {
         self.info.format
     }
+
+    /// Get levels count of the image.
+    pub fn levels(&self) -> u8 {
+        self.info.levels
+    }
+
+    /// Get layers count of the image.
+    pub fn layers(&self) -> u16 {
+        self.info.kind.num_layers()
+    }
 }

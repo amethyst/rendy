@@ -6,7 +6,7 @@ use rendy::{
     command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel, DrawCommand},
     factory::{Config, Factory},
     frame::{cirque::CirqueRenderPassInlineEncoder, Frames},
-    graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable},
+    graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
     memory::usage::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -112,7 +112,7 @@ where
         vec![BufferAccess {
             access: gfx_hal::buffer::Access::SHADER_READ,
             stages: gfx_hal::pso::PipelineStage::VERTEX_SHADER,
-            usage: gfx_hal::buffer::Usage::UNIFORM,
+            usage: gfx_hal::buffer::Usage::STORAGE,
         }]
     }
 
@@ -121,7 +121,7 @@ where
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: gfx_hal::pso::DescriptorType::UniformBuffer,
+                    ty: gfx_hal::pso::DescriptorType::StorageBuffer,
                     count: 1,
                     stage_flags: gfx_hal::pso::ShaderStageFlags::VERTEX,
                     immutable_samplers: false,
@@ -193,7 +193,7 @@ where
             factory.device(),
             1,
             std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
-                ty: gfx_hal::pso::DescriptorType::UniformBuffer,
+                ty: gfx_hal::pso::DescriptorType::StorageBuffer,
                 count: 1,
             }),
         ).unwrap();
@@ -411,7 +411,27 @@ where
             std::iter::empty::<u32>(),
         );
 
+        {
+            let (stages, barriers) = gfx_acquire_barriers(&*buffers, None);
+            log::info!("Acquire {:?} : {:#?}", stages, barriers);
+            encoder.pipeline_barrier(
+                stages,
+                gfx_hal::memory::Dependencies::empty(),
+                barriers,
+            );
+        }
         encoder.dispatch(QUADS, 1, 1);
+
+        {
+            let (stages, barriers) = gfx_release_barriers(&*buffers, None);
+            log::info!("Release {:?} : {:#?}", stages, barriers);
+            encoder.pipeline_barrier(
+                stages,
+                gfx_hal::memory::Dependencies::empty(),
+                barriers,
+            );
+        }
+        
         let command_buffer = encoder.finish();
         let (submit, command_buffer) = command_buffer.submit();
 
@@ -450,7 +470,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
         graph.run(factory, &mut ());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(30, 0) {
+        if elapsed >= std::time::Duration::new(5, 0) {
             break;
         }
     }

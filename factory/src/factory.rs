@@ -407,6 +407,7 @@ where
     B: gfx_hal::Backend,
 {
     /// Init factory.
+    #[allow(unused_variables)]
     pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error> {
         log::debug!("Creating factory");
         init_factory_for_backend!(B, config)

@@ -2,11 +2,11 @@
 
 use crate::{
     chain::QueueId,
-    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, PrimaryLevel, MultiShot, SimultaneousUse, Encoder, Family, Submission, Submit},
+    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, PrimaryLevel, MultiShot, SimultaneousUse, Encoder, EncoderCommon, Family, Submission, Submit},
     factory::Factory,
     frame::Frames,
     wsi::{Surface, Target},
-    node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess},
+    node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess, gfx_acquire_barriers, gfx_release_barriers},
 };
 
 #[derive(Debug)]
@@ -94,6 +94,15 @@ where
                 let buffers = pool.allocate_buffers(PrimaryLevel, target_images.len());
                 target_images.iter().zip(buffers).map(|(target_image, initial)| {
                     let mut encoder = initial.begin(MultiShot(SimultaneousUse), ());
+                    {
+                        let (stages, barriers) = gfx_acquire_barriers(None, Some(input_image));
+                        log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                        encoder.pipeline_barrier(
+                            stages,
+                            gfx_hal::memory::Dependencies::empty(),
+                            barriers,
+                        );
+                    }
                     encoder.copy_image(
                         input_image.image.raw(),
                         input_image.layout,
@@ -119,6 +128,15 @@ where
                             },
                         }),
                     );
+                    {
+                        let (stages, barriers) = gfx_release_barriers(None, Some(input_image));
+                        log::info!("Release {:?} : {:#?}", stages, barriers);
+                        encoder.pipeline_barrier(
+                            stages,
+                            gfx_hal::memory::Dependencies::empty(),
+                            barriers,
+                        );
+                    }
 
                     let (submit, buffer) = encoder.finish().submit();
 

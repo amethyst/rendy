@@ -3,11 +3,11 @@
 
 use crate::{
     command::{
-        Graphics, CommandPool, IndividualReset, Submit, PrimaryLevel, Encoder,
+        Graphics, CommandPool, CommandBuffer, IndividualReset, Submit, PrimaryLevel, Encoder, EncoderCommon, SecondaryLevel, PendingState, ExecutableState, SimultaneousUse, MultiShot,
     },
     factory::Factory,
     frame::{Frames, cirque::{CommandCirque, CirqueRenderPassInlineEncoder}},
-    node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable},
+    node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
 };
 
 /// Set layout
@@ -60,6 +60,10 @@ pub struct RenderPassNode<B: gfx_hal::Backend, R> {
     attachment_views: Vec<B::ImageView>,
     framebuffer: B::Framebuffer,
     command_pool: CommandPool<B, Graphics, IndividualReset>,
+    acquire_submit: Submit<'static, B, SimultaneousUse, (), SecondaryLevel>,
+    acquire_buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
+    release_submit: Submit<'static, B, SimultaneousUse, (), SecondaryLevel>,
+    release_buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,
     pass: R,
     relevant: relevant::Relevant,
@@ -274,8 +278,8 @@ where
             &set_layouts,
         );
 
-        drop(images);
-        drop(buffers);
+        let buffers = &*buffers;
+        let images = &*images;
 
         let color = |index| &attachments[index];
         let depth = || &attachments[R::colors()];
@@ -506,9 +510,38 @@ where
             extent,
         )?;
 
-        let command_pool = factory.create_command_pool(family, IndividualReset)?
+        let mut command_pool = factory.create_command_pool(family, IndividualReset)?
                 .with_capability()
                 .expect("Graph must specify family that supports `Graphics`");
+
+        let (acquire, release) = {
+            let mut command_buffers = command_pool.allocate_buffers(SecondaryLevel, 2);
+            (command_buffers.pop().unwrap(), command_buffers.pop().unwrap())
+        };
+
+        let (acquire_submit, acquire_buffer) = {
+            let mut encoder = acquire.begin(MultiShot(SimultaneousUse), ());
+            let (stages, barriers) = gfx_acquire_barriers(buffers, images);
+            log::info!("Acquire {:?} : {:#?}", stages, barriers);
+            encoder.pipeline_barrier(
+                stages,
+                gfx_hal::memory::Dependencies::empty(),
+                barriers,
+            );
+            encoder.finish().submit()
+        };
+
+        let (release_submit, release_buffer) = {
+            let mut encoder = release.begin(MultiShot(SimultaneousUse), ());
+            let (stages, barriers) = gfx_release_barriers(buffers, images);
+            log::info!("Release {:?} : {:#?}", stages, barriers);
+            encoder.pipeline_barrier(
+                stages,
+                gfx_hal::memory::Dependencies::empty(),
+                barriers,
+            );
+            encoder.finish().submit()
+        };
 
         let command_cirque = CommandCirque::new(PrimaryLevel);
 
@@ -523,6 +556,10 @@ where
             framebuffer,
             clears,
             command_pool,
+            acquire_submit,
+            acquire_buffer,
+            release_submit,
+            release_buffer,
             command_cirque,
             relevant: relevant::Relevant,
         })
@@ -569,7 +606,9 @@ where
             either::Right(initial) => initial,
         }.begin();
 
+        recording.execute_commands(std::iter::once(&self.acquire_submit));
         {
+
             let area = gfx_hal::pso::Rect {
                 x: 0,
                 y: 0,
@@ -593,6 +632,7 @@ where
                 aux,
             );
         }
+        recording.execute_commands(std::iter::once(&self.release_submit));
 
         std::iter::once(recording.finish().submit())
     }
