@@ -17,10 +17,6 @@ vec2 vertices[6] = {
     vec2(0.01, 0.00),
 };
 
-float rand(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-}
-
 void main() {
     int index = gl_InstanceIndex;
     vec4 posvel = posvelbuff.posvel[index];
@@ -32,5 +28,4 @@ void main() {
 
     frag_color = vec4(color.rgb, 1.0);
     gl_Position = vec4(v, 0.0, 1.0);
-
 }
