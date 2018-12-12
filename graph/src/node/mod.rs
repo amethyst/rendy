@@ -560,7 +560,7 @@ pub fn gfx_acquire_barriers<'a, B: gfx_hal::Backend>(buffers: impl IntoIterator<
                 states: acquire.states.clone(),
                 families: acquire.families.clone(),
                 target: buffer.buffer.raw(),
-                // range: buffer.range.clone(),
+                range: Some(buffer.range.start) .. Some(buffer.range.end),
             })
         } else {
             None
@@ -601,7 +601,7 @@ pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(buffers: impl IntoIterator<
                 states: release.states.clone(),
                 families: release.families.clone(),
                 target: buffer.buffer.raw(),
-                // range: buffer.range.clone(),
+                range: Some(buffer.range.start) .. Some(buffer.range.end),
             })
         } else {
             None
