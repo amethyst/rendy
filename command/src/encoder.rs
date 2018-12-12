@@ -1,6 +1,7 @@
 
 use crate::{
     capability::{Supports, Graphics, Transfer, Compute},
+    buffer::Submittable,
 };
 
 /// Draw command for indirect draw.
@@ -83,6 +84,17 @@ pub trait EncoderCommon<B: gfx_hal::Backend, C> {
     where
         C: Supports<Compute>,
     ;
+
+	/// Insert pipeline barrier.
+	fn pipeline_barrier<'a>(
+		&mut self,
+        stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+        dependencies: gfx_hal::memory::Dependencies,
+        barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'a, B>>,
+	);
+
+    /// Execute commands from secondary buffers.
+	fn execute_commands(&mut self, submittables: impl IntoIterator<Item = impl Submittable<B>>);
 }
 
 /// Trait to encode commands inside render pass.

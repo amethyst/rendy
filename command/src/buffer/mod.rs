@@ -111,6 +111,11 @@ where
         self.capability
     }
 
+    /// Get buffers family.
+    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+        self.family
+    }
+
     /// Convert capability level.
     pub fn with_queue_type(self) -> CommandBuffer<B, gfx_hal::QueueType, S, L, R>
     where

@@ -15,37 +15,9 @@ use crate::{
     NodeId,
 };
 
-/// Barrier required for node.
-///
-/// This type is similar to [`gfx_hal::memory::Barrier`]
-/// except that it has resource indices instead of references.
-///
-/// [`gfx_hal::memory::Barrier`]: ../gfx_hal/memory/enum.Barrier.html
-#[derive(Clone, Debug)]
-pub enum Barrier {
-    /// Applies the given access flags to all buffers in the range.
-    AllBuffers(std::ops::Range<gfx_hal::buffer::Access>),
-    /// Applies the given access flags to all images in the range.
-    AllImages(std::ops::Range<gfx_hal::image::Access>),
-    /// A memory barrier that defines access to a buffer.
-    Buffer {
-        /// The access flags controlling the buffer.
-        states: std::ops::Range<gfx_hal::buffer::State>,
-        /// The buffer the barrier controls.
-        target: usize,
-    },
-    /// A memory barrier that defines access to (a subset of) an image.
-    Image {
-        /// The access flags controlling the image.
-        states: std::ops::Range<gfx_hal::image::State>,
-        /// The image the barrier controls.
-        target: usize,
-        /// A `SubresourceRange` that defines which section of an image the barrier applies to.
-        range: gfx_hal::image::SubresourceRange,
-    },
-}
-
-/// Buffer access node wants to perform.
+/// Buffer access node will perform.
+/// Node must not perform any access to the buffer not specified in `access`.
+/// All access must be between logically first and last `stages`.
 #[derive(Clone, Copy, Debug)]
 pub struct BufferAccess {
     /// Access flags.
@@ -58,6 +30,44 @@ pub struct BufferAccess {
     /// Pipeline stages at which buffer is accessd.
     pub stages: gfx_hal::pso::PipelineStage,
 }
+
+/// Buffer pipeline barrier.
+#[derive(Clone, Debug)]
+pub struct BufferBarrier {
+    /// State transition for the buffer.
+    pub states: std::ops::Range<gfx_hal::buffer::State>,
+
+    /// Stages at which buffer is accessd.
+    pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+
+    /// Transfer between families.
+    pub families: Option<std::ops::Range<gfx_hal::queue::QueueFamilyId>>,
+}
+
+
+/// Buffer shared between nodes.
+/// 
+/// If Node doesn't actually use the buffer it can merge acquire and release barriers into one.
+/// TODO: Make merge function.
+#[derive(Debug)]
+pub struct NodeBuffer<'a, B: gfx_hal::Backend> {
+    /// Buffer reference.
+    pub buffer: &'a mut Buffer<B>,
+
+    /// Region of the buffer that is the transient resource.
+    pub range: std::ops::Range<u64>,
+
+    /// Acquire barrier.
+    /// Node implementation must insert it before first command that uses the buffer.
+    /// Barrier must be inserted even if this node doesn't use the buffer.
+    pub acquire: Option<BufferBarrier>,
+
+    /// Release barrier.
+    /// Node implementation must insert it after last command that uses the buffer.
+    /// Barrier must be inserted even if this node doesn't use the buffer.
+    pub release: Option<BufferBarrier>,
+}
+
 
 /// Image access node wants to perform.
 #[derive(Clone, Copy, Debug)]
@@ -79,11 +89,19 @@ pub struct ImageAccess {
     pub stages: gfx_hal::pso::PipelineStage,
 }
 
-/// Buffer shared between nodes.
-#[derive(Debug)]
-pub struct NodeBuffer<'a, B: gfx_hal::Backend> {
-    /// Buffer reference.
-    pub buffer: &'a mut Buffer<B>,
+/// Image pipeline barrier.
+/// Node implementation must insert it before first command that uses the image.
+/// Barrier must be inserted even if this node doesn't use the image.
+#[derive(Clone, Debug)]
+pub struct ImageBarrier {
+    /// State transition for the image.
+    pub states: std::ops::Range<gfx_hal::image::State>,
+
+    /// Stages at which image is accessd.
+    pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+
+    /// Transfer between families.
+    pub families: Option<std::ops::Range<gfx_hal::queue::QueueFamilyId>>,
 }
 
 /// Image shared between nodes.
@@ -92,11 +110,24 @@ pub struct NodeImage<'a, B: gfx_hal::Backend> {
     /// Image reference.
     pub image: &'a mut Image<B>,
 
+    /// Region of the image that is the transient resource.
+    pub range: gfx_hal::image::SubresourceRange,
+
     /// Image state for node.
     pub layout: gfx_hal::image::Layout,
 
     /// Specify that node should clear image to this value.
     pub clear: Option<gfx_hal::command::ClearValue>,
+
+    /// Acquire barrier.
+    /// Node implementation must insert it before first command that uses the image.
+    /// Barrier must be inserted even if this node doesn't use the image.
+    pub acquire: Option<ImageBarrier>,
+
+    /// Release barrier.
+    /// Node implementation must insert it after last command that uses the image.
+    /// Barrier must be inserted even if this node doesn't use the image.
+    pub release: Option<ImageBarrier>,
 }
 
 /// NodeSubmittable
@@ -462,24 +493,134 @@ where
             family,
             &mut self.buffers.iter().zip(buffers).map(|(&BufferId(index), resource)| {
                 let id = chain::Id(index);
+                let sync = submission.sync();
                 let buffer = resource.as_mut().expect("Buffer referenced from at least one node must be instantiated");
                 NodeBuffer {
+                    range: 0 .. buffer.size(),
+                    acquire: sync.acquire.buffers.get(&id).map(|chain::Barrier { states, families }| BufferBarrier {
+                        states: states.start.0 .. states.end.0,
+                        stages: states.start.2 .. states.end.2,
+                        families: families.clone(),
+                    }),
+                    release: sync.release.buffers.get(&id).map(|chain::Barrier { states, families }| BufferBarrier {
+                        states: states.start.0 .. states.end.0,
+                        stages: states.start.2 .. states.end.2,
+                        families: families.clone(),
+                    }),
                     buffer,
                 }
             }).collect::<Vec<_>>(),
             &mut self.images.iter().zip(images).map(|(&ImageId(index), resource)| {
                 let id = chain::Id(index + buffers_len);
+                let sync = submission.sync();
                 let (image, clear) = resource.as_mut().expect("Image referenced from at least one node must be instantiated");
                 NodeImage {
-                    image,
+                    range: gfx_hal::image::SubresourceRange {
+                        aspects: image.format().surface_desc().aspects,
+                        levels: 0 .. image.levels(),
+                        layers: 0 .. image.layers(),
+                    },
                     layout: chains.images[&id].links()[submission.resource_link_index(id)].submission_state(submission.id()).layout,
                     clear: if submission.resource_link_index(id) == 0 {
                         *clear
                     } else {
                         None
-                    }
+                    },
+                    acquire: sync.acquire.images.get(&id).map(|chain::Barrier { states, families }| ImageBarrier {
+                        states: (states.start.0, states.start.1) .. (states.end.0, states.end.1),
+                        stages: states.start.2 .. states.end.2,
+                        families: families.clone(),
+                    }),
+                    release: sync.release.images.get(&id).map(|chain::Barrier { states, families }| ImageBarrier {
+                        states: (states.start.0, states.start.1) .. (states.end.0, states.end.1),
+                        stages: states.start.2 .. states.end.2,
+                        families: families.clone(),
+                    }),
+                    image,
                 }
             }).collect::<Vec<_>>(),
         )
     }
+}
+
+/// Convert graph barriers into gfx barriers.
+pub fn gfx_acquire_barriers<'a, B: gfx_hal::Backend>(buffers: impl IntoIterator<Item = &'a NodeBuffer<'a, B>>, images: impl IntoIterator<Item = &'a NodeImage<'a, B>>) -> (std::ops::Range<gfx_hal::pso::PipelineStage>, Vec<gfx_hal::memory::Barrier<'a, B>>) {
+    let mut bstart = gfx_hal::pso::PipelineStage::empty();
+    let mut bend = gfx_hal::pso::PipelineStage::empty();
+
+    let mut istart = gfx_hal::pso::PipelineStage::empty();
+    let mut iend = gfx_hal::pso::PipelineStage::empty();
+
+    let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers.into_iter().filter_map(|buffer| {
+        if let Some(acquire) = &buffer.acquire {
+            bstart |= acquire.stages.start;
+            bend |= acquire.stages.end;
+
+            Some(gfx_hal::memory::Barrier::Buffer {
+                states: acquire.states.clone(),
+                families: acquire.families.clone(),
+                target: buffer.buffer.raw(),
+                range: Some(buffer.range.start) .. Some(buffer.range.end),
+            })
+        } else {
+            None
+        }
+    }).chain(images.into_iter().filter_map(|image| {
+        if let Some(acquire) = &image.acquire {
+            istart |= acquire.stages.start;
+            iend |= acquire.stages.end;
+
+            Some(gfx_hal::memory::Barrier::Image {
+                states: acquire.states.clone(),
+                families: acquire.families.clone(),
+                target: image.image.raw(),
+                range: image.range.clone(),
+            })
+        } else {
+            None
+        }
+    })).collect();
+
+    (bstart|istart .. bend|iend, barriers)
+}
+
+/// Convert graph barriers into gfx barriers.
+pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(buffers: impl IntoIterator<Item = &'a NodeBuffer<'a, B>>, images: impl IntoIterator<Item = &'a NodeImage<'a, B>>) -> (std::ops::Range<gfx_hal::pso::PipelineStage>, Vec<gfx_hal::memory::Barrier<'a, B>>) {
+    let mut bstart = gfx_hal::pso::PipelineStage::empty();
+    let mut bend = gfx_hal::pso::PipelineStage::empty();
+
+    let mut istart = gfx_hal::pso::PipelineStage::empty();
+    let mut iend = gfx_hal::pso::PipelineStage::empty();
+
+    let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers.into_iter().filter_map(|buffer| {
+        if let Some(release) = &buffer.release {
+            bstart |= release.stages.start;
+            bend |= release.stages.end;
+
+            Some(gfx_hal::memory::Barrier::Buffer {
+                states: release.states.clone(),
+                families: release.families.clone(),
+                target: buffer.buffer.raw(),
+                range: Some(buffer.range.start) .. Some(buffer.range.end),
+            })
+        } else {
+            None
+        }
+    }).chain(images.into_iter().filter_map(|image| {
+        if let Some(release) = &image.release {
+            istart |= release.stages.start;
+            iend |= release.stages.end;
+
+            Some(gfx_hal::memory::Barrier::Image {
+                states: release.states.clone(),
+                families: release.families.clone(),
+                target: image.image.raw(),
+                range: image.range.clone(),
+            })
+        } else {
+            None
+        }
+    })).collect();
+
+    (bstart|istart .. bend|iend, barriers)
 }

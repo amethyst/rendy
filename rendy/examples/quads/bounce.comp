@@ -8,7 +8,7 @@ layout(std430, set = 0, binding = 0) buffer _ {
 } posvelbuff;
 
 void main() {
-  float delta_time = 0.0001;
+  float delta_time = 0.00001;
   int index = int(gl_GlobalInvocationID.x) + 1024 * int(gl_GlobalInvocationID.y);
   vec4 posvel = posvelbuff.posvel[index];
   vec2 pos = posvel.rg;

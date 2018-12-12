@@ -5,7 +5,7 @@ use crate::{
         Capability, CommandBuffer, CommandPool, ExecutableState, IndividualReset, RecordingState, Submit,
         InitialState, Level, MultiShot, PendingState, Usage, PrimaryLevel,
         EncoderCommon, RenderPassEncoder, Encoder, Supports, Graphics, RenderPassEncoderHRTB, Transfer,
-        Compute,
+        Compute, Submittable,
     },
 };
 
@@ -202,6 +202,20 @@ where
     {
         self.buffer.bind_compute_descriptor_sets(layout, first_set, sets, offsets)
     }
+
+	
+	fn pipeline_barrier<'b>(
+		&mut self,
+        stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+        dependencies: gfx_hal::memory::Dependencies,
+        barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'b, B>>,
+	) {
+		self.buffer.pipeline_barrier(stages, dependencies, barriers)
+	}
+    
+	fn execute_commands(&mut self, submittables: impl IntoIterator<Item = impl Submittable<B>>) {
+        self.buffer.execute_commands(submittables)
+    }
 }
 
 impl<'a, 'b, B, C, S, P, L>  RenderPassEncoderHRTB<'b, B, C> for CirqueEncoder<'a, B, C, RecordingState<MultiShot<S>, P>, S, P, L>
@@ -227,6 +241,7 @@ where
     {
         self.buffer.capability().assert();
 
+        let family = self.buffer.family();
         let buffer = unsafe { self.buffer.raw() };
         unsafe {
             gfx_hal::command::RawCommandBuffer::begin_render_pass(
@@ -241,6 +256,7 @@ where
             // `CirqueRenderPassInlineEncoder` allows to record only render pass commands.
             CirqueRenderPassInlineEncoder {
                 buffer,
+                family,
                 index: self.index,
             }
         }
@@ -354,6 +370,7 @@ where
 #[derive(Debug)]
 pub struct CirqueRenderPassInlineEncoder<'a, B: gfx_hal::Backend> {
     buffer: &'a mut B::CommandBuffer,
+    family: gfx_hal::queue::QueueFamilyId,
     index: usize,
 }
 
@@ -430,6 +447,34 @@ where
         unsafe { // No way to call this function.
             std::hint::unreachable_unchecked()
         }
+    }
+	
+	fn pipeline_barrier<'b>(
+		&mut self,
+        stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+        dependencies: gfx_hal::memory::Dependencies,
+        barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'b, B>>,
+	) {
+		unsafe {
+			gfx_hal::command::RawCommandBuffer::pipeline_barrier(
+				self.buffer,
+				stages,
+				dependencies,
+				barriers,
+			)
+		}
+	}
+
+	fn execute_commands(&mut self, submittables: impl IntoIterator<Item = impl Submittable<B>>) {
+        let submittables: smallvec::SmallVec<[_; 16]> = submittables.into_iter().inspect(|submittable| {
+            assert_eq!(self.family, submittable.family());
+        }).collect();
+        unsafe {
+			gfx_hal::command::RawCommandBuffer::execute_commands(
+				self.buffer,
+                submittables.iter().map(Submittable::raw)
+			)
+		}
     }
 }
 

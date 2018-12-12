@@ -74,7 +74,7 @@ impl<S> Wait<S> {
 #[derive(Clone, Debug)]
 pub struct Barrier<R: Resource> {
     /// `Some` queue for ownership transfer. Or `None`
-    pub queues: Option<Range<QueueId>>,
+    pub families: Option<Range<gfx_hal::queue::QueueFamilyId>>,
 
     /// State transition.
     pub states: Range<(R::Access, R::Layout, gfx_hal::pso::PipelineStage)>,
@@ -86,7 +86,7 @@ where
 {
     fn new(states: Range<State<R>>) -> Self {
         Barrier {
-            queues: None,
+            families: None,
             states: (
                 states.start.access,
                 states.start.layout,
@@ -95,9 +95,9 @@ where
         }
     }
 
-    fn transfer(queues: Range<QueueId>, states: Range<(R::Access, R::Layout)>) -> Self {
+    fn transfer(families: Range<gfx_hal::queue::QueueFamilyId>, states: Range<(R::Access, R::Layout)>) -> Self {
         Barrier {
-            queues: Some(queues),
+            families: Some(families),
             states: (
                 states.start.0,
                 states.start.1,
@@ -112,23 +112,23 @@ where
     }
 
     fn acquire(
-        queues: Range<QueueId>,
+        families: Range<gfx_hal::queue::QueueFamilyId>,
         left: RangeFrom<R::Layout>,
         right: RangeTo<(R::Access, R::Layout)>,
     ) -> Self {
         Self::transfer(
-            queues,
+            families,
             (R::Access::empty(), left.start)..(right.end.0, right.end.1),
         )
     }
 
     fn release(
-        queues: Range<QueueId>,
+        families: Range<gfx_hal::queue::QueueFamilyId>,
         left: RangeFrom<(R::Access, R::Layout)>,
         right: RangeTo<R::Layout>,
     ) -> Self {
         Self::transfer(
-            queues,
+            families,
             (left.start.0, left.start.1)..(R::Access::empty(), right.end),
         )
     }
@@ -430,11 +430,11 @@ where
             // Generate a semaphore between the signal and wait sides of the transfer.
             generate_semaphore_pair(sync, uid, link, signal_sid..wait_sid);
 
-            // Generate barriers to transfer the resource to another queue.
+            // Generate barriers to transfer the resource to another family.
             sync.get_sync(signal_sid).release.pick::<R>().insert(
                 id,
                 Barrier::release(
-                    signal_sid.queue()..wait_sid.queue(),
+                    signal_sid.family()..wait_sid.family(),
                     (prev_link.access(), prev_link.layout())..,
                     ..link.layout(),
                 ),
@@ -442,7 +442,7 @@ where
             sync.get_sync(wait_sid).acquire.pick::<R>().insert(
                 id,
                 Barrier::acquire(
-                    signal_sid.queue()..wait_sid.queue(),
+                    signal_sid.family()..wait_sid.family(),
                     prev_link.layout()..,
                     ..(link.access(), link.layout()),
                 ),

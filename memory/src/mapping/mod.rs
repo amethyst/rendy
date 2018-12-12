@@ -145,7 +145,7 @@ where
     /// # Safety
     ///
     /// * Caller must ensure that device won't write to or read from the memory region.
-    pub unsafe fn write<'b, T>(
+    pub unsafe fn write<'b, T: 'b>(
         &'b mut self,
         device: &'b impl gfx_hal::Device<B>,
         range: Range<u64>,
@@ -237,7 +237,7 @@ where
     /// # Safety
     ///
     /// * Caller must ensure that device won't write to or read from the memory region.
-    pub unsafe fn write<'b, U>(
+    pub unsafe fn write<'b, U: 'b>(
         &'b mut self,
         range: Range<u64>,
     ) -> Result<impl Write<U> + 'b, gfx_hal::mapping::Error>
