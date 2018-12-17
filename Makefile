@@ -13,8 +13,20 @@ else
 	endif
 endif
 
+build:
+	cd rendy && cargo build --all --features $(RENDY_FEATURES)
+
 test:
 	cd rendy && cargo test --all --features $(RENDY_FEATURES)
 
 doc:
-	cargo doc
+	cd rendy && cargo doc --all --features $(RENDY_FEATURES)
+
+all: build test doc
+
+quads:
+	cd rendy && cargo run --features $(RENDY_FEATURES) --example quads
+
+triangle:
+	cd rendy && cargo run --features $(RENDY_FEATURES) --example triangle
+

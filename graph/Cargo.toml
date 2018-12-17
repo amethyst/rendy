@@ -4,14 +4,13 @@ version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
+[features]
+empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-factory/gfx-backend-empty"]
+dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-factory/gfx-backend-dx12"]
+metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-factory/gfx-backend-metal"]
+vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/gfx-backend-vulkan"]
+
 [dependencies]
-either = "1.5"
-bitflags = "1.0"
-derivative = "1.0"
-failure = "0.1"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
-log = "0.4"
-relevant = "0.2"
 rendy-chain = { path = "../chain" }
 rendy-command = { path = "../command" }
 rendy-factory = { path = "../factory" }
@@ -19,6 +18,19 @@ rendy-frame = { path = "../frame" }
 rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }
+
+gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", optional = true }
+
+either = "1.5"
+bitflags = "1.0"
+derivative = "1.0"
+failure = "0.1"
+log = "0.4"
+relevant = "0.2"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 winit = "0.18"

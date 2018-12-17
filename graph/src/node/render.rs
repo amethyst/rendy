@@ -46,6 +46,12 @@ pub struct Pipeline {
     pub depth_stencil: gfx_hal::pso::DepthStencilDesc,
 }
 
+#[derive(Debug)]
+struct BarriersCommands<B: gfx_hal::Backend> {
+    submit: Submit<'static, B, SimultaneousUse, (), SecondaryLevel>,
+    buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
+}
+
 /// Render pass node.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
@@ -59,11 +65,11 @@ pub struct RenderPassNode<B: gfx_hal::Backend, R> {
     graphics_pipelines: Vec<B::GraphicsPipeline>,
     attachment_views: Vec<B::ImageView>,
     framebuffer: B::Framebuffer,
+
+    acquire: Option<BarriersCommands<B>>,
+    release: Option<BarriersCommands<B>>,
+
     command_pool: CommandPool<B, Graphics, IndividualReset>,
-    acquire_submit: Submit<'static, B, SimultaneousUse, (), SecondaryLevel>,
-    acquire_buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
-    release_submit: Submit<'static, B, SimultaneousUse, (), SecondaryLevel>,
-    release_buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,
     pass: R,
     relevant: relevant::Relevant,
@@ -514,33 +520,52 @@ where
                 .with_capability()
                 .expect("Graph must specify family that supports `Graphics`");
 
-        let (acquire, release) = {
-            let mut command_buffers = command_pool.allocate_buffers(SecondaryLevel, 2);
-            (command_buffers.pop().unwrap(), command_buffers.pop().unwrap())
-        };
-
-        let (acquire_submit, acquire_buffer) = {
-            let mut encoder = acquire.begin(MultiShot(SimultaneousUse), ());
+        let acquire = if !is_metal::<B>() {
             let (stages, barriers) = gfx_acquire_barriers(buffers, images);
-            log::info!("Acquire {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(
-                stages,
-                gfx_hal::memory::Dependencies::empty(),
-                barriers,
-            );
-            encoder.finish().submit()
+
+            if !barriers.is_empty() {
+                let buffer = command_pool.allocate_buffers(SecondaryLevel, 1).pop().unwrap();
+                let mut encoder = buffer.begin(MultiShot(SimultaneousUse), ());
+                log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                encoder.pipeline_barrier(
+                    stages,
+                    gfx_hal::memory::Dependencies::empty(),
+                    barriers,
+                );
+                let (acquire_submit, acquire_buffer) = encoder.finish().submit();
+                Some(BarriersCommands {
+                    buffer: acquire_buffer,
+                    submit: acquire_submit,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
         };
 
-        let (release_submit, release_buffer) = {
-            let mut encoder = release.begin(MultiShot(SimultaneousUse), ());
+        let release = if !is_metal::<B>() {
             let (stages, barriers) = gfx_release_barriers(buffers, images);
-            log::info!("Release {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(
-                stages,
-                gfx_hal::memory::Dependencies::empty(),
-                barriers,
-            );
-            encoder.finish().submit()
+
+            if !barriers.is_empty() {
+                let buffer = command_pool.allocate_buffers(SecondaryLevel, 1).pop().unwrap();
+                let mut encoder = buffer.begin(MultiShot(SimultaneousUse), ());
+                log::info!("Release {:?} : {:#?}", stages, barriers);
+                encoder.pipeline_barrier(
+                    stages,
+                    gfx_hal::memory::Dependencies::empty(),
+                    barriers,
+                );
+                let (release_submit, release_buffer) = encoder.finish().submit();
+                Some(BarriersCommands {
+                    buffer: release_buffer,
+                    submit: release_submit,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
         };
 
         let command_cirque = CommandCirque::new(PrimaryLevel);
@@ -556,10 +581,8 @@ where
             framebuffer,
             clears,
             command_pool,
-            acquire_submit,
-            acquire_buffer,
-            release_submit,
-            release_buffer,
+            acquire,
+            release,
             command_cirque,
             relevant: relevant::Relevant,
         })
@@ -606,9 +629,11 @@ where
             either::Right(initial) => initial,
         }.begin();
 
-        recording.execute_commands(std::iter::once(&self.acquire_submit));
+        if let Some(barriers) = &self.acquire {
+            recording.execute_commands(std::iter::once(&barriers.submit));
+        }
+        
         {
-
             let area = gfx_hal::pso::Rect {
                 x: 0,
                 y: 0,
@@ -632,7 +657,10 @@ where
                 aux,
             );
         }
-        recording.execute_commands(std::iter::once(&self.release_submit));
+
+        if let Some(barriers) = &self.release {
+            recording.execute_commands(std::iter::once(&barriers.submit));
+        }
 
         std::iter::once(recording.finish().submit())
     }
@@ -688,4 +716,14 @@ fn push_vertex_desc(
         });
         location += 1;
     }
+}
+
+#[cfg(feature = "metal")]
+fn is_metal<B: gfx_hal::Backend>() -> bool {
+    std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
+}
+
+#[cfg(not(feature = "metal"))]
+fn is_metal<B: gfx_hal::Backend>() -> bool {
+    false
 }

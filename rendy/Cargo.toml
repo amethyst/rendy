@@ -5,10 +5,10 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
 [features]
-empty = ["rendy-factory/empty", "rendy-wsi/empty", "gfx-backend-empty"]
-dx12 = ["rendy-factory/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
-metal = ["rendy-factory/metal", "rendy-wsi/metal", "gfx-backend-metal"]
-vulkan = ["rendy-factory/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
+empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-backend-empty"]
+dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
+metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal"]
+vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
 
 [dependencies]
 rendy-command = { path = "../command" }
