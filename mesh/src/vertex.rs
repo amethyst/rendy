@@ -300,9 +300,9 @@ impl WithAttribute<Normal> for PosColorNorm {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PosTex {
     /// Position of the vertex in 3D space.
-    pub position: [f32; 3],
+    pub position: Position,
     /// UV texture coordinates used by the vertex.
-    pub tex_coord: [f32; 2],
+    pub tex_coord: TexCoord,
 }
 
 impl AsVertex for PosTex {
