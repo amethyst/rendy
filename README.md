@@ -36,7 +36,7 @@ Alternatively `Capability` type can be used instead of marker type, this way act
 `rendy`'s memory manager is called `Heaps`.
 `Heaps` provides convenient methods to sub-allocate device-visible memory based on usage and visibility requirements. It also handles mapping for specific usage types.
 
-### Objects lifetime - ***Not yet implemented***
+### Objects lifetime - ***Partially implemented***
 
 `rendy` provide tools to track resource usage in order to automatically destroy them after last use.
 Once resource is referenced in recorded command it won't be destroyed immediately after handle dropped but after command is complete. For performance reasons tracking mechanism can choose later destruction time than necessary to save few ticks.
@@ -50,13 +50,14 @@ Rendy can help to send data between device and host.
 * Staging buffer will be used for bigger uploads or any image uploads.
 `Factoy` will automatically insert synchronization commands according to user request.
 
-### Layouts - ***Not yet implemented***
+### Layouts - ***Not yet implemented. More experiments required***
 
 Pipelines and descriptor sets has declarative nature and it is much easier to define them declaratively.
 `rendy` provides `DescriptorSet` trait.
 Deriving it will automatically generate code necessary for set creation, writing and binding.
 Deriving `GraphicsPipeline` trait will generate code for graphics pipeline creation and usage.
 Similar `ComputePipeline` trait exists for compute pipelines.
+
 
 #### Example
 
@@ -81,7 +82,7 @@ struct Example {
 }
 ```
 
-### Framegraph - ***Not yet implemented***
+### Framegraph
 
 `rendy`'s framegraph allow writing rendering code in simple modular style.
 Making it much easier to composite complex frame from simple parts.
@@ -118,12 +119,6 @@ Licensed under either of
 * MIT license ([license/MIT](license/MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
-
-## API overview
-
-This is draft version.
-
-<img src="docs/public_api_overview.svg">
 
 [`ash`]: https://github.com/MaikKlein/ash
 [`gfx-hal`]: https://github.com/gfx-rs/gfx
