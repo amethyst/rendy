@@ -214,7 +214,7 @@ impl WithAttribute<Color> for PosColor {
     };
 }
 
-/// Vertex format with position, normal, and UV texture coordinate attributes.
+/// Vertex format with position and normal attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -231,7 +231,7 @@ impl AsVertex for PosNorm {
             <Self as WithAttribute<Position>>::ATTRIBUTE,
             <Self as WithAttribute<Normal>>::ATTRIBUTE,
         ]),
-        stride: Position::SIZE + Normal::SIZE + TexCoord::SIZE,
+        stride: Position::SIZE + Normal::SIZE,
     };
 }
 
@@ -245,6 +245,51 @@ impl WithAttribute<Position> for PosNorm {
 impl WithAttribute<Normal> for PosNorm {
     const ATTRIBUTE: Attribute = Attribute {
         offset: Position::SIZE,
+        format: Normal::FORMAT,
+    };
+}
+
+/// Vertex format with position, color and normal attributes.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PosColorNorm {
+    /// Position of the vertex in 3D space.
+    pub position: Position,
+    /// RGBA color value of the vertex.
+    pub color: Color,
+    /// Normal vector of the vertex.
+    pub normal: Normal,
+}
+
+impl AsVertex for PosColorNorm {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
+        attributes: Cow::Borrowed(&[
+            <Self as WithAttribute<Position>>::ATTRIBUTE,
+            <Self as WithAttribute<Color>>::ATTRIBUTE,
+            <Self as WithAttribute<Normal>>::ATTRIBUTE,
+        ]),
+        stride: Position::SIZE + Color::SIZE + Normal::SIZE,
+    };
+}
+
+impl WithAttribute<Position> for PosColorNorm {
+    const ATTRIBUTE: Attribute = Attribute {
+        offset: 0,
+        format: Position::FORMAT,
+    };
+}
+
+impl WithAttribute<Color> for PosColorNorm {
+    const ATTRIBUTE: Attribute = Attribute {
+        offset: Position::SIZE,
+        format: Color::FORMAT,
+    };
+}
+
+impl WithAttribute<Normal> for PosColorNorm {
+    const ATTRIBUTE: Attribute = Attribute {
+        offset: Position::SIZE + Color::SIZE,
         format: Normal::FORMAT,
     };
 }
@@ -284,7 +329,7 @@ impl WithAttribute<TexCoord> for PosTex {
     };
 }
 
-/// Vertex format with position, normal, and UV texture coordinate attributes.
+/// Vertex format with position, normal and UV texture coordinate attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
