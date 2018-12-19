@@ -6,16 +6,25 @@ pub struct OneShot;
 
 /// Command buffer with this usage flag will move back to executable state after execution.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MultiShot<S = ()>(pub S);
+pub struct MultiShot<S = NoSimultaneousUse>(pub S);
 
-/// Additional flag for `MultiShot` that allows to resubmit buffer in pending state.
-/// Note that resubmitting pending buffers can hurt performance.
+/// Additional flag that allows to resubmit buffer in pending state.
+/// `Submit<B, SimultaneousUse>` can be submitted more than once.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SimultaneousUse;
+
+/// Additional flag that allows to resubmit buffer in pending state.
+/// `Submit<B, NoSimultaneousUse>` cannot be submitted more than once.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoSimultaneousUse;
 
 /// Buffers with this usage flag must be secondary buffers executed entirely in render-pass.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RenderPassContinue;
+
+/// Buffers with this usage flag are not render-pass continue buffers.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct OutsideRenderPass;
 
 /// Trait implemented by all usage types.
 pub trait Usage: Copy + Default {
@@ -41,7 +50,7 @@ impl Usage for MultiShot<SimultaneousUse> {
     }
 }
 
-impl Usage for () {
+impl Usage for NoSimultaneousUse {
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
         gfx_hal::command::CommandBufferFlags::empty()
     }
@@ -50,5 +59,11 @@ impl Usage for () {
 impl Usage for RenderPassContinue {
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
         gfx_hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
+    }
+}
+
+impl Usage for OutsideRenderPass {
+    fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
+        gfx_hal::command::CommandBufferFlags::empty()
     }
 }

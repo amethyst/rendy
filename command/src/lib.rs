@@ -1,4 +1,4 @@
-//! Crate level docs.
+//! This crate revolves around command recording and submission.
 
 #![forbid(overflowing_literals)]
 #![deny(missing_copy_implementations)]
@@ -19,20 +19,13 @@
 #![allow(unused_unsafe)]
 
 mod buffer;
-mod encoder;
 mod capability;
 mod family;
 mod pool;
 
 pub use crate::{
-    buffer::{
-        CommandBuffer, ExecutableState, IndividualReset, InitialState, InvalidState, Level,
-        MultiShot, NoIndividualReset, OneShot, PendingState, PrimaryLevel, RecordingState,
-        RenderPassContinue, Resettable, SecondaryLevel, SimultaneousUse, Submit, Usage,
-        Reset, Submittable,
-    },
-    encoder::{EncoderCommon, RenderPassEncoder, Encoder, RenderPassEncoderHRTB, DrawCommand, DispatchCommand},
-    capability::{Capability, Compute, General, Graphics, Transfer, Supports},
-    family::{families_from_device, Family, Submission},
-    pool::CommandPool,
+    buffer::*,
+    capability::*,
+    family::*,
+    pool::*,
 };

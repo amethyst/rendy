@@ -1,7 +1,4 @@
 
-
-
-
 use rendy::{
     factory::{Config, Factory},
 };

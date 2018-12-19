@@ -3,10 +3,10 @@
 
 use crate::{
     command::{
-        Graphics, CommandPool, CommandBuffer, IndividualReset, Submit, PrimaryLevel, Encoder, EncoderCommon, SecondaryLevel, PendingState, ExecutableState, SimultaneousUse, MultiShot,
+        Graphics, CommandPool, CommandBuffer, IndividualReset, Submit, PrimaryLevel, SecondaryLevel, PendingState, ExecutableState, SimultaneousUse, MultiShot, OutsideRenderPass, RenderPassEncoder,
     },
     factory::Factory,
-    frame::{Frames, cirque::{CommandCirque, CirqueRenderPassInlineEncoder}},
+    frame::{Frames, cirque::CommandCirque},
     node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
 };
 
@@ -48,7 +48,7 @@ pub struct Pipeline {
 
 #[derive(Debug)]
 struct BarriersCommands<B: gfx_hal::Backend> {
-    submit: Submit<'static, B, SimultaneousUse, (), SecondaryLevel>,
+    submit: Submit<'static, B, SimultaneousUse, OutsideRenderPass, SecondaryLevel>,
     buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
 }
 
@@ -194,7 +194,8 @@ where
         &mut self,
         layouts: &[B::PipelineLayout],
         pipelines: &[B::GraphicsPipeline],
-        encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
+        encoder: RenderPassEncoder<'_, B>,
+        index: usize,
         aux: &T,
     );
 
@@ -516,7 +517,7 @@ where
             extent,
         )?;
 
-        let mut command_pool = factory.create_command_pool(family, IndividualReset)?
+        let mut command_pool = factory.create_command_pool(family)?
                 .with_capability()
                 .expect("Graph must specify family that supports `Graphics`");
 
@@ -524,15 +525,15 @@ where
             let (stages, barriers) = gfx_acquire_barriers(buffers, images);
 
             if !barriers.is_empty() {
-                let buffer = command_pool.allocate_buffers(SecondaryLevel, 1).pop().unwrap();
-                let mut encoder = buffer.begin(MultiShot(SimultaneousUse), ());
+                let initial = command_pool.allocate_buffers(SecondaryLevel, 1).pop().unwrap();
+                let mut recording = initial.begin::<MultiShot<SimultaneousUse>, _>();
                 log::info!("Acquire {:?} : {:#?}", stages, barriers);
-                encoder.pipeline_barrier(
+                recording.encoder().pipeline_barrier(
                     stages,
                     gfx_hal::memory::Dependencies::empty(),
                     barriers,
                 );
-                let (acquire_submit, acquire_buffer) = encoder.finish().submit();
+                let (acquire_submit, acquire_buffer) = recording.finish().submit();
                 Some(BarriersCommands {
                     buffer: acquire_buffer,
                     submit: acquire_submit,
@@ -548,15 +549,15 @@ where
             let (stages, barriers) = gfx_release_barriers(buffers, images);
 
             if !barriers.is_empty() {
-                let buffer = command_pool.allocate_buffers(SecondaryLevel, 1).pop().unwrap();
-                let mut encoder = buffer.begin(MultiShot(SimultaneousUse), ());
+                let initial = command_pool.allocate_buffers(SecondaryLevel, 1).pop().unwrap();
+                let mut recording = initial.begin::<MultiShot<SimultaneousUse>, _>();
                 log::info!("Release {:?} : {:#?}", stages, barriers);
-                encoder.pipeline_barrier(
+                recording.encoder().pipeline_barrier(
                     stages,
                     gfx_hal::memory::Dependencies::empty(),
                     barriers,
                 );
-                let (release_submit, release_buffer) = encoder.finish().submit();
+                let (release_submit, release_buffer) = recording.finish().submit();
                 Some(BarriersCommands {
                     buffer: release_buffer,
                     submit: release_submit,
@@ -568,7 +569,7 @@ where
             None
         };
 
-        let command_cirque = CommandCirque::new(PrimaryLevel);
+        let command_cirque = CommandCirque::new();
 
         Ok(RenderPassNode {
             pass,
@@ -614,61 +615,77 @@ where
     ) -> std::iter::Once<Submit<'a, B>> {
         let redraw = self.pass.prepare(factory, aux);
 
-        let encoder = unsafe {
-            // Graph supplies same `frames`.
-            self.command_cirque.get(frames.range(), &mut self.command_pool)
-        };
+        let RenderPassNode {
+            acquire,
+            release,
+            extent,
+            render_pass,
+            framebuffer,
+            clears,
+            pass,
+            pipeline_layouts,
+            graphics_pipelines,
+            ..
+        } = self;
 
-        let mut recording = match encoder {
-            either::Left(executable) => {
-                if !redraw {
-                    return std::iter::once(executable.submit());
+        let submit = self.command_cirque.encode_submit(
+            PrimaryLevel,
+            frames.range(),
+            redraw,
+            &mut self.command_pool,
+            |mut encoder, index| {
+                if let Some(barriers) = &acquire {
+                    encoder.execute_commands(std::iter::once(&barriers.submit));
                 }
-                executable.reset()
+
+                let area = gfx_hal::pso::Rect {
+                    x: 0,
+                    y: 0,
+                    w: extent.width as _,
+                    h: extent.height as _,
+                };
+
+
+                let pass_encoder = unsafe {
+                    encoder.begin_render_pass_inline(
+                        &render_pass,
+                        &framebuffer,
+                        area,
+                        &clears,
+                    )
+                };
+
+                pass.draw(
+                    &pipeline_layouts,
+                    &graphics_pipelines,
+                    pass_encoder,
+                    index,
+                    aux,
+                );
+
+                if let Some(barriers) = &release {
+                    encoder.execute_commands(std::iter::once(&barriers.submit));
+                }
             }
-            either::Right(initial) => initial,
-        }.begin();
+        );
 
-        if let Some(barriers) = &self.acquire {
-            recording.execute_commands(std::iter::once(&barriers.submit));
-        }
-        
-        {
-            let area = gfx_hal::pso::Rect {
-                x: 0,
-                y: 0,
-                w: self.extent.width as _,
-                h: self.extent.height as _,
-            };
-
-            let mut pass_encoder = unsafe {
-                recording.begin_render_pass_inline(
-                    &self.render_pass,
-                    &self.framebuffer,
-                    area,
-                    &self.clears,
-                )
-            };
-
-            self.pass.draw(
-                &self.pipeline_layouts,
-                &self.graphics_pipelines,
-                &mut pass_encoder,
-                aux,
-            );
-        }
-
-        if let Some(barriers) = &self.release {
-            recording.execute_commands(std::iter::once(&barriers.submit));
-        }
-
-        std::iter::once(recording.finish().submit())
+        std::iter::once(submit)
     }
 
     unsafe fn dispose(mut self, factory: &mut Factory<B>, aux: &mut T) {
         self.relevant.dispose();
         self.pass.dispose(factory, aux);
-        self.command_cirque.dispose(&mut self.command_pool);
+        let pool = &mut self.command_pool;
+        self.command_cirque.dispose(|buffer, _| {
+            buffer.either_with(
+                &mut*pool,
+                |pool, executable| pool.free_buffers(Some(executable)),
+                |pool, pending| unsafe {
+                    let executable = pending.mark_complete();
+                    pool.free_buffers(Some(executable))
+                },
+            );
+        });
         factory.destroy_command_pool(self.command_pool.with_queue_type());
         gfx_hal::Device::destroy_framebuffer(factory.device(), self.framebuffer);
         for view in self.attachment_views {

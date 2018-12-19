@@ -14,7 +14,7 @@ else
 endif
 
 build:
-	cd rendy && cargo build --all --features $(RENDY_FEATURES)
+	cd rendy && cargo build --all --examples --features $(RENDY_FEATURES)
 
 test:
 	cd rendy && cargo test --all --features $(RENDY_FEATURES)

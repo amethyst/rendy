@@ -3,11 +3,10 @@
 
 
 use rendy::{
-    command::{EncoderCommon, RenderPassEncoder},
+    command::{RenderPassEncoder},
     factory::{Config, Factory},
-    frame::{cirque::CirqueRenderPassInlineEncoder},
     graph::{Graph, GraphBuilder, render::RenderPass, present::PresentNode, NodeBuffer, NodeImage},
-    memory::usage::MemoryUsageValue,
+    memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
@@ -145,7 +144,8 @@ where
         &mut self,
         _layouts: &[B::PipelineLayout],
         pipelines: &[B::GraphicsPipeline],
-        encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
+        mut encoder: RenderPassEncoder<'_, B>,
+        _index: usize,
         _aux: &T,
     ) {
         let vbuf = self.vertex.as_ref().unwrap();

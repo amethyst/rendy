@@ -129,12 +129,12 @@ where
     pub fn create_pool<R>(
         &self,
         device: &impl gfx_hal::Device<B>,
-        reset: R,
     ) -> Result<CommandPool<B, C, R>, gfx_hal::device::OutOfMemory>
     where
         R: Reset,
         C: Capability,
     {
+        let reset = R::default();
         let pool = unsafe {
             // Is this family belong to specified device.
             let raw = device.create_command_pool(

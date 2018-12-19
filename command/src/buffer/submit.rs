@@ -3,13 +3,13 @@ use super::{
     CommandBuffer,
     level::PrimaryLevel,
     state::{ExecutableState, PendingState, InvalidState},
-    usage::{OneShot, MultiShot, SimultaneousUse},
+    usage::{OneShot, MultiShot, SimultaneousUse, NoSimultaneousUse, OutsideRenderPass},
 };
 
 /// Structure contains command buffer ready for submission.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct Submit<'a, B: gfx_hal::Backend, S = (), P = (), L = PrimaryLevel> {
+pub struct Submit<'a, B: gfx_hal::Backend, S = NoSimultaneousUse, P = OutsideRenderPass, L = PrimaryLevel> {
     #[derivative(Debug = "ignore")]
     raw: B::CommandBuffer,
     family: gfx_hal::queue::QueueFamilyId,
@@ -82,10 +82,10 @@ where
     L: Copy,
 {
     /// Produce `Submit` object that can be used to populate submission.
-    pub fn submit(
+    pub fn submit_once(
         self,
     ) -> (
-        Submit<'static, B, (), P, L>,
+        Submit<'static, B, NoSimultaneousUse, P, L>,
         CommandBuffer<B, C, PendingState<InvalidState>, L, R>,
     ) {
         let pass_continue = self.state.1;
@@ -97,7 +97,7 @@ where
             raw: buffer.raw.clone(),
             family: buffer.family,
             pass_continue,
-            simultaneous: (),
+            simultaneous: NoSimultaneousUse,
             level,
             marker: std::marker::PhantomData,
         };

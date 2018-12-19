@@ -6,7 +6,8 @@ use super::state::*;
 pub struct IndividualReset;
 
 /// This flag specify that buffer cannot be reset individually.
-pub type NoIndividualReset = ();
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoIndividualReset;
 
 /// Specify flags required for command pool creation to allow individual buffer reset.
 pub trait Reset: Copy + Default {

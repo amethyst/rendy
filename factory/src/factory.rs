@@ -1,11 +1,36 @@
 
 use crate::{
-    command::{families_from_device, Family, Reset, CommandPool},
+    command::{families_from_device, Family, Reset, CommandBuffer, CommandPool, Transfer, IndividualReset, PendingState, InitialState, RecordingState, OneShot, PrimaryLevel},
     memory::{Block, Heaps, Write},
     resource::{buffer::{self, Buffer}, image::{self, Image}, Resources},
     wsi::{Surface, Target},
     config::{Config, HeapsConfigure, QueuesConfigure},
 };
+
+#[derive(Debug)]
+struct PendingUploads<B: gfx_hal::Backend> {
+    command_buffer: CommandBuffer<B, Transfer, PendingState<InitialState>, PrimaryLevel, IndividualReset>,
+    staging_buffers: Vec<Buffer<B>>,
+    fence: B::Fence,
+}
+
+#[derive(Debug)]
+struct NextUpload<B: gfx_hal::Backend> {
+    command_buffer: CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
+    staging_buffers: Vec<Buffer<B>>,
+}
+
+#[derive(Debug)]
+struct FamilyUploads<B: gfx_hal::Backend> {
+    pool: Option<CommandPool<B, Transfer, IndividualReset>>,
+    next: Option<NextUpload<B>>,
+    pending: Vec<PendingUploads<B>>,
+}
+
+#[derive(Debug)]
+struct Uploader<B: gfx_hal::Backend> {
+    families: Vec<parking_lot::Mutex<FamilyUploads<B>>>,
+}
 
 /// Higher level device interface.
 /// Manges memory, resources and queue families.
@@ -15,10 +40,11 @@ pub struct Factory<B: gfx_hal::Backend> {
     #[derivative(Debug = "ignore")] instance: Box<dyn std::any::Any>,
     #[derivative(Debug = "ignore")] adapter: gfx_hal::Adapter<B>,
     #[derivative(Debug = "ignore")] device: B::Device,
-    heaps: Heaps<B>,
-    resources: Resources<B>,
+    heaps: parking_lot::Mutex<Heaps<B>>,
+    resources: parking_lot::RwLock<Resources<B>>,
     families: Vec<Family<B>>,
     families_indices: std::collections::HashMap<gfx_hal::queue::QueueFamilyId, usize>,
+    uploads: Uploader<B>,
     relevant: relevant::Relevant,
 }
 
@@ -94,8 +120,15 @@ where
             instance: Box::new(instance),
             adapter,
             device,
-            heaps,
-            resources: Resources::new(),
+            heaps: parking_lot::Mutex::new(heaps),
+            resources: parking_lot::RwLock::new(Resources::new()),
+            uploads: Uploader {
+                families: (0 .. families.len()).map(|_| parking_lot::Mutex::new(FamilyUploads {
+                    pool: None,
+                    next: None,
+                    pending: Vec::new(),
+                })).collect(),
+            },
             families,
             families_indices,
             relevant: relevant::Relevant,
@@ -120,11 +153,11 @@ where
 
         unsafe {
             // All queues complete.
-            self.resources.cleanup(&self.device, &mut self.heaps);
-            self.resources.cleanup(&self.device, &mut self.heaps);
+            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
+            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
         }
 
-        self.heaps.dispose(&self.device);
+        self.heaps.into_inner().dispose(&self.device);
 
         drop(self.device);
         drop(self.instance);
@@ -135,18 +168,43 @@ where
 
     /// Creates a buffer that is managed with the specified properties.
     pub fn create_buffer(
-        &mut self,
+        &self,
         align: u64,
         size: u64,
         usage: impl buffer::Usage,
     ) -> Result<Buffer<B>, failure::Error> {
-        self.resources
+        self.resources.read()
             .create_buffer(
                 &self.device,
-                &mut self.heaps,
+                &mut self.heaps.lock(),
                 align,
                 size,
                 usage
+            )
+    }
+
+    /// Creates an image that is mananged with the specified properties.
+    pub fn create_image(
+        &self,
+        align: u64,
+        kind: gfx_hal::image::Kind,
+        levels: gfx_hal::image::Level,
+        format: gfx_hal::format::Format,
+        tiling: gfx_hal::image::Tiling,
+        view_caps: gfx_hal::image::ViewCapabilities,
+        usage: impl image::Usage,
+    ) -> Result<Image<B>, failure::Error> {
+        self.resources.read()
+            .create_image(
+                &self.device,
+                &mut self.heaps.lock(),
+                align,
+                kind,
+                levels,
+                format,
+                tiling,
+                view_caps,
+                usage,
             )
     }
 
@@ -157,12 +215,12 @@ where
     /// * Buffer must be created by this `Factory`.
     /// * Caller must ensure that device won't write to or read from
     /// the memory region occupied by this buffer.
-    pub unsafe fn upload_buffer<T>(
-        &mut self,
+    pub unsafe fn upload_buffer<T: Copy>(
+        &self,
         buffer: &mut Buffer<B>,
         offset: u64,
         content: &[T],
-        _family: gfx_hal::queue::QueueFamilyId,
+        family: gfx_hal::queue::QueueFamilyId,
         _access: gfx_hal::buffer::Access,
     ) -> Result<(), failure::Error> {
         if buffer
@@ -172,7 +230,39 @@ where
         {
             self.upload_visible_buffer(buffer, offset, content)
         } else {
-            unimplemented!("Staging is not supported yet");
+            let mut staging = self.create_buffer(
+                256,
+                content.len() as u64 * std::mem::size_of::<T>() as u64,
+                buffer::UploadBuffer,
+            )?;
+
+            self.upload_visible_buffer(&mut staging, 0, content)?;
+
+            let family_index = self.families_indices[&family];
+            let mut uploader = self.uploads.families[family_index].lock();
+            let uploader = &mut*uploader;
+            let _next = match &mut uploader.next {
+                Some(next) => next,
+                insert => {
+                    let pool = match &mut uploader.pool {
+                        Some(pool) => pool,
+                        insert => {
+                            let pool = self.families[family_index].create_pool(&self.device)?;
+                            *insert = Some(pool.with_capability().unwrap());
+                            insert.as_mut().unwrap()
+                        }
+                    };
+
+                    let buffer = pool.allocate_buffers(PrimaryLevel, 1).pop().unwrap();
+                    *insert = Some(NextUpload {
+                        command_buffer: buffer.begin(),
+                        staging_buffers: Vec::new(),
+                    });
+                    insert.as_mut().unwrap()
+                },
+            };
+
+            unimplemented!()
         }
     }
 
@@ -182,8 +272,8 @@ where
     ///
     /// * Caller must ensure that device won't write to or read from
     /// the memory region occupied by this buffer.
-    pub unsafe fn upload_visible_buffer<T>(
-        &mut self,
+    pub unsafe fn upload_visible_buffer<T: Copy>(
+        &self,
         buffer: &mut Buffer<B>,
         offset: u64,
         content: &[T],
@@ -206,29 +296,21 @@ where
         Ok(())
     }
 
-    /// Creates an image that is mananged with the specified properties.
-    pub fn create_image(
-        &mut self,
-        align: u64,
-        kind: gfx_hal::image::Kind,
-        levels: gfx_hal::image::Level,
-        format: gfx_hal::format::Format,
-        tiling: gfx_hal::image::Tiling,
-        view_caps: gfx_hal::image::ViewCapabilities,
-        usage: impl image::Usage,
-    ) -> Result<Image<B>, failure::Error> {
-        self.resources
-            .create_image(
-                &self.device,
-                &mut self.heaps,
-                align,
-                kind,
-                levels,
-                format,
-                tiling,
-                view_caps,
-                usage,
-            )
+    /// Upload image.
+    pub fn upload_image<T: Copy>(
+        &self,
+        _image: &mut Image<B>,
+        _data_with: u32,
+        _data_height: u32,
+        _image_layers: gfx_hal::image::SubresourceLayers,
+        _image_offset: gfx_hal::image::Offset,
+        _image_extent: gfx_hal::image::Extent,
+        _content: &[T],
+        _family: gfx_hal::queue::QueueFamilyId,
+        _access: gfx_hal::image::Access,
+        _layout: gfx_hal::image::Layout,
+    ) -> Result<(), failure::Error> {
+        unimplemented!()
     }
 
     /// Create rendering surface from window.
@@ -347,12 +429,12 @@ where
     }
     
     /// Create new command pool for specified family.
-    pub fn create_command_pool<R>(&self, family: gfx_hal::queue::QueueFamilyId, reset: R) -> Result<CommandPool<B, gfx_hal::QueueType, R>, failure::Error>
+    pub fn create_command_pool<R>(&self, family: gfx_hal::queue::QueueFamilyId) -> Result<CommandPool<B, gfx_hal::QueueType, R>, failure::Error>
     where
         R: Reset,
     {
         self.family(family)
-            .create_pool(&self.device, reset)
+            .create_pool(&self.device)
             .map_err(Into::into)
     }
     

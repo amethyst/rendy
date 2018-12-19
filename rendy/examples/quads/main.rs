@@ -5,9 +5,9 @@
 use rendy::{
     command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel, DrawCommand},
     factory::{Config, Factory},
-    frame::{cirque::CirqueRenderPassInlineEncoder, Frames},
+    frame::{Frames},
     graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
-    memory::usage::MemoryUsageValue,
+    memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     wsi::{Surface, Target},
@@ -171,7 +171,7 @@ where
             let mut rng = rand::thread_rng();
             let uniform = rand::distributions::Uniform::new(0.0, 1.0);
 
-            #[repr(C)] struct PosVel { pos: [f32; 2], vel: [f32; 2], }
+            #[repr(C)] #[derive(Copy, Clone)] struct PosVel { pos: [f32; 2], vel: [f32; 2], }
             factory.upload_visible_buffer(posvelbuff, 0, &(0 .. QUADS).map(|_index| PosVel {
                 pos: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
                 vel: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
@@ -231,7 +231,8 @@ where
         &mut self,
         layouts: &[B::PipelineLayout],
         pipelines: &[B::GraphicsPipeline],
-        encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
+        mut encoder: RenderPassEncoder<'_, B>,
+        _index: usize,
         _aux: &T,
     ) {
         encoder.bind_graphics_pipeline(&pipelines[0]);
@@ -398,11 +399,12 @@ where
             (descriptor_pool, descriptor_set/*, buffer_view*/)
         };
 
-        let mut command_pool = factory.create_command_pool(family, ())?
+        let mut command_pool = factory.create_command_pool(family)?
             .with_capability::<Compute>()
             .expect("Graph builder must provide family with Compute capability");
-        let command_buffer = command_pool.allocate_buffers(PrimaryLevel, 1).remove(0);
-        let mut encoder = command_buffer.begin(MultiShot(SimultaneousUse), ());
+        let initial = command_pool.allocate_buffers(PrimaryLevel, 1).remove(0);
+        let mut recording = initial.begin();
+        let mut encoder = recording.encoder();
         encoder.bind_compute_pipeline(&pipeline);
         encoder.bind_compute_descriptor_sets(
             &pipeline_layout,
@@ -431,9 +433,8 @@ where
                 barriers,
             );
         }
-        
-        let command_buffer = encoder.finish();
-        let (submit, command_buffer) = command_buffer.submit();
+
+        let (submit, command_buffer) = recording.finish().submit();
 
         Ok(GravBounce {
             set_layout,

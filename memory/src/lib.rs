@@ -18,21 +18,19 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-use failure;
-
+mod allocator;
 mod block;
 mod heaps;
 mod mapping;
 mod memory;
 mod util;
-
-pub mod allocator;
-pub mod usage;
+mod usage;
 
 pub use crate::{
+    allocator::*,
     block::Block,
     heaps::{Heaps, HeapsConfig, MemoryBlock, HeapsError},
     mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent},
     memory::Memory,
-    usage::{MemoryUsage, MemoryUsageValue},
+    usage::*,
 };

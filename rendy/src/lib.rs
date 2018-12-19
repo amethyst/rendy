@@ -20,39 +20,27 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-pub use rendy_command as command;
-pub use rendy_factory as factory;
-pub use rendy_frame as frame;
-pub use rendy_graph as graph;
-pub use rendy_memory as memory;
-pub use rendy_mesh as mesh;
-pub use rendy_resource as resource;
-pub use rendy_shader as shader;
-pub use rendy_wsi as wsi;
+#[doc(inline)] pub use rendy_command as command;
+#[doc(inline)] pub use rendy_factory as factory;
+#[doc(inline)] pub use rendy_frame as frame;
+#[doc(inline)] pub use rendy_graph as graph;
+#[doc(inline)] pub use rendy_memory as memory;
+#[doc(inline)] pub use rendy_mesh as mesh;
+#[doc(inline)] pub use rendy_resource as resource;
+#[doc(inline)] pub use rendy_shader as shader;
+#[doc(inline)] pub use rendy_wsi as wsi;
 
 pub use gfx_hal as hal;
 
 #[cfg(feature = "gfx-backend-empty")]
-pub extern crate gfx_backend_empty as empty;
+pub use gfx_backend_empty as empty;
 
 #[cfg(feature = "gfx-backend-dx12")]
-pub extern crate gfx_backend_dx12 as dx12;
+pub use gfx_backend_dx12 as dx12;
 
 #[cfg(feature = "gfx-backend-metal")]
-pub extern crate gfx_backend_metal as metal;
+pub use gfx_backend_metal as metal;
 
 #[cfg(feature = "gfx-backend-vulkan")]
-pub extern crate gfx_backend_vulkan as vulkan;
-
-pub use crate::{
-    command::*,
-    factory::*,
-    frame::*,
-    graph::*,
-    memory::*,
-    mesh::*,
-    resource::*,
-    shader::*,
-    wsi::*,
-};
+pub use gfx_backend_vulkan as vulkan;
 

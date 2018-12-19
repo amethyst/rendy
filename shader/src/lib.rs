@@ -19,36 +19,10 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-
-
-#[doc(hidden)] pub extern crate failure;
-#[doc(hidden)] pub extern crate rendy_factory;
-#[doc(hidden)] pub extern crate gfx_hal;
-#[doc(hidden)] pub extern crate shaderc;
-
-pub use shaderc::{ShaderKind, SourceLanguage};
-#[doc(hidden)] pub use rendy_shader_proc::compile_to_spirv_proc;
-
+pub use shaderc::{self, ShaderKind, SourceLanguage};
 
 macro_rules! vk_make_version {
     ($major: expr, $minor: expr, $patch: expr) => ((($major as u32) << 22) | (($minor as u32) << 12) | $patch as u32)
-}
-
-/// Macro to compile shaders during build and make them 
-#[macro_export]
-macro_rules! compile_to_spirv {
-    ($(struct $name:ident { kind: $kind:ident, lang: $lang:ident, file: $file:tt, })*) => {
-        #[warn]
-        $(
-            $crate::compile_to_spirv_proc!($name $kind $lang $file);
-
-            impl $crate::Shader for $name {
-                fn spirv(&self) -> Result<std::borrow::Cow<'static, [u8]>, $crate::failure::Error> {
-                    Ok(std::borrow::Cow::Borrowed(Self::SPIRV))
-                }
-            }
-        )*
-    };
 }
 
 /// Interface to create shader modules from shaders.

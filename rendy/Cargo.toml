@@ -9,6 +9,7 @@ empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-bac
 dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
 metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal"]
 vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
+serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1"]
 
 [dependencies]
 rendy-command = { path = "../command" }
@@ -19,6 +20,7 @@ rendy-memory = { path = "../memory" }
 rendy-mesh = { path = "../mesh" }
 rendy-shader = { path = "../shader" }
 rendy-resource = { path = "../resource" }
+rendy-texture = { path = "../texture" }
 rendy-wsi = { path = "../wsi" }
 
 gfx-hal = { git = "https://github.com/gfx-rs/gfx" }

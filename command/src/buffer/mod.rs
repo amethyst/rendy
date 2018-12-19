@@ -1,11 +1,11 @@
 //! Command buffer module docs.
 
+mod encoder;
 mod level;
 mod reset;
 mod state;
 mod submit;
 mod usage;
-mod recording;
 
 use crate::{
     capability::{Capability, Supports},
@@ -17,7 +17,7 @@ pub use self::{
     state::*,
     submit::*,
     usage::*,
-    recording::*,
+    encoder::*,
 };
 
 /// Command buffer wrapper.
@@ -162,13 +162,13 @@ where
     /// `usage` - specifies usage of the command buffer. Possible types are `OneShot`, `MultiShot`.
     pub fn begin<U, P>(
         mut self,
-        usage: U,
-        pass_continue: P,
     ) -> CommandBuffer<B, C, RecordingState<U, P>, L, R>
     where
         U: Usage,
         P: Usage,
     {
+        let usage = U::default();
+        let pass_continue = P::default();
         unsafe {
             gfx_hal::command::RawCommandBuffer::begin(
                 &mut self.raw,
@@ -177,6 +177,22 @@ where
             );
 
             self.change_state(|_| RecordingState(usage, pass_continue))
+        }
+    }
+}
+
+impl<'a, B, C, U, P, L, R> CommandBuffer<B, C, RecordingState<U, P>, L, R>
+where
+    B: gfx_hal::Backend,
+{
+    /// Finish recording command buffer.
+    pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::finish(
+                &mut self.raw,
+            );
+
+            self.change_state(|s| ExecutableState(s.0, s.1))
         }
     }
 }
@@ -190,15 +206,16 @@ where
     /// # Safety
     ///
     /// * Commands recoreded to this buffer must be complete.
-    /// Normally command buffer moved to this state when [`Submit`] object is created.
-    /// To ensure that recorded commands are complete once can [wait] for the [`Fence`] specified
+    /// Normally command buffer moved to `PendingState` when [`Submit`] object is created.
+    /// To ensure that [submitted] commands are complete one can [wait] for the [`Fence`] specified
     /// when [submitting] created [`Submit`] object or in later submission to the same queue.
     ///
     /// [`Submit`]: struct.Submit
     /// [wait]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
     /// [`Fence`]: ..gfx_hal/trait.Backend.html#associatedtype.Fence
+    /// [submitted]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
     /// [submitting]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
-    pub unsafe fn complete(self) -> CommandBuffer<B, C, N, L, R> {
+    pub unsafe fn mark_complete(self) -> CommandBuffer<B, C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }
 }
