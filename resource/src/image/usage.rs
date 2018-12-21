@@ -1,4 +1,4 @@
-use crate::memory::usage::{Data, MemoryUsage};
+use crate::memory::{Data, MemoryUsage};
 
 /// Usage trait that must implemented by usage types.
 /// This trait provides a way to convert type-level usage to the value-level flags.

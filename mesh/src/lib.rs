@@ -26,9 +26,10 @@
 
 use rendy_factory as factory;
 use rendy_resource as resource;
+use rendy_util as util;
 
+mod format;
 mod mesh;
-mod utils;
 mod vertex;
 
 pub use crate::{
@@ -37,4 +38,5 @@ pub use crate::{
         AsAttribute, AsVertex, Attribute, Color, Normal, PosColor, PosNorm, PosNormTangTex, PosNormTex,
         PosTex, Position, Query, Tangent, TexCoord, VertexFormat, WithAttribute,
     },
+    format::*,
 };

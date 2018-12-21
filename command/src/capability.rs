@@ -21,7 +21,7 @@ pub struct Graphics;
 pub struct General;
 
 /// Abstract capability specifier.
-pub trait Capability: Copy {
+pub trait Capability: Copy + std::fmt::Debug + 'static {
     /// Try to create capability instance from queue_type.
     /// Instance will be created if all required queue_type set.
     fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self>;

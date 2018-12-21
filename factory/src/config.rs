@@ -1,6 +1,6 @@
 use std::cmp::min;
 
-use crate::memory::{allocator, HeapsConfig};
+use crate::memory::{LinearConfig, DynamicConfig, HeapsConfig};
 
 /// Factory initialization config.
 #[derive(Clone, derivative::Derivative)]
@@ -91,7 +91,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                         .properties
                         .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
                     {
-                        Some(allocator::LinearConfig {
+                        Some(LinearConfig {
                             linear_size: min(
                                 256 * 1024 * 1024,
                                 properties.memory_heaps[mt.heap_index as usize] / 8,
@@ -100,7 +100,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                     } else {
                         None
                     },
-                    dynamic: Some(allocator::DynamicConfig {
+                    dynamic: Some(DynamicConfig {
                         max_block_size: min(
                             32 * 1024 * 1024,
                             properties.memory_heaps[mt.heap_index as usize] / 8,
