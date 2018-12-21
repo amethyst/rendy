@@ -10,7 +10,7 @@
 [s1]: https://travis-ci.org/omni-viral/rendy.svg?branch=master
 [s2]: https://img.shields.io/crates/v/rendy.svg
 [docs-badge]: https://img.shields.io/badge/docs-website-blue.svg
-[docs]: https://docs.rs/rendy
+[docs]: https://omni-viral.github.io/rendy-docs/rendy/index.html
 [s3]: https://img.shields.io/badge/license-MIT%2FApache-blue.svg
 [s4]: https://tokei.rs/b1/github/omni-viral/rendy?category=code
 [tc]: https://travis-ci.org/omni-viral/rendy
@@ -18,11 +18,12 @@
 [li]: COPYING
 
 Yet another [`Vulkan`] based rendering engine.
+Actually it is based on [`gfx-hal`] that mimics [`Vulkan`] API.
 
 ## Features
 
-`rendy` features safer API by checking important states and invariants.
-It can check invariants statically using marker types and dynamically with stored values.
+Most importantly `rendy` features safer API by checking important states and invariants.
+It checks invariants statically using marker types and dynamically with stored values.
 
 ### Capability
 
@@ -31,15 +32,39 @@ Queue family capability defines what operation queues of the family supports.
 Capability level can be stored statically by marking `Family` type with one of capability types: `Transfer`, `Graphics`, `Compute` or `General` (`Graphics` and `Compute` combined).
 Alternatively `Capability` type can be used instead of marker type, this way actual capability level can be checked dynamically.
 
+### Command buffer
+
+`rendy` provides handy wrapper named `CommandBuffer`. In contrast to raw counterpart this wrapper
+encodes crutial information about its state directly into type level.
+This means user can't accidentially:
+* record command unsupported by queue family it belongs to.
+* record command when command buffer is not in recording state.
+* record render pass command outside renderpass.
+* forget to finish recording buffer before submitting.
+* resubmit command buffer which was created for one time use.
+* record execution of primary buffer into secondary buffer.
+* etc
+
 ### Memory manager
 
 `rendy`'s memory manager is called `Heaps`.
 `Heaps` provides convenient methods to sub-allocate device-visible memory based on usage and visibility requirements. It also handles mapping for specific usage types.
+**It is possible for [`gfx-hal`] to adopt VMA. In which case `rendy` will use it**
 
-### Objects lifetime - ***Partially implemented***
+### Framegraph
 
-`rendy` provide tools to track resource usage in order to automatically destroy them after last use.
-Once resource is referenced in recorded command it won't be destroyed immediately after handle dropped but after command is complete. For performance reasons tracking mechanism can choose later destruction time than necessary to save few ticks.
+`rendy`'s framegraph allow writing rendering code in simple modular style.
+Making it much easier to composite complex frame from simple parts.
+User defines nodes which declare buffers and images it reads and writes.
+Framegraph takes responsibility for resource allocation and execution synchronization.
+User is responsible only for intra-node synchronization.
+
+### Cirques
+
+This hybrid of circus and queue simplifies synchronizing host access to resources.
+`Cirque` allocates copies of the resource from resource spicific allocator
+(e.g. `CommandPool` for `CommandBuffer`s, `Factory` for `Buffer`s)
+and gives access to the unused copy.
 
 ### CPU-GPU data flow - ***Not yet implemented***
 
@@ -57,7 +82,6 @@ Pipelines and descriptor sets has declarative nature and it is much easier to de
 Deriving it will automatically generate code necessary for set creation, writing and binding.
 Deriving `GraphicsPipeline` trait will generate code for graphics pipeline creation and usage.
 Similar `ComputePipeline` trait exists for compute pipelines.
-
 
 #### Example
 
@@ -82,34 +106,21 @@ struct Example {
 }
 ```
 
-### Framegraph
+### Shader reflection - ***Not yet implemented***
 
-`rendy`'s framegraph allow writing rendering code in simple modular style.
-Making it much easier to composite complex frame from simple parts.
-User defines nodes which declare buffers and images it reads and writes.
-Framegraph takes responsibility for resource allocation and execution synchronization.
-User is responsible only for intra-node synchronization.
+`rendy` will use `spirv-relfect` or similiar crate to read layout information directly from shaders
+and use it to automatically populate descriptors and set index/vertex buffers based on registered data sources.
 
 ### Modularity
 
 Most of the features provided by rendy can be used independently from others.
-Most notably `rendy-memory` crate doesn't depend on any other rendy crate.
+This helps to keep API clean and hopefuly sound.
+Top-level umbrela crate `rendy` has feature for each subcrates so that they could be enabled separately (subcrate will also enable its depenencies).
 
-## Why another render
+## Why another renderer
 
 There is no fully-featured modern renderers written in Rust. So this project aims to be the one of the first.
-Once `rendy` will be able to render simple scenes it probably will be integrated as rendering engine into [`amethyst`].
-
-### How it started
-
-`rendy` is my rethinking of libraries I wrote for [`gfx-hal`] project:
-* [`gfx-memory`]
-* [`gfx-render`]
-* [`gfx-mesh`]
-* [`gfx-texture`]
-* [`xfg`]
-
-Those libraries can be seen as draft for `rendy`.
+`rendy` will be used by [`Amethyst`] project.
 
 ## License
 
@@ -120,7 +131,6 @@ Licensed under either of
 
 at your option.
 
-[`ash`]: https://github.com/MaikKlein/ash
 [`gfx-hal`]: https://github.com/gfx-rs/gfx
 [`gfx-memory`]: https://github.com/gfx-rs/gfx-memory
 [`gfx-render`]: https://github.com/gfx-rs/gfx-render
@@ -129,4 +139,4 @@ at your option.
 [`xfg`]: https://github.com/omni-viral/xfg-rs
 [`Vulkan`]: https://www.khronos.org/vulkan/
 [`Vulkan`-portability]: https://www.khronos.org/vulkan/portability-initiative
-[`amethyst`]: https://github.com/amethyst/amethyst
+[`Amethyst`]: https://github.com/amethyst/amethyst
