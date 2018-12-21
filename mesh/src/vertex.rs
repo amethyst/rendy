@@ -20,7 +20,7 @@ pub trait AsAttribute: Debug + PartialEq + Copy + Send + Sync {
 /// Type for position attribute of vertex.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Position(pub [f32; 3]);
 impl<T> From<T> for Position
 where
@@ -39,7 +39,7 @@ impl AsAttribute for Position {
 /// Type for color attribute of vertex
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Color(pub [f32; 4]);
 impl<T> From<T> for Color
 where
@@ -58,7 +58,7 @@ impl AsAttribute for Color {
 /// Type for texture coord attribute of vertex
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Normal(pub [f32; 3]);
 impl<T> From<T> for Normal
 where
@@ -78,7 +78,7 @@ impl AsAttribute for Normal {
 /// Type for tangent attribute of vertex
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Tangent(pub [f32; 3]);
 impl<T> From<T> for Tangent
 where
@@ -98,7 +98,7 @@ impl AsAttribute for Tangent {
 /// Type for texture coord attribute of vertex
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TexCoord(pub [f32; 2]);
 impl<T> From<T> for TexCoord
 where
@@ -118,7 +118,7 @@ impl AsAttribute for TexCoord {
 /// Vertex format contains information to initialize graphics pipeline
 /// Attributes must be sorted by offset.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VertexFormat<'a> {
     /// Attributes for format.
     pub attributes: Cow<'a, [Attribute]>,
@@ -182,7 +182,7 @@ where
 /// Vertex format with position and RGBA8 color attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosColor {
     /// Position of the vertex in 3D space.
     pub position: Position,
@@ -217,7 +217,7 @@ impl WithAttribute<Color> for PosColor {
 /// Vertex format with position and normal attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosNorm {
     /// Position of the vertex in 3D space.
     pub position: Position,
@@ -252,7 +252,7 @@ impl WithAttribute<Normal> for PosNorm {
 /// Vertex format with position, color and normal attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosColorNorm {
     /// Position of the vertex in 3D space.
     pub position: Position,
@@ -297,12 +297,12 @@ impl WithAttribute<Normal> for PosColorNorm {
 /// Vertex format with position and UV texture coordinate attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosTex {
     /// Position of the vertex in 3D space.
-    pub position: [f32; 3],
+    pub position: Position,
     /// UV texture coordinates used by the vertex.
-    pub tex_coord: [f32; 2],
+    pub tex_coord: TexCoord,
 }
 
 impl AsVertex for PosTex {
@@ -332,7 +332,7 @@ impl WithAttribute<TexCoord> for PosTex {
 /// Vertex format with position, normal and UV texture coordinate attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosNormTex {
     /// Position of the vertex in 3D space.
     pub position: Position,
@@ -377,7 +377,7 @@ impl WithAttribute<TexCoord> for PosNormTex {
 /// Vertex format with position, normal, tangent, and UV texture coordinate attributes.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosNormTangTex {
     /// Position of the vertex in 3D space.
     pub position: Position,

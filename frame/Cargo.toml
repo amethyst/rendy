@@ -5,6 +5,7 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+derivative = "1.0"
 either = "1.5"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 failure = "0.1"

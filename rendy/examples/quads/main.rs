@@ -1,16 +1,34 @@
+//!
+//! First non-trivial example simulates miriad of quads floating in gravity field and bouce of window borders.
+//! It uses compute node to move quads and simple render pass to draw them.
+//! 
 
-
-
+#![forbid(overflowing_literals)]
+#![deny(missing_copy_implementations)]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+#![deny(intra_doc_link_resolution_failure)]
+#![deny(path_statements)]
+#![deny(trivial_bounds)]
+#![deny(type_alias_bounds)]
+#![deny(unconditional_recursion)]
+#![deny(unions_with_drop_fields)]
+#![deny(while_true)]
+#![deny(unused)]
+#![deny(bad_style)]
+#![deny(future_incompatible)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
 use rendy::{
-    command::{Compute, Graphics, Encoder, EncoderCommon, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, PrimaryLevel, DrawCommand},
+    command::{Compute, RenderPassInlineEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand},
     factory::{Config, Factory},
-    frame::{cirque::CirqueRenderPassInlineEncoder, Frames},
+    frame::{Frames},
     graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
-    memory::usage::MemoryUsageValue,
+    memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
-    wsi::{Surface, Target},
     resource::buffer::Buffer,
 };
 
@@ -171,19 +189,14 @@ where
             let mut rng = rand::thread_rng();
             let uniform = rand::distributions::Uniform::new(0.0, 1.0);
 
-            #[repr(C)] struct PosVel { pos: [f32; 2], vel: [f32; 2], }
+            #[repr(C)]
+            #[derive(Copy, Clone)]
+            struct PosVel { pos: [f32; 2], vel: [f32; 2], }
             factory.upload_visible_buffer(posvelbuff, 0, &(0 .. QUADS).map(|_index| PosVel {
                 pos: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
                 vel: [rand::Rng::sample(&mut rng, uniform), rand::Rng::sample(&mut rng, uniform)],
             }).collect::<Vec<PosVel>>()).unwrap();
         }
-
-        // let buffer_view = gfx_hal::Device::create_buffer_view(
-        //     factory.device(),
-        //     posvelbuff.raw(),
-        //     Some(gfx_hal::format::Format::Rgba32Float),
-        //     0 .. posvelbuff.size(),
-        // ).unwrap();
 
         assert_eq!(sets.len(), 1);
         let set_layouts = sets[0].as_ref();
@@ -231,7 +244,8 @@ where
         &mut self,
         layouts: &[B::PipelineLayout],
         pipelines: &[B::GraphicsPipeline],
-        encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
+        mut encoder: RenderPassInlineEncoder<'_, B>,
+        _index: usize,
         _aux: &T,
     ) {
         encoder.bind_graphics_pipeline(&pipelines[0]);
@@ -262,15 +276,15 @@ struct GravBounce<B: gfx_hal::Backend> {
 
     command_pool: CommandPool<B, Compute>,
     command_buffer: CommandBuffer<B, Compute, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
-    submit: Submit<'static, B, SimultaneousUse>,
+    submit: Submit<B, SimultaneousUse>,
 }
 
 impl<'a, B> NodeSubmittable<'a, B> for GravBounce<B>
 where
     B: gfx_hal::Backend,
 {
-    type Submittable = &'a Submit<'a, B, SimultaneousUse>;
-    type Submittables = &'a [Submit<'a, B, SimultaneousUse>];
+    type Submittable = &'a Submit<B, SimultaneousUse>;
+    type Submittables = &'a [Submit<B, SimultaneousUse>];
 }
 
 impl<B, T> Node<B, T> for GravBounce<B>
@@ -287,7 +301,7 @@ where
         _factory: &mut Factory<B>,
         _aux: &mut T,
         _frames: &'a Frames<B>,
-    ) -> &'a [Submit<'a, B, SimultaneousUse>] {
+    ) -> &'a [Submit<B, SimultaneousUse>] {
         std::slice::from_ref(&self.submit)
     }
 
@@ -398,11 +412,12 @@ where
             (descriptor_pool, descriptor_set/*, buffer_view*/)
         };
 
-        let mut command_pool = factory.create_command_pool(family, ())?
+        let mut command_pool = factory.create_command_pool(family)?
             .with_capability::<Compute>()
             .expect("Graph builder must provide family with Compute capability");
-        let command_buffer = command_pool.allocate_buffers(PrimaryLevel, 1).remove(0);
-        let mut encoder = command_buffer.begin(MultiShot(SimultaneousUse), ());
+        let initial = command_pool.allocate_buffers(1).remove(0);
+        let mut recording = initial.begin::<MultiShot<_>, _>();
+        let mut encoder = recording.encoder();
         encoder.bind_compute_pipeline(&pipeline);
         encoder.bind_compute_descriptor_sets(
             &pipeline_layout,
@@ -431,9 +446,8 @@ where
                 barriers,
             );
         }
-        
-        let command_buffer = encoder.finish();
-        let (submit, command_buffer) = command_buffer.submit();
+
+        let (submit, command_buffer) = recording.finish().submit();
 
         Ok(GravBounce {
             set_layout,

@@ -87,36 +87,37 @@ where
     pub unsafe fn submit<'a>(&mut self,
         queue: usize,
         submissions: impl IntoIterator<Item = Submission<
-            impl IntoIterator<Item = (&'a B::Semaphore, gfx_hal::pso::PipelineStage)>,
+            impl IntoIterator<Item = (&'a (impl std::borrow::Borrow<B::Semaphore> + 'a), gfx_hal::pso::PipelineStage)>,
             impl IntoIterator<Item = impl Submittable<B>>,
-            impl IntoIterator<Item = &'a B::Semaphore>,
+            impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
         >>,
         fence: Option<&B::Fence>,
     ) {
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
-            gfx_hal::queue::RawCommandQueue::submit_raw(
+            gfx_hal::queue::RawCommandQueue::submit(
                 &mut self.queues[queue],
-                gfx_hal::queue::RawSubmission {
-                    cmd_buffers: std::iter::empty::<B::CommandBuffer>(),
-                    wait_semaphores: &[],
-                    signal_semaphores: &[],
+                gfx_hal::queue::Submission {
+                    command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
+                    wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
+                    signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
                 },
                 fence,
             );
         } else {
             let index = self.index;
             while let Some(submission) = submissions.next() {
-                let submits: smallvec::SmallVec<[_; 32]> = submission.submits.into_iter().collect();
-                gfx_hal::queue::RawCommandQueue::submit_raw(
+                gfx_hal::queue::RawCommandQueue::submit(
                     &mut self.queues[queue],
-                    gfx_hal::queue::RawSubmission {
-                        cmd_buffers: submits.iter().map(|submit| {
+                    gfx_hal::queue::Submission {
+                        command_buffers: submission.submits.into_iter().map(|submit| {
                             assert_eq!(submit.family(), index);
-                            submit.raw()
+                            unsafe {
+                                &*submit.raw()
+                            }
                         }),
-                        wait_semaphores: &submission.waits.into_iter().collect::<smallvec::SmallVec<[_; 32]>>(),
-                        signal_semaphores: &submission.signals.into_iter().collect::<smallvec::SmallVec<[_; 32]>>(),
+                        wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
+                        signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
                     },
                     submissions.peek().map_or(fence, |_| None),
                 );
@@ -129,12 +130,12 @@ where
     pub fn create_pool<R>(
         &self,
         device: &impl gfx_hal::Device<B>,
-        reset: R,
     ) -> Result<CommandPool<B, C, R>, gfx_hal::device::OutOfMemory>
     where
         R: Reset,
         C: Capability,
     {
+        let reset = R::default();
         let pool = unsafe {
             // Is this family belong to specified device.
             let raw = device.create_command_pool(

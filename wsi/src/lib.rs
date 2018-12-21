@@ -135,7 +135,7 @@ where
         image_count: u32,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        let (capabilities, formats, present_modes) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
+        let (capabilities, formats, present_modes, _alpha) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
 
         let present_mode = *present_modes.iter().max_by_key(|mode| match mode {
             gfx_hal::PresentMode::Immediate => 0,
@@ -187,6 +187,7 @@ where
                 image_count,
                 image_layers: 1,
                 image_usage: usage,
+                composite_alpha: gfx_hal::window::CompositeAlpha::Inherit,
             },
             None,
         )?;
@@ -323,7 +324,14 @@ where
     /// # TODO
     ///
     /// Use specific presentation error type.
-    pub unsafe fn present(self, queue: &mut impl gfx_hal::queue::RawCommandQueue<B>, wait: impl IntoIterator<Item = impl std::borrow::Borrow<B::Semaphore>>) -> Result<(), failure::Error> {
+    pub unsafe fn present<'b>(
+        self,
+        queue: &mut impl gfx_hal::queue::RawCommandQueue<B>,
+        wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>
+    ) -> Result<(), failure::Error>
+    where
+        'a: 'b
+    {
         queue.present(
             self.targets.iter().map(|(target, index)| (&target.swapchain, *index)),
             wait,

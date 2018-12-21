@@ -10,4 +10,3 @@ derivative = "1.0"
 failure = "0.1"
 relevant = "0.2"
 smallvec = "0.6"
-rendy-resource = { path = "../resource" }

@@ -12,4 +12,6 @@ members = [
     "wsi",
     "chain",
     "graph",
+    "util",
+    "texture",
 ]

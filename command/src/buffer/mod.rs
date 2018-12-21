@@ -1,11 +1,11 @@
 //! Command buffer module docs.
 
+mod encoder;
 mod level;
 mod reset;
 mod state;
 mod submit;
 mod usage;
-mod recording;
 
 use crate::{
     capability::{Capability, Supports},
@@ -17,7 +17,7 @@ pub use self::{
     state::*,
     submit::*,
     usage::*,
-    recording::*,
+    encoder::*,
 };
 
 /// Command buffer wrapper.
@@ -27,7 +27,7 @@ pub use self::{
 #[derivative(Debug)]
 pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
     #[derivative(Debug = "ignore")]
-    raw: B::CommandBuffer,
+    raw: Box<B::CommandBuffer>,
     capability: C,
     state: S,
     level: L,
@@ -50,7 +50,7 @@ where
     /// * If `reset` is `IndividualReset` then buffer must be allocated from pool created with `IndividualReset` marker.
     /// * command buffer must be allocated from pool created for `family`.
     pub(crate) unsafe fn from_raw(
-        raw: impl Into<B::CommandBuffer>,
+        raw: B::CommandBuffer,
         capability: C,
         state: S,
         level: L,
@@ -58,33 +58,13 @@ where
         family: gfx_hal::queue::QueueFamilyId,
     ) -> Self {
         CommandBuffer {
-            raw: raw.into(),
+            raw: Box::new(raw),
             capability,
             state,
             level,
             reset,
             family,
         }
-    }
-
-    /// Get raw command buffer handle.
-    ///
-    /// # Safety
-    ///
-    /// * Valid usage for command buffer must not be violated.
-    /// Particularly command buffer must not change its state.
-    /// Or `change_state` must be used to reflect accumulated change.
-    pub unsafe fn raw(&mut self) -> &mut B::CommandBuffer {
-        &mut self.raw
-    }
-
-    /// Get raw command buffer handle.
-    ///
-    /// # Safety
-    ///
-    /// * Valid usage for command buffer must not be violated.
-    pub unsafe fn into_raw(self) -> B::CommandBuffer {
-        self.raw
     }
 
     /// Change state of the command buffer.
@@ -162,21 +142,37 @@ where
     /// `usage` - specifies usage of the command buffer. Possible types are `OneShot`, `MultiShot`.
     pub fn begin<U, P>(
         mut self,
-        usage: U,
-        pass_continue: P,
     ) -> CommandBuffer<B, C, RecordingState<U, P>, L, R>
     where
         U: Usage,
-        P: Usage,
+        P: RenderPassRelation<L>,
     {
+        let usage = U::default();
+        let pass_continue = P::default();
         unsafe {
             gfx_hal::command::RawCommandBuffer::begin(
-                &mut self.raw,
+                self.raw(),
                 usage.flags() | pass_continue.flags(),
                 gfx_hal::command::CommandBufferInheritanceInfo::default(),
             );
 
             self.change_state(|_| RecordingState(usage, pass_continue))
+        }
+    }
+}
+
+impl<'a, B, C, U, P, L, R> CommandBuffer<B, C, RecordingState<U, P>, L, R>
+where
+    B: gfx_hal::Backend,
+{
+    /// Finish recording command buffer.
+    pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::finish(
+                &mut*self.raw,
+            );
+
+            self.change_state(|s| ExecutableState(s.0, s.1))
         }
     }
 }
@@ -190,15 +186,16 @@ where
     /// # Safety
     ///
     /// * Commands recoreded to this buffer must be complete.
-    /// Normally command buffer moved to this state when [`Submit`] object is created.
-    /// To ensure that recorded commands are complete once can [wait] for the [`Fence`] specified
+    /// Normally command buffer moved to `PendingState` when [`Submit`] object is created.
+    /// To ensure that [submitted] commands are complete one can [wait] for the [`Fence`] specified
     /// when [submitting] created [`Submit`] object or in later submission to the same queue.
     ///
     /// [`Submit`]: struct.Submit
     /// [wait]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
     /// [`Fence`]: ..gfx_hal/trait.Backend.html#associatedtype.Fence
+    /// [submitted]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
     /// [submitting]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
-    pub unsafe fn complete(self) -> CommandBuffer<B, C, N, L, R> {
+    pub unsafe fn mark_complete(self) -> CommandBuffer<B, C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }
 }
@@ -229,5 +226,21 @@ where
     /// * Raw handle usage.
     pub unsafe fn mark_reset(self) -> CommandBuffer<B, C, InitialState, L> {
         self.change_state(|_| InitialState)
+    }
+}
+
+impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
+where
+    B: gfx_hal::Backend,
+    S: Resettable,
+{
+    /// Dispose of command buffer wrapper releasing raw comman buffer value.
+    pub unsafe fn into_raw(self) -> B::CommandBuffer {
+        *self.raw
+    }
+
+    /// Get raw command buffer handle.
+    pub fn raw(&mut self) -> &mut B::CommandBuffer {
+        &mut self.raw
     }
 }

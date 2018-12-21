@@ -1,5 +1,5 @@
 
-use super::usage::MultiShot;
+use super::usage::{MultiShot, OutsideRenderPass};
 
 /// Command buffer state in which all buffers start.
 /// Resetting also moves buffer to this state.
@@ -8,11 +8,11 @@ pub struct InitialState;
 
 /// Command buffer in recording state could be populated with commands.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct RecordingState<U = MultiShot, P = ()>(pub U, pub P);
+pub struct RecordingState<U = MultiShot, P = OutsideRenderPass>(pub U, pub P);
 
 /// Command buffer in executable state can be submitted.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ExecutableState<U = MultiShot, P = ()>(pub U, pub P);
+pub struct ExecutableState<U = MultiShot, P = OutsideRenderPass>(pub U, pub P);
 
 /// Command buffer in pending state are submitted to the device.
 /// Command buffer in pending state must never be invalidated or reset because device may read it at the moment.

@@ -10,7 +10,7 @@ use std::{
 use crate::{
     factory::Factory,
     resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer},
-    utils::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
+    util::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
     vertex::{AsVertex, VertexFormat},
 };
 
@@ -83,7 +83,7 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 /// Useful for creating mesh from non-predefined set of data.
 /// Like from glTF.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshBuilder<'a> {
     vertices: smallvec::SmallVec<[(Cow<'a, [u8]>, VertexFormat<'static>); 16]>,
     indices: Option<(Cow<'a, [u8]>, gfx_hal::IndexType)>,

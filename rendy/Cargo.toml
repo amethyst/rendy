@@ -9,17 +9,35 @@ empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-bac
 dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
 metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal"]
 vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
+serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1"]
+
+command = ["rendy-command"]
+factory = ["rendy-factory", "command", "resource", "wsi"]
+frame = ["rendy-frame", "factory"]
+graph = ["rendy-graph", "frame"]
+memory = ["rendy-memory"]
+mesh = ["rendy-mesh", "factory", "util"]
+shader = ["rendy-shader", "factory"]
+resource = ["rendy-resource", "memory"]
+texture = ["rendy-texture", "factory", "util"]
+util = ["rendy-util"]
+wsi = ["rendy-wsi"]
+
+full = ["graph", "mesh", "texture", "shader"]
+default = ["full"]
 
 [dependencies]
-rendy-command = { path = "../command" }
-rendy-factory = { path = "../factory" }
-rendy-frame = { path = "../frame" }
-rendy-graph = { path = "../graph" }
-rendy-memory = { path = "../memory" }
-rendy-mesh = { path = "../mesh" }
-rendy-shader = { path = "../shader" }
-rendy-resource = { path = "../resource" }
-rendy-wsi = { path = "../wsi" }
+rendy-command = { path = "../command", optional = true }
+rendy-factory = { path = "../factory", optional = true }
+rendy-frame = { path = "../frame", optional = true }
+rendy-graph = { path = "../graph", optional = true }
+rendy-memory = { path = "../memory", optional = true }
+rendy-mesh = { path = "../mesh", optional = true }
+rendy-shader = { path = "../shader", optional = true }
+rendy-resource = { path = "../resource", optional = true }
+rendy-texture = { path = "../texture", optional = true }
+rendy-util = { path = "../util", optional = true }
+rendy-wsi = { path = "../wsi", optional = true }
 
 gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", optional = true }

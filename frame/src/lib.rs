@@ -25,4 +25,4 @@ use rendy_factory as factory;
 pub mod cirque;
 mod frame;
 
-pub use crate::frame::{CompleteFrame, Frame, Frames, Fences};
+pub use crate::frame::*;

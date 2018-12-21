@@ -1,4 +1,6 @@
 
+use super::{SecondaryLevel};
+
 /// Command buffer with this usage flag will move to invalid state after execution.
 /// Resubmitting will require reset and rerecording commands.
 #[derive(Clone, Copy, Debug, Default)]
@@ -6,20 +8,34 @@ pub struct OneShot;
 
 /// Command buffer with this usage flag will move back to executable state after execution.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct MultiShot<S = ()>(pub S);
+pub struct MultiShot<S = NoSimultaneousUse>(pub S);
 
-/// Additional flag for `MultiShot` that allows to resubmit buffer in pending state.
-/// Note that resubmitting pending buffers can hurt performance.
+/// Additional flag that allows resubmission of a command buffer while it is still in a pending state.
+/// `Submit<B, SimultaneousUse>` can be submitted more than once.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SimultaneousUse;
+
+/// Additional flag that disallows resubmission of a command buffer while it is still in a pending state
+/// It must be completed, i.e. a fence must submitted with this buffer or later into the same queue
+/// and be waited on before buffer resubmission.
+/// `Submit<B, NoSimultaneousUse>` cannot be submitted more than once.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoSimultaneousUse;
 
 /// Buffers with this usage flag must be secondary buffers executed entirely in render-pass.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RenderPassContinue;
 
-/// Trait implemented by all usage types.
-pub trait Usage: Copy + Default {
-    /// State in which command buffer moves after completion.
+/// Primary buffers must has this flag as they cannot has `RenderPassContinue` flag.
+/// Secondary buffers with this usage flag cannot be executed as part of render-pass.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct OutsideRenderPass;
+
+/// Type-level usage flags.
+/// It defines if buffer can be resubmitted without reset.
+/// Or even resubmitted while being executed.
+pub trait Usage: Copy + Default + std::fmt::Debug + 'static {
+    /// Flags required to begin command buffer.
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags;
 }
 
@@ -41,14 +57,27 @@ impl Usage for MultiShot<SimultaneousUse> {
     }
 }
 
-impl Usage for () {
+impl Usage for NoSimultaneousUse {
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
         gfx_hal::command::CommandBufferFlags::empty()
     }
 }
 
-impl Usage for RenderPassContinue {
+/// Trait implemented for type-level render pass relation flags.
+/// `RenderPassContinue` and `OutsideRenderPass`.
+pub trait RenderPassRelation<L>: Copy + Default + std::fmt::Debug {
+    /// Flags required to begin command buffer.
+    fn flags(&self) -> gfx_hal::command::CommandBufferFlags;
+}
+
+impl RenderPassRelation<SecondaryLevel> for RenderPassContinue {
     fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
         gfx_hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
+    }
+}
+
+impl<L> RenderPassRelation<L> for OutsideRenderPass {
+    fn flags(&self) -> gfx_hal::command::CommandBufferFlags {
+        gfx_hal::command::CommandBufferFlags::empty()
     }
 }

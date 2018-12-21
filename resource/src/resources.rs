@@ -30,7 +30,7 @@ where
 
     /// Create a buffer and bind to the memory that support intended usage.
     pub fn create_buffer(
-        &mut self,
+        &self,
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
         align: u64,
@@ -103,7 +103,7 @@ where
 
     /// Create an image and bind to the memory that support intended usage.
     pub fn create_image(
-        &mut self,
+        &self,
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
         align: u64,

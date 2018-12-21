@@ -1,29 +1,26 @@
 [package]
-name = "rendy-mesh"
+name = "rendy-texture"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
-description = "Crate for rendy to create and use meshes with vertex semantic"
+description = "Crate for rendy to create and use textures"
 keywords = ["graphics", "rendy"]
 readme = "README.md"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/rustgd/rendy.git"
-documentation = "https://docs.rs/crate/rendy-mesh/0.1.0"
+documentation = "https://docs.rs/crate/rendy-texture/0.1.0"
 edition = "2018"
 
 [features]
-obj = ["wavefront_obj"]
-serde-1 = ["serde", "gfx-hal/serde", "smallvec/serde", "rendy-factory/serde"]
+serde-1 = ["serde", "gfx-hal/serde", "rendy-factory/serde"]
 
 [dependencies]
 rendy-memory = { path = "../memory" }
-rendy-command = { path = "../command" }
 rendy-resource = { path = "../resource" }
 rendy-factory = { path = "../factory" }
 rendy-util = { path = "../util" }
 
 gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
 
+derivative = "1.0"
 failure = "0.1"
-serde = { version = "1.0", optional = true, features = ["derive"] }
-wavefront_obj = { version = "5.1", optional = true }
-smallvec = { version = "0.6" }
+serde = { version = "1.0", optional = true }

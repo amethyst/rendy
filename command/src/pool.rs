@@ -46,17 +46,18 @@ where
     /// Allocate new command buffers.
     pub fn allocate_buffers<L: Level>(
         &mut self,
-        level: L,
         count: usize,
     ) -> Vec<CommandBuffer<B, C, InitialState, L, R>>
     where
         L: Level,
         C: Capability,
     {
-        let buffers = gfx_hal::pool::RawCommandPool::allocate(
+        let level = L::default();
+
+        let buffers = gfx_hal::pool::RawCommandPool::allocate_vec(
             &mut self.raw,
             count,
-            level.level(),
+            level.raw_level(),
         );
 
         buffers

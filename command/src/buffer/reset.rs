@@ -1,15 +1,19 @@
 
-use super::state::*;
+use super::{
+    state::*,
+    usage::*,
+};
 
 /// This flag specify that buffer can be reset individually.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IndividualReset;
 
 /// This flag specify that buffer cannot be reset individually.
-pub type NoIndividualReset = ();
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoIndividualReset;
 
 /// Specify flags required for command pool creation to allow individual buffer reset.
-pub trait Reset: Copy + Default {
+pub trait Reset: Copy + Default + std::fmt::Debug + 'static {
     /// Get flags for reset parameter.
     fn flags(&self) -> gfx_hal::pool::CommandPoolCreateFlags;
 }
@@ -27,8 +31,8 @@ impl Reset for NoIndividualReset {
 }
 
 /// States in which command buffer can de reset.
-pub trait Resettable {}
+pub trait Resettable: Copy + Default + std::fmt::Debug + 'static {}
 impl Resettable for InitialState {}
-impl<U, P> Resettable for RecordingState<U, P> {}
-impl<U, P> Resettable for ExecutableState<U, P> {}
+impl<U, P> Resettable for RecordingState<U, P> where U: Usage, P: Copy + Default + std::fmt::Debug + 'static {}
+impl<U, P> Resettable for ExecutableState<U, P> where U: Usage, P: Copy + Default + std::fmt::Debug + 'static {}
 impl Resettable for InvalidState {}

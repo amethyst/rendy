@@ -1,13 +1,32 @@
+//!
+//! The mighty triangle example.
+//! This examples shows colord triangle on white background.
+//! Nothing fancy. Just prove that `rendy` works.
+//! 
 
-
-
+#![forbid(overflowing_literals)]
+#![deny(missing_copy_implementations)]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+#![deny(intra_doc_link_resolution_failure)]
+#![deny(path_statements)]
+#![deny(trivial_bounds)]
+#![deny(type_alias_bounds)]
+#![deny(unconditional_recursion)]
+#![deny(unions_with_drop_fields)]
+#![deny(while_true)]
+#![deny(unused)]
+#![deny(bad_style)]
+#![deny(future_incompatible)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![allow(unused_unsafe)]
 
 use rendy::{
-    command::{EncoderCommon, RenderPassEncoder},
+    command::{RenderPassInlineEncoder},
     factory::{Config, Factory},
-    frame::{cirque::CirqueRenderPassInlineEncoder},
     graph::{Graph, GraphBuilder, render::RenderPass, present::PresentNode, NodeBuffer, NodeImage},
-    memory::usage::MemoryUsageValue,
+    memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
@@ -145,7 +164,8 @@ where
         &mut self,
         _layouts: &[B::PipelineLayout],
         pipelines: &[B::GraphicsPipeline],
-        encoder: &mut CirqueRenderPassInlineEncoder<'_, B>,
+        mut encoder: RenderPassInlineEncoder<'_, B>,
+        _index: usize,
         _aux: &T,
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
