@@ -7,13 +7,13 @@
 [![MIT/Apache][s3]][li]
 ![Lines of Code][s4]
 
-[s1]: https://travis-ci.org/omni-viral/rendy.svg?branch=master
+[s1]: https://travis-ci.org/rustgd/rendy.svg?branch=master
 [s2]: https://img.shields.io/crates/v/rendy.svg
 [docs-badge]: https://img.shields.io/badge/docs-website-blue.svg
-[docs]: https://omni-viral.github.io/rendy-docs/rendy/index.html
+[docs]: https://rustgd.github.io/rendy-docs/rendy/index.html
 [s3]: https://img.shields.io/badge/license-MIT%2FApache-blue.svg
-[s4]: https://tokei.rs/b1/github/omni-viral/rendy?category=code
-[tc]: https://travis-ci.org/omni-viral/rendy
+[s4]: https://tokei.rs/b1/github/rustgd/rendy?category=code
+[tc]: https://travis-ci.org/rustgd/rendy
 [ci]: https://crates.io/crates/rendy/
 [li]: COPYING
 
