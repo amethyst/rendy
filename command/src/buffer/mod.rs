@@ -27,13 +27,38 @@ pub use self::{
 #[derivative(Debug)]
 pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
     #[derivative(Debug = "ignore")]
-    raw: Box<B::CommandBuffer>,
+    raw: std::ptr::NonNull<B::CommandBuffer>,
     capability: C,
     state: S,
     level: L,
     reset: R,
     family: gfx_hal::queue::QueueFamilyId,
+    relevant: relevant::Relevant,
 }
+
+unsafe impl<B, C, S, L, R> Send for CommandBuffer<B, C, S, L, R>
+where
+    B: gfx_hal::Backend,
+    B::CommandBuffer: Send,
+    C: Send,
+    S: Send,
+    L: Send,
+    R: Send,
+    gfx_hal::queue::QueueFamilyId: Send,
+    relevant::Relevant: Send,
+{}
+
+unsafe impl<B, C, S, L, R> Sync for CommandBuffer<B, C, S, L, R>
+where
+    B: gfx_hal::Backend,
+    B::CommandBuffer: Sync,
+    C: Sync,
+    S: Sync,
+    L: Sync,
+    R: Sync,
+    gfx_hal::queue::QueueFamilyId: Sync,
+    relevant::Relevant: Sync,
+{}
 
 impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
 where
@@ -58,12 +83,13 @@ where
         family: gfx_hal::queue::QueueFamilyId,
     ) -> Self {
         CommandBuffer {
-            raw: Box::new(raw),
+            raw: std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(raw))),
             capability,
             state,
             level,
             reset,
             family,
+            relevant: relevant::Relevant,
         }
     }
 
@@ -80,6 +106,7 @@ where
             level: self.level,
             reset: self.reset,
             family: self.family,
+            relevant: self.relevant,
         }
     }
 
@@ -108,6 +135,7 @@ where
             level: self.level,
             reset: self.reset,
             family: self.family,
+            relevant: self.relevant,
         }
     }
 
@@ -124,6 +152,7 @@ where
                 level: self.level,
                 reset: self.reset,
                 family: self.family,
+                relevant: self.relevant,
             })
         } else {
             Err(self)
@@ -169,7 +198,7 @@ where
     pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
         unsafe {
             gfx_hal::command::RawCommandBuffer::finish(
-                &mut*self.raw,
+                self.raw(),
             );
 
             self.change_state(|s| ExecutableState(s.0, s.1))
@@ -185,16 +214,18 @@ where
     ///
     /// # Safety
     ///
-    /// * Commands recoreded to this buffer must be complete.
-    /// Normally command buffer moved to `PendingState` when [`Submit`] object is created.
-    /// To ensure that [submitted] commands are complete one can [wait] for the [`Fence`] specified
-    /// when [submitting] created [`Submit`] object or in later submission to the same queue.
+    /// None of [`Submit`] instances created from this `CommandBuffer` are alive.
+    /// 
+    /// If this is `PrimaryLevel` buffer then
+    /// for each command queue where [`Submit`] instance (created from this `CommandBuffer`)
+    /// was submitted at least one [`Fence`] submitted within same `Submission` or later in unset state was `set`.
+    /// 
+    /// If this 
     ///
     /// [`Submit`]: struct.Submit
-    /// [wait]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
+    /// [waiting]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
     /// [`Fence`]: ..gfx_hal/trait.Backend.html#associatedtype.Fence
     /// [submitted]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
-    /// [submitting]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
     pub unsafe fn mark_complete(self) -> CommandBuffer<B, C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }
@@ -235,12 +266,19 @@ where
     S: Resettable,
 {
     /// Dispose of command buffer wrapper releasing raw comman buffer value.
-    pub unsafe fn into_raw(self) -> B::CommandBuffer {
-        *self.raw
+    /// This function is intended to be used to deallocate command buffer.
+    pub fn into_raw(self) -> B::CommandBuffer {
+        unsafe {
+            // state guarantees that raw command buffer is not shared.
+            *Box::from_raw(self.raw.as_ptr())
+        }
     }
 
     /// Get raw command buffer handle.
     pub fn raw(&mut self) -> &mut B::CommandBuffer {
-        &mut self.raw
+        unsafe {
+            // state guarantees that raw command buffer is not shared.
+            self.raw.as_mut()
+        }
     }
 }

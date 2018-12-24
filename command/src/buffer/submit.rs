@@ -11,22 +11,30 @@ use super::{
 #[derivative(Debug)]
 pub struct Submit<B: gfx_hal::Backend, S = NoSimultaneousUse, L = PrimaryLevel, P = OutsideRenderPass> {
     #[derivative(Debug = "ignore")]
-    raw: *const B::CommandBuffer,
+    raw: std::ptr::NonNull<B::CommandBuffer>,
     family: gfx_hal::queue::QueueFamilyId,
-    pass_continue: P,
     simultaneous: S,
     level: L,
+    pass_continue: P,
 }
 
 unsafe impl<B, S, L, P> Send for Submit<B, S, L, P>
 where
     B: gfx_hal::Backend,
-    B::CommandBuffer: Sync,
+    B::CommandBuffer: Send + Sync,
+    gfx_hal::queue::QueueFamilyId: Send,
+    S: Send,
+    L: Send,
+    P: Send,
 {}
+
 unsafe impl<B, S, L, P> Sync for Submit<B, S, L, P>
 where
     B: gfx_hal::Backend,
-    B::CommandBuffer: Sync,
+    B::CommandBuffer: Send + Sync,
+    S: Sync,
+    L: Sync,
+    P: Sync,
 {}
 
 /// Submittable object.
@@ -37,18 +45,15 @@ pub unsafe trait Submittable<B: gfx_hal::Backend, L = PrimaryLevel, P = OutsideR
     fn family(&self) -> gfx_hal::queue::QueueFamilyId;
 
     /// Get raw command buffer.
+    /// This function is intended for submitting command buffer into raw queue.
     /// 
     /// # Safety
     /// 
-    /// The command buffer is returned as raw pointer
-    /// because its lifetime is not tied to `Submittable` instance lifetime
-    /// but rather to original `CommandBuffer`.
-    /// The command buffer cannot be freed before commands are complete
-    /// which cannot be done before they are submitted.
-    /// Dereferencing this pointer to perform submission is totally safe.
-    /// On the other hand calling `CommandBuffer::mark_complete` (which must be done so buffer may be freed)
-    /// before this pointer used for submission is considered an error.
-    fn raw(self) -> *const B::CommandBuffer;
+    /// This function returns unbound reference to the raw command buffer.
+    /// The actual lifetime of the command buffer is tied to the original `CommandBuffer` wrapper.
+    /// `CommandBuffer` must not destroy raw command buffer or give access to it before submitted command is complete so
+    /// using this funcion to submit command buffer into queue must be valid.
+    unsafe fn raw<'a>(self) -> &'a B::CommandBuffer;
 }
 
 unsafe impl<B, S, L, P> Submittable<B, L, P> for Submit<B, S, L, P>
@@ -59,8 +64,8 @@ where
         self.family
     }
 
-    fn raw(self) -> *const B::CommandBuffer {
-        self.raw
+    unsafe fn raw<'a>(self) -> &'a B::CommandBuffer {
+        &*self.raw.as_ptr()
     }
 }
 
@@ -72,8 +77,8 @@ where
         self.family
     }
 
-    fn raw(self) -> *const B::CommandBuffer {
-        self.raw
+    unsafe fn raw<'b>(self) -> &'b B::CommandBuffer {
+        &*self.raw.as_ptr()
     }
 }
 
@@ -96,7 +101,7 @@ where
         let buffer = unsafe { self.change_state(|_| PendingState(InvalidState)) };
 
         let submit = Submit {
-            raw: &*buffer.raw,
+            raw: buffer.raw,
             family: buffer.family,
             pass_continue,
             simultaneous: NoSimultaneousUse,
@@ -128,7 +133,7 @@ where
         let buffer = unsafe { self.change_state(|state| PendingState(state)) };
 
         let submit = Submit {
-            raw: &*buffer.raw,
+            raw: buffer.raw,
             family: buffer.family,
             pass_continue,
             simultaneous,

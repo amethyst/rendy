@@ -10,5 +10,5 @@ crossbeam-channel = "0.2"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
-relevant = "0.2"
+relevant = "0.3"
 rendy-memory = { path = "../memory" }

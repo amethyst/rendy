@@ -13,7 +13,7 @@ derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 hibitset = "0.5"
-relevant = "0.2"
+relevant = "0.3"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 veclist = "0.1"
