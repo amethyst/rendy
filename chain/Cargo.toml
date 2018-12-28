@@ -5,6 +5,6 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-hal = "0.1.0"
 fnv = "1.0"
 log = "0.4"

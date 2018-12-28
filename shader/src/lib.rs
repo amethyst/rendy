@@ -37,8 +37,9 @@ pub trait Shader {
     where
         B: gfx_hal::Backend,
     {
-        gfx_hal::Device::create_shader_module(factory.device(), &self.spirv()?)
-            .map_err(Into::into)
+        unsafe {
+            gfx_hal::Device::create_shader_module(factory.device(), &self.spirv()?)
+        }.map_err(Into::into)
     }
 }
 

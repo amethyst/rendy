@@ -48,7 +48,7 @@ where
             usage: &usage,
         });
 
-        let buf = unsafe {
+        let mut buf = unsafe {
             device.create_buffer(size, usage.flags())
         }?;
         let reqs = unsafe {
@@ -62,8 +62,8 @@ where
             max(reqs.alignment, align),
         )?;
 
-        let buf = unsafe {
-            device.bind_buffer_memory(block.memory(), block.range().start, buf)
+        unsafe {
+            device.bind_buffer_memory(block.memory(), block.range().start, &mut buf)
         }?;
 
         Ok(buffer::Buffer {
@@ -133,7 +133,7 @@ where
             usage: &usage,
         });
 
-        let img = unsafe {
+        let mut img = unsafe {
             device.create_image(
                 kind,
                 levels,
@@ -154,9 +154,8 @@ where
             max(reqs.alignment, align),
         )?;
 
-        let img = unsafe {
-            device
-                .bind_image_memory(block.memory(), block.range().start, img)
+        unsafe {
+            device.bind_image_memory(block.memory(), block.range().start, &mut img)
         }?;
 
         Ok(image::Image {

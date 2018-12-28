@@ -11,11 +11,11 @@ metal = ["gfx-backend-metal"]
 vulkan = ["gfx-backend-vulkan"]
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
-gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", optional = true }
-gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", optional = true }
-gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", optional = true }
-gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", optional = true }
+gfx-hal = "0.1.0"
+gfx-backend-empty = { version = "0.1.0", optional = true }
+gfx-backend-dx12 = { version = "0.1.0", optional = true }
+gfx-backend-metal = { version = "0.1.0", optional = true }
+gfx-backend-vulkan = { version = "0.1.0", optional = true }
 
 derivative = "1.0"
 failure = "0.1"

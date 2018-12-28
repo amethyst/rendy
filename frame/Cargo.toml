@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 derivative = "1.0"
 either = "1.5"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-hal = "0.1.0"
 failure = "0.1"
 log = "0.4"
 relevant = "0.2"

@@ -178,7 +178,7 @@ where
             }
         });
 
-        let (swapchain, backbuffer) = device.create_swapchain(
+        let (swapchain, backbuffer) = unsafe { device.create_swapchain(
             &mut self.raw,
             gfx_hal::SwapchainConfig {
                 present_mode,
@@ -190,7 +190,7 @@ where
                 composite_alpha: gfx_hal::window::CompositeAlpha::Inherit,
             },
             None,
-        )?;
+        ) }?;
 
         Ok(Target {
             relevant: relevant::Relevant,

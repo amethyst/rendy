@@ -226,11 +226,11 @@ where
         vertices: std::ops::Range<u32>, 
         instances: std::ops::Range<u32>,
     ) {
-        gfx_hal::command::RawCommandBuffer::draw(
+        unsafe { gfx_hal::command::RawCommandBuffer::draw(
             self.inner.raw,
             vertices,
             instances,
-        )
+        ) }
     }
 
     /// Draw indexed.
@@ -240,12 +240,12 @@ where
         base_vertex: i32, 
         instances: std::ops::Range<u32>,
     ) {
-        gfx_hal::command::RawCommandBuffer::draw_indexed(
+        unsafe { gfx_hal::command::RawCommandBuffer::draw_indexed(
             self.inner.raw,
             indices,
             base_vertex,
             instances,
-        )
+        ) }
     }
 
     /// Draw indirect.
@@ -261,13 +261,13 @@ where
         draw_count: u32, 
         stride: u32,
     ) {
-        gfx_hal::command::RawCommandBuffer::draw_indirect(
+        unsafe { gfx_hal::command::RawCommandBuffer::draw_indirect(
             self.inner.raw,
             buffer,
             offset,
             draw_count,
             stride,
-        )
+        ) }
     }
 }
 
