@@ -6,6 +6,6 @@ edition = "2018"
 
 [dependencies]
 failure = "0.1"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-hal = "0.1.0"
 rendy-factory = { version = "0.1", path = "../factory" }
 shaderc = "0.3"

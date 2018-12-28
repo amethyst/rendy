@@ -202,21 +202,21 @@ where
         let set_layouts = sets[0].as_ref();
         assert_eq!(set_layouts.len(), 1);
 
-        let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(
+        let mut descriptor_pool = unsafe { gfx_hal::Device::create_descriptor_pool(
             factory.device(),
             1,
             std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
                 ty: gfx_hal::pso::DescriptorType::StorageBuffer,
                 count: 1,
             }),
-        ).unwrap();
+        ) }.unwrap();
 
-        let descriptor_set = gfx_hal::pso::DescriptorPool::allocate_set(
+        let descriptor_set = unsafe { gfx_hal::pso::DescriptorPool::allocate_set(
             &mut descriptor_pool,
             &set_layouts[0],
-        ).unwrap();
+        ) }.unwrap();
 
-        gfx_hal::Device::write_descriptor_sets(
+        unsafe { gfx_hal::Device::write_descriptor_sets(
             factory.device(),
             std::iter::once(gfx_hal::pso::DescriptorSetWrite {
                 set: &descriptor_set,
@@ -224,7 +224,7 @@ where
                 array_offset: 0,
                 descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(posvelbuff.raw(), Some(0) .. Some(posvelbuff.size() as u64))),
             }),
-        );
+        ) }
 
         QuadsRenderPass {
             indirect,
@@ -344,7 +344,7 @@ where
         log::trace!("Load shader module '{:#?}'", *bounce_compute);
         let module = bounce_compute.module(factory)?;
 
-        let set_layout = gfx_hal::Device::create_descriptor_set_layout(
+        let set_layout = unsafe { gfx_hal::Device::create_descriptor_set_layout(
             factory.device(),
             std::iter::once(gfx_hal::pso::DescriptorSetLayoutBinding {
                 binding: 0,
@@ -354,15 +354,15 @@ where
                 immutable_samplers: false,
             }),
             std::iter::empty::<B::Sampler>(),
-        )?;
+        ) }?;
 
-        let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
+        let pipeline_layout = unsafe { gfx_hal::Device::create_pipeline_layout(
             factory.device(),
             std::iter::once(&set_layout),
             std::iter::empty::<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
-        )?;
+        ) }?;
 
-        let pipeline = gfx_hal::Device::create_compute_pipeline(
+        let pipeline = unsafe { gfx_hal::Device::create_compute_pipeline(
             factory.device(),
             &gfx_hal::pso::ComputePipelineDesc {
                 shader: gfx_hal::pso::EntryPoint {
@@ -375,7 +375,7 @@ where
                 parent: gfx_hal::pso::BasePipeline::None,
             },
             None,
-        )?;
+        ) }?;
 
         let (descriptor_pool, descriptor_set/*, buffer_view*/) = unsafe {
             let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(

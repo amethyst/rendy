@@ -261,17 +261,18 @@ where
                     .sets
                     .into_iter()
                     .map(|set| {
-                        gfx_hal::Device::create_descriptor_set_layout(
+                        unsafe { gfx_hal::Device::create_descriptor_set_layout(
                             factory.device(),
                             set.bindings,
                             std::iter::empty::<B::Sampler>(),
-                        )
+                        ) }
                     }).collect::<Result<Vec<_>, _>>()?;
-                let pipeline_layout = gfx_hal::Device::create_pipeline_layout(
-                    factory.device(),
-                    &set_layouts,
-                    layout.push_constants,
-                )?;
+                let pipeline_layout = unsafe {
+                    gfx_hal::Device::create_pipeline_layout(
+                        factory.device(),
+                        &set_layouts,
+                        layout.push_constants,
+                    ) }?;
                 Ok((pipeline_layout, set_layouts))
             }).collect::<Result<Vec<_>, failure::Error>>()?
             .into_iter()
@@ -358,12 +359,13 @@ where
                 preserves: &[],
             };
 
-            let result = gfx_hal::Device::create_render_pass(
-                factory.device(),
-                attachments,
-                Some(subpass),
-                std::iter::empty::<gfx_hal::pass::SubpassDependency>(),
-            ).unwrap();
+            let result = unsafe {
+                gfx_hal::Device::create_render_pass(
+                    factory.device(),
+                    attachments,
+                    Some(subpass),
+                    std::iter::empty::<gfx_hal::pass::SubpassDependency>(),
+                ) }.unwrap();
 
             log::trace!("RenderPass instance created for '{}'", R::name());
             result
@@ -416,14 +418,14 @@ where
                     layers: 0..1,
                 };
 
-                gfx_hal::Device::create_image_view(
+                unsafe { gfx_hal::Device::create_image_view(
                     factory.device(),
                     image.image.raw(),
                     view_kind,
                     image.image.format(),
                     gfx_hal::format::Swizzle::NO,
                     subresource_range.clone(),
-                )
+                ) }
             }).collect::<Result<_, _>>()?;
 
         let extent = extent.unwrap_or(gfx_hal::image::Extent {
@@ -503,19 +505,20 @@ where
                 });
 
             let pipelines =
-                gfx_hal::Device::create_graphics_pipelines(factory.device(), descs, None)
+                unsafe { gfx_hal::Device::create_graphics_pipelines(factory.device(), descs, None) }
                     .into_iter()
                     .collect::<Result<Vec<_>, _>>()?;
             log::trace!("Graphics pipeline created for '{}'", R::name());
             pipelines
         };
 
-        let framebuffer = gfx_hal::Device::create_framebuffer(
-            factory.device(),
-            &render_pass,
-            &attachment_views,
-            extent,
-        )?;
+        let framebuffer = unsafe {
+            gfx_hal::Device::create_framebuffer(
+                factory.device(),
+                &render_pass,
+                &attachment_views,
+                extent,
+            ) }?;
 
         let mut command_pool = factory.create_command_pool(family)?
                 .with_capability()

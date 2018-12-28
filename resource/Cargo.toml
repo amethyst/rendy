@@ -5,7 +5,7 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx" }
+gfx-hal = "0.1.0"
 crossbeam-channel = "0.2"
 derivative = "1.0"
 failure = "0.1"
