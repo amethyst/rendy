@@ -29,8 +29,7 @@ mod gfx_backend_empty {
 #[cfg(feature = "metal")]
 mod gfx_backend_metal {
     pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
-        let nsview = winit::os::macos::WindowExt::get_nsview(window);
-        instance.create_surface_from_nsview(nsview)
+        instance.create_surface(window)
     }
 }
 
