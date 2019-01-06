@@ -202,6 +202,17 @@ where
             usage,
         })
     }
+
+    /// Get a reference to the internal window.
+    pub fn window(&self) -> &winit::Window {
+        &self.window
+    }
+
+    /// Get a mutable reference to the internal window.
+    // TODO: Remove unsafe and use Pin when it is stabilized
+    pub unsafe fn window_mut(&mut self) -> &mut winit::Window {
+        &mut self.window
+    }
 }
 
 /// Rendering target bound to window.
@@ -300,6 +311,17 @@ where
         Ok(NextImages {
             targets: std::iter::once((&*self, index)).collect(),
         })
+    }
+
+    /// Get a reference to the internal window.
+    pub fn window(&self) -> &winit::Window {
+        &self.window
+    }
+
+    /// Get a mutable reference to the internal window.
+    // TODO: Remove unsafe and use Pin when it is stabilized
+    pub unsafe fn window_mut(&mut self) -> &mut winit::Window {
+        &mut self.window
     }
 }
 
