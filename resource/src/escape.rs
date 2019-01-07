@@ -159,11 +159,11 @@ impl<T> Terminal<T> {
     // }
 
     /// Get iterator over values from dropped `Escape` instances that was created by this `Terminal`.
-    pub fn drain<'a>(&'a mut self) -> impl Iterator<Item = T> + 'a {
-        repeat(()).scan((), move |&mut (), ()| {
+    pub fn drain(&mut self) -> impl Iterator<Item = T> + '_ {
+        repeat(()).scan(&mut self.receiver, move |receiver, ()| {
             // trace!("Drain escape");
-            if !self.receiver.is_empty() {
-                self.receiver.recv()
+            if !receiver.is_empty() {
+                receiver.recv()
             } else {
                 None
             }

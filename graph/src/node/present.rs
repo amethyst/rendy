@@ -2,10 +2,10 @@
 
 use crate::{
     chain::QueueId,
-    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit},
+    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit, FamilyId},
     factory::Factory,
     frame::Frames,
-    wsi::{Surface, Target},
+    wsi::{Surface, Target, Backbuffer},
     node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess, gfx_acquire_barriers, gfx_release_barriers},
 };
 
@@ -61,7 +61,7 @@ where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<gfx_hal::queue::QueueFamilyId> {
+    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
         families.get(0).map(Family::index)
     }
 
@@ -78,7 +78,7 @@ where
         self: Box<Self>,
         factory: &mut Factory<B>,
         _aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
@@ -90,7 +90,7 @@ where
         let mut pool = factory.create_command_pool(family)?;
 
         let per_image = match target.backbuffer() {
-            gfx_hal::Backbuffer::Images(target_images) => {
+            Backbuffer::Images(target_images) => {
                 let buffers = pool.allocate_buffers(target_images.len());
                 target_images.iter().zip(buffers).map(|(target_image, buf_initial)| {
                     let mut buf_recording = buf_initial.begin::<MultiShot<_>, _>();
@@ -107,7 +107,7 @@ where
                     encoder.copy_image(
                         input_image.image.raw(),
                         input_image.layout,
-                        &target_image,
+                        target_image.raw(),
                         gfx_hal::image::Layout::TransferDstOptimal,
                         Some(gfx_hal::command::ImageCopy {
                             src_subresource: gfx_hal::image::SubresourceLayers {
@@ -123,8 +123,8 @@ where
                             },
                             dst_offset: gfx_hal::image::Offset::ZERO,
                             extent: gfx_hal::image::Extent {
-                                width: target.extent().width,
-                                height: target.extent().height,
+                                width: target_image.kind().extent().width,
+                                height: target_image.kind().extent().height,
                                 depth: 1,
                             },
                         }),
@@ -187,11 +187,11 @@ where
 
             family.submit(
                 qid.index(),
-                Some(Submission {
-                    waits: waits.iter().cloned().chain(Some((&for_image.acquire, gfx_hal::pso::PipelineStage::TRANSFER))),
-                    signals: signals.iter().cloned().chain(Some(&for_image.release)),
-                    submits: Some(&for_image.submit),
-                }),
+                Some(
+                    Submission::new(Some(&for_image.submit))
+                        .wait(waits.iter().cloned().chain(Some((&for_image.acquire, gfx_hal::pso::PipelineStage::TRANSFER))))
+                        .signal(signals.iter().cloned().chain(Some(&for_image.release)))
+                ),
                 fence,
             );
 

@@ -5,18 +5,18 @@ mod usage;
 pub use self::usage::*;
 
 use crate::{
-    escape::{Escape, KeepAlive},
-    memory::{Block, MemoryBlock},
+    escape::{Escape, KeepAlive, Terminal},
+    memory::MemoryBlock,
 };
 
 /// Image info.
 #[derive(Clone, Copy, Debug)]
 pub struct Info {
     /// Kind of the image.
-    pub kind: gfx_hal::image::Kind, 
+    pub kind: gfx_hal::image::Kind,
 
     /// Image mip-level count.
-    pub levels: gfx_hal::image::Level, 
+    pub levels: gfx_hal::image::Level,
 
     /// Image format.
     pub format: gfx_hal::format::Format, 
@@ -39,40 +39,70 @@ pub struct Info {
 /// `B` - raw image type.
 #[derive(Debug)]
 pub struct Image<B: gfx_hal::Backend> {
-    pub(super) escape: Escape<Inner<B>>,
-    pub(super) info: Info,
+    escape: Escape<Inner<B>>,
+    info: Info,
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
-pub(super) struct Inner<B: gfx_hal::Backend> {
-    pub(super) block: MemoryBlock<B>,
-    pub(super) raw: B::Image,
-    pub(super) relevant: relevant::Relevant,
+pub struct Inner<B: gfx_hal::Backend> {
+    block: Option<MemoryBlock<B>>,
+    raw: B::Image,
+    relevant: relevant::Relevant,
+}
+
+impl<B> Inner<B>
+where
+    B: gfx_hal::Backend,
+{
+    #[doc(hidden)]
+    pub fn dispose(self) -> (B::Image, Option<MemoryBlock<B>>) {
+        self.relevant.dispose();
+        (self.raw, self.block)
+    }
 }
 
 impl<B> Image<B>
 where
     B: gfx_hal::Backend,
 {
+    /// # Disclaimer
+    /// 
+    /// This function is designed to use by other rendy crates.
+    /// User experienced enough to use it properly can find it without documentation.
+    /// 
+    /// # Safety
+    /// 
+    /// `info` must match information about raw image.
+    /// `block` if provided must be the one bound to the raw image.
+    /// `terminal` will receive image and memory block upon drop, it must free image and memory properly.
+    /// 
+    #[doc(hidden)]
+    pub unsafe fn new(info: Info, raw: B::Image, block: Option<MemoryBlock<B>>, terminal: &Terminal<Inner<B>>) -> Self {
+        Image {
+            escape: terminal.escape(Inner {
+                block,
+                raw,
+                relevant: relevant::Relevant,
+            }),
+            info,
+        }
+    }
+
+    /// # Disclaimer
+    /// 
+    /// This function is designed to use by other rendy crates.
+    /// User experienced enough to use it properly can find it without documentation.
+    #[doc(hidden)]
+    pub(super) fn unescape(self) -> Option<Inner<B>> {
+        Escape::dispose(self.escape)
+    }
+
     /// Creates [`KeepAlive`] handler to extend image lifetime.
     /// 
     /// [`KeepAlive`]: struct.KeepAlive.html
     pub fn keep_alive(&self) -> KeepAlive {
         Escape::keep_alive(&self.escape)
-    }
-
-    /// Get images memory [`Block`].
-    /// 
-    /// [`Block`]: ../memory/trait.Block.html
-    pub fn block(&self) -> &impl Block<B> {
-        &self.escape.block
-    }
-
-    /// Get images memory [`Block`].
-    /// 
-    /// [`Block`]: ../memory/trait.Block.html
-    pub fn block_mut(&mut self) -> &mut impl Block<B> {
-        &mut self.escape.block
     }
 
     /// Get raw image handle.

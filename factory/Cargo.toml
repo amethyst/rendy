@@ -28,6 +28,7 @@ gfx-backend-metal = { version = "0.1.0", optional = true }
 gfx-backend-vulkan = { version = "0.1.0", optional = true }
 
 derivative = "1.0"
+either = "1.0"
 failure = "0.1"
 log = "0.4"
 parking_lot = "0.7"

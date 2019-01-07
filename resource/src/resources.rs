@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use crate::{
     buffer,
-    escape::{Escape, Terminal},
+    escape::Terminal,
     image,
     memory::{Block, Heaps},
 };
@@ -66,23 +66,20 @@ where
             device.bind_buffer_memory(block.memory(), block.range().start, &mut buf)
         }?;
 
-        Ok(buffer::Buffer {
-            escape: self.buffers.escape(buffer::Inner {
-                raw: buf,
-                block,
-                relevant: relevant::Relevant,
-            }),
-            info: buffer::Info {
+        Ok(unsafe { buffer::Buffer::new(buffer::Info {
                 size,
                 usage: usage.flags(),
-            }
-        })
+            },
+            buf,
+            block,
+            &self.buffers,
+        )})
     }
 
     /// Destroy buffer.
     /// Buffer can be dropped but this method reduces overhead.
     pub fn destroy_buffer(&mut self, buffer: buffer::Buffer<B>) {
-        Escape::dispose(buffer.escape)
+        buffer.unescape()
             .map(|inner| self.dropped_buffers.push(inner));
     }
 
@@ -96,9 +93,9 @@ where
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
     ) {
-        device.destroy_buffer(inner.raw);
-        heaps.free(device, inner.block);
-        inner.relevant.dispose();
+        let (raw, block) = inner.dispose();
+        device.destroy_buffer(raw);
+        heaps.free(device, block);
     }
 
     /// Create an image and bind to the memory that support intended usage.
@@ -114,6 +111,12 @@ where
         view_caps: gfx_hal::image::ViewCapabilities,
         usage: impl image::Usage,
     ) -> Result<image::Image<B>, failure::Error> {
+        assert!(
+            levels <= kind.num_levels(),
+            "Number of mip leves ({}) cannot be greater than {} for given kind {:?}",
+            levels, kind.num_levels(), kind
+        );
+
         #[derive(Debug)] struct CreateImage<'a> {
             align: &'a dyn std::fmt::Debug,
             kind: &'a dyn std::fmt::Debug,
@@ -158,13 +161,8 @@ where
             device.bind_image_memory(block.memory(), block.range().start, &mut img)
         }?;
 
-        Ok(image::Image {
-            escape: self.images.escape(image::Inner {
-                raw: img,
-                block,
-                relevant: relevant::Relevant,
-            }),
-            info: image::Info {
+        Ok(unsafe { image::Image::new(
+            image::Info {
                 kind,
                 levels,
                 format,
@@ -172,7 +170,10 @@ where
                 view_caps,
                 usage: usage.flags(),
             },
-        })
+            img,
+            Some(block),
+            &self.images,
+        )})
     }
 
     /// Destroy image.
@@ -181,7 +182,7 @@ where
         &mut self,
         image: image::Image<B>,
     ) {
-        Escape::dispose(image.escape)
+        image.unescape()
             .map(|inner| self.dropped_images.push(inner));
     }
 
@@ -195,9 +196,9 @@ where
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
     ) {
-        device.destroy_image(inner.raw);
-        heaps.free(device, inner.block);
-        inner.relevant.dispose();
+        let (raw, block) = inner.dispose();
+        device.destroy_image(raw);
+        block.map(|block| heaps.free(device, block));
     }
 
     /// Recycle dropped resources.

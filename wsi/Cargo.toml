@@ -11,6 +11,8 @@ metal = ["gfx-backend-metal"]
 vulkan = ["gfx-backend-vulkan"]
 
 [dependencies]
+rendy-resource = { path = "../resource" }
+
 gfx-hal = "0.1.0"
 gfx-backend-empty = { version = "0.1.0", optional = true }
 gfx-backend-dx12 = { version = "0.1.0", optional = true }

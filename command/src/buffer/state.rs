@@ -21,6 +21,13 @@ pub struct ExecutableState<U = MultiShot, P = OutsideRenderPass>(pub U, pub P);
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PendingState<N = ExecutableState>(pub N);
 
+/// Command buffer in pending state are submitted to the device.
+/// Command buffer in pending state must never be invalidated or reset because device may read it at the moment.
+/// Proving device is done with buffer requires nontrivial strategies.
+/// Therefore moving buffer from pending state requires `unsafe` method.
+/// This type alias can be used for one-shot command buffers.
+pub type PendingOnceState = PendingState<InvalidState>;
+
 /// One-shot buffers move to invalid state after execution.
 /// Invalidating any resource referenced in any command recorded to the buffer implicitly move it to the invalid state.
 #[derive(Clone, Copy, Debug, Default)]

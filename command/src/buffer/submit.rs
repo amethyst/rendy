@@ -1,9 +1,12 @@
 
-use super::{
-    CommandBuffer,
-    level::PrimaryLevel,
-    state::{ExecutableState, PendingState, InvalidState},
-    usage::{OneShot, MultiShot, SimultaneousUse, NoSimultaneousUse, OutsideRenderPass},
+use {
+    super::{
+        CommandBuffer,
+        level::PrimaryLevel,
+        state::{ExecutableState, PendingState, InvalidState},
+        usage::{OneShot, MultiShot, SimultaneousUse, NoSimultaneousUse, OutsideRenderPass},
+    },
+    crate::family::FamilyId,
 };
 
 /// Structure contains command buffer ready for submission.
@@ -12,7 +15,7 @@ use super::{
 pub struct Submit<B: gfx_hal::Backend, S = NoSimultaneousUse, L = PrimaryLevel, P = OutsideRenderPass> {
     #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
-    family: gfx_hal::queue::QueueFamilyId,
+    family: FamilyId,
     simultaneous: S,
     level: L,
     pass_continue: P,
@@ -22,7 +25,7 @@ unsafe impl<B, S, L, P> Send for Submit<B, S, L, P>
 where
     B: gfx_hal::Backend,
     B::CommandBuffer: Send + Sync,
-    gfx_hal::queue::QueueFamilyId: Send,
+    FamilyId: Send,
     S: Send,
     L: Send,
     P: Send,
@@ -42,7 +45,7 @@ where
 /// or executed as part of primary buffers (in case of `Submittable<B, SecondaryLevel>`).
 pub unsafe trait Submittable<B: gfx_hal::Backend, L = PrimaryLevel, P = OutsideRenderPass> {
     /// Get family that this submittable is belong to.
-    fn family(&self) -> gfx_hal::queue::QueueFamilyId;
+    fn family(&self) -> FamilyId;
 
     /// Get raw command buffer.
     /// This function is intended for submitting command buffer into raw queue.
@@ -60,7 +63,7 @@ unsafe impl<B, S, L, P> Submittable<B, L, P> for Submit<B, S, L, P>
 where
     B: gfx_hal::Backend,
 {
-    fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    fn family(&self) -> FamilyId {
         self.family
     }
 
@@ -73,7 +76,7 @@ unsafe impl<'a, B, L, P> Submittable<B, L, P> for &'a Submit<B, SimultaneousUse,
 where
     B: gfx_hal::Backend,
 {
-    fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    fn family(&self) -> FamilyId {
         self.family
     }
 

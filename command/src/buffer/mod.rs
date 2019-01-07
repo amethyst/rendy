@@ -9,6 +9,7 @@ mod usage;
 
 use crate::{
     capability::{Capability, Supports},
+    family::FamilyId,
 };
 
 pub use self::{
@@ -32,7 +33,7 @@ pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndi
     state: S,
     level: L,
     reset: R,
-    family: gfx_hal::queue::QueueFamilyId,
+    family: FamilyId,
     relevant: relevant::Relevant,
 }
 
@@ -44,7 +45,7 @@ where
     S: Send,
     L: Send,
     R: Send,
-    gfx_hal::queue::QueueFamilyId: Send,
+    FamilyId: Send,
     relevant::Relevant: Send,
 {}
 
@@ -56,7 +57,7 @@ where
     S: Sync,
     L: Sync,
     R: Sync,
-    gfx_hal::queue::QueueFamilyId: Sync,
+    FamilyId: Sync,
     relevant::Relevant: Sync,
 {}
 
@@ -80,7 +81,7 @@ where
         state: S,
         level: L,
         reset: R,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
     ) -> Self {
         CommandBuffer {
             raw: std::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(raw))),
@@ -119,7 +120,7 @@ where
     }
 
     /// Get buffers family.
-    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn family(&self) -> FamilyId {
         self.family
     }
 
