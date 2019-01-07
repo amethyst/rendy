@@ -221,7 +221,9 @@ where
     /// for each command queue where [`Submit`] instance (created from this `CommandBuffer`)
     /// was submitted at least one [`Fence`] submitted within same `Submission` or later in unset state was `set`.
     /// 
-    /// If this 
+    /// If this is `Secondary` buffer then
+    /// all primary command buffers where [`Submit`] instance (created from this `CommandBuffer`)
+    /// was submitted must be complete.
     ///
     /// [`Submit`]: struct.Submit
     /// [waiting]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
