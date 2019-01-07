@@ -175,6 +175,8 @@ where
 
 impl Drop for DedicatedAllocator {
     fn drop(&mut self) {
-        assert_eq!(self.used, 0);
+        if self.used > 0 {
+            log::error!("Not all allocation from DedicatedAllocator was freed");
+        }
     }
 }
