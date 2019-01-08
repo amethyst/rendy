@@ -4,6 +4,7 @@
 //! 
 //! 
 
+use rendy_command as command;
 use rendy_factory as factory;
 use rendy_resource as resource;
 use rendy_util as util;

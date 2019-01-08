@@ -15,8 +15,8 @@ obj = ["wavefront_obj"]
 serde-1 = ["serde", "gfx-hal/serde", "smallvec/serde", "rendy-factory/serde"]
 
 [dependencies]
-rendy-memory = { path = "../memory" }
 rendy-command = { path = "../command" }
+rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
 rendy-factory = { path = "../factory" }
 rendy-util = { path = "../util" }

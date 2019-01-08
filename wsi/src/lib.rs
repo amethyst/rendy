@@ -19,6 +19,11 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
+use rendy_resource::{
+    escape::Terminal,
+    image::{Image, Info, Inner},
+};
+
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
     pub(super) fn create_surface(instance: &gfx_backend_empty::Instance, window: &winit::Window) -> gfx_backend_empty::Surface {
@@ -90,7 +95,7 @@ fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn std::any::Any>, window
 
 /// Rendering target bound to window.
 pub struct Surface<B: gfx_hal::Backend> {
-    window: winit::Window,
+    window: std::sync::Arc<winit::Window>,
     raw: B::Surface,
 }
 
@@ -112,7 +117,7 @@ where
     /// Create surface for the window.
     pub fn new(
         instance: &Box<dyn std::any::Any>,
-        window: winit::Window,
+        window: std::sync::Arc<winit::Window>,
     ) -> Self {
         let raw = create_surface::<B>(instance, &window);
         Surface {
@@ -127,7 +132,7 @@ where
     }
 
     /// Cast surface into render target.
-    pub fn into_target(
+    pub unsafe fn into_target(
         mut self,
         physical_device: &B::PhysicalDevice,
         device: &impl gfx_hal::Device<B>,
@@ -191,15 +196,43 @@ where
             None,
         ) }?;
 
+        let (backbuffer, terminal) = match backbuffer {
+            gfx_hal::Backbuffer::Images(images) => {
+                let terminal = Terminal::new();
+                let backbuffer = Backbuffer::Images(images.into_iter().map(|image| unsafe {
+                    Image::new(
+                        Info {
+                            kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
+                            levels: 1,
+                            format,
+                            tiling: gfx_hal::image::Tiling::Optimal,
+                            view_caps: gfx_hal::image::ViewCapabilities::empty(),
+                            usage,
+                        },
+                        image,
+                        None,
+                        &terminal,
+                    )
+                }).collect());
+                (backbuffer, Some(terminal))
+            },
+            gfx_hal::Backbuffer::Framebuffer(raw) => {
+                let backbuffer = Backbuffer::Framebuffer {
+                    raw,
+                    format,
+                    extent,
+                };
+                (backbuffer, None)
+            }
+        };
+
         Ok(Target {
             relevant: relevant::Relevant,
             window: self.window,
             surface: self.raw,
             swapchain,
             backbuffer,
-            format,
-            extent,
-            usage,
+            terminal,
         })
     }
 
@@ -207,25 +240,39 @@ where
     pub fn window(&self) -> &winit::Window {
         &self.window
     }
+}
 
-    /// Get a mutable reference to the internal window.
-    // TODO: Remove unsafe and use Pin when it is stabilized
-    pub unsafe fn window_mut(&mut self) -> &mut winit::Window {
-        &mut self.window
-    }
+/// Backbuffer of the `Target`.
+/// Either collection of `Image`s
+/// or framebuffer.
+#[derive(Debug)]
+pub enum Backbuffer<B: gfx_hal::Backend> {
+    /// Collection of images that in the `Target`'s swapchain.
+    Images(Vec<Image<B>>),
+
+    /// Framebuffer of the `Target`.
+    Framebuffer {
+        /// Raw framebuffer.
+        /// Can be used with any render-pass.
+        raw: B::Framebuffer,
+
+        /// Formats of image in framebuffer.
+        format: gfx_hal::format::Format,
+
+        /// Extent of image in framebuffer.
+        extent: gfx_hal::window::Extent2D,
+    },
 }
 
 /// Rendering target bound to window.
 /// With swapchain created.
 pub struct Target<B: gfx_hal::Backend> {
-    relevant: relevant::Relevant,
-    window: winit::Window,
     surface: B::Surface,
     swapchain: B::Swapchain,
-    backbuffer: gfx_hal::Backbuffer<B>,
-    format: gfx_hal::format::Format,
-    extent: gfx_hal::window::Extent2D,
-    usage: gfx_hal::image::Usage,
+    backbuffer: Backbuffer<B>,
+    terminal: Option<Terminal<Inner<B>>>,
+    window: std::sync::Arc<winit::Window>,
+    relevant: relevant::Relevant,
 }
 
 impl<B> std::fmt::Debug for Target<B>
@@ -233,19 +280,10 @@ where
     B: gfx_hal::Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut debug = fmt.debug_struct("Target");
-
-        debug.field("window", &self.window.id());
-
-        match self.backbuffer {
-            gfx_hal::Backbuffer::Images(ref images) => debug.field("images", &images.len()),
-            gfx_hal::Backbuffer::Framebuffer(_) => debug.field("framebuffer", &()),
-        };
-
-        debug.field("format", &self.format)
-          .field("extent", &self.extent)
-          .field("usage", &self.usage)
-          .finish()
+        fmt.debug_struct("Target")
+            .field("window", &self.window.id())
+            .field("backbuffer", &self.backbuffer)
+            .finish()
     }
 }
 
@@ -258,11 +296,12 @@ where
     /// # Safety
     ///
     /// Swapchain must be not in use.
-    pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) -> winit::Window {
+    pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) {
+        drop(self.backbuffer);
+        self.terminal.map(|mut terminal| terminal.drain().map(Inner::dispose).for_each(drop));
         self.relevant.dispose();
         device.destroy_swapchain(self.swapchain);
         drop(self.surface);
-        self.window
     }
 
     /// Get raw surface handle.
@@ -284,23 +323,8 @@ where
         &mut self.swapchain
     }
 
-    /// Get image kind of the target images.
-    pub fn kind(&self) -> gfx_hal::image::Kind {
-        gfx_hal::image::Kind::D2(self.extent.width, self.extent.height, 1, 1)
-    }
-
-    /// Get target current extent.
-    pub fn extent(&self) -> gfx_hal::window::Extent2D {
-        self.extent
-    }
-
-    /// Get target current format.
-    pub fn format(&self) -> gfx_hal::format::Format {
-        self.format
-    }
-
     /// Get raw handlers for the swapchain images.
-    pub fn backbuffer(&self) -> &gfx_hal::Backbuffer<B> {
+    pub fn backbuffer(&self) -> &Backbuffer<B> {
         &self.backbuffer
     }
 
@@ -316,12 +340,6 @@ where
     /// Get a reference to the internal window.
     pub fn window(&self) -> &winit::Window {
         &self.window
-    }
-
-    /// Get a mutable reference to the internal window.
-    // TODO: Remove unsafe and use Pin when it is stabilized
-    pub unsafe fn window_mut(&mut self) -> &mut winit::Window {
-        &mut self.window
     }
 }
 

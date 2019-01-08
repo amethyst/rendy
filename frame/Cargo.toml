@@ -10,7 +10,7 @@ either = "1.5"
 gfx-hal = "0.1.0"
 failure = "0.1"
 log = "0.4"
-relevant = "0.2"
+relevant = "0.3"
 smallvec = "0.6"
 rendy-command = { path = "../command" }
 rendy-factory = { path = "../factory" }

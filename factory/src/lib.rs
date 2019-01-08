@@ -26,11 +26,13 @@ use rendy_wsi as wsi;
 
 mod factory;
 mod config;
+mod upload;
 
 pub use crate::{
     config::{
         BasicHeapsConfigure, Config, HeapsConfigure, OneGraphicsQueue, QueuesConfigure,
         SavedHeapsConfig, SavedQueueConfig,
     },
-    factory::Factory,
+    factory::{Factory},
+    upload::{ImageState, ImageStateOrLayout, BufferState},
 };

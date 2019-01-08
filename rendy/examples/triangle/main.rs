@@ -232,7 +232,7 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window);
+    let surface = factory.create_surface(window.into());
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 

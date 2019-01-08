@@ -6,17 +6,97 @@ use crate::{
     pool::CommandPool,
 };
 
+/// Family id.
+pub type FamilyId = gfx_hal::queue::QueueFamilyId;
+
+/// Queue id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct QueueId(pub FamilyId, pub usize);
+
+impl QueueId {
+    /// Get family of the queue.
+    pub fn family(&self) -> FamilyId {
+        self.0
+    }
+
+    /// Get index of the queue.
+    pub fn index(&self) -> usize {
+        self.1
+    }
+}
+
 /// Command queue submission.
 #[derive(Debug)]
-pub struct Submission<W, C, S> {
+pub struct Submission<B, W, C, S> {
     /// Iterator over semaphores with stage flag to wait on.
     pub waits: W,
+
+    /// Iterator over submittables.
+    pub submits: C,
 
     /// Iterator over semaphores to signal.
     pub signals: S,
 
-    /// Iterator over submittables.
-    pub submits: C,
+    /// Marker type for submission backend.
+    pub marker: std::marker::PhantomData<fn() -> B>,
+}
+
+#[allow(unused)] type NoWaits<B> = std::iter::Empty<(&'static <B as gfx_hal::Backend>::Semaphore, gfx_hal::pso::PipelineStage)>;
+#[allow(unused)] type NoSignals<B> = std::iter::Empty<&'static <B as gfx_hal::Backend>::Semaphore>;
+
+impl<B, C> Submission<B, NoWaits<B>, C, NoSignals<B>>
+where
+    B: gfx_hal::Backend,
+    C: IntoIterator,
+    C::Item: Submittable<B>,
+{
+    /// Setup new submission from iterator over submittables.
+    pub fn new(submits: C) -> Self {
+        Submission {
+            waits: std::iter::empty(),
+            signals: std::iter::empty(),
+            submits,
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<B, C, S> Submission<B, NoWaits<B>, C, S>
+where
+    B: gfx_hal::Backend,
+{
+    /// Add waits to the submission.
+    pub fn wait<'a, W, E>(self, waits: W) -> Submission<B, W, C, S>
+    where
+        W: IntoIterator<Item = (&'a E, gfx_hal::pso::PipelineStage)>,
+        E: std::borrow::Borrow<B::Semaphore> + 'a,
+    {
+        Submission {
+            waits,
+            submits: self.submits,
+            signals: self.signals,
+            marker: self.marker,
+        }
+    }
+}
+
+impl<B, W, C> Submission<B, W, C, NoSignals<B>>
+where
+    B: gfx_hal::Backend,
+{
+    /// Add signals to the submission.
+    pub fn signal<'a, S, E>(self, signals: S) -> Submission<B, W, C, S>
+    where
+        S: IntoIterator<Item = &'a E>,
+        E: std::borrow::Borrow<B::Semaphore> + 'a,
+    {
+        Submission {
+            waits: self.waits,
+            submits: self.submits,
+            signals,
+            marker: self.marker,
+        }
+    }
 }
 
 /// Family of the command queues.
@@ -25,7 +105,7 @@ pub struct Submission<W, C, S> {
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Family<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
-    index: gfx_hal::queue::QueueFamilyId,
+    index: FamilyId,
     #[derivative(Debug = "ignore")] queues: Vec<B::CommandQueue>,
     // min_image_transfer_granularity: gfx_hal::image::Extent,
     capability: C,
@@ -46,7 +126,7 @@ where
     /// `properties` must be the properties retuned for queue family from physical device.
     pub unsafe fn from_device(
         queues: &mut gfx_hal::queue::Queues<B>,
-        index: gfx_hal::queue::QueueFamilyId,
+        index: FamilyId,
         count: usize,
         family: &impl gfx_hal::queue::QueueFamily,
     ) -> Self {
@@ -69,7 +149,7 @@ where
     B: gfx_hal::Backend,
 {
     /// Get id of the family.
-    pub fn index(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn index(&self) -> FamilyId {
         self.index
     }
 
@@ -87,6 +167,7 @@ where
     pub unsafe fn submit<'a>(&mut self,
         queue: usize,
         submissions: impl IntoIterator<Item = Submission<
+            B,
             impl IntoIterator<Item = (&'a (impl std::borrow::Borrow<B::Semaphore> + 'a), gfx_hal::pso::PipelineStage)>,
             impl IntoIterator<Item = impl Submittable<B>>,
             impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
@@ -113,7 +194,7 @@ where
                         command_buffers: submission.submits.into_iter().map(|submit| {
                             assert_eq!(submit.family(), index);
                             unsafe {
-                                &*submit.raw()
+                                submit.raw()
                             }
                         }),
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
@@ -211,7 +292,7 @@ where
 /// `properties` must contain properties retuned for queue family from physical device for each family index yielded by `families`.
 pub unsafe fn families_from_device<B>(
     queues: &mut gfx_hal::queue::Queues<B>,
-    families: impl IntoIterator<Item = (gfx_hal::queue::QueueFamilyId, usize)>,
+    families: impl IntoIterator<Item = (FamilyId, usize)>,
     queue_types: &[impl gfx_hal::queue::QueueFamily],
 ) -> Vec<Family<B>>
 where

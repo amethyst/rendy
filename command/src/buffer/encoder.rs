@@ -7,7 +7,10 @@ use {
         usage::RenderPassContinue,
         CommandBuffer,
     },
-    crate::capability::{Supports, Graphics, Transfer, Compute, Capability},
+    crate::{
+        capability::{Supports, Graphics, Transfer, Compute, Capability},
+        family::FamilyId,
+    },
 };
 
 /// Draw command for indirect draw.
@@ -47,7 +50,7 @@ pub struct DispatchCommand {
 pub struct EncoderCommon<'a, B: gfx_hal::Backend, C> {
     #[derivative(Debug = "ignore")] raw: &'a mut B::CommandBuffer,
     capability: C,
-    family: gfx_hal::queue::QueueFamilyId,
+    family: FamilyId,
 }
 
 impl<'a, B, C> EncoderCommon<'a, B, C>
@@ -380,7 +383,7 @@ where
 				self.inner.raw,
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
-                    &*submit.raw()
+                    submit.raw()
                 })
 			)
 		}
@@ -523,7 +526,7 @@ where
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
                     unsafe {
-                        &*submit.raw()
+                        submit.raw()
                     }
                 })
 			)
@@ -541,6 +544,55 @@ where
         L: Level,
     {
         self.level
+    }
+
+    /// Copy buffer regions.
+    /// `src` and `dst` can be the same buffer or alias in memory.
+    /// But regions must not overlap.
+    /// Otherwise resulting values are undefined.
+    pub fn copy_buffer(
+        &mut self,
+        src: &B::Buffer,
+        dst: &B::Buffer,
+        regions: impl IntoIterator<Item = gfx_hal::command::BufferCopy>,
+    )
+    where
+        C: Supports<Transfer>,
+    {
+        self.capability.assert();
+
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::copy_buffer(
+                self.inner.raw,
+                src,
+                dst,
+                regions,
+            )
+        }
+    }
+
+    /// Copy buffer region to image subresource range.
+    pub fn copy_buffer_to_image(
+        &mut self, 
+        src: &B::Buffer, 
+        dst: &B::Image, 
+        dst_layout: gfx_hal::image::Layout,
+        regions: impl IntoIterator<Item = gfx_hal::command::BufferImageCopy>
+    )
+    where
+        C: Supports<Transfer>,
+    {
+        self.capability.assert();
+
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::copy_buffer_to_image(
+                self.inner.raw,
+                src,
+                dst,
+                dst_layout,
+                regions,
+            )
+        }
     }
 
     /// Copy image regions.
@@ -615,12 +667,12 @@ where
     /// Get encoder that will encode commands into this command buffer.
     pub fn encoder(&mut self) -> Encoder<'_, B, C, L> {
         Encoder {
+            level: self.level,
             inner: EncoderCommon {
-                raw: &mut self.raw,
                 capability: self.capability,
                 family: self.family,
+                raw: self.raw(),
             },
-            level: self.level,
         }
     }
 }
@@ -635,8 +687,8 @@ where
         RenderPassEncoder {
             inner: EncoderCommon {
                 capability: self.capability.supports().unwrap(),
-                raw: &mut self.raw,
                 family: self.family,
+                raw: self.raw(),
             },
         }
     }

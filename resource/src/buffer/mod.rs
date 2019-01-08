@@ -5,8 +5,8 @@ mod usage;
 pub use self::usage::*;
 
 use crate::{
-    escape::{Escape, KeepAlive},
-    memory::{Block, MemoryBlock},
+    escape::{Escape, KeepAlive, Terminal},
+    memory::{Block, MemoryBlock, MappedRange},
 };
 
 /// Buffer info.
@@ -27,21 +27,64 @@ pub struct Info {
 /// `B` - raw buffer type.
 #[derive(Debug)]
 pub struct Buffer<B: gfx_hal::Backend> {
-    pub(crate) escape: Escape<Inner<B>>,
-    pub(crate) info: Info,
+    escape: Escape<Inner<B>>,
+    info: Info,
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
-pub(crate) struct Inner<B: gfx_hal::Backend> {
-    pub(crate) block: MemoryBlock<B>,
-    pub(crate) raw: B::Buffer,
-    pub(crate) relevant: relevant::Relevant,
+pub struct Inner<B: gfx_hal::Backend> {
+    block: MemoryBlock<B>,
+    raw: B::Buffer,
+    relevant: relevant::Relevant,
+}
+
+impl<B> Inner<B>
+where
+    B: gfx_hal::Backend,
+{
+    pub(super) fn dispose(self) -> (B::Buffer, MemoryBlock<B>) {
+        self.relevant.dispose();
+        (self.raw, self.block)
+    }
 }
 
 impl<B> Buffer<B>
 where
     B: gfx_hal::Backend,
 {
+    /// # Disclaimer
+    /// 
+    /// This function is designed to use by other rendy crates.
+    /// User experienced enough to use it properly can find it without documentation.
+    /// 
+    /// # Safety
+    /// 
+    /// `info` must match information about raw buffer.
+    /// `block` if provided must be the one bound to the raw buffer.
+    /// `terminal` will receive buffer and memory block upon drop, it must free buffer and memory properly.
+    /// 
+    #[doc(hidden)]
+    pub unsafe fn new(info: Info, raw: B::Buffer, block: MemoryBlock<B>, terminal: &Terminal<Inner<B>>) -> Self {
+        Buffer {
+            escape: terminal.escape(Inner {
+                block,
+                raw,
+                relevant: relevant::Relevant,
+            }),
+            info,
+        }
+    }
+
+    /// # Disclaimer
+    /// 
+    /// This function is designed to use by other rendy crates.
+    /// User experienced enough to use it properly can find it without documentation.
+    #[doc(hidden)]
+    pub(super) fn unescape(self) -> Option<Inner<B>> {
+        Escape::dispose(self.escape)
+    }
+
     /// Creates [`KeepAlive`] handler to extend buffer lifetime.
     /// 
     /// [`KeepAlive`]: struct.KeepAlive.html
@@ -49,19 +92,24 @@ where
         Escape::keep_alive(&self.escape)
     }
 
-    /// Get buffers memory [`Block`].
+    /// Check if this buffer could is bound to CPU visible memory and therefore mappable.
+    /// If this function returns `false` `map` will always return `InvalidAccess`.
     /// 
-    /// [`Block`]: ../memory/trait.Block.html
-    pub fn block(&self) -> &impl Block<B> {
-        &self.escape.block
+    /// [`map`]: #method.map
+    /// [`InvalidAccess`]: https://docs.rs/gfx-hal/0.1/gfx_hal/mapping/enum.Error.html#InvalidAccess
+    pub fn visible(&self) -> bool {
+        self.escape.block.properties().contains(gfx_hal::memory::Properties::CPU_VISIBLE)
     }
 
-    /// Get buffers memory [`Block`].
-    /// 
-    /// [`Block`]: ../memory/trait.Block.html
-    pub fn block_mut(&mut self) -> &mut impl Block<B> {
-        &mut self.escape.block
+    /// Map range of the buffer to the CPU accessible memory.
+    pub fn map<'a>(&'a mut self, device: &B::Device, range: std::ops::Range<u64>) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+        self.escape.block.map(device, range)
     }
+
+    // /// Map range of the buffer to the CPU accessible memory.
+    // pub fn persistent_map(&mut self, range: std::ops::Range<u64>) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    //     self.escape.block.map(device, range)
+    // }
 
     /// Get raw buffer handle.
     ///

@@ -66,6 +66,10 @@ where
             "Memory mapping region must have valid size"
         );
 
+        if !self.memory.host_visible() {
+            return Err(gfx_hal::mapping::Error::InvalidAccess);
+        }
+
         unsafe {
             if let Some(ptr) = self
                 .mapping
@@ -171,6 +175,8 @@ where
 
 impl Drop for DedicatedAllocator {
     fn drop(&mut self) {
-        assert_eq!(self.used, 0);
+        if self.used > 0 {
+            log::error!("Not all allocation from DedicatedAllocator was freed");
+        }
     }
 }

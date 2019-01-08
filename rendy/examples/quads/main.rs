@@ -22,7 +22,7 @@
 #![allow(unused_unsafe)]
 
 use rendy::{
-    command::{Compute, RenderPassInlineEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand},
+    command::{Compute, RenderPassInlineEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand, FamilyId},
     factory::{Config, Factory},
     frame::{Frames},
     graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
@@ -332,7 +332,7 @@ where
         &self,
         factory: &mut Factory<B>,
         _aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error> {
@@ -516,7 +516,7 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window);
+    let surface = factory.create_surface(window.into());
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 

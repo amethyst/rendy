@@ -1,36 +1,12 @@
 
 use crate::{
-    command::{families_from_device, Family, Reset, CommandBuffer, CommandPool, Transfer, IndividualReset, PendingState, InitialState, RecordingState, OneShot, PrimaryLevel},
-    memory::{Block, Heaps, Write},
+    command::{families_from_device, Family, Reset, CommandPool, FamilyId},
+    memory::{Heaps, Write},
     resource::{buffer::{self, Buffer}, image::{self, Image}, Resources},
     wsi::{Surface, Target},
     config::{Config, HeapsConfigure, QueuesConfigure},
+    upload::{Uploader, BufferState, ImageState, ImageStateOrLayout},
 };
-
-#[derive(Debug)]
-struct PendingUploads<B: gfx_hal::Backend> {
-    command_buffer: CommandBuffer<B, Transfer, PendingState<InitialState>, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
-    fence: B::Fence,
-}
-
-#[derive(Debug)]
-struct NextUploads<B: gfx_hal::Backend> {
-    command_buffer: CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
-}
-
-#[derive(Debug)]
-struct FamilyUploads<B: gfx_hal::Backend> {
-    pool: Option<CommandPool<B, Transfer, IndividualReset>>,
-    next: Option<NextUploads<B>>,
-    pending: Vec<PendingUploads<B>>,
-}
-
-#[derive(Debug)]
-struct Uploader<B: gfx_hal::Backend> {
-    families: Vec<parking_lot::Mutex<FamilyUploads<B>>>,
-}
 
 /// Higher level device interface.
 /// Manges memory, resources and queue families.
@@ -43,7 +19,7 @@ pub struct Factory<B: gfx_hal::Backend> {
     heaps: parking_lot::Mutex<Heaps<B>>,
     resources: parking_lot::RwLock<Resources<B>>,
     families: Vec<Family<B>>,
-    families_indices: std::collections::HashMap<gfx_hal::queue::QueueFamilyId, usize>,
+    families_indices: std::collections::HashMap<FamilyId, usize>,
     uploads: Uploader<B>,
     relevant: relevant::Relevant,
 }
@@ -122,13 +98,7 @@ where
             device,
             heaps: parking_lot::Mutex::new(heaps),
             resources: parking_lot::RwLock::new(Resources::new()),
-            uploads: Uploader {
-                families: (0 .. families.len()).map(|_| parking_lot::Mutex::new(FamilyUploads {
-                    pool: None,
-                    next: None,
-                    pending: Vec::new(),
-                })).collect(),
-            },
+            uploads: Uploader::new(families.len()),
             families,
             families_indices,
             relevant: relevant::Relevant,
@@ -163,7 +133,7 @@ where
         drop(self.instance);
 
         self.relevant.dispose();
-        // trace!("Factory destroyed");
+        log::trace!("Factory destroyed");
     }
 
     /// Creates a buffer that is managed with the specified properties.
@@ -208,133 +178,158 @@ where
             )
     }
 
-    /// Upload buffer content.
-    ///
-    /// # Safety
-    ///
-    /// * Buffer must be created by this `Factory`.
-    /// * Caller must ensure that device won't write to or read from
-    /// the memory region occupied by this buffer.
-    pub unsafe fn upload_buffer<T: Copy>(
-        &self,
-        buffer: &mut Buffer<B>,
-        offset: u64,
-        content: &[T],
-        family: gfx_hal::queue::QueueFamilyId,
-        _access: gfx_hal::buffer::Access,
-    ) -> Result<(), failure::Error> {
-        if buffer
-            .block()
-            .properties()
-            .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-        {
-            self.upload_visible_buffer(buffer, offset, content)
-        } else {
-            let mut staging = self.create_buffer(
-                256,
-                content.len() as u64 * std::mem::size_of::<T>() as u64,
-                buffer::UploadBuffer,
-            )?;
-
-            self.upload_visible_buffer(&mut staging, 0, content)?;
-
-            let family_index = self.families_indices[&family];
-            let mut uploader = self.uploads.families[family_index].lock();
-            let uploader = &mut*uploader;
-            let _next = match &mut uploader.next {
-                Some(next) => next,
-                insert => {
-                    let pool = match &mut uploader.pool {
-                        Some(pool) => pool,
-                        insert => {
-                            let pool = self.families[family_index].create_pool(&self.device)?;
-                            *insert = Some(pool.with_capability().unwrap());
-                            insert.as_mut().unwrap()
-                        }
-                    };
-
-                    let buffer = pool.allocate_buffers(1).pop().unwrap();
-                    *insert = Some(NextUploads {
-                        command_buffer: buffer.begin(),
-                        staging_buffers: Vec::new(),
-                    });
-                    insert.as_mut().unwrap()
-                },
-            };
-
-            unimplemented!()
-        }
-    }
-
     /// Update buffer bound to host visible memory.vk::AccessFlags.
     ///
     /// # Safety
     ///
     /// * Caller must ensure that device won't write to or read from
     /// the memory region occupied by this buffer.
-    pub unsafe fn upload_visible_buffer<T: Copy>(
+    pub unsafe fn upload_visible_buffer<T>(
         &self,
         buffer: &mut Buffer<B>,
         offset: u64,
         content: &[T],
     ) -> Result<(), failure::Error> {
-        let block = buffer.block_mut();
-        assert!(
-            block
-                .properties()
-                .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-        );
-
         let content = unsafe {
             std::slice::from_raw_parts(content.as_ptr() as *const u8, content.len() * std::mem::size_of::<T>())
         };
 
-        let mut mapped = block.map(&self.device, offset..offset + content.len() as u64)?;
+        let mut mapped = buffer.map(&self.device, offset..offset + content.len() as u64)?;
         mapped
             .write(&self.device, 0..content.len() as u64)?
             .write(content);
         Ok(())
     }
 
-    /// Upload image.
-    pub fn upload_image<T: Copy>(
+    /// Update buffer content.
+    ///
+    /// # Safety
+    ///
+    /// * Buffer must be created by this `Factory`.
+    /// * Buffer must not be used by device.
+    /// * `state` must match first buffer usage by device after content uploaded.
+    pub unsafe fn upload_buffer<T>(
         &self,
-        _image: &mut Image<B>,
-        _data_with: u32,
-        _data_height: u32,
-        _image_layers: gfx_hal::image::SubresourceLayers,
-        _image_offset: gfx_hal::image::Offset,
-        _image_extent: gfx_hal::image::Extent,
-        _content: &[T],
-        _family: gfx_hal::queue::QueueFamilyId,
-        _access: gfx_hal::image::Access,
-        _layout: gfx_hal::image::Layout,
+        buffer: &mut Buffer<B>,
+        offset: u64,
+        content: &[T],
+        last: Option<BufferState>,
+        next: BufferState,
     ) -> Result<(), failure::Error> {
-        unimplemented!()
+        if buffer.visible() {
+            // If last is none then buffer is unused hence we can just write into memory.
+            self.upload_visible_buffer(buffer, offset, content)
+        } else {
+            let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
+            let mut staging = self.create_buffer(
+                256,
+                content_size,
+                buffer::UploadBuffer,
+            )?;
+
+            self.upload_visible_buffer(&mut staging, 0, content)?;
+
+            let family_index = self.families_indices[&next.queue.family()];
+            self.uploads.families[family_index]
+                .lock()
+                .upload_buffer(
+                    &self.device,
+                    &self.families[family_index],
+                    buffer,
+                    offset,
+                    staging,
+                    last,
+                    next,
+                )
+        }
+    }
+
+    /// Upload image.
+    /// 
+    /// # Safety
+    ///
+    /// * Image must be created by this `Factory`.
+    /// * Image must not be used by device.
+    /// * `state` must match first image usage by device after content uploaded.
+    pub unsafe fn upload_image<T>(
+        &self,
+        image: &mut Image<B>,
+        data_width: u32,
+        data_height: u32,
+        image_layers: gfx_hal::image::SubresourceLayers,
+        image_offset: gfx_hal::image::Offset,
+        image_extent: gfx_hal::image::Extent,
+        content: &[T],
+        last: impl Into<ImageStateOrLayout>,
+        next: ImageState,
+    ) -> Result<(), failure::Error> {
+        assert_eq!(image.format().surface_desc().aspects, image_layers.aspects);
+        assert!(image_layers.layers.start <= image_layers.layers.end);
+        assert!(image_layers.layers.end <= image.kind().num_layers());
+        assert!(image_layers.level <= image.info().levels);
+
+        let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
+        let format_desc = image.format().surface_desc();
+        let texels_count = (image_extent.width / format_desc.dim.0 as u32) as u64 * (image_extent.height / format_desc.dim.1 as u32) as u64 * image_extent.depth as u64;
+        let total_bytes = (format_desc.bits as u64 / 8) * texels_count;
+        assert_eq!(
+            total_bytes, content_size,
+            "Size of must match size of the image region"
+        );
+
+        let mut staging = self.create_buffer(
+            256,
+            content_size,
+            buffer::UploadBuffer,
+        )?;
+
+        self.upload_visible_buffer(&mut staging, 0, content)?;
+
+        let family_index = self.families_indices[&next.queue.family()];
+        self.uploads.families[family_index].lock()
+            .upload_image(
+                &self.device,
+                &self.families[family_index],
+                image,
+                data_width,
+                data_height,
+                image_layers,
+                image_offset,
+                image_extent,
+                staging,
+                last.into(),
+                next,
+            )
     }
 
     /// Create rendering surface from window.
-    pub fn create_surface(&self, window: winit::Window) -> Surface<B> {
+    pub fn create_surface(&self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
         Surface::new(
             &self.instance,
             window,
         )
     }
 
+    /// Destroy surface returning underlying window back to the caller.
+    pub unsafe fn destroy_surface(&self, surface: Surface<B>) {
+        drop(surface);
+    }
+
     /// Create target out of rendering surface.
     pub fn create_target(&self, surface: Surface<B>, image_count: u32, usage: gfx_hal::image::Usage) -> Result<Target<B>, failure::Error> {
-        surface.into_target(
-            &self.adapter.physical_device,
-            &self.device,
-            image_count,
-            usage,
-        )
+        unsafe {
+            surface.into_target(
+                &self.adapter.physical_device,
+                &self.device,
+                image_count,
+                usage,
+            )
+        }
     }
 
     /// Destroy target returning underlying window back to the caller.
-    pub unsafe fn destroy_target(&self, target: Target<B>) -> winit::Window {
-        let window = target.dispose(&self.device);
-        window
+    pub unsafe fn destroy_target(&self, target: Target<B>) {
+        target.dispose(&self.device);
     }
 
     /// Get queue families of the factory.
@@ -343,24 +338,27 @@ where
     }
 
     /// Get queue families of the factory.
-    pub fn families_mut(&mut self) -> &mut [Family<B>] {
-        &mut self.families
+    pub fn family(&self, id: FamilyId) -> &Family<B> {
+        &self.families[self.families_indices[&id]]
     }
 
     /// Get queue families of the factory.
-    pub fn family(&self, index: gfx_hal::queue::QueueFamilyId) -> &Family<B> {
-        &self.families[self.families_indices[&index]]
-    }
+    /// This function also flushes all pending uploads for the queue.
+    pub unsafe fn family_mut(&mut self, id: FamilyId) -> &mut Family<B> {
+        let family_index = self.families_indices[&id];
+        let family = &mut self.families[family_index];
 
-    /// Get queue families of the factory.
-    pub fn family_mut(&mut self, index: gfx_hal::queue::QueueFamilyId) -> &mut Family<B> {
-        &mut self.families[self.families_indices[&index]]
+        let family_uploads = self.uploads.families[family_index].get_mut();
+        
+        family_uploads.flush(family);
+
+        family
     }
 
     /// Get surface support for family.
-    pub fn target_support(&self, family: gfx_hal::queue::QueueFamilyId, target: &Target<B>) -> bool {
+    pub fn surface_support(&self, family: FamilyId, surface: &B::Surface) -> bool {
         unsafe {
-            gfx_hal::Surface::supports_queue_family(target.surface(), &self.adapter.queue_families[family.0])
+            gfx_hal::Surface::supports_queue_family(surface, &self.adapter.queue_families[family.0])
         }
     }
 
@@ -429,7 +427,7 @@ where
     }
     
     /// Create new command pool for specified family.
-    pub fn create_command_pool<R>(&self, family: gfx_hal::queue::QueueFamilyId) -> Result<CommandPool<B, gfx_hal::QueueType, R>, failure::Error>
+    pub fn create_command_pool<R>(&self, family: FamilyId) -> Result<CommandPool<B, gfx_hal::QueueType, R>, failure::Error>
     where
         R: Reset,
     {

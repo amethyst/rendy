@@ -8,7 +8,8 @@ use std::{
 };
 
 use crate::{
-    factory::Factory,
+    command::QueueId,
+    factory::{Factory, BufferState},
     resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer},
     util::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
     vertex::{AsVertex, VertexFormat},
@@ -159,7 +160,7 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new mesh.
-    pub fn build<B>(&self, family: gfx_hal::queue::QueueFamilyId, factory: &mut Factory<B>) -> Result<Mesh<B>, failure::Error>
+    pub fn build<B>(&self, queue: QueueId, factory: &mut Factory<B>) -> Result<Mesh<B>, failure::Error>
     where
         B: gfx_hal::Backend,
     {
@@ -182,8 +183,9 @@ impl<'a> MeshBuilder<'a> {
                                     &mut buffer,
                                     0,
                                     vertices,
-                                    family,
-                                    gfx_hal::buffer::Access::VERTEX_BUFFER_READ,
+                                    None,
+                                    BufferState::new(queue)
+                                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
                                 )?;
                             }
                             buffer
@@ -213,8 +215,9 @@ impl<'a> MeshBuilder<'a> {
                                     &mut buffer,
                                     0,
                                     indices,
-                                    family,
-                                    gfx_hal::buffer::Access::INDEX_BUFFER_READ,
+                                    None,
+                                    BufferState::new(queue)
+                                        .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
                                 )?;
                             }
                             buffer

@@ -1,7 +1,6 @@
 
 use super::{
     state::*,
-    usage::*,
 };
 
 /// This flag specify that buffer can be reset individually.
@@ -31,8 +30,8 @@ impl Reset for NoIndividualReset {
 }
 
 /// States in which command buffer can de reset.
-pub trait Resettable: Copy + Default + std::fmt::Debug + 'static {}
+pub trait Resettable {}
 impl Resettable for InitialState {}
-impl<U, P> Resettable for RecordingState<U, P> where U: Usage, P: Copy + Default + std::fmt::Debug + 'static {}
-impl<U, P> Resettable for ExecutableState<U, P> where U: Usage, P: Copy + Default + std::fmt::Debug + 'static {}
+impl<U, P> Resettable for RecordingState<U, P> {}
+impl<U, P> Resettable for ExecutableState<U, P> {}
 impl Resettable for InvalidState {}
