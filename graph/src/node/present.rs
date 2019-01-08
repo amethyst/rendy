@@ -200,6 +200,7 @@ where
     }
 
     unsafe fn dispose(self: Box<Self>, _factory: &mut Factory<B>, _aux: &mut T) {
-        unimplemented!()
+        log::error!("Present node dispose is not implemented");
+        std::mem::forget(self);
     }
 }
