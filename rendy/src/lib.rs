@@ -52,6 +52,10 @@ pub use rendy_resource as resource;
 #[doc(inline)]
 pub use rendy_shader as shader;
 
+#[cfg(feature = "texture")]
+#[doc(inline)]
+pub use rendy_texture as texture;
+
 #[cfg(feature = "util")]
 #[doc(inline)]
 pub use rendy_util as util;
