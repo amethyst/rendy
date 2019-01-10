@@ -1,6 +1,9 @@
 use std::cmp::min;
 
-use crate::memory::{LinearConfig, DynamicConfig, HeapsConfig};
+use crate::{
+    command::FamilyId,
+    memory::{LinearConfig, DynamicConfig, HeapsConfig},
+};
 
 /// Factory initialization config.
 #[derive(Clone, derivative::Derivative)]
@@ -20,7 +23,7 @@ pub unsafe trait QueuesConfigure {
     type Priorities: AsRef<[f32]>;
 
     /// Iterator over families to create.
-    type Families: IntoIterator<Item = (gfx_hal::queue::QueueFamilyId, Self::Priorities)>;
+    type Families: IntoIterator<Item = (FamilyId, Self::Priorities)>;
 
     /// Configure.
     fn configure(self, families: &[impl gfx_hal::queue::QueueFamily]) -> Self::Families;
@@ -34,8 +37,8 @@ pub struct OneGraphicsQueue;
 
 unsafe impl QueuesConfigure for OneGraphicsQueue {
     type Priorities = [f32; 1];
-    type Families = Option<(gfx_hal::queue::QueueFamilyId, [f32; 1])>;
-    fn configure(self, families: &[impl gfx_hal::queue::QueueFamily]) -> Option<(gfx_hal::queue::QueueFamilyId, [f32; 1])> {
+    type Families = Option<(FamilyId, [f32; 1])>;
+    fn configure(self, families: &[impl gfx_hal::queue::QueueFamily]) -> Option<(FamilyId, [f32; 1])> {
         families
             .iter()
             .find(|f| f.supports_graphics() && f.max_queues() > 0)
@@ -46,12 +49,12 @@ unsafe impl QueuesConfigure for OneGraphicsQueue {
 /// Saved config for queues.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct SavedQueueConfig(Vec<(gfx_hal::queue::QueueFamilyId, Vec<f32>)>);
+pub struct SavedQueueConfig(Vec<(FamilyId, Vec<f32>)>);
 
 unsafe impl QueuesConfigure for SavedQueueConfig {
     type Priorities = Vec<f32>;
-    type Families = Vec<(gfx_hal::queue::QueueFamilyId, Vec<f32>)>;
-    fn configure(self, _: &[impl gfx_hal::queue::QueueFamily]) -> Vec<(gfx_hal::queue::QueueFamilyId, Vec<f32>)> {
+    type Families = Vec<(FamilyId, Vec<f32>)>;
+    fn configure(self, _: &[impl gfx_hal::queue::QueueFamily]) -> Vec<(FamilyId, Vec<f32>)> {
         self.0
     }
 }

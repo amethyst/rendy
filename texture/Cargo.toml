@@ -14,6 +14,7 @@ edition = "2018"
 serde-1 = ["serde", "gfx-hal/serde", "rendy-factory/serde"]
 
 [dependencies]
+rendy-command = { path = "../command" }
 rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
 rendy-factory = { path = "../factory" }

@@ -1,6 +1,6 @@
 //! CommandPool module docs.
 
-use crate::{buffer::*, capability::*};
+use crate::{buffer::*, capability::*, family::FamilyId};
 
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
@@ -11,7 +11,7 @@ pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndivi
     #[derivative(Debug = "ignore")]raw: B::CommandPool,
     capability: C,
     reset: R,
-    family: gfx_hal::queue::QueueFamilyId,
+    family: FamilyId,
     relevant: relevant::Relevant,
 }
 
@@ -32,7 +32,7 @@ where
         raw: B::CommandPool,
         capability: C,
         reset: R,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
     ) -> Self {
         CommandPool {
             raw,

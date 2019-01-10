@@ -24,6 +24,7 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
+use rendy_command as command;
 use rendy_factory as factory;
 use rendy_resource as resource;
 use rendy_util as util;

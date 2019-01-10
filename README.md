@@ -17,8 +17,7 @@
 [ci]: https://crates.io/crates/rendy/
 [li]: COPYING
 
-Yet another [`Vulkan`] based rendering engine.
-Actually it is based on [`gfx-hal`] that mimics [`Vulkan`] API.
+A rendering engine based on [`gfx-hal`], which mimics the [`Vulkan`] API.
 
 ## Features
 
@@ -117,10 +116,9 @@ Most of the features provided by rendy can be used independently from others.
 This helps to keep API clean and hopefuly sound.
 Top-level umbrela crate `rendy` has feature for each subcrates so that they could be enabled separately (subcrate will also enable its depenencies).
 
-## Why another renderer
+## Who is using it?
 
-There is no fully-featured modern renderers written in Rust. So this project aims to be the one of the first.
-`rendy` will be used by [`Amethyst`] project.
+The first project to use `rendy` is expected to be the [`Amethyst`] project. Kindly open a PR or issue if you're aware of other projects using `rendy`.
 
 ## License
 

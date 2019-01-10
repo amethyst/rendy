@@ -71,7 +71,9 @@ where
             range.start <= range.end,
             "Memory mapping region must have valid size"
         );
-        debug_assert!(self.shared_memory().host_visible());
+        if !self.shared_memory().host_visible() {
+            return Err(gfx_hal::mapping::Error::InvalidAccess);
+        }
 
         if let Some((ptr, range)) = mapped_sub_range(self.ptr, self.range.clone(), range) {
             let mapping = unsafe { MappedRange::from_raw(self.shared_memory(), ptr, range) };

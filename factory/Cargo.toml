@@ -28,10 +28,11 @@ gfx-backend-metal = { version = "0.1.0", optional = true }
 gfx-backend-vulkan = { version = "0.1.0", optional = true }
 
 derivative = "1.0"
+either = "1.0"
 failure = "0.1"
 log = "0.4"
 parking_lot = "0.7"
-relevant = "0.2"
+relevant = "0.3"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 winit = "0.18"

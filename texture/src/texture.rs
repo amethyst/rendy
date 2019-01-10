@@ -1,8 +1,9 @@
 
 use crate::{
     pixel::AsPixel,
+    command::QueueId,
     resource::image::{Image, Texture as TextureUsage},
-    factory::Factory,
+    factory::{Factory, ImageState},
     util::cast_cow,
 };
 
@@ -87,11 +88,11 @@ impl<'a> TextureBuilder<'a> {
     /// Build texture.
     pub fn build<B>(
         &self,
-        family: gfx_hal::queue::QueueFamilyId,
+        queue: QueueId,
         access: gfx_hal::image::Access,
         layout: gfx_hal::image::Layout,
         factory: &mut Factory<B>,
-        ) -> Result<Texture<B>, failure::Error>
+    ) -> Result<Texture<B>, failure::Error>
     where
         B: gfx_hal::Backend,
     {
@@ -105,22 +106,24 @@ impl<'a> TextureBuilder<'a> {
             TextureUsage,
         )?;
 
-        factory.upload_image(
-            &mut image,
-            self.data_width,
-            self.data_height,
-            gfx_hal::image::SubresourceLayers {
-                aspects: self.format.surface_desc().aspects,
-                level: 0,
-                layers: 0 .. 1,
-            },
-            gfx_hal::image::Offset::ZERO,
-            self.kind.extent(),
-            &self.data,
-            family,
-            access,
-            layout,
-        )?;
+        unsafe {
+            factory.upload_image(
+                &mut image,
+                self.data_width,
+                self.data_height,
+                gfx_hal::image::SubresourceLayers {
+                    aspects: self.format.surface_desc().aspects,
+                    level: 0,
+                    layers: 0 .. 1,
+                },
+                gfx_hal::image::Offset::ZERO,
+                self.kind.extent(),
+                &self.data,
+                gfx_hal::image::Layout::Undefined,
+                ImageState::new(queue, layout)
+                    .with_access(access)
+            )?;
+        }
 
         Ok(Texture {
             image,

@@ -6,7 +6,7 @@ pub mod present;
 
 use crate::{
     chain,
-    command::{Capability, Family, Supports, Submission, Submittable},
+    command::{Capability, Family, Supports, Submission, Submittable, FamilyId},
     factory::Factory,
     frame::Frames,
     resource::{Buffer, Image},
@@ -41,7 +41,7 @@ pub struct BufferBarrier {
     pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
 
     /// Transfer between families.
-    pub families: Option<std::ops::Range<gfx_hal::queue::QueueFamilyId>>,
+    pub families: Option<std::ops::Range<FamilyId>>,
 }
 
 
@@ -101,7 +101,7 @@ pub struct ImageBarrier {
     pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
 
     /// Transfer between families.
-    pub families: Option<std::ops::Range<gfx_hal::queue::QueueFamilyId>>,
+    pub families: Option<std::ops::Range<FamilyId>>,
 }
 
 /// Image shared between nodes.
@@ -233,7 +233,7 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
         &self,
         factory: &mut Factory<B>,
         aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error>;
@@ -283,11 +283,11 @@ where
         let submittables = Node::run(&mut self.0, factory, aux, frames);
         factory.family_mut(qid.family()).submit(
             qid.index(),
-            Some(Submission {
-                waits: waits.iter().cloned(),
-                signals: signals.iter().cloned(),
-                submits: submittables,
-            }),
+            Some(
+                Submission::new(submittables)
+                    .wait(waits.iter().cloned())
+                    .signal(signals.iter().cloned())
+            ),
             fence,
         )
     }
@@ -300,7 +300,7 @@ where
 /// Trait-object safe `NodeDesc`.
 pub trait AnyNodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
     /// Find family suitable for the node.
-    fn family(&self, families: &[Family<B>]) -> Option<gfx_hal::queue::QueueFamilyId>;
+    fn family(&self, families: &[Family<B>]) -> Option<FamilyId>;
 
     /// Get buffer resource states.
     fn buffers(&self) -> Vec<BufferAccess> { Vec::new() }
@@ -313,7 +313,7 @@ pub trait AnyNodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
         self: Box<Self>,
         factory: &mut Factory<B>,
         aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error>;
@@ -338,7 +338,7 @@ where
     T: ?Sized,
     N: NodeDesc<B, T>,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<gfx_hal::queue::QueueFamilyId> {
+    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
         families
             .iter()
             .find(|family| {
@@ -359,7 +359,7 @@ where
         self: Box<Self>,
         factory: &mut Factory<B>,
         aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
     ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
@@ -480,7 +480,7 @@ where
         self,
         factory: &mut Factory<B>,
         aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [Option<Buffer<B>>],
         images: &mut [Option<(Image<B>, Option<gfx_hal::command::ClearValue>)>],
         chains: &chain::Chains,

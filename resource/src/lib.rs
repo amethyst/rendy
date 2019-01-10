@@ -23,7 +23,8 @@
 #[macro_use] extern crate log;
 use rendy_memory as memory;
 
-mod escape;
+#[doc(hidden)]
+pub mod escape;
 mod resources;
 
 pub mod buffer;

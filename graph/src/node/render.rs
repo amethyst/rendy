@@ -3,7 +3,7 @@
 
 use crate::{
     command::{
-        Graphics, CommandPool, CommandBuffer, IndividualReset, Submit, SecondaryLevel, PendingState, ExecutableState, SimultaneousUse, MultiShot, RenderPassInlineEncoder,
+        Graphics, CommandPool, CommandBuffer, IndividualReset, Submit, SecondaryLevel, PendingState, ExecutableState, SimultaneousUse, MultiShot, RenderPassInlineEncoder, FamilyId,
     },
     factory::Factory,
     frame::{Frames, cirque::CommandCirque},
@@ -244,7 +244,7 @@ where
         &self,
         factory: &mut Factory<B>,
         aux: &mut T,
-        family: gfx_hal::queue::QueueFamilyId,
+        family: FamilyId,
         buffers: &mut [NodeBuffer<'a, B>],
         images: &mut [NodeImage<'a, B>],
     ) -> Result<Self::Node, failure::Error> {
