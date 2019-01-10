@@ -18,6 +18,7 @@ pub struct Texture<B: gfx_hal::Backend> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextureBuilder<'a> {
     kind: gfx_hal::image::Kind,
+    view_kind: gfx_hal::image::ViewKind,
     format: gfx_hal::format::Format,
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
@@ -29,6 +30,7 @@ impl<'a> TextureBuilder<'a> {
     pub fn new() -> Self {
         TextureBuilder {
             kind: gfx_hal::image::Kind::D1(0, 0),
+            view_kind: gfx_hal::image::ViewKind::D1,
             format: gfx_hal::format::Format::Rgba8Unorm,
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
@@ -85,6 +87,18 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    /// With image view kind.
+    pub fn with_view_kind(mut self, view_kind: gfx_hal::image::ViewKind) -> Self {
+        self.set_view_kind(view_kind);
+        self
+    }
+
+    /// Set image view kind.
+    pub fn set_view_kind(&mut self, view_kind: gfx_hal::image::ViewKind) -> &mut Self {
+        self.view_kind = view_kind;
+        self
+    }
+
     /// Build texture.
     pub fn build<B>(
         &self,
@@ -124,6 +138,18 @@ impl<'a> TextureBuilder<'a> {
                     .with_access(access)
             )?;
         }
+
+        let image_view = factory.create_image_view(
+            &image,
+            self.view_kind,
+            self.format,
+            gfx_hal::format::Swizzle::NO,
+            gfx_hal::image::SubresourceRange {
+                aspects: self.format.surface_desc().aspects,
+                levels: 0..1,
+                layers: 0..1,
+            }
+        );
 
         Ok(Texture {
             image,

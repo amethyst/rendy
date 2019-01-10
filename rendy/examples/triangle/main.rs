@@ -3,7 +3,7 @@
 //! This examples shows colord triangle on white background.
 //! Nothing fancy. Just prove that `rendy` works.
 //! 
-
+    
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{

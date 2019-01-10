@@ -145,3 +145,76 @@ where
         self.info.kind.num_layers()
     }
 }
+
+// Image view info
+#[derive(Clone, Debug)]
+#[doc(hidden)]
+pub struct ViewInfo {
+    pub view_kind: gfx_hal::image::ViewKind,
+    pub format: gfx_hal::format::Format,
+    pub swizzle: gfx_hal::format::Swizzle,
+    pub range: gfx_hal::image::SubresourceRange,
+}
+
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct ImageView<B: gfx_hal::Backend> {
+    escape: Escape<InnerView<B>>,
+    info: ViewInfo,
+}
+
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct InnerView<B: gfx_hal::Backend> {
+    raw: B::ImageView,
+}
+
+impl<B> InnerView<B>
+where
+    B: gfx_hal::Backend,
+{
+    #[doc(hidden)]
+    pub fn dispose(self) -> B::ImageView {
+        self.raw
+    }
+}
+
+impl<B> ImageView<B>
+where
+    B: gfx_hal::Backend,
+{
+    #[doc(hidden)]
+    pub unsafe fn new(info: ViewInfo, raw: B::ImageView, terminal: &Terminal<InnerView<B>>) -> Self {
+        ImageView {
+            escape: terminal.escape(InnerView {
+                raw,
+            }),
+            info,
+        }
+    }
+
+    /// # Disclaimer
+    /// 
+    /// This function is designed to use by other rendy crates.
+    /// User experienced enough to use it properly can find it without documentation.
+    #[doc(hidden)]
+    pub(super) fn unescape(self) -> Option<InnerView<B>> {
+        Escape::dispose(self.escape)
+    }
+
+    /// Creates [`KeepAlive`] handler to extend image lifetime.
+    /// 
+    /// [`KeepAlive`]: struct.KeepAlive.html
+    pub fn keep_alive(&self) -> KeepAlive {
+        Escape::keep_alive(&self.escape)
+    }
+
+    /// Get raw image handle.
+    ///
+    /// # Safety
+    ///
+    /// Raw image handler should not be usage to violate this object valid usage.
+    pub fn raw(&self) -> &B::ImageView {
+        &self.escape.raw
+    }
+}

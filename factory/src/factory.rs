@@ -2,7 +2,7 @@
 use crate::{
     command::{families_from_device, Family, Reset, CommandPool, FamilyId},
     memory::{Heaps, Write},
-    resource::{buffer::{self, Buffer}, image::{self, Image}, Resources},
+    resource::{buffer::{self, Buffer}, image::{self, Image, ImageView}, Resources},
     wsi::{Surface, Target},
     config::{Config, HeapsConfigure, QueuesConfigure, DevicesConfigure},
     upload::{Uploader, BufferState, ImageState, ImageStateOrLayout},
@@ -156,7 +156,7 @@ where
             )
     }
 
-    /// Creates an image that is mananged with the specified properties.
+    /// Creates an image that is managed with the specified properties.
     pub fn create_image(
         &self,
         align: u64,
@@ -179,6 +179,25 @@ where
                 view_caps,
                 usage,
             )
+    }
+
+    /// Create an image view that is managed with the specified properties 
+    pub fn create_image_view(
+        &self,
+        image: &Image<B>,
+        view_kind: gfx_hal::image::ViewKind,
+        format: gfx_hal::format::Format,
+        swizzle: gfx_hal::format::Swizzle,
+        range: gfx_hal::image::SubresourceRange
+    ) -> Result<ImageView<B>, failure::Error> {
+        self.resources.read().create_image_view(
+            &self.device,
+            image,
+            view_kind,
+            format,
+            swizzle,
+            range,
+        )
     }
 
     /// Update buffer bound to host visible memory.vk::AccessFlags.
