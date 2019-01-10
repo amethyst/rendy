@@ -29,6 +29,7 @@ mod resources;
 
 pub mod buffer;
 pub mod image;
+pub mod sampler;
 
 pub use crate::{
     escape::KeepAlive,
