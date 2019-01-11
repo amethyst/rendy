@@ -1,13 +1,14 @@
 //! A cache to store and retrieve samplers
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
+use crate::escape::Terminal;
 use super::{Sampler, Info};
 
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct SamplerCache<B: gfx_hal::Backend> {
     // TODO: figure out way to store this better. Perhaps we can clone/copy sampler so we don't need a reference?
-    samplers: HashMap<gfx_hal::image::Filter, HashMap<gfx_hal::image::WrapMode, Sampler<B>>>,
+    samplers: HashMap<(gfx_hal::image::Filter, gfx_hal::image::WrapMode), Sampler<B>>,
+    raw_samplers: Terminal<B::Sampler>,
 }
 
 impl<B> SamplerCache<B>
@@ -20,22 +21,13 @@ where
         device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
         wrap_mode: gfx_hal::image::WrapMode
-    ) -> Option<&Sampler<B>> {
-        match self.samplers.entry(filter) {
-            Entry::Occupied(e) => {
-                let hashmap = &mut *e.into_mut();
-                match hashmap.entry(wrap_mode) {
-                    Entry::Occupied(e) => Some(&mut *e.into_mut()),
-                    Entry::Vacant(e) => {
-                        Some(&*e.insert(SamplerCache::create(device, filter, wrap_mode)))
-                    }
-                }
-            },
-            Entry::Vacant(_e) => None,
-        }
+    ) -> Sampler<B> {
+        let raw_samplers = &self.raw_samplers;
+        self.samplers.entry((filter, wrap_mode)).or_insert_with(|| Self::create(raw_samplers, device, filter, wrap_mode)).clone()
     }
 
     fn create(
+        raw_samplers: &Terminal<B::Sampler>,
         device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
         wrap_mode: gfx_hal::image::WrapMode
@@ -48,7 +40,8 @@ where
                 filter,
                 wrap_mode,
             },
-            sampler
+            sampler,
+            raw_samplers,
         )
     }
 
@@ -58,11 +51,8 @@ where
         device: &impl gfx_hal::Device<B>,
     ) {
         for kvp in self.samplers.drain() {
-            let mut hash_map = kvp.1;
-            for kvp2 in hash_map.drain() {
-                let sampler = kvp2.1;
-                unsafe { device.destroy_sampler(sampler.raw) };
-            }
+            let sampler = kvp.1;
+            unsafe { device.destroy_sampler(sampler.unescape().unwrap()) };
         }
     }
 }
@@ -72,11 +62,9 @@ where
     B: gfx_hal::Backend,
 {
     fn default() -> Self {
-        let mut samplers = HashMap::new();
-        samplers.insert(gfx_hal::image::Filter::Linear, HashMap::new());
-        samplers.insert(gfx_hal::image::Filter::Nearest, HashMap::new());
         SamplerCache {
-            samplers,
+            samplers: HashMap::new(),
+            raw_samplers: Terminal::default(),
         }
     }
 }

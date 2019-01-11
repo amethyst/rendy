@@ -15,6 +15,7 @@
 #![deny(unconditional_recursion)]
 #![deny(unions_with_drop_fields)]
 #![deny(while_true)]
+#![deny(unused)]
 #![deny(bad_style)]
 #![deny(future_incompatible)]
 #![deny(rust_2018_compatibility)]
