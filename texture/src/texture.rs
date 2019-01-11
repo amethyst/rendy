@@ -12,9 +12,9 @@ use crate::{
 /// Can be loaded from various of formats.
 #[derive(Debug)]
 pub struct Texture<B: gfx_hal::Backend> {
-    image: Image<B>,
-    image_view: ImageView<B>,
-    sampler: Sampler<B>,
+    pub image: Image<B>,
+    pub image_view: ImageView<B>,
+    pub sampler: Sampler<B>,
 }
 
 #[derive(Clone, Debug)]
