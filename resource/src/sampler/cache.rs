@@ -6,7 +6,6 @@ use super::{Sampler, Info};
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct SamplerCache<B: gfx_hal::Backend> {
-    // TODO: figure out way to store this better. Perhaps we can clone/copy sampler so we don't need a reference?
     samplers: HashMap<(gfx_hal::image::Filter, gfx_hal::image::WrapMode), Sampler<B>>,
     raw_samplers: Terminal<B::Sampler>,
 }
