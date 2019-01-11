@@ -28,4 +28,9 @@ where
             info,
         }
     }
+
+    #[doc(hidden)]
+    pub fn raw(&self) -> &B::Sampler {
+        &self.raw
+    }
 }

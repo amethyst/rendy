@@ -2,7 +2,7 @@
 use crate::{
     pixel::AsPixel,
     command::QueueId,
-    resource::image::{Image, Texture as TextureUsage},
+    resource::image::{Image, ImageView, Texture as TextureUsage},
     factory::{Factory, ImageState},
     util::cast_cow,
 };
@@ -12,6 +12,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Texture<B: gfx_hal::Backend> {
     image: Image<B>,
+    image_view: ImageView<B>,
 }
 
 #[derive(Clone, Debug)]
@@ -149,10 +150,11 @@ impl<'a> TextureBuilder<'a> {
                 levels: 0..1,
                 layers: 0..1,
             }
-        );
+        )?;
 
         Ok(Texture {
             image,
+            image_view,
         })
     }
 }
