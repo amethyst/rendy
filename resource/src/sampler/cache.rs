@@ -1,5 +1,4 @@
 //! A cache to store and retrieve samplers
-use gfx_hal::device::Device;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use super::{Sampler, Info};
@@ -17,7 +16,7 @@ where
     #[doc(hidden)]
     pub fn get(
         &mut self,
-        device: &B::Device,
+        device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
         wrap_mode: gfx_hal::image::WrapMode
     ) -> Option<&Sampler<B>> {
@@ -36,7 +35,7 @@ where
     }
 
     fn create(
-        device: &B::Device,
+        device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
         wrap_mode: gfx_hal::image::WrapMode
     ) -> Sampler<B> {
@@ -55,7 +54,7 @@ where
     #[doc(hidden)]
     pub fn destroy(
         &mut self,
-        device: &B::Device,
+        device: &impl gfx_hal::Device<B>,
     ) {
         for kvp in self.samplers.drain() {
             let mut hash_map = kvp.1;
