@@ -1,8 +1,9 @@
 
+use rendy_resource;
 use crate::{
     command::{families_from_device, Family, Reset, CommandPool, FamilyId},
     memory::{Heaps, Write},
-    resource::{buffer::{self, Buffer}, image::{self, Image, ImageView}, Resources},
+    resource::{buffer::{self, Buffer}, image::{self, Image, ImageView}, sampler::{Sampler}, Resources},
     wsi::{Surface, Target},
     config::{Config, HeapsConfigure, QueuesConfigure, DevicesConfigure},
     upload::{Uploader, BufferState, ImageState, ImageStateOrLayout},
@@ -198,6 +199,15 @@ where
             swizzle,
             range,
         )
+    }
+
+    /// Create a sampler
+    pub fn create_sampler(
+        &mut self,
+        filter: gfx_hal::image::Filter,
+        wrap_mode: gfx_hal::image::WrapMode,
+    ) -> Result<&Sampler<B>, failure::Error> {
+        self.resources.get_mut().create_sampler(&self.device, filter, wrap_mode)
     }
 
     /// Update buffer bound to host visible memory.vk::AccessFlags.

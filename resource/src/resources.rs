@@ -4,6 +4,7 @@ use crate::{
     buffer,
     escape::Terminal,
     image,
+    sampler::{Sampler, SamplerCache},
     memory::{Block, Heaps},
 };
 
@@ -15,6 +16,7 @@ pub struct Resources<B: gfx_hal::Backend> {
     buffers: Terminal<buffer::Inner<B>>,
     images: Terminal<image::Inner<B>>,
     image_views: Terminal<image::InnerView<B>>,
+    sampler_cache: SamplerCache<B>,
 
     dropped_buffers: Vec<buffer::Inner<B>>,
     dropped_images: Vec<image::Inner<B>>,
@@ -229,6 +231,16 @@ where
         )})
     }
 
+    /// Create a sampler.
+    pub fn create_sampler(
+        &mut self,
+        device: &impl gfx_hal::Device<B>,
+        filter: gfx_hal::image::Filter,
+        wrap_mode: gfx_hal::image::WrapMode,
+    ) -> Result<&Sampler<B>, failure::Error> {
+        Ok(self.sampler_cache.get(device, filter, wrap_mode).unwrap())
+    }
+
     /// Destroy image.
     /// Image can be dropped but this method reduces overhead.
     pub fn destroy_image(
@@ -295,6 +307,8 @@ where
         for image in self.dropped_images.drain(..) {
             Self::actually_destroy_image(image, device, heaps);
         }
+
+        self.sampler_cache.destroy(device);
 
         self.dropped_buffers.extend(self.buffers.drain());
         self.dropped_image_views.extend(self.image_views.drain());

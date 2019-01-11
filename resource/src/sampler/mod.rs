@@ -1,6 +1,8 @@
 //! Sampler creation-info and wrappers.
 
-pub mod cache;
+mod cache;
+
+pub use crate::sampler::cache::SamplerCache;
 
 // Image view info
 #[derive(Clone, Copy, Debug)]

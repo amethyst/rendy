@@ -3,6 +3,7 @@ use crate::{
     pixel::AsPixel,
     command::QueueId,
     resource::image::{Image, ImageView, Texture as TextureUsage},
+    resource::sampler::Sampler,
     factory::{Factory, ImageState},
     util::cast_cow,
 };
@@ -10,9 +11,10 @@ use crate::{
 /// Static image.
 /// Can be loaded from various of formats.
 #[derive(Debug)]
-pub struct Texture<B: gfx_hal::Backend> {
+pub struct Texture<'a, B: gfx_hal::Backend> {
     image: Image<B>,
     image_view: ImageView<B>,
+    sampler: &'a Sampler<B>,
 }
 
 #[derive(Clone, Debug)]
@@ -106,7 +108,7 @@ impl<'a> TextureBuilder<'a> {
         queue: QueueId,
         access: gfx_hal::image::Access,
         layout: gfx_hal::image::Layout,
-        factory: &mut Factory<B>,
+        factory: &'a mut Factory<B>,
     ) -> Result<Texture<B>, failure::Error>
     where
         B: gfx_hal::Backend,
@@ -152,9 +154,12 @@ impl<'a> TextureBuilder<'a> {
             }
         )?;
 
+        let sampler = factory.create_sampler(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)?;
+
         Ok(Texture {
             image,
             image_view,
+            sampler,
         })
     }
 }
