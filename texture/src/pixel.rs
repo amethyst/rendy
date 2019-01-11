@@ -128,7 +128,7 @@ impl_pixel_repr! {
 #[derivative(Clone(bound = ""), Copy(bound = ""), Debug(bound = ""), Default(bound = ""))]
 #[repr(transparent)]
 pub struct Pixel<C, S, T> where C: PixelRepr<S, T> {
-    repr: <C as PixelRepr<S, T>>::Repr,
+    pub repr: <C as PixelRepr<S, T>>::Repr,
 }
 
 /// Pixel trait.
