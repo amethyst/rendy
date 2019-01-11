@@ -51,6 +51,20 @@ where
             sampler
         )
     }
+
+    #[doc(hidden)]
+    pub fn destroy(
+        &mut self,
+        device: &B::Device,
+    ) {
+        for kvp in self.samplers.drain() {
+            let mut hash_map = kvp.1;
+            for kvp2 in hash_map.drain() {
+                let sampler = kvp2.1;
+                unsafe { device.destroy_sampler(sampler.raw) };
+            }
+        }
+    }
 }
 
 impl<B> Default for SamplerCache<B>
