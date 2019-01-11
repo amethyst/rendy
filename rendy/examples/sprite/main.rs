@@ -1,7 +1,6 @@
 //!
-//! The mighty triangle example.
-//! This examples shows colord triangle on white background.
-//! Nothing fancy. Just prove that `rendy` works.
+//! A simple sprite example.
+//! This examples shows how to render a sprite on a white background.
 //! 
 
 #![forbid(overflowing_literals)]
