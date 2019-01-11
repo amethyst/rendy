@@ -11,10 +11,10 @@ use crate::{
 /// Static image.
 /// Can be loaded from various of formats.
 #[derive(Debug)]
-pub struct Texture<'a, B: gfx_hal::Backend> {
+pub struct Texture<B: gfx_hal::Backend> {
     image: Image<B>,
     image_view: ImageView<B>,
-    sampler: &'a Sampler<B>,
+    sampler: Sampler<B>,
 }
 
 #[derive(Clone, Debug)]

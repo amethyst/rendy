@@ -167,6 +167,7 @@ pub struct ImageView<B: gfx_hal::Backend> {
 #[derive(Debug)]
 pub struct InnerView<B: gfx_hal::Backend> {
     raw: B::ImageView,
+    relevant: relevant::Relevant,
 }
 
 impl<B> InnerView<B>
@@ -175,6 +176,7 @@ where
 {
     #[doc(hidden)]
     pub fn dispose(self) -> B::ImageView {
+        self.relevant.dispose();
         self.raw
     }
 }
@@ -188,6 +190,7 @@ where
         ImageView {
             escape: terminal.escape(InnerView {
                 raw,
+                relevant: relevant::Relevant
             }),
             info,
         }

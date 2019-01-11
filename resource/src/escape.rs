@@ -78,6 +78,14 @@ pub struct Escape<T> {
     inner: std::sync::Arc<Inner<T>>,
 }
 
+impl<T> Clone for Escape<T> {
+    fn clone(&self) -> Self {
+        Escape {
+            inner: std::sync::Arc::clone(&self.inner),
+        }
+    }
+}
+
 impl<T> Escape<T> {
     pub fn keep_alive(escape: &Self) -> KeepAlive
     where

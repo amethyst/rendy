@@ -1,5 +1,4 @@
 
-use rendy_resource;
 use crate::{
     command::{families_from_device, Family, Reset, CommandPool, FamilyId},
     memory::{Heaps, Write},
@@ -206,7 +205,7 @@ where
         &mut self,
         filter: gfx_hal::image::Filter,
         wrap_mode: gfx_hal::image::WrapMode,
-    ) -> Result<&Sampler<B>, failure::Error> {
+    ) -> Result<Sampler<B>, failure::Error> {
         self.resources.get_mut().create_sampler(&self.device, filter, wrap_mode)
     }
 

@@ -237,8 +237,8 @@ where
         device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
         wrap_mode: gfx_hal::image::WrapMode,
-    ) -> Result<&Sampler<B>, failure::Error> {
-        Ok(self.sampler_cache.get(device, filter, wrap_mode).unwrap())
+    ) -> Result<Sampler<B>, failure::Error> {
+        Ok(self.sampler_cache.get(device, filter, wrap_mode))
     }
 
     /// Destroy image.
