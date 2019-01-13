@@ -102,6 +102,29 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    fn match_kind(&self) -> bool {
+        match self.kind {
+            gfx_hal::image::Kind::D1(..) => {
+                match self.view_kind {
+                    gfx_hal::image::ViewKind::D1 | gfx_hal::image::ViewKind::D1Array => true,
+                    _ => false,
+                }
+            },
+            gfx_hal::image::Kind::D2(..) => {
+                match self.view_kind {
+                    gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array => true,
+                    _ => false,
+                }
+            },
+            gfx_hal::image::Kind::D3(..) => {
+                match self.view_kind {
+                    gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array | gfx_hal::image::ViewKind::D3 => true,
+                    _ => false,
+                }
+            },
+        }
+    }
+
     /// Build texture.
     pub fn build<B>(
         &self,
@@ -113,6 +136,8 @@ impl<'a> TextureBuilder<'a> {
     where
         B: gfx_hal::Backend,
     {
+        assert!(self.match_kind());
+
         let mut image = factory.create_image(
             256,
             self.kind,

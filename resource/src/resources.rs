@@ -226,6 +226,7 @@ where
                 swizzle,
                 range,
             },
+            image,
             image_view,
             &self.image_views,
         )})
@@ -285,8 +286,9 @@ where
         inner: image::InnerView<B>,
         device: &impl gfx_hal::Device<B>,
     ) {
-        let raw = inner.dispose();
+        let (raw, image_kp) = inner.dispose();
         device.destroy_image_view(raw);
+        drop(image_kp);
     }
 
     /// Recycle dropped resources.
