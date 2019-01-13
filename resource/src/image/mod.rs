@@ -167,6 +167,7 @@ pub struct ImageView<B: gfx_hal::Backend> {
 #[derive(Debug)]
 pub struct InnerView<B: gfx_hal::Backend> {
     raw: B::ImageView,
+    image_kp: KeepAlive,
     relevant: relevant::Relevant,
 }
 
@@ -175,9 +176,9 @@ where
     B: gfx_hal::Backend,
 {
     #[doc(hidden)]
-    pub fn dispose(self) -> B::ImageView {
+    pub fn dispose(self) -> (B::ImageView, KeepAlive) {
         self.relevant.dispose();
-        self.raw
+        (self.raw, self.image_kp)
     }
 }
 
@@ -186,10 +187,11 @@ where
     B: gfx_hal::Backend,
 {
     #[doc(hidden)]
-    pub unsafe fn new(info: ViewInfo, raw: B::ImageView, terminal: &Terminal<InnerView<B>>) -> Self {
+    pub unsafe fn new(info: ViewInfo, image: &Image<B>, raw: B::ImageView, terminal: &Terminal<InnerView<B>>) -> Self {
         ImageView {
             escape: terminal.escape(InnerView {
                 raw,
+                image_kp: image.keep_alive(),
                 relevant: relevant::Relevant
             }),
             info,

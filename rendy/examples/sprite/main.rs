@@ -28,7 +28,7 @@ use rendy::{
     mesh::{AsVertex, PosTex},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
-    texture::{pixel::{Rgba8Srgb}, TextureBuilder, Texture},
+    texture::{pixel::{Rgba8Srgb}, TextureBuilder},
 };
 
 use winit::{
