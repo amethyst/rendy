@@ -5,6 +5,7 @@
 use std::{
     borrow::Cow,
     mem::size_of,
+    ops::Range,
 };
 
 use crate::{
@@ -333,6 +334,11 @@ where
 {
     /// Record drawing command for this biding.
     pub unsafe fn draw_raw(&self, encoder: &mut impl gfx_hal::command::RawCommandBuffer<B>) {
+        self.draw_raw_instanced(encoder, 0..1)
+    }
+    
+    /// Record instanced drawing command for this biding.
+    pub unsafe fn draw_raw_instanced(&self, encoder: &mut impl gfx_hal::command::RawCommandBuffer<B>, instances: Range<gfx_hal::InstanceCount>) {
         match self {
             &Bind::Indexed {
                 buffer,
@@ -347,11 +353,11 @@ where
                     offset,
                     index_type,
                 });
-                encoder.draw_indexed(0..count, 0, 0..1);
+                encoder.draw_indexed(0..count, 0, instances);
             }
             &Bind::Unindexed { ref vertex, count } => {
                 encoder.bind_vertex_buffers(0, vertex.iter().cloned());
-                encoder.draw(0..count, 0..1);
+                encoder.draw(0..count, instances);
             }
         }
     }
