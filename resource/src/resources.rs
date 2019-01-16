@@ -205,6 +205,9 @@ where
             range: &range,
         });
 
+        let image_info = image.info();
+        assert!(match_kind(image_info.kind, view_kind, image_info.view_caps));
+
         let image_view = unsafe {
             device.create_image_view(
                 image.raw(),
@@ -315,5 +318,30 @@ where
         self.dropped_buffers.extend(self.buffers.drain());
         self.dropped_image_views.extend(self.image_views.drain());
         self.dropped_images.extend(self.images.drain());
+    }
+}
+
+fn match_kind(kind: gfx_hal::image::Kind, view_kind: gfx_hal::image::ViewKind, view_caps: gfx_hal::image::ViewCapabilities) -> bool {
+    match kind {
+        gfx_hal::image::Kind::D1(..) => {
+            match view_kind {
+                gfx_hal::image::ViewKind::D1 | gfx_hal::image::ViewKind::D1Array => true,
+                _ => false,
+            }
+        },
+        gfx_hal::image::Kind::D2(..) => {
+            match view_kind {
+                gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array => true,
+                _ => false,
+            }
+        },
+        gfx_hal::image::Kind::D3(..) => {
+            if view_caps == gfx_hal::image::ViewCapabilities::KIND_2D_ARRAY {
+                if view_kind == gfx_hal::image::ViewKind::D2 { true } 
+                else if view_kind == gfx_hal::image::ViewKind::D2Array { true }
+                else { false }
+            } else if view_kind == gfx_hal::image::ViewKind::D3 { true }
+            else { false }
+        },
     }
 }
