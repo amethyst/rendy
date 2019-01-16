@@ -104,6 +104,13 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    /// With image filer.
+    pub fn with_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
+        self.set_filter(filter);
+        self
+    }
+
+    /// Set image filter.
     pub fn set_filter(&mut self, filter: gfx_hal::image::Filter) -> &mut Self {
         self.filter = filter;
         self
