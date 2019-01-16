@@ -26,6 +26,7 @@ pub struct TextureBuilder<'a> {
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
+    filter: gfx_hal::image::Filter,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -38,6 +39,7 @@ impl<'a> TextureBuilder<'a> {
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
             data_height: 0,
+            filter: gfx_hal::image::Filter::Linear,
         }
     }
 
@@ -102,27 +104,9 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
-    fn match_kind(&self) -> bool {
-        match self.kind {
-            gfx_hal::image::Kind::D1(..) => {
-                match self.view_kind {
-                    gfx_hal::image::ViewKind::D1 | gfx_hal::image::ViewKind::D1Array => true,
-                    _ => false,
-                }
-            },
-            gfx_hal::image::Kind::D2(..) => {
-                match self.view_kind {
-                    gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array => true,
-                    _ => false,
-                }
-            },
-            gfx_hal::image::Kind::D3(..) => {
-                match self.view_kind {
-                    gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array | gfx_hal::image::ViewKind::D3 => true,
-                    _ => false,
-                }
-            },
-        }
+    pub fn set_filter(&mut self, filter: gfx_hal::image::Filter) -> &mut Self {
+        self.filter = filter;
+        self
     }
 
     /// Build texture.
@@ -136,8 +120,6 @@ impl<'a> TextureBuilder<'a> {
     where
         B: gfx_hal::Backend,
     {
-        assert!(self.match_kind());
-
         let mut image = factory.create_image(
             256,
             self.kind,
@@ -179,7 +161,7 @@ impl<'a> TextureBuilder<'a> {
             }
         )?;
 
-        let sampler = factory.create_sampler(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)?;
+        let sampler = factory.create_sampler(self.filter, gfx_hal::image::WrapMode::Clamp)?;
 
         Ok(Texture {
             image,
