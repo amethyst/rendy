@@ -18,8 +18,7 @@ vec2 vertices[6] = {
 };
 
 void main() {
-    int index = gl_InstanceIndex;
-    vec4 posvel = posvelbuff.posvel[index];
+    vec4 posvel = posvelbuff.posvel[gl_InstanceIndex];
     vec2 pos = posvel.rg;
     vec2 vertex = vertices[gl_VertexIndex];
 

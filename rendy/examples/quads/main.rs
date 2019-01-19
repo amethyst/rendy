@@ -69,6 +69,8 @@ lazy_static::lazy_static! {
 }
 
 const QUADS: u32 = 2_000_000;
+const DIVIDE: u32 = 580;
+const PER_CALL: u32 = QUADS / DIVIDE;
 
 #[derive(Debug)]
 struct QuadsRenderPass<B: gfx_hal::Backend> {
@@ -161,16 +163,16 @@ where
 
         let ref mut posvelbuff = buffers[0].buffer;
 
-        let mut indirect = factory.create_buffer(512, std::mem::size_of::<DrawCommand>() as u64, (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic))
+        let mut indirect = factory.create_buffer(512, std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64, (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic))
             .unwrap();
 
         unsafe {
-            factory.upload_visible_buffer(&mut indirect, 0, &[DrawCommand {
+            factory.upload_visible_buffer(&mut indirect, 0, &(0..DIVIDE).map(|index| DrawCommand {
                 vertex_count: 6,
-                instance_count: QUADS,
+                instance_count: QUADS / DIVIDE,
                 first_vertex: 0,
-                first_instance: 0,
-            }]).unwrap();
+                first_instance: index * (QUADS / DIVIDE),
+            }).collect::<Vec<_>>()).unwrap();
         }
 
         let mut vertices = factory.create_buffer(512, std::mem::size_of::<Color>() as u64 * 6, (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic))
@@ -255,8 +257,14 @@ where
             std::iter::once(&self.descriptor_set),
             std::iter::empty::<u32>(),
         );
-        encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
-        encoder.draw_indirect(self.indirect.raw(), 0, 1, std::mem::size_of::<DrawCommand>() as u32);
+        // encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
+        // encoder.draw_indirect(self.indirect.raw(), 0, DIVIDE, std::mem::size_of::<DrawCommand>() as u32);
+
+        for index in 0 .. DIVIDE {
+            encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
+            encoder.draw(0..6, index * PER_CALL .. (index + 1) * PER_CALL);
+        }
+
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
