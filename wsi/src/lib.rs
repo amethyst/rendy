@@ -131,6 +131,18 @@ where
         gfx_hal::Surface::kind(&self.raw)
     }
 
+    /// Get surface ideal format.
+    pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
+        let (_capabilities, formats, _present_modes, _alpha) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
+        let formats = formats.unwrap();
+
+        *formats.iter().max_by_key(|format| {
+            let base = format.base_format();
+            let desc = base.0.desc();
+            (!desc.is_compressed(), base.1 == gfx_hal::format::ChannelType::Srgb, desc.bits)
+        }).unwrap()
+    }
+
     /// Cast surface into render target.
     pub unsafe fn into_target(
         mut self,

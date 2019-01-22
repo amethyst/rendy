@@ -301,6 +301,13 @@ where
         )
     }
 
+    /// Get surface format.
+    pub fn get_surface_format(&self, surface: &Surface<B>) -> gfx_hal::format::Format {
+        unsafe {
+            surface.format(&self.adapter.physical_device)
+        }
+    } 
+
     /// Destroy surface returning underlying window back to the caller.
     pub unsafe fn destroy_surface(&self, surface: Surface<B>) {
         drop(surface);

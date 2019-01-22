@@ -239,7 +239,7 @@ fn main() {
     let color = graph_builder.create_image(
         surface.kind(),
         1,
-        gfx_hal::format::Format::Rgba8Unorm,
+        factory.get_surface_format(&surface),
         MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
