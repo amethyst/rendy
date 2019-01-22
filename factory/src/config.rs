@@ -9,7 +9,10 @@ use crate::{
 #[derive(Clone, derivative::Derivative)]
 #[derivative(Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Config<H = BasicHeapsConfigure, Q = OneGraphicsQueue> {
+pub struct Config<D = BasicDevicesConfigure, H = BasicHeapsConfigure, Q = OneGraphicsQueue> {
+    /// Config to choose adapter.
+    pub devices: D,
+
     /// Config for memory::Heaps.
     pub heaps: H,
 
@@ -144,5 +147,45 @@ unsafe impl HeapsConfigure for SavedHeapsConfig {
         _properties: &gfx_hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps) {
         (self.types, self.heaps)
+    }
+}
+
+
+/// Devices configuration.
+pub trait DevicesConfigure {
+    /// Pick adapter from the slice.
+    /// 
+    /// # Panics
+    /// 
+    /// This function may panic if empty slice is provided.
+    /// 
+    fn pick<B>(&self, adapters: &[gfx_hal::Adapter<B>]) -> usize
+    where
+        B: gfx_hal::Backend,
+    ;
+}
+
+/// Basics adapters config.
+#[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct BasicDevicesConfigure;
+
+impl DevicesConfigure for BasicDevicesConfigure {
+    fn pick<B>(&self, adapters: &[gfx_hal::Adapter<B>]) -> usize
+    where
+        B: gfx_hal::Backend,
+    {
+        adapters
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, adapter)| match adapter.info.device_type {
+                gfx_hal::adapter::DeviceType::DiscreteGpu => 0,
+                gfx_hal::adapter::DeviceType::IntegratedGpu => 1,
+                gfx_hal::adapter::DeviceType::VirtualGpu => 2,
+                gfx_hal::adapter::DeviceType::Cpu => 3,
+                _ => 4,
+            })
+            .expect("No adapters present")
+            .0
     }
 }

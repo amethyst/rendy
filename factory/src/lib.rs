@@ -31,7 +31,7 @@ mod upload;
 pub use crate::{
     config::{
         BasicHeapsConfigure, Config, HeapsConfigure, OneGraphicsQueue, QueuesConfigure,
-        SavedHeapsConfig, SavedQueueConfig,
+        SavedHeapsConfig, SavedQueueConfig, DevicesConfigure, BasicDevicesConfigure,
     },
     factory::{Factory},
     upload::{ImageState, ImageStateOrLayout, BufferState},

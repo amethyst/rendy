@@ -47,21 +47,21 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref render_vertex: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_VERTEX: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
-    static ref render_fragment: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
     );
 
-    static ref bounce_compute: StaticShaderInfo = StaticShaderInfo::new(
+    static ref BOUNCE_COMPUTE: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
@@ -106,11 +106,11 @@ where
     ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *render_vertex);
-        storage.push(render_vertex.module(factory).unwrap());
+        log::trace!("Load shader module '{:#?}'", *RENDER_VERTEX);
+        storage.push(RENDER_VERTEX.module(factory).unwrap());
 
-        log::trace!("Load shader module '{:#?}'", *render_fragment);
-        storage.push(render_fragment.module(factory).unwrap());
+        log::trace!("Load shader module '{:#?}'", *RENDER_FRAGMENT);
+        storage.push(RENDER_FRAGMENT.module(factory).unwrap());
 
         vec![gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -357,8 +357,8 @@ where
 
         let ref mut posvelbuff = buffers[0].buffer;
 
-        log::trace!("Load shader module '{:#?}'", *bounce_compute);
-        let module = bounce_compute.module(factory)?;
+        log::trace!("Load shader module '{:#?}'", *BOUNCE_COMPUTE);
+        let module = BOUNCE_COMPUTE.module(factory)?;
 
         let set_layout = unsafe { gfx_hal::Device::create_descriptor_set_layout(
             factory.device(),

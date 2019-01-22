@@ -4,7 +4,7 @@ use crate::{
     memory::{Heaps, Write},
     resource::{buffer::{self, Buffer}, image::{self, Image}, Resources},
     wsi::{Surface, Target},
-    config::{Config, HeapsConfigure, QueuesConfigure},
+    config::{Config, HeapsConfigure, QueuesConfigure, DevicesConfigure},
     upload::{Uploader, BufferState, ImageState, ImageStateOrLayout},
 };
 
@@ -30,8 +30,8 @@ where
 {
     /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
     /// from the specified `vk::PhysicalDevice`.
-    pub fn init(instance: impl gfx_hal::Instance<Backend = B>, config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, failure::Error> {
-        let adapters = instance.enumerate_adapters();
+    pub fn init(instance: impl gfx_hal::Instance<Backend = B>, config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>) -> Result<Self, failure::Error> {
+        let mut adapters = instance.enumerate_adapters();
 
         if adapters.is_empty() {
             failure::bail!("No physical devices found");
@@ -39,15 +39,11 @@ where
 
         log::info!("Physical devices:\n{:#?}", adapters.iter().map(|adapter| &adapter.info).collect::<smallvec::SmallVec<[_; 32]>>());
 
-        let adapter = adapters
-            .into_iter()
-            .min_by_key(|adapter| match adapter.info.device_type {
-                gfx_hal::adapter::DeviceType::DiscreteGpu => 0,
-                gfx_hal::adapter::DeviceType::IntegratedGpu => 1,
-                gfx_hal::adapter::DeviceType::VirtualGpu => 2,
-                gfx_hal::adapter::DeviceType::Cpu => 3,
-                _ => 4,
-            }).unwrap();
+        let picked = config.devices.pick(&adapters);
+        if picked >= adapters.len() {
+            panic!("Physical device pick config returned index out of bound");
+        }
+        let adapter = adapters.swap_remove(picked);
 
         #[derive(Debug)]
         struct PhysicalDeviceInfo<'a> {
@@ -483,7 +479,7 @@ where
 {
     /// Init factory.
     #[allow(unused_variables)]
-    pub fn new(config: Config<impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error> {
+    pub fn new(config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>) -> Result<Factory<B>, failure::Error> {
         log::debug!("Creating factory");
         init_factory_for_backend!(B, config)
     }

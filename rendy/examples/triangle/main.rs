@@ -46,14 +46,14 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref vertex: StaticShaderInfo = StaticShaderInfo::new(
+    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
-    static ref fragment: StaticShaderInfo = StaticShaderInfo::new(
+    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
@@ -89,11 +89,11 @@ where
     ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *vertex);
-        storage.push(vertex.module(factory).unwrap());
+        log::trace!("Load shader module '{:#?}'", *VERTEX);
+        storage.push(VERTEX.module(factory).unwrap());
 
-        log::trace!("Load shader module '{:#?}'", *fragment);
-        storage.push(fragment.module(factory).unwrap());
+        log::trace!("Load shader module '{:#?}'", *FRAGMENT);
+        storage.push(FRAGMENT.module(factory).unwrap());
 
         vec![gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
