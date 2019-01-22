@@ -30,6 +30,7 @@ use rendy::{
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
+    hal::{Device, pso::DescriptorPool},
 };
 
 use winit::{
@@ -313,8 +314,15 @@ where
         std::slice::from_ref(&self.submit)
     }
 
-    unsafe fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
-        
+    unsafe fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut T) {
+        drop(self.submit);
+        self.command_pool.free_buffers(Some(self.command_buffer.mark_complete()));
+        factory.destroy_command_pool(self.command_pool);
+        self.descriptor_pool.free_sets(Some(self.descriptor_set));
+        factory.destroy_descriptor_pool(self.descriptor_pool);
+        factory.destroy_compute_pipeline(self.pipeline);
+        factory.destroy_pipeline_layout(self.pipeline_layout);
+        factory.destroy_descriptor_set_layout(self.set_layout);
     }
 }
 

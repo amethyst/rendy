@@ -1,7 +1,7 @@
 //! Family module docs.
 
 use crate::{
-    buffer::{Reset, Submittable},
+    buffer::{Reset, Submittable, Submit, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass},
     capability::{Capability, Supports},
     pool::CommandPool,
 };
@@ -25,9 +25,13 @@ impl QueueId {
     }
 }
 
+#[allow(unused)] type NoWaits<B> = std::iter::Empty<(&'static <B as gfx_hal::Backend>::Semaphore, gfx_hal::pso::PipelineStage)>;
+#[allow(unused)] type NoSignals<B> = std::iter::Empty<&'static <B as gfx_hal::Backend>::Semaphore>;
+#[allow(unused)] type NoSubmits<B> = std::iter::Empty<Submit<B, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass>>;
+
 /// Command queue submission.
 #[derive(Debug)]
-pub struct Submission<B, W, C, S> {
+pub struct Submission<B, W = NoWaits<B>, C = NoSubmits<B>, S = NoSignals<B>> {
     /// Iterator over semaphores with stage flag to wait on.
     pub waits: W,
 
@@ -41,22 +45,36 @@ pub struct Submission<B, W, C, S> {
     pub marker: std::marker::PhantomData<fn() -> B>,
 }
 
-#[allow(unused)] type NoWaits<B> = std::iter::Empty<(&'static <B as gfx_hal::Backend>::Semaphore, gfx_hal::pso::PipelineStage)>;
-#[allow(unused)] type NoSignals<B> = std::iter::Empty<&'static <B as gfx_hal::Backend>::Semaphore>;
-
-impl<B, C> Submission<B, NoWaits<B>, C, NoSignals<B>>
+impl<B> Submission<B>
 where
     B: gfx_hal::Backend,
-    C: IntoIterator,
-    C::Item: Submittable<B>,
 {
-    /// Setup new submission from iterator over submittables.
-    pub fn new(submits: C) -> Self {
+    /// Create new empty submission.
+    pub fn new() -> Self {
         Submission {
             waits: std::iter::empty(),
+            submits: std::iter::empty(),
             signals: std::iter::empty(),
-            submits,
             marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<B, W, S> Submission<B, W, NoSubmits<B>, S>
+where
+    B: gfx_hal::Backend,
+{
+    /// Add submits to the submission.
+    pub fn submits<C>(self, submits: C) -> Submission<B, W, C, S>
+    where
+        C: IntoIterator,
+        C::Item: Submittable<B>,
+    {
+        Submission {
+            waits: self.waits,
+            submits,
+            signals: self.signals,
+            marker: self.marker,
         }
     }
 }

@@ -284,7 +284,8 @@ where
         factory.family_mut(qid.family()).submit(
             qid.index(),
             Some(
-                Submission::new(submittables)
+                Submission::new()
+                    .submits(submittables)
                     .wait(waits.iter().cloned())
                     .signal(signals.iter().cloned())
             ),

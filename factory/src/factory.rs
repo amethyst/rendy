@@ -216,32 +216,27 @@ where
         last: Option<BufferState>,
         next: BufferState,
     ) -> Result<(), failure::Error> {
-        if buffer.visible() {
-            // If last is none then buffer is unused hence we can just write into memory.
-            self.upload_visible_buffer(buffer, offset, content)
-        } else {
-            let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
-            let mut staging = self.create_buffer(
-                256,
-                content_size,
-                buffer::UploadBuffer,
-            )?;
+        let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
+        let mut staging = self.create_buffer(
+            256,
+            content_size,
+            buffer::UploadBuffer,
+        )?;
 
-            self.upload_visible_buffer(&mut staging, 0, content)?;
+        self.upload_visible_buffer(&mut staging, 0, content)?;
 
-            let family_index = self.families_indices[&next.queue.family()];
-            self.uploads.families[family_index]
-                .lock()
-                .upload_buffer(
-                    &self.device,
-                    &self.families[family_index],
-                    buffer,
-                    offset,
-                    staging,
-                    last,
-                    next,
-                )
-        }
+        let family_index = self.families_indices[&next.queue.family()];
+        self.uploads.families[family_index]
+            .lock()
+            .upload_buffer(
+                &self.device,
+                &self.families[family_index],
+                buffer,
+                offset,
+                staging,
+                last,
+                next,
+            )
     }
 
     /// Upload image.
@@ -437,7 +432,7 @@ where
     }
     
     /// Create new command pool for specified family.
-    pub unsafe fn destroy_command_pool<R>(&self, pool: CommandPool<B, gfx_hal::QueueType, R>)
+    pub unsafe fn destroy_command_pool<C, R>(&self, pool: CommandPool<B, C, R>)
     where
         R: Reset,
     {

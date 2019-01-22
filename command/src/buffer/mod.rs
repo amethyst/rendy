@@ -271,6 +271,7 @@ where
     /// Dispose of command buffer wrapper releasing raw comman buffer value.
     /// This function is intended to be used to deallocate command buffer.
     pub fn into_raw(self) -> B::CommandBuffer {
+        self.relevant.dispose();
         unsafe {
             // state guarantees that raw command buffer is not shared.
             *Box::from_raw(self.raw.as_ptr())

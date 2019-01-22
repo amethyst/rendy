@@ -188,7 +188,8 @@ where
             family.submit(
                 qid.index(),
                 Some(
-                    Submission::new(Some(&for_image.submit))
+                    Submission::new()
+                        .submits(Some(&for_image.submit))
                         .wait(waits.iter().cloned().chain(Some((&for_image.acquire, gfx_hal::pso::PipelineStage::TRANSFER))))
                         .signal(signals.iter().cloned().chain(Some(&for_image.release)))
                 ),
@@ -199,8 +200,16 @@ where
         }
     }
 
-    unsafe fn dispose(self: Box<Self>, _factory: &mut Factory<B>, _aux: &mut T) {
-        log::error!("Present node dispose is not implemented");
-        std::mem::forget(self);
+    unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &mut T) {
+        for for_image in self.per_image {
+            drop(for_image.submit);
+            factory.destroy_semaphore(for_image.acquire);
+            factory.destroy_semaphore(for_image.release);
+            self.pool.free_buffers(Some(for_image.buffer.mark_complete()));
+        }
+
+        factory.destroy_semaphore(self.free.unwrap());
+        factory.destroy_command_pool(self.pool);
+        factory.destroy_target(self.target);
     }
 }
