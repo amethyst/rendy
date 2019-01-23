@@ -47,6 +47,43 @@ impl<T> Drop for Inner<T> {
     }
 }
 
+#[derive(Debug)]
+struct InnerShared<T> {
+    value: ManuallyDrop<T>,
+    sender: crossbeam_channel::Sender<T>,
+}
+
+unsafe impl<T: Send> Send for InnerShared<T> {}
+unsafe impl<T: Send + Sync> Sync for InnerShared<T> {}
+
+impl<T> InnerShared<T> {
+    /// Unwrap the value.
+
+    fn into_inner_shared(self) -> T {
+        self.deconstruct().0
+    }
+
+    fn deconstruct(mut self) -> (T, crossbeam_channel::Sender<T>) {
+        unsafe {
+            let value = read(&mut *self.value);
+            let sender = read(&mut self.sender);
+            forget(self);
+            (value, sender)
+        }
+    }
+}
+
+impl<T> Drop for InnerShared<T> {
+    fn drop(&mut self) {
+        let value = unsafe {
+            // `self.value` cannot be accessed after this function.
+            // `ManuallyDrop` will prevent `self.value` from dropping.
+            read(&mut *self.value)
+        };
+        self.sender.send(value)
+    }
+}
+
 /// Values of `KeepAlive` keeps resources from destroying.
 /// 
 /// # Example
@@ -76,14 +113,6 @@ pub struct KeepAlive(#[derivative(Debug = "ignore")] std::sync::Arc<dyn std::any
 #[derive(Debug)]
 pub struct Escape<T> {
     inner: std::sync::Arc<Inner<T>>,
-}
-
-impl<T> Clone for Escape<T> {
-    fn clone(&self) -> Self {
-        Escape {
-            inner: std::sync::Arc::clone(&self.inner),
-        }
-    }
 }
 
 impl<T> Escape<T> {
@@ -125,6 +154,49 @@ impl<T> DerefMut for Escape<T> {
     }
 }
 
+/// Wraps value of any type and send it to the `Terminal` from which the wrapper was created.
+/// In case `Terminal` is already dropped then value will be cast into oblivion via `std::mem::forget`.
+/// This version is immutable.
+#[derive(Debug)]
+pub struct EscapeShared<T> {
+    inner: std::sync::Arc<InnerShared<T>>,
+}
+
+impl<T> EscapeShared<T> {
+    pub fn keep_alive(escape: &Self) -> KeepAlive
+    where
+        T: Send + Sync + 'static,
+    {
+        KeepAlive(escape.inner.clone() as _)
+    }
+
+    /// Try to avoid channel sending if resource is not references elsewhere.
+    pub fn dispose(escape: Self) -> Option<T> {
+        Some(InnerShared::into_inner_shared(std::sync::Arc::try_unwrap(escape.inner)
+            .ok().unwrap()))
+    }
+}
+
+impl<T> Clone for EscapeShared<T> {
+    fn clone(&self) -> Self {
+        EscapeShared {
+            inner: std::sync::Arc::clone(&self.inner),
+        }
+    }
+}
+
+impl<T> Deref for EscapeShared<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        unsafe {
+            // Only `Escape` has access to `T`.
+            // `KeepAlive` doesn't access `T`.
+            // `Inner` only access `T` when dropped.
+            &*self.inner.value
+        }
+    }
+}
+
 /// This types allows the user to create `Escape` wrappers.
 /// Receives values from dropped `Escape` instances that was created by this `Terminal`.
 #[derive(Debug)]
@@ -157,6 +229,18 @@ impl<T> Terminal<T> {
         });
 
         Escape {
+            inner,
+        }
+    }
+
+    /// Wrap the value. It will be yielded by iterator returned by `Terminal::drain` if `EscapeShared` will be dropped.
+    pub fn escape_shared(&self, value: T) -> EscapeShared<T> {
+        let inner = std::sync::Arc::new(InnerShared {
+            value: ManuallyDrop::new(value),
+            sender: crossbeam_channel::Sender::clone(&self.sender),
+        });
+
+        EscapeShared {
             inner,
         }
     }
