@@ -3,7 +3,7 @@
 mod cache;
 
 use crate::{
-    escape::{Escape, KeepAlive, Terminal},
+    escape::{EscapeShared, KeepAlive, Terminal},
 };
 
 pub use crate::sampler::cache::SamplerCache;
@@ -19,7 +19,7 @@ pub struct Info {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct Sampler<B: gfx_hal::Backend> {
-    escape: Escape<B::Sampler>,
+    escape: EscapeShared<B::Sampler>,
     info: Info,
 }
 
@@ -42,7 +42,7 @@ where
     #[doc(hidden)]
     pub fn new(info: Info, raw: B::Sampler, terminal: &Terminal<B::Sampler>) -> Self {
         Sampler {
-            escape: terminal.escape(raw),
+            escape: terminal.escape_shared(raw),
             info,
         }
     }
@@ -53,14 +53,14 @@ where
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
     pub(super) fn unescape(self) -> Option<B::Sampler> {
-        Escape::dispose(self.escape)
+        EscapeShared::dispose(self.escape)
     }
 
     /// Creates [`KeepAlive`] handler to extend image lifetime.
     /// 
     /// [`KeepAlive`]: struct.KeepAlive.html
     pub fn keep_alive(&self) -> KeepAlive {
-        Escape::keep_alive(&self.escape)
+        EscapeShared::keep_alive(&self.escape)
     }
 
     #[doc(hidden)]
