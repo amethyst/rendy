@@ -22,10 +22,12 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
+#![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
+
 use rendy::{
     command::{RenderPassInlineEncoder},
     factory::{Config, Factory},
-    graph::{Graph, GraphBuilder, render::RenderPass, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{Graph, GraphBuilder, render::{RenderPass, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -78,8 +80,9 @@ where
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
     )> {
-        vec![PosColor::VERTEX.gfx_vertex_input_desc()]
+        vec![PosColor::VERTEX.gfx_vertex_input_desc(0)]
     }
 
     fn load_shader_sets<'a>(
@@ -129,35 +132,33 @@ where
         }
     }
 
-    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
-        if self.vertex.is_some() {
-            return false;
+    fn prepare(&mut self, factory: &mut Factory<B>, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _index: usize, _aux: &T) -> PrepareResult {
+        if self.vertex.is_none() {
+            let mut vbuf = factory.create_buffer(512, PosColor::VERTEX.stride as u64 * 3, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
+                .unwrap();
+
+            unsafe {
+                // Fresh buffer.
+                factory.upload_visible_buffer(&mut vbuf, 0, &[
+                    PosColor {
+                        position: [0.0, -0.5, 0.0].into(),
+                        color: [1.0, 0.0, 0.0, 1.0].into(),
+                    },
+                    PosColor {
+                        position: [0.5, 0.5, 0.0].into(),
+                        color: [0.0, 1.0, 0.0, 1.0].into(),
+                    },
+                    PosColor {
+                        position: [-0.5, 0.5, 0.0].into(),
+                        color: [0.0, 0.0, 1.0, 1.0].into(),
+                    },
+                ]).unwrap();
+            }
+
+            self.vertex = Some(vbuf);
         }
 
-        let mut vbuf = factory.create_buffer(512, PosColor::VERTEX.stride as u64 * 3, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
-            .unwrap();
-
-        unsafe {
-            // Fresh buffer.
-            factory.upload_visible_buffer(&mut vbuf, 0, &[
-                PosColor {
-                    position: [0.0, -0.5, 0.0].into(),
-                    color: [1.0, 0.0, 0.0, 1.0].into(),
-                },
-                PosColor {
-                    position: [0.5, 0.5, 0.0].into(),
-                    color: [0.0, 1.0, 0.0, 1.0].into(),
-                },
-                PosColor {
-                    position: [-0.5, 0.5, 0.0].into(),
-                    color: [0.0, 0.0, 1.0, 1.0].into(),
-                },
-            ]).unwrap();
-        }
-
-        self.vertex = Some(vbuf);
-
-        true
+        PrepareResult::DrawReuse
     }
 
     fn draw(
@@ -258,8 +259,6 @@ fn main() {
     let graph = graph_builder.build(&mut factory, &mut ()).unwrap();
 
     run(&mut event_loop, &mut factory, graph).unwrap();
-
-    factory.dispose();
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

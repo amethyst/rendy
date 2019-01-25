@@ -6,7 +6,7 @@ use std::{borrow::Cow, fmt::Debug};
 pub type Attribute = gfx_hal::pso::Element<gfx_hal::format::Format>;
 
 /// Trait for vertex attributes to implement
-pub trait AsAttribute: Debug + PartialEq + Copy + Send + Sync {
+pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'static {
     /// Name of the attribute
     const NAME: &'static str;
 
@@ -18,8 +18,8 @@ pub trait AsAttribute: Debug + PartialEq + Copy + Send + Sync {
 }
 
 /// Type for position attribute of vertex.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Position(pub [f32; 3]);
 impl<T> From<T> for Position
@@ -37,8 +37,8 @@ impl AsAttribute for Position {
 }
 
 /// Type for color attribute of vertex
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Color(pub [f32; 4]);
 impl<T> From<T> for Color
@@ -56,8 +56,8 @@ impl AsAttribute for Color {
 }
 
 /// Type for texture coord attribute of vertex
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Normal(pub [f32; 3]);
 impl<T> From<T> for Normal
@@ -76,8 +76,8 @@ impl AsAttribute for Normal {
 }
 
 /// Type for tangent attribute of vertex
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Tangent(pub [f32; 3]);
 impl<T> From<T> for Tangent
@@ -96,8 +96,8 @@ impl AsAttribute for Tangent {
 }
 
 /// Type for texture coord attribute of vertex
-#[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TexCoord(pub [f32; 2]);
 impl<T> From<T> for TexCoord
@@ -129,13 +129,13 @@ pub struct VertexFormat<'a> {
 
 impl<'a> VertexFormat<'a> {
     /// Convert into gfx digestible type.
-    pub fn gfx_vertex_input_desc(&self) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride) {
-        (self.attributes.clone().into_owned(), self.stride)
+    pub fn gfx_vertex_input_desc(&self, rate: gfx_hal::pso::InstanceRate) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride, gfx_hal::pso::InstanceRate) {
+        (self.attributes.clone().into_owned(), self.stride, rate)
     }
 }
 
 /// Trait implemented by all valid vertex formats.
-pub trait AsVertex: Copy + Sized + Send + Sync {
+pub trait AsVertex: Debug + PartialEq + PartialOrd + Copy + Sized + Send + Sync + 'static {
     /// List of all attributes formats with name and offset.
     const VERTEX: VertexFormat<'static>;
 
@@ -181,7 +181,7 @@ where
 
 /// Vertex format with position and RGBA8 color attributes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosColor {
     /// Position of the vertex in 3D space.
@@ -216,7 +216,7 @@ impl WithAttribute<Color> for PosColor {
 
 /// Vertex format with position and normal attributes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosNorm {
     /// Position of the vertex in 3D space.
@@ -251,7 +251,7 @@ impl WithAttribute<Normal> for PosNorm {
 
 /// Vertex format with position, color and normal attributes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosColorNorm {
     /// Position of the vertex in 3D space.
@@ -296,7 +296,7 @@ impl WithAttribute<Normal> for PosColorNorm {
 
 /// Vertex format with position and UV texture coordinate attributes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosTex {
     /// Position of the vertex in 3D space.
@@ -331,7 +331,7 @@ impl WithAttribute<TexCoord> for PosTex {
 
 /// Vertex format with position, normal and UV texture coordinate attributes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosNormTex {
     /// Position of the vertex in 3D space.
@@ -376,7 +376,7 @@ impl WithAttribute<TexCoord> for PosNormTex {
 
 /// Vertex format with position, normal, tangent, and UV texture coordinate attributes.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PosNormTangTex {
     /// Position of the vertex in 3D space.
@@ -426,6 +426,47 @@ impl WithAttribute<TexCoord> for PosNormTangTex {
     const ATTRIBUTE: Attribute = Attribute {
         offset: Position::SIZE + Normal::SIZE + Tangent::SIZE,
         format: TexCoord::FORMAT,
+    };
+}
+
+/// Full vertex transformation attribute.
+/// Typically provided on per-instance basis.
+/// It takes 4 attribute locations.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct Transform(pub [[f32; 4]; 4]);
+impl<T> From<T> for Transform
+where
+    T: Into<[[f32; 4]; 4]>,
+{
+    fn from(from: T) -> Self {
+        Transform(from.into())
+    }
+}
+
+/// It should be `AsAttribute` with multiple locations occupied.
+/// But rust doesn't allow constructing static slices with generic size.
+impl AsVertex for Transform {
+    const VERTEX: VertexFormat<'static> = VertexFormat {
+        attributes: Cow::Borrowed(&[
+            Attribute {
+                format: gfx_hal::format::Format::Rgba32Float,
+                offset: 0,
+            },
+            Attribute {
+                format: gfx_hal::format::Format::Rgba32Float,
+                offset: 16,
+            },
+            Attribute {
+                format: gfx_hal::format::Format::Rgba32Float,
+                offset: 32,
+            },
+            Attribute {
+                format: gfx_hal::format::Format::Rgba32Float,
+                offset: 48,
+            },
+        ]),
+        stride: 64,
     };
 }
 

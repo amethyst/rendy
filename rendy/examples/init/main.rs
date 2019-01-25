@@ -20,6 +20,8 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
+#![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
+
 use rendy::{
     factory::{Config, Factory},
 };
@@ -43,8 +45,6 @@ fn main() {
     let config: Config = Default::default();
 
     let factory: Factory<Backend> = Factory::new(config).unwrap();
-
-    factory.dispose();
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

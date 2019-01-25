@@ -16,12 +16,42 @@ pub struct Factory<B: gfx_hal::Backend> {
     #[derivative(Debug = "ignore")] instance: Box<dyn std::any::Any>,
     #[derivative(Debug = "ignore")] adapter: gfx_hal::Adapter<B>,
     #[derivative(Debug = "ignore")] device: B::Device,
-    heaps: parking_lot::Mutex<Heaps<B>>,
+    heaps: std::mem::ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
     resources: parking_lot::RwLock<Resources<B>>,
     families: Vec<Family<B>>,
     families_indices: std::collections::HashMap<FamilyId, usize>,
     uploads: Uploader<B>,
-    relevant: relevant::Relevant,
+}
+
+impl<B> Drop for Factory<B>
+where
+    B: gfx_hal::Backend,
+{
+    fn drop(&mut self) {
+        let _ = self.wait_idle();
+
+        for uploads in self.uploads.families.drain(..) {
+            unsafe {
+                uploads.into_inner().dispose(&self.device);
+            }
+        }
+
+        for family in self.families.drain(..) {
+            family.dispose();
+        }
+
+        unsafe {
+            // All queues complete.
+            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
+            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
+        }
+
+        unsafe {
+            std::ptr::read(&mut *self.heaps).into_inner().dispose(&self.device);
+        }
+
+        log::trace!("Factory destroyed");
+    }
 }
 
 impl<B> Factory<B>
@@ -92,12 +122,11 @@ where
             instance: Box::new(instance),
             adapter,
             device,
-            heaps: parking_lot::Mutex::new(heaps),
+            heaps: std::mem::ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
             resources: parking_lot::RwLock::new(Resources::new()),
             uploads: Uploader::new(families.len()),
             families,
             families_indices,
-            relevant: relevant::Relevant,
         };
 
         Ok(factory)
@@ -108,28 +137,6 @@ where
     /// usually used only for teardown.
     pub fn wait_idle(&self) -> Result<(), gfx_hal::error::HostExecutionError> {
         gfx_hal::Device::wait_idle(&self.device)
-    }
-
-    /// Dispose of the `Factory`.
-    pub fn dispose(mut self) {
-        let _ = self.wait_idle();
-        for family in self.families {
-            family.dispose();
-        }
-
-        unsafe {
-            // All queues complete.
-            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
-            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
-        }
-
-        self.heaps.into_inner().dispose(&self.device);
-
-        drop(self.device);
-        drop(self.instance);
-
-        self.relevant.dispose();
-        log::trace!("Factory destroyed");
     }
 
     /// Creates a buffer that is managed with the specified properties.
@@ -347,7 +354,8 @@ where
         let family = &mut self.families[family_index];
 
         let family_uploads = self.uploads.families[family_index].get_mut();
-        
+
+        family_uploads.cleanup(&self.device);
         family_uploads.flush(family);
 
         family

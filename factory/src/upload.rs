@@ -1,4 +1,6 @@
 
+use std::collections::VecDeque;
+
 use crate::{
     command::{Family, CommandBuffer, CommandPool, Transfer, IndividualReset, PendingOnceState, InitialState, RecordingState, OneShot, PrimaryLevel, QueueId, Submission},
     resource::{Buffer, Image},
@@ -127,7 +129,7 @@ where
                     fences: Vec::new(),
                     pool: None,
                     next: Vec::new(),
-                    pending: Vec::new(),
+                    pending: VecDeque::new(),
                     command_buffers: Vec::new(),
                 })).collect(),
         }
@@ -139,8 +141,22 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
     pool: Option<CommandPool<B, Transfer, IndividualReset>>,
     command_buffers: Vec<CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>>,
     next: Vec<Option<NextUploads<B>>>,
-    pending: Vec<PendingUploads<B>>,
+    pending: VecDeque<PendingUploads<B>>,
     fences: Vec<B::Fence>,
+}
+
+#[derive(Debug)]
+pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
+    command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
+    staging_buffers: Vec<Buffer<B>>,
+    fence: B::Fence,
+}
+
+#[derive(Debug)]
+struct NextUploads<B: gfx_hal::Backend> {
+    command_buffer: CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
+    staging_buffers: Vec<Buffer<B>>,
+    fence: B::Fence,
 }
 
 impl<B> FamilyUploads<B>
@@ -309,7 +325,7 @@ where
             
             family.submit(queue, Some(Submission::new().submits(Some(submit))), Some(&next.fence));
             
-            self.pending.push(PendingUploads {
+            self.pending.push_back(PendingUploads {
                 command_buffer,
                 staging_buffers: next.staging_buffers,
                 fence: next.fence,
@@ -344,7 +360,7 @@ where
 
                 let fence = self.fences.pop().map(Ok).unwrap_or_else(|| gfx_hal::Device::create_fence(device, false))?;
                 *slot = Some(NextUploads {
-                    command_buffer: buffer.begin(),
+                    command_buffer: buffer.begin(OneShot, ()),
                     staging_buffers: Vec::new(),
                     fence,
                 });
@@ -353,18 +369,50 @@ where
             }
         }
     }
-}
 
-#[derive(Debug)]
-pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
-    command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
-    fence: B::Fence,
-}
+    /// Cleanup pending updates.
+    /// 
+    /// # Safety
+    /// 
+    /// `device` must be the same that was used with other methods of this instance.
+    /// 
+    pub(crate) unsafe fn cleanup(&mut self, device: &B::Device) {
+        while let Some(pending) = self.pending.pop_front() {
+            match gfx_hal::Device::get_fence_status(device, &pending.fence) {
+                Ok(false) => {
+                    self.pending.push_front(pending);
+                    return;
+                }
+                Err(gfx_hal::device::DeviceLost) => {
+                    self.pending.push_front(pending);
+                    panic!("Device lost error is not handled yet");
+                }
+                Ok(true) => unsafe {
+                    self.fences.push(pending.fence);
+                    self.command_buffers.push(pending.command_buffer.mark_complete().reset());
+                }
+            }
+        }
+    }
 
-#[derive(Debug)]
-struct NextUploads<B: gfx_hal::Backend> {
-    command_buffer: CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
-    fence: B::Fence,
+    /// # Safety
+    /// 
+    /// Device must be idle.
+    /// 
+    pub(crate) unsafe fn dispose(mut self, device: &B::Device) {
+        let pool = &mut self.pool;
+        self.pending.drain(..).for_each(|pending| unsafe {
+            gfx_hal::Device::destroy_fence(device, pending.fence);
+            pool.as_mut().unwrap().free_buffers(Some(pending.command_buffer.mark_complete()))
+        });
+
+        self.fences.drain(..).for_each(|fence| gfx_hal::Device::destroy_fence(device, fence));
+        self.command_buffers.drain(..).for_each(|command_buffer| pool.as_mut().unwrap().free_buffers(Some(command_buffer)));
+        self.next.drain(..).filter_map(|n|n).for_each(|next| {
+            pool.as_mut().unwrap().free_buffers(Some(next.command_buffer));
+            gfx_hal::Device::destroy_fence(device, next.fence);
+        });
+        drop(pool);
+        self.pool.map(|pool| pool.dispose(device));
+    }
 }

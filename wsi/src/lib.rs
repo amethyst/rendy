@@ -131,6 +131,12 @@ where
         gfx_hal::Surface::kind(&self.raw)
     }
 
+    /// Get width to hight ratio.
+    pub fn aspect(&self) -> f32 {
+        let extent = gfx_hal::Surface::kind(&self.raw).extent();
+        extent.width as f32 / extent.height as f32
+    }
+
     /// Get surface ideal format.
     pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
         let (_capabilities, formats, _present_modes, _alpha) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
@@ -386,7 +392,7 @@ where
         queue.present(
             self.targets.iter().map(|(target, index)| (&target.swapchain, *index)),
             wait,
-        ).map_err(|()| failure::format_err!("Suboptimal or out of date?"))
+        ).map_err(|()| failure::format_err!("Suboptimal or out of date, or what?"))
     }
 }
 

@@ -19,7 +19,7 @@ pub enum CirqueRef<'a, T, I = T, P = T> {
 
 impl<'a, T, I, P> CirqueRef<'a, T, I, P> {
     /// Init if not in ready state.
-    pub fn or_init(self, init: impl FnOnce(I, usize) -> T) -> ReadyRef<'a, T, I, P> {
+    pub fn or_init(self, init: impl FnOnce(I) -> T) -> ReadyRef<'a, T, I, P> {
         match self {
             CirqueRef::Initial(initial) => initial.init(init),
             CirqueRef::Ready(ready) => ready,
@@ -27,10 +27,18 @@ impl<'a, T, I, P> CirqueRef<'a, T, I, P> {
     }
 
     /// Reset if not in initial state.
-    pub fn or_reset(self, reset: impl FnOnce(T, usize) -> I) -> InitialRef<'a, T, I, P> {
+    pub fn or_reset(self, reset: impl FnOnce(T) -> I) -> InitialRef<'a, T, I, P> {
         match self {
             CirqueRef::Initial(initial) => initial,
             CirqueRef::Ready(ready) => ready.reset(reset),
+        }
+    }
+
+    /// Get ref index.
+    pub fn index(&self) -> usize {
+        match self {
+            CirqueRef::Initial(initial) => initial.index(),
+            CirqueRef::Ready(ready) => ready.index(),
         }
     }
 }
@@ -39,6 +47,7 @@ impl<'a, T, I, P> CirqueRef<'a, T, I, P> {
 /// It is in initial state.
 #[derive(Debug)]
 pub struct InitialRef<'a, T, I = T, P = T> {
+    relevant: relevant::Relevant,
     cirque: &'a mut Cirque<T, I, P>,
     value: I,
     frame: u64,
@@ -47,13 +56,19 @@ pub struct InitialRef<'a, T, I = T, P = T> {
 
 impl<'a, T, I, P> InitialRef<'a, T, I, P> {
     /// Init value.
-    pub fn init(self, init: impl FnOnce(I, usize) -> T) -> ReadyRef<'a, T, I, P> {
+    pub fn init(self, init: impl FnOnce(I) -> T) -> ReadyRef<'a, T, I, P> {
         ReadyRef {
+            relevant: self.relevant,
             cirque: self.cirque,
-            value: init(self.value, self.index),
+            value: init(self.value),
             frame: self.frame,
             index: self.index,
         }
+    }
+
+    /// Get ref index.
+    pub fn index(&self) -> usize {
+        self.index
     }
 }
 
@@ -61,6 +76,7 @@ impl<'a, T, I, P> InitialRef<'a, T, I, P> {
 /// It is in ready state.
 #[derive(Debug)]
 pub struct ReadyRef<'a, T, I = T, P = T> {
+    relevant: relevant::Relevant,
     cirque: &'a mut Cirque<T, I, P>,
     value: T,
     frame: u64,
@@ -69,18 +85,25 @@ pub struct ReadyRef<'a, T, I = T, P = T> {
 
 impl<'a, T, I, P> ReadyRef<'a, T, I, P> {
     /// Init value.
-    pub fn reset(self, reset: impl FnOnce(T, usize) -> I) -> InitialRef<'a, T, I, P> {
+    pub fn reset(self, reset: impl FnOnce(T) -> I) -> InitialRef<'a, T, I, P> {
         InitialRef {
+            relevant: self.relevant,
             cirque: self.cirque,
-            value: reset(self.value, self.index),
+            value: reset(self.value),
             frame: self.frame,
             index: self.index,
         }
     }
 
     /// Finish using this value.
-    pub fn finish(self, finish: impl FnOnce(T, usize) -> P) {
-        self.cirque.pending.push_back((finish(self.value, self.index), self.index, self.frame))
+    pub fn finish(self, finish: impl FnOnce(T) -> P) {
+        self.relevant.dispose();
+        self.cirque.pending.push_back((finish(self.value), self.index, self.frame))
+    }
+
+    /// Get ref index.
+    pub fn index(&self) -> usize {
+        self.index
     }
 }
 
@@ -105,10 +128,10 @@ impl<T, I, P> Cirque<T, I, P> {
     /// Dispose of the `Cirque`.
     pub fn dispose(
         mut self,
-        mut dispose: impl FnMut(either::Either<T, P>, usize),
+        mut dispose: impl FnMut(either::Either<T, P>),
     ) {
-        self.pending.drain(..).for_each(|(value, index, _)| dispose(either::Right(value), index));
-        self.ready.drain(..).for_each(|(value, index)| dispose(either::Left(value), index));
+        self.pending.drain(..).for_each(|(value, _, _)| dispose(either::Right(value)));
+        self.ready.drain(..).for_each(|(value, _)| dispose(either::Left(value)));
     }
 
     /// Get `CirqueRef` for specified frames range.
@@ -116,18 +139,19 @@ impl<T, I, P> Cirque<T, I, P> {
     pub fn get(
         &mut self,
         frames: std::ops::Range<u64>,
-        alloc: impl FnOnce(usize) -> I,
-        complete: impl Fn(P, usize) -> T,
+        alloc: impl FnOnce() -> I,
+        complete: impl Fn(P) -> T,
     ) -> CirqueRef<'_, T, I, P> {
         while let Some((value, index, frame)) = self.pending.pop_front() {
             if frame > frames.start {
                 self.pending.push_back((value, index, frame));
                 break;
             }
-            self.ready.push_back((complete(value, index), index));
+            self.ready.push_back((complete(value), index));
         }
         if let Some((value, index)) = self.ready.pop_front() {
             CirqueRef::Ready(ReadyRef {
+                relevant: relevant::Relevant,
                 cirque: self,
                 value,
                 frame: frames.end,
@@ -136,8 +160,9 @@ impl<T, I, P> Cirque<T, I, P> {
         } else {
             self.counter += 1;
             let index = self.counter - 1;
-            let value = alloc(index);
+            let value = alloc();
             CirqueRef::Initial(InitialRef {
+                relevant: relevant::Relevant,
                 index,
                 cirque: self,
                 value,
@@ -145,4 +170,14 @@ impl<T, I, P> Cirque<T, I, P> {
             })
         }
     }
+}
+
+/// Resource cirque that depends on another one.
+/// It relies on trusted ready index instead of frame indices.
+/// It guarantees to always return same resource for same index.
+#[derive(Debug, derivative::Derivative)]
+#[derivative(Default(bound = ""))]
+pub struct DependentCirque<T, I = T, P = T> {
+    values: Vec<either::Either<T, P>>,
+    marker: std::marker::PhantomData<fn() -> I>,
 }

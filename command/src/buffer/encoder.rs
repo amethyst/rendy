@@ -30,6 +30,26 @@ pub struct DrawCommand {
     pub first_instance: u32,
 }
 
+/// Draw command for indirect indexed draw.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct DrawIndexedCommand {
+    /// Number of indices to draw.
+    pub index_count: u32,
+
+    /// Number of instances to draw.
+    pub instance_count: u32,
+
+    /// First index.
+    pub first_index: u32,
+
+    /// Vertex offset that is added to index before indexing the vertex buffer.
+    pub vertex_offset: i32,
+
+    /// First instance index.
+    pub first_instance: u32,
+}
+
 /// Draw command for dispatch.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -265,6 +285,28 @@ where
         stride: u32,
     ) {
         unsafe { gfx_hal::command::RawCommandBuffer::draw_indirect(
+            self.inner.raw,
+            buffer,
+            offset,
+            draw_count,
+            stride,
+        ) }
+    }
+
+    /// Draw indirect.
+    /// Similar to [`draw`] except takes vertices and indices from `buffer` at specified `offset`.
+    /// `buffer` must contain `draw_count` of [`DrawCommand`] starting from `offset` with `stride` bytes between each.
+    /// 
+    /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
+    /// [`DrawCommand`]: struct.DrawCommand.html
+    pub fn draw_indexed_indirect(
+        &mut self, 
+        buffer: &B::Buffer, 
+        offset: u64, 
+        draw_count: u32, 
+        stride: u32,
+    ) {
+        unsafe { gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
             self.inner.raw,
             buffer,
             offset,
