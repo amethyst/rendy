@@ -491,14 +491,6 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
 
     let started = std::time::Instant::now();
 
-    std::thread::spawn(move || {
-        while started.elapsed() < std::time::Duration::new(300, 0) {
-            std::thread::sleep(std::time::Duration::new(1, 0));
-        }
-
-        std::process::abort();
-    });
-
     let mut frames = 0u64 ..;
     let mut elapsed = started.elapsed();
 

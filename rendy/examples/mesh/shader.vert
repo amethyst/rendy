@@ -11,11 +11,13 @@ layout(set = 0, binding = 0) uniform Args {
     mat4 view;
 };
 
-layout(location = 0) out vec3 frag_norm;
-layout(location = 1) out vec4 frag_color;
+layout(location = 0) out vec4 frag_pos;
+layout(location = 1) out vec3 frag_norm;
+layout(location = 2) out vec4 frag_color;
 
 void main() {
     frag_color = color;
-    // frag_norm = normalize((vec4(norm, 1.0) * model).xyz);
-    gl_Position = proj * view * model * vec4(pos, 1.0);
+    frag_norm = normalize((vec4(norm, 1.0) * model).xyz);
+    frag_pos = model * vec4(pos, 1.0);
+    gl_Position = proj * view * frag_pos;
 }

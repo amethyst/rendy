@@ -35,7 +35,7 @@ use rendy::{
     hal::{Device, pso::DescriptorPool},
 };
 
-use std::{ops::Range, time, mem::size_of};
+use std::{ops::Range, time, mem::size_of, cmp::min};
 
 use genmesh::generators::{IndexedPolygon, SharedVertex};
 
@@ -74,6 +74,7 @@ lazy_static::lazy_static! {
 #[repr(C, align(16))]
 struct Light {
     pos: nalgebra::Vector3<f32>,
+    pad: f32,
     intencity: f32,
 }
 
@@ -82,8 +83,9 @@ struct Light {
 struct UniformArgs {
     proj: nalgebra::Matrix4<f32>,
     view: nalgebra::Matrix4<f32>,
-    lights: [Light; MAX_LIGHTS],
     lights_count: i32,
+    pad: [i32; 3],
+    lights: [Light; MAX_LIGHTS],
 }
 
 #[derive(Debug)]
@@ -101,7 +103,7 @@ struct Scene<B: gfx_hal::Backend> {
 }
 
 const MAX_LIGHTS: usize = 32;
-const MAX_OBJECTS: usize = 1024;
+const MAX_OBJECTS: usize = 1024 * 8;
 
 const UBERALIGN: u64 = 256;
 const MAX_FRAMES: u64 = 5;
@@ -240,10 +242,16 @@ where
                 &mut self.buffer,
                 uniform_offset(index),
                 &[UniformArgs {
+                    pad: [0, 0, 0],
                     proj: scene.camera.proj.to_homogeneous(),
                     view: scene.camera.view.inverse().to_homogeneous(),
                     lights_count: scene.lights.len() as i32,
-                    lights: [Light { pos: nalgebra::Vector3::new(0.0, 0.0, 0.0), intencity: 0.0 }; MAX_LIGHTS],
+                    lights: {
+                        let mut array = [Light { pad: 0.0, pos: nalgebra::Vector3::new(0.0, 0.0, 0.0), intencity: 0.0 }; MAX_LIGHTS];
+                        let count = min(scene.lights.len(), 32);
+                        array[..count].copy_from_slice(&scene.lights[..count]);
+                        array
+                    },
                 }],
             ).unwrap()
         };
@@ -328,40 +336,6 @@ where
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: Graph<Backend, Scene<Backend>>, scene: &mut Scene<Backend>) -> Result<(), failure::Error> {
-
-    let started = time::Instant::now();
-
-    std::thread::spawn(move || {
-        while started.elapsed() < time::Duration::new(30, 0) {
-            std::thread::sleep(time::Duration::new(1, 0));
-        }
-
-        std::process::abort();
-    });
-
-    let mut frames = 0u64 ..;
-    let mut elapsed = started.elapsed();
-
-    for _ in &mut frames {
-        event_loop.poll_events(|_| ());
-        graph.run(factory, scene);
-
-        elapsed = started.elapsed();
-        if elapsed >= time::Duration::new(5, 0) {
-            break;
-        }
-    }
-
-    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-
-    log::info!("Elapsed: {:?}. Frames: {}. FPS: {}", elapsed, frames.start, frames.start * 1_000_000_000 / elapsed_ns);
-
-    graph.dispose(factory, scene);
-    Ok(())
-}
-
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
@@ -380,7 +354,7 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let icosphere = genmesh::generators::IcoSphere::subdivide(5);
+    let icosphere = genmesh::generators::IcoSphere::subdivide(4);
     let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter()).map(|i| i as u32).collect();
     let vertices: Vec<_> = icosphere.shared_vertex_iter().map(|v| PosColorNorm {
         position: v.pos.into(),
@@ -403,15 +377,33 @@ fn main() {
 
     let mut scene = Scene {
         camera: Camera {
-            proj: nalgebra::Perspective3::new(surface.aspect(), 3.1415 / 4.0, 1.0, 100.0),
+            proj: nalgebra::Perspective3::new(surface.aspect(), 3.1415 / 4.0, 1.0, 200.0),
             view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
         },
         object_mesh: mesh,
-        objects: vec![
-            nalgebra::Transform3::identity() * nalgebra::Translation3::new(0.0, 0.0, -3.0),
-            nalgebra::Transform3::identity() * nalgebra::Translation3::new(-0.8, 0.0, -4.0),
+        objects: vec![],
+        lights: vec![
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
+                intencity: 10.0
+            },
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
+                intencity: 140.0
+            },
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
+                intencity: 100.0
+            },
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
+                intencity: 160.0
+            },
         ],
-        lights: Vec::new(),
     };
 
     log::info!("{:#?}", scene);
@@ -446,9 +438,53 @@ fn main() {
             .with_dependency(pass)
     );
 
-    let graph = graph_builder.build(&mut factory, &mut scene).unwrap();
+    let mut graph = graph_builder.build(&mut factory, &mut scene).unwrap();
 
-    run(&mut event_loop, &mut factory, graph, &mut scene).unwrap();
+    let started = time::Instant::now();
+
+    let mut frames = 0u64 ..;
+    let mut rng = rand::thread_rng();
+    let rxy = Uniform::new(-1.0, 1.0);
+    let rz = Uniform::new(0.0, 185.0);
+
+    let mut fpss = Vec::new();
+    let mut checkpoint = started;
+
+    while scene.objects.len() < MAX_OBJECTS {
+        let start = frames.start;
+        let from = scene.objects.len();
+        for _ in &mut frames {
+            event_loop.poll_events(|_| ());
+            graph.run(&mut factory, &mut scene);
+
+            let elapsed = checkpoint.elapsed();
+
+            if scene.objects.len() < MAX_OBJECTS {
+                scene.objects.push(
+                    {
+                        let z = rz.sample(&mut rng);
+                        nalgebra::Transform3::identity() * nalgebra::Translation3::new(
+                            rxy.sample(&mut rng) * (z + 10.0),
+                            rxy.sample(&mut rng) * (z + 10.0),
+                            -z,
+                        )
+                    }
+                )
+            }
+
+            if elapsed > std::time::Duration::new(5, 0) || scene.objects.len() == MAX_OBJECTS {
+                let frames = frames.start - start;
+                let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+                fpss.push((frames * 1_000_000_000 / nanos, from .. scene.objects.len()));
+                checkpoint += elapsed;
+                break;
+            }
+        }
+    }
+
+    log::info!("FPS: {:#?}", fpss);
+
+    graph.dispose(&mut factory, &mut scene);
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
