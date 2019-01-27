@@ -93,7 +93,7 @@ where
             Backbuffer::Images(target_images) => {
                 let buffers = pool.allocate_buffers(target_images.len());
                 target_images.iter().zip(buffers).map(|(target_image, buf_initial)| {
-                    let mut buf_recording = buf_initial.begin::<MultiShot<_>, _>();
+                    let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
                     let mut encoder = buf_recording.encoder();
                     {
                         let (stages, barriers) = gfx_acquire_barriers(None, Some(input_image));
@@ -196,7 +196,8 @@ where
                 fence,
             );
 
-            next.present(&mut family.queues_mut()[qid.index()], Some(&for_image.release)).unwrap();
+            next.present(&mut family.queues_mut()[qid.index()], Some(&for_image.release))
+                .expect("Fix swapchain error");
         }
     }
 

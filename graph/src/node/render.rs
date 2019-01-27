@@ -4,9 +4,10 @@
 use crate::{
     command::{
         Graphics, CommandPool, CommandBuffer, IndividualReset, Submit, SecondaryLevel, PendingState, ExecutableState, SimultaneousUse, MultiShot, RenderPassInlineEncoder, FamilyId,
+        NoSimultaneousUse,
     },
     factory::Factory,
-    frame::{Frames, cirque::CommandCirque},
+    frame::{Frames, cirque::{CirqueRef, CommandCirque}},
     node::{Node, NodeBuffer, NodeBuilder, NodeDesc, NodeImage, BufferAccess, ImageAccess, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
 };
 
@@ -37,6 +38,7 @@ pub struct Pipeline {
     pub vertices: Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
     )>,
 
     /// Colors for pipeline.
@@ -75,6 +77,25 @@ pub struct RenderPassNode<B: gfx_hal::Backend, R> {
     relevant: relevant::Relevant,
 }
 
+/// Result of draw preparation.
+#[derive(Clone, Copy, Debug)]
+#[must_use]
+pub enum PrepareResult {
+    /// Force record draw commands.
+    DrawRecord,
+
+    /// Reuse draw commands.
+    DrawReuse,
+}
+
+impl PrepareResult {
+    fn force_record(&self) -> bool {
+        match self {
+            PrepareResult::DrawRecord => true,
+            PrepareResult::DrawReuse => false,
+        }
+    }
+}
 
 /// Render pass.
 pub trait RenderPass<B, T>: std::fmt::Debug + Send + Sync + 'static
@@ -117,6 +138,7 @@ where
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
     )> {
         Vec::new()
     }
@@ -136,7 +158,7 @@ where
             depth_stencil: if Self::depth() {
                 gfx_hal::pso::DepthStencilDesc {
                     depth: gfx_hal::pso::DepthTest::On {
-                        fun: gfx_hal::pso::Comparison::LessEqual,
+                        fun: gfx_hal::pso::Comparison::Less,
                         write: true,
                     },
                     depth_bounds: false,
@@ -185,8 +207,14 @@ where
     /// Prepare to record drawing commands.
     /// 
     /// Should return true if commands must be re-recorded.
-    fn prepare(&mut self, _factory: &mut Factory<B>, _aux: &T) -> bool {
-        false
+    fn prepare(
+        &mut self,
+        _factory: &mut Factory<B>,
+        _sets: &[impl AsRef<[B::DescriptorSetLayout]>],
+        _index: usize,
+        _aux: &T,
+    ) -> PrepareResult {
+        PrepareResult::DrawRecord
     }
 
     /// Record drawing commands to the command buffer provided.
@@ -462,8 +490,8 @@ where
                     let mut vertex_buffers = Vec::new();
                     let mut attributes = Vec::new();
 
-                    for &(ref elemets, stride) in &pipeline.vertices {
-                        push_vertex_desc(elemets, stride, &mut vertex_buffers, &mut attributes);
+                    for &(ref elemets, stride, rate) in &pipeline.vertices {
+                        push_vertex_desc(elemets, stride, rate, &mut vertex_buffers, &mut attributes);
                     }
 
                     gfx_hal::pso::GraphicsPipelineDesc {
@@ -529,7 +557,7 @@ where
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
-                let mut recording = initial.begin::<MultiShot<SimultaneousUse>, _>();
+                let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
                 log::info!("Acquire {:?} : {:#?}", stages, barriers);
                 recording.encoder().pipeline_barrier(
                     stages,
@@ -553,7 +581,7 @@ where
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
-                let mut recording = initial.begin::<MultiShot<SimultaneousUse>, _>();
+                let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
                 log::info!("Release {:?} : {:#?}", stages, barriers);
                 recording.encoder().pipeline_barrier(
                     stages,
@@ -616,8 +644,6 @@ where
         aux: &mut T,
         frames: &'a Frames<B>,
     ) -> std::iter::Once<Submit<B>> {
-        let redraw = self.pass.prepare(factory, aux);
-
         let RenderPassNode {
             acquire,
             release,
@@ -628,46 +654,57 @@ where
             pass,
             pipeline_layouts,
             graphics_pipelines,
+            set_layouts,
             ..
         } = self;
 
-        let submit = self.command_cirque.encode_submit(
+        let submit = self.command_cirque.encode(
             frames.range(),
-            redraw,
             &mut self.command_pool,
-            |mut encoder, index| {
-                if let Some(barriers) = &acquire {
-                    encoder.execute_commands(std::iter::once(&barriers.submit));
+            |mut cbuf| {
+                let index = cbuf.index();
+                if pass.prepare(factory, set_layouts, index, aux).force_record() {
+                    cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
                 }
 
-                let area = gfx_hal::pso::Rect {
-                    x: 0,
-                    y: 0,
-                    w: extent.width as _,
-                    h: extent.height as _,
-                };
+                cbuf.or_init(|cbuf| {
+                    let mut cbuf = cbuf.begin(MultiShot(NoSimultaneousUse), ());
+                    let mut encoder = cbuf.encoder();
+
+                    if let Some(barriers) = &acquire {
+                        encoder.execute_commands(std::iter::once(&barriers.submit));
+                    }
+
+                    let area = gfx_hal::pso::Rect {
+                        x: 0,
+                        y: 0,
+                        w: extent.width as _,
+                        h: extent.height as _,
+                    };
 
 
-                let pass_encoder = unsafe {
-                    encoder.begin_render_pass_inline(
-                        &render_pass,
-                        &framebuffer,
-                        area,
-                        &clears,
-                    )
-                };
+                    let pass_encoder = unsafe {
+                        encoder.begin_render_pass_inline(
+                            &render_pass,
+                            &framebuffer,
+                            area,
+                            &clears,
+                        )
+                    };
 
-                pass.draw(
-                    &pipeline_layouts,
-                    &graphics_pipelines,
-                    pass_encoder,
-                    index,
-                    aux,
-                );
+                    pass.draw(
+                        &pipeline_layouts,
+                        &graphics_pipelines,
+                        pass_encoder,
+                        index,
+                        aux,
+                    );
 
-                if let Some(barriers) = &release {
-                    encoder.execute_commands(std::iter::once(&barriers.submit));
-                }
+                    if let Some(barriers) = &release {
+                        encoder.execute_commands(std::iter::once(&barriers.submit));
+                    }
+                    cbuf.finish()
+                })
             }
         );
 
@@ -678,7 +715,7 @@ where
         self.relevant.dispose();
         self.pass.dispose(factory, aux);
         let pool = &mut self.command_pool;
-        self.command_cirque.dispose(|buffer, _| {
+        self.command_cirque.dispose(|buffer| {
             buffer.either_with(
                 &mut*pool,
                 |pool, executable| pool.free_buffers(Some(executable)),
@@ -715,18 +752,19 @@ where
 fn push_vertex_desc(
     elements: &[gfx_hal::pso::Element<gfx_hal::format::Format>],
     stride: gfx_hal::pso::ElemStride,
+    rate: gfx_hal::pso::InstanceRate,
     vertex_buffers: &mut Vec<gfx_hal::pso::VertexBufferDesc>,
     attributes: &mut Vec<gfx_hal::pso::AttributeDesc>,
 ) {
     let index = vertex_buffers.len() as gfx_hal::pso::BufferIndex;
 
     vertex_buffers.push(gfx_hal::pso::VertexBufferDesc {
-        binding: 0,
+        binding: index,
         stride,
-        rate: 0,
+        rate,
     });
 
-    let mut location = attributes.last().map(|a| a.location + 1).unwrap_or(0);
+    let mut location = attributes.last().map_or(0, |a| a.location + 1);
     for &element in elements {
         attributes.push(gfx_hal::pso::AttributeDesc {
             location,

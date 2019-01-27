@@ -4,7 +4,7 @@ use {
         CommandBuffer, CommandPool,
         InitialState, ExecutableState, PendingState,
         MultiShot, NoSimultaneousUse, OutsideRenderPass, PrimaryLevel,
-        Submit, Encoder, Level, Capability, IndividualReset,
+        Submit, Level, Capability, IndividualReset, RenderPassRelation,
     },
     super::*,
 };
@@ -16,44 +16,54 @@ pub type CommandCirque<B, C, P = OutsideRenderPass, L = PrimaryLevel> = Cirque<
     CommandBuffer<B, C, PendingState<ExecutableState<MultiShot, P>>, L, IndividualReset>,
 >;
 
-impl<B, C, L> CommandCirque<B, C, OutsideRenderPass, L>
+///
+pub type CommandCirqueRef<'a, B, C, P = OutsideRenderPass, L = PrimaryLevel> = CirqueRef<'a, 
+    CommandBuffer<B, C, ExecutableState<MultiShot, P>, L, IndividualReset>,
+    CommandBuffer<B, C, InitialState, L, IndividualReset>,
+    CommandBuffer<B, C, PendingState<ExecutableState<MultiShot, P>>, L, IndividualReset>,
+>;
+
+///
+pub type CommandInitialRef<'a, B, C, P = OutsideRenderPass, L = PrimaryLevel> = InitialRef<'a, 
+    CommandBuffer<B, C, ExecutableState<MultiShot, P>, L, IndividualReset>,
+    CommandBuffer<B, C, InitialState, L, IndividualReset>,
+    CommandBuffer<B, C, PendingState<ExecutableState<MultiShot, P>>, L, IndividualReset>,
+>;
+
+///
+pub type CommandReadyRef<'a, B, C, P = OutsideRenderPass, L = PrimaryLevel> = ReadyRef<'a, 
+    CommandBuffer<B, C, ExecutableState<MultiShot, P>, L, IndividualReset>,
+    CommandBuffer<B, C, InitialState, L, IndividualReset>,
+    CommandBuffer<B, C, PendingState<ExecutableState<MultiShot, P>>, L, IndividualReset>,
+>;
+
+impl<B, C, P, L> CommandCirque<B, C, P, L>
 where
     B: gfx_hal::Backend,
     L: Level,
     C: Capability,
+    P: RenderPassRelation<L>,
 {
     /// Encode and submit.
-    pub fn encode_submit(
-        &mut self,
+    pub fn encode<'a>(
+        &'a mut self,
         frames: std::ops::Range<u64>,
-        force: bool,
         pool: &mut CommandPool<B, C, IndividualReset>,
-        encode: impl FnOnce(Encoder<'_, B, C, L>, usize)
-    ) -> Submit<B, NoSimultaneousUse, L, OutsideRenderPass> {
-        let init = |initial: CommandBuffer<_, _, InitialState, _, _>, index| -> CommandBuffer<_, _, ExecutableState<MultiShot>, _, _> {
-            let mut recording = initial.begin();
-            encode(recording.encoder(), index);
-            recording.finish()
-        };
-
+        encode: impl FnOnce(CommandCirqueRef<'a, B, C, P, L>) -> CommandReadyRef<'a, B, C, P, L>
+    ) -> Submit<B, NoSimultaneousUse, L, P> {
         let cr = self.get(
             frames,
-            |_| pool.allocate_buffers(1).pop().unwrap(),
-            |pending, _| unsafe {
+            || pool.allocate_buffers(1).pop().unwrap(),
+            |pending| unsafe {
                 pending.mark_complete()
             },
         );
-
-        let ready = if force {
-            cr.or_init(init)
-        } else {
-            cr.or_reset(|executable, _| executable.reset())
-                .init(init)
-        };
+        
+        let ready = encode(cr);
 
         let mut slot = None;
 
-        ready.finish(|executable, _| {
+        ready.finish(|executable| {
             let (submit, pending) = executable.submit();
             slot = Some(submit);
             pending

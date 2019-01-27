@@ -34,10 +34,7 @@ mod mesh;
 mod vertex;
 
 pub use crate::{
-    mesh::{Bind, Incompatible, IndexBuffer, Indices, Mesh, MeshBuilder, VertexBuffer},
-    vertex::{
-        AsAttribute, AsVertex, Attribute, Color, Normal, PosColor, PosNorm, PosNormTangTex, PosNormTex,
-        PosTex, Position, Query, Tangent, TexCoord, VertexFormat, WithAttribute,
-    },
+    mesh::*,
+    vertex::*,
     format::*,
 };

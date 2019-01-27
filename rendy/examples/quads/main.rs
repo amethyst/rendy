@@ -21,11 +21,13 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
+#![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
+
 use rendy::{
     command::{Compute, RenderPassInlineEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand, FamilyId},
     factory::{Config, Factory},
     frame::{Frames},
-    graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
+    graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -95,8 +97,13 @@ where
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
     )> {
-        vec![Color::VERTEX.gfx_vertex_input_desc()]
+        vec![Color::VERTEX.gfx_vertex_input_desc(0)]
+    }
+
+    fn depth() -> bool {
+        true
     }
 
     fn load_shader_sets<'a>(
@@ -239,8 +246,8 @@ where
         }
     }
 
-    fn prepare(&mut self, _factory: &mut Factory<B>, _aux: &T) -> bool {
-        false
+    fn prepare(&mut self, _factory: &mut Factory<B>, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _index: usize, _aux: &T) -> PrepareResult {
+        PrepareResult::DrawReuse
     }
 
     fn draw(
@@ -432,7 +439,7 @@ where
             .with_capability::<Compute>()
             .expect("Graph builder must provide family with Compute capability");
         let initial = command_pool.allocate_buffers(1).remove(0);
-        let mut recording = initial.begin::<MultiShot<_>, _>();
+        let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
         let mut encoder = recording.encoder();
         encoder.bind_compute_pipeline(&pipeline);
         encoder.bind_compute_descriptor_sets(
@@ -483,14 +490,6 @@ where
 fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: Graph<Backend, ()>) -> Result<(), failure::Error> {
 
     let started = std::time::Instant::now();
-
-    std::thread::spawn(move || {
-        while started.elapsed() < std::time::Duration::new(300, 0) {
-            std::thread::sleep(std::time::Duration::new(1, 0));
-        }
-
-        std::process::abort();
-    });
 
     let mut frames = 0u64 ..;
     let mut elapsed = started.elapsed();
@@ -549,6 +548,14 @@ fn main() {
         Some(gfx_hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
+    let depth = graph_builder.create_image(
+        surface.kind(),
+        1,
+        gfx_hal::format::Format::D16Unorm,
+        MemoryUsageValue::Data,
+        Some(gfx_hal::command::ClearValue::DepthStencil(gfx_hal::command::ClearDepthStencil(1.0, 0))),
+    );
+
     let grav = graph_builder.add_node(
         GravBounce::builder()
             .with_buffer(posvel)
@@ -557,6 +564,7 @@ fn main() {
     let pass = graph_builder.add_node(
         QuadsRenderPass::builder()
             .with_image(color)
+            .with_image(depth)
             .with_buffer(posvel)
             .with_dependency(grav)
     );
@@ -570,8 +578,6 @@ fn main() {
     let graph = graph_builder.build(&mut factory, &mut ()).unwrap();
 
     run(&mut event_loop, &mut factory, graph).unwrap();
-
-    factory.dispose();
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
