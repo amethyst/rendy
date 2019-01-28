@@ -202,7 +202,7 @@ where
     }
     
     /// Push graphics constants.
-    pub fn push_graphics_constants<'b>(
+    pub fn push_constants<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         stages: gfx_hal::pso::ShaderStageFlags,
