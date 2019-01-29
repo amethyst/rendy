@@ -314,7 +314,7 @@ where
             Some(self.sets[index].as_ref().unwrap()),
             std::iter::empty(),
         );
-        let vertices = scene.object_mesh.bind(&[PosColorNorm::VERTEX], &mut encoder);
+        scene.object_mesh.bind(&[PosColorNorm::VERTEX], &mut encoder);
         encoder.bind_vertex_buffers(
             1,
             std::iter::once((self.buffer.raw(), transforms_offset(index))),
