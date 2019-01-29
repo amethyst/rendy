@@ -1,22 +1,14 @@
 //!
 //! 
 
-#![forbid(overflowing_literals)]
-#![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
-#![warn(intra_doc_link_resolution_failure)]
-#![warn(path_statements)]
-#![warn(trivial_bounds)]
-#![warn(type_alias_bounds)]
-#![warn(unconditional_recursion)]
-#![warn(unions_with_drop_fields)]
-#![warn(while_true)]
-#![warn(unused)]
-#![warn(bad_style)]
-#![warn(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
+#[warn(missing_debug_implementations,
+       missing_copy_implementations,
+       missing_docs,
+       trivial_casts,
+       trivial_numeric_casts,
+       unused_extern_crates,
+       unused_import_braces,
+       unused_qualifications)]
 
 use std::borrow::Cow;
 

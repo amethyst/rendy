@@ -387,7 +387,7 @@ where
                     self.pending.push_front(pending);
                     panic!("Device lost error is not handled yet");
                 }
-                Ok(true) => unsafe {
+                Ok(true) => {
                     self.fences.push(pending.fence);
                     self.command_buffers.push(pending.command_buffer.mark_complete().reset());
                 }
@@ -401,7 +401,7 @@ where
     /// 
     pub(crate) unsafe fn dispose(mut self, device: &B::Device) {
         let pool = &mut self.pool;
-        self.pending.drain(..).for_each(|pending| unsafe {
+        self.pending.drain(..).for_each(|pending| {
             gfx_hal::Device::destroy_fence(device, pending.fence);
             pool.as_mut().unwrap().free_buffers(Some(pending.command_buffer.mark_complete()))
         });

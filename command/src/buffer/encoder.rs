@@ -567,9 +567,7 @@ where
 				self.inner.raw,
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
-                    unsafe {
-                        submit.raw()
-                    }
+                    submit.raw()
                 })
 			)
 		}

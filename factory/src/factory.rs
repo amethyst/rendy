@@ -193,9 +193,7 @@ where
         offset: u64,
         content: &[T],
     ) -> Result<(), failure::Error> {
-        let content = unsafe {
-            std::slice::from_raw_parts(content.as_ptr() as *const u8, content.len() * std::mem::size_of::<T>())
-        };
+        let content = std::slice::from_raw_parts(content.as_ptr() as *const u8, content.len() * std::mem::size_of::<T>());
 
         let mut mapped = buffer.map(&self.device, offset..offset + content.len() as u64)?;
         mapped
@@ -363,9 +361,7 @@ where
 
     /// Get surface support for family.
     pub fn surface_support(&self, family: FamilyId, surface: &B::Surface) -> bool {
-        unsafe {
-            gfx_hal::Surface::supports_queue_family(surface, &self.adapter.queue_families[family.0])
-        }
+        gfx_hal::Surface::supports_queue_family(surface, &self.adapter.queue_families[family.0])
     }
 
     /// Get device.
@@ -380,9 +376,7 @@ where
 
     /// Create new semaphore
     pub fn create_semaphore(&self) -> Result<B::Semaphore, gfx_hal::device::OutOfMemory> {
-        unsafe {
-            gfx_hal::Device::create_semaphore(&self.device)
-        }
+        gfx_hal::Device::create_semaphore(&self.device)
     }
 
     /// Destroy semaphore
@@ -394,9 +388,7 @@ where
 
     /// Create new fence
     pub fn create_fence(&self, signaled: bool) -> Result<B::Fence, gfx_hal::device::OutOfMemory> {
-        unsafe {
-            gfx_hal::Device::create_fence(&self.device, signaled)
-        }
+        gfx_hal::Device::create_fence(&self.device, signaled)
     }
 
     /// Wait for the fence become signeled.

@@ -79,7 +79,7 @@ where
 
         Ok(Self::from_raw(
             memory,
-            NonNull::new_unchecked(ptr as *mut u8),
+            NonNull::new_unchecked(ptr),
             range,
         ))
     }
@@ -170,7 +170,7 @@ where
         Ok(WriteFlush {
             slice,
             flush: if !self.coherent.0 {
-                Some(move || unsafe {
+                Some(move || {
                     device.flush_mapped_memory_ranges(Some((memory.raw(), range)))
                         .expect("Should flush successfully");
                 })

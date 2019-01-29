@@ -1,23 +1,14 @@
 
 //! Window system integration.
 
-#![forbid(overflowing_literals)]
-#![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
-#![warn(intra_doc_link_resolution_failure)]
-#![warn(path_statements)]
-#![warn(trivial_bounds)]
-#![warn(type_alias_bounds)]
-#![warn(unconditional_recursion)]
-#![warn(unions_with_drop_fields)]
-#![warn(while_true)]
-#![warn(unused)]
-#![warn(bad_style)]
-#![warn(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
-#![allow(unused_unsafe)]
+#[warn(missing_debug_implementations,
+       missing_copy_implementations,
+       missing_docs,
+       trivial_casts,
+       trivial_numeric_casts,
+       unused_extern_crates,
+       unused_import_braces,
+       unused_qualifications)]
 
 use rendy_resource::{
     escape::Terminal,
@@ -200,7 +191,7 @@ where
             }
         });
 
-        let (swapchain, backbuffer) = unsafe { device.create_swapchain(
+        let (swapchain, backbuffer) = device.create_swapchain(
             &mut self.raw,
             gfx_hal::SwapchainConfig {
                 present_mode,
@@ -212,12 +203,12 @@ where
                 composite_alpha: gfx_hal::window::CompositeAlpha::Inherit,
             },
             None,
-        ) }?;
+        )?;
 
         let (backbuffer, terminal) = match backbuffer {
             gfx_hal::Backbuffer::Images(images) => {
                 let terminal = Terminal::new();
-                let backbuffer = Backbuffer::Images(images.into_iter().map(|image| unsafe {
+                let backbuffer = Backbuffer::Images(images.into_iter().map(|image| {
                     Image::new(
                         Info {
                             kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),

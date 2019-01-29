@@ -683,7 +683,7 @@ where
                     };
 
 
-                    let pass_encoder = unsafe {
+                    let pass_encoder = {
                         encoder.begin_render_pass_inline(
                             &render_pass,
                             &framebuffer,
@@ -719,7 +719,7 @@ where
             buffer.either_with(
                 &mut*pool,
                 |pool, executable| pool.free_buffers(Some(executable)),
-                |pool, pending| unsafe {
+                |pool, pending| {
                     let executable = pending.mark_complete();
                     pool.free_buffers(Some(executable))
                 },

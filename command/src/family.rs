@@ -211,9 +211,7 @@ where
                     gfx_hal::queue::Submission {
                         command_buffers: submission.submits.into_iter().map(|submit| {
                             assert_eq!(submit.family(), index);
-                            unsafe {
-                                submit.raw()
-                            }
+                            submit.raw()
                         }),
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
                         signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),

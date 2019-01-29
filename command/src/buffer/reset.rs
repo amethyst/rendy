@@ -1,7 +1,5 @@
 
-use super::{
-    state::*,
-};
+use super::state::*;
 
 /// This flag specify that buffer can be reset individually.
 #[derive(Clone, Copy, Debug, Default)]

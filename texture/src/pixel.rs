@@ -1,17 +1,39 @@
 //! Typed pixel formats.
 
+/// Normalized unsigned integer representation
 #[derive(Clone, Copy, Debug, Default)] pub struct Unorm;
+
+/// Normalized signed integer representation
 #[derive(Clone, Copy, Debug, Default)] pub struct Inorm;
+
+/// Unsigned integer representation
 #[derive(Clone, Copy, Debug, Default)] pub struct Uint;
+
+/// Signed integer representation
 #[derive(Clone, Copy, Debug, Default)] pub struct Int;
+
+/// ???
 #[derive(Clone, Copy, Debug, Default)] pub struct Uscaled;
+
+/// ???
 #[derive(Clone, Copy, Debug, Default)] pub struct Iscaled;
+
+/// `Unorm` but in with srgb gammar correction.
 #[derive(Clone, Copy, Debug, Default)] pub struct Srgb;
+
+/// Floating point representation.
 #[derive(Clone, Copy, Debug, Default)] pub struct Float;
 
+/// 8 bits marker type
 #[derive(Clone, Copy, Debug, Default)] pub struct _8;
+
+/// 16 bits marker type
 #[derive(Clone, Copy, Debug, Default)] pub struct _16;
+
+/// 32 bits marker type
 #[derive(Clone, Copy, Debug, Default)] pub struct _32;
+
+/// 64 bits marker type
 #[derive(Clone, Copy, Debug, Default)] pub struct _64;
 
 /// Size of the channel.

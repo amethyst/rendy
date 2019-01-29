@@ -6,6 +6,9 @@ cache:
 
 compiler: clang
 
+env:
+  - RUSTFLAGS="-D warnings"
+
 matrix:
   include:
     # Linux 64bit

@@ -83,12 +83,10 @@ where
     ) {
         let buffers = buffers
             .into_iter()
-            .map(|buffer| unsafe { buffer.into_raw() })
+            .map(|buffer| buffer.into_raw())
             .collect::<Vec<_>>();
 
-        unsafe {
-            gfx_hal::pool::RawCommandPool::free(&mut self.raw, buffers);
-        }
+        gfx_hal::pool::RawCommandPool::free(&mut self.raw, buffers);
     }
 
     /// Reset all buffers of this pool.

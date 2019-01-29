@@ -4,24 +4,6 @@
 //! Nothing fancy. Just prove that `rendy` works.
 //! 
 
-#![forbid(overflowing_literals)]
-#![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
-#![warn(intra_doc_link_resolution_failure)]
-#![warn(path_statements)]
-#![warn(trivial_bounds)]
-#![warn(type_alias_bounds)]
-#![warn(unconditional_recursion)]
-#![warn(unions_with_drop_fields)]
-#![warn(while_true)]
-#![warn(unused)]
-#![warn(bad_style)]
-#![warn(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
-#![allow(unused_unsafe)]
-
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{

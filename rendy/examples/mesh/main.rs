@@ -4,38 +4,20 @@
 //! Nothing fancy. Just prove that `rendy` works.
 //! 
 
-#![forbid(overflowing_literals)]
-#![warn(missing_copy_implementations)]
-#![warn(missing_debug_implementations)]
-#![warn(missing_docs)]
-#![warn(intra_doc_link_resolution_failure)]
-#![warn(path_statements)]
-#![warn(trivial_bounds)]
-#![warn(type_alias_bounds)]
-#![warn(unconditional_recursion)]
-#![warn(unions_with_drop_fields)]
-#![warn(while_true)]
-#![warn(unused)]
-#![warn(bad_style)]
-#![warn(future_incompatible)]
-#![warn(rust_2018_compatibility)]
-#![warn(rust_2018_idioms)]
-
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{
-    command::{RenderPassInlineEncoder, DrawIndexedCommand, QueueId, FamilyId},
+    command::{RenderPassInlineEncoder, DrawIndexedCommand, QueueId},
     factory::{Config, Factory},
-    frame::cirque::Cirque,
-    graph::{Graph, GraphBuilder, render::*, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{GraphBuilder, render::*, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
-    mesh::{AsVertex, PosColorNorm, Mesh, Transform, Position},
+    mesh::{AsVertex, PosColorNorm, Mesh, Transform},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
     hal::{Device, pso::DescriptorPool},
 };
 
-use std::{ops::Range, time, mem::size_of, cmp::min};
+use std::{time, mem::size_of, cmp::min};
 
 use genmesh::generators::{IndexedPolygon, SharedVertex};
 
@@ -314,7 +296,7 @@ where
             Some(self.sets[index].as_ref().unwrap()),
             std::iter::empty(),
         );
-        scene.object_mesh.bind(&[PosColorNorm::VERTEX], &mut encoder);
+        assert!(scene.object_mesh.bind(&[PosColorNorm::VERTEX], &mut encoder).is_ok());
         encoder.bind_vertex_buffers(
             1,
             std::iter::once((self.buffer.raw(), transforms_offset(index))),

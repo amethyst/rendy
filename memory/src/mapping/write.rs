@@ -35,7 +35,9 @@ where
     F: FnOnce() + 'a,
 {
     fn drop(&mut self) {
-        self.flush.take().map(|f| f());
+        if let Some(f) = self.flush.take() {
+            f();
+        }
     }
 }
 

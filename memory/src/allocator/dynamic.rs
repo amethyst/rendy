@@ -255,7 +255,7 @@ where
                 {
                     log::trace!("Map new memory object");
                     match device.map_memory(&raw, 0 .. size) {
-                        Ok(mapping) => Some(NonNull::new_unchecked(mapping as *mut u8)),
+                        Ok(mapping) => Some(NonNull::new_unchecked(mapping)),
                         Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
                             device.free_memory(raw);
                             return Err(error.into());
@@ -311,7 +311,7 @@ where
         let (block_index, allocated) = match hibitset::BitSetLike::iter(&self.sizes.entry(size_index).or_default().blocks).next() {
             Some(block_index) => {
                 let size_entry = self.sizes.entry(size_index).or_default();
-                size_entry.blocks.remove(block_index);
+                assert!(size_entry.blocks.remove(block_index));
                 (block_index, 0)
             }
             None => {
@@ -326,8 +326,7 @@ where
                 let block_index_start = chunk_index * self.blocks_per_chunk;
                 let block_index_end = block_index_start + self.blocks_per_chunk;
                 for block_index in block_index_start + 1..block_index_end {
-                    let old = size_entry.blocks.add(block_index);
-                    debug_assert!(!old);
+                    assert!(!size_entry.blocks.add(block_index));
                 }
                 (block_index_start, allocated)
             }

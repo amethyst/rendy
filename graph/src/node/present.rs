@@ -177,28 +177,26 @@ where
         fence: Option<&B::Fence>,
     ) {
         let acquire = self.free.take().unwrap();
-        unsafe {
-            let next = self.target.next_image(&acquire).unwrap();
-            log::trace!("Present: {:#?}", next);
-            let ref mut for_image = self.per_image[next[0] as usize];
-            self.free = Some(std::mem::replace(&mut for_image.acquire, acquire));
+        let next = self.target.next_image(&acquire).unwrap();
+        log::trace!("Present: {:#?}", next);
+        let ref mut for_image = self.per_image[next[0] as usize];
+        self.free = Some(std::mem::replace(&mut for_image.acquire, acquire));
 
-            let family = factory.family_mut(qid.family());
+        let family = factory.family_mut(qid.family());
 
-            family.submit(
-                qid.index(),
-                Some(
-                    Submission::new()
-                        .submits(Some(&for_image.submit))
-                        .wait(waits.iter().cloned().chain(Some((&for_image.acquire, gfx_hal::pso::PipelineStage::TRANSFER))))
-                        .signal(signals.iter().cloned().chain(Some(&for_image.release)))
-                ),
-                fence,
-            );
+        family.submit(
+            qid.index(),
+            Some(
+                Submission::new()
+                    .submits(Some(&for_image.submit))
+                    .wait(waits.iter().cloned().chain(Some((&for_image.acquire, gfx_hal::pso::PipelineStage::TRANSFER))))
+                    .signal(signals.iter().cloned().chain(Some(&for_image.release)))
+            ),
+            fence,
+        );
 
-            next.present(&mut family.queues_mut()[qid.index()], Some(&for_image.release))
-                .expect("Fix swapchain error");
-        }
+        next.present(&mut family.queues_mut()[qid.index()], Some(&for_image.release))
+            .expect("Fix swapchain error");
     }
 
     unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &mut T) {

@@ -171,7 +171,7 @@ where
 
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(mut self, device: &impl gfx_hal::Device<B>) {
-        self.cleanup(device, 0);
+        let _ = self.cleanup(device, 0);
         if !self.lines.is_empty() {
             log::error!(
                 "Lines are not empty during allocator disposal. Lines: {:#?}",
@@ -256,7 +256,7 @@ where
             )?;
 
             let ptr = match device.map_memory(&raw, 0 .. self.linear_size) {
-                Ok(ptr) => NonNull::new_unchecked(ptr as *mut u8),
+                Ok(ptr) => NonNull::new_unchecked(ptr),
                 Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
                     device.free_memory(raw);
                     return Err(error.into());
