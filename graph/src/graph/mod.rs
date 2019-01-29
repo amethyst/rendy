@@ -1,23 +1,33 @@
 
-use crate::{
-    chain,
-    factory::Factory,
-    frame::{Frames, Fences},
-    memory::MemoryUsageValue,
-    node::{AnyNode, NodeBuilder},
-    resource::{buffer, image},
-    BufferId,
-    ImageId,
-    NodeId,
+use {
+    crate::{
+        chain,
+        command,
+        factory::Factory,
+        frame::{Frames, Fences},
+        memory::MemoryUsageValue,
+        node::{DynNode, NodeBuilder},
+        resource::{buffer, image},
+        BufferId,
+        ImageId,
+        NodeId,
+    },
+    gfx_hal::Backend,
 };
 
 // TODO: Use actual limits.
 const UNIVERSAL_ALIGNMENT: u64 = 512;
 
+#[derive(Debug)]
+struct GraphNode<B: Backend, T: ?Sized> {
+    node: Box<dyn DynNode<B, T>>,
+    queue: command::QueueId,
+}
+
 /// Graph that renders whole frame.
 #[derive(Debug)]
-pub struct Graph<B: gfx_hal::Backend, T: ?Sized> {
-    nodes: Vec<Box<dyn AnyNode<B, T>>>,
+pub struct Graph<B: Backend, T: ?Sized> {
+    nodes: Vec<GraphNode<B, T>>,
     schedule: chain::Schedule<chain::SyncData<usize, usize>>,
     semaphores: Vec<B::Semaphore>,
     buffers: Vec<buffer::Buffer<B>>,
@@ -29,7 +39,7 @@ pub struct Graph<B: gfx_hal::Backend, T: ?Sized> {
 
 impl<B, T> Graph<B, T>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
 {
     /// Perform graph execution.
@@ -69,45 +79,50 @@ where
             let sid = submission.id();
             let qid = sid.queue();
 
-            if let Some(node) = self.nodes.get_mut(submission.node()) {
-                let last_in_queue = sid.index() + 1 == self.schedule.queue(qid).unwrap().len();
-                let fence = if last_in_queue {
-                    if fences_used >= fences.len() {
-                        fences.push(factory.create_fence(false).unwrap());
-                    }
-                    fences_used += 1;
-                    Some(&fences[fences_used-1])
-                } else {
-                    None
-                };
+            let GraphNode { node, queue } = self.nodes.get_mut(submission.node()).expect("Submission references node with out of bound index");
+            debug_assert_eq!(
+                (qid.family(), qid.index()),
+                (queue.family(), queue.index()),
+                "Node's queue doesn't match schedule"
+            );
 
-                unsafe {
-                    node.run(
-                        factory,
-                        aux,
-                        &self.frames,
-                        qid,
-                        &submission
-                            .sync()
-                            .wait
-                            .iter()
-                            .map(|wait| {
-                                log::trace!("Node {} waits for {}", submission.node(), *wait.semaphore());
-                                (&semaphores[*wait.semaphore()], wait.stage())
-                            })
-                            .collect::<smallvec::SmallVec<[_; 16]>>(),
-                        &submission
-                            .sync()
-                            .signal
-                            .iter()
-                            .map(|signal| {
-                                log::trace!("Node {} signals {}", submission.node(), *signal.semaphore());
-                                &semaphores[*signal.semaphore()]
-                            })
-                            .collect::<smallvec::SmallVec<[_; 16]>>(),
-                        fence,
-                    )
+            let last_in_queue = sid.index() + 1 == self.schedule.queue(qid).unwrap().len();
+            let fence = if last_in_queue {
+                if fences_used >= fences.len() {
+                    fences.push(factory.create_fence(false).unwrap());
                 }
+                fences_used += 1;
+                Some(&fences[fences_used-1])
+            } else {
+                None
+            };
+
+            unsafe {
+                node.run(
+                    factory,
+                    aux,
+                    &self.frames,
+                    *queue,
+                    &submission
+                        .sync()
+                        .wait
+                        .iter()
+                        .map(|wait| {
+                            log::trace!("Node {} waits for {}", submission.node(), *wait.semaphore());
+                            (&semaphores[*wait.semaphore()], wait.stage())
+                        })
+                        .collect::<smallvec::SmallVec<[_; 16]>>(),
+                    &submission
+                        .sync()
+                        .signal
+                        .iter()
+                        .map(|signal| {
+                            log::trace!("Node {} signals {}", submission.node(), *signal.semaphore());
+                            &semaphores[*signal.semaphore()]
+                        })
+                        .collect::<smallvec::SmallVec<[_; 16]>>(),
+                    fence,
+                )
             }
         }
 
@@ -115,6 +130,11 @@ where
         unsafe {
             self.frames.advance(fences);
         }
+    }
+
+    /// Get queue that will exeute given node.
+    pub fn node_queue(&self, node: NodeId) -> command::QueueId {
+        self.nodes[node.0].queue
     }
 
     /// Dispose of the `Graph`.
@@ -125,7 +145,7 @@ where
         unsafe {
             // Device is idle.
             for node in self.nodes {
-                node.dispose(factory, data);
+                node.node.dispose(factory, data);
             }
 
             for semaphore in self.semaphores {
@@ -137,8 +157,8 @@ where
 
 /// Build graph from nodes and resource.
 #[derive(Debug)]
-pub struct GraphBuilder<B: gfx_hal::Backend, T: ?Sized> {
-    nodes: Vec<NodeBuilder<B, T>>,
+pub struct GraphBuilder<B: Backend, T: ?Sized> {
+    nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
     buffers: Vec<(buffer::Info, MemoryUsageValue)>,
     images: Vec<(
         image::Info,
@@ -150,7 +170,7 @@ pub struct GraphBuilder<B: gfx_hal::Backend, T: ?Sized> {
 
 impl<B, T> GraphBuilder<B, T>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
 {
     /// Create new `GraphBuilder`
@@ -199,8 +219,8 @@ where
     }
 
     /// Add node to the graph.
-    pub fn add_node(&mut self, builder: NodeBuilder<B, T>) -> NodeId {
-        self.nodes.push(builder);
+    pub fn add_node<N: NodeBuilder<B, T> + 'static>(&mut self, builder: N) -> NodeId {
+        self.nodes.push(Box::new(builder));
         NodeId(self.nodes.len() - 1)
     }
 
@@ -225,7 +245,7 @@ where
             .nodes
             .iter()
             .enumerate()
-            .map(|(i, b)| b.chain(i, &factory, self.buffers.len()))
+            .map(|(i, b)| make_chain_node(&**b, i, &factory))
             .collect();
 
         let chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
@@ -241,8 +261,12 @@ where
                     .buffers
                     .get(&chain::Id(index))
                     .map(|buffer| {
-                        factory.create_buffer(UNIVERSAL_ALIGNMENT, info.size, (buffer.usage(), memory))
-                            .map(Some)
+                        factory
+                            .create_buffer(
+                                UNIVERSAL_ALIGNMENT,
+                                info.size,
+                                (buffer.usage(), memory),
+                            ).map(|buffer| Some(buffer))
                     })
                     .unwrap_or(Ok(None))
             }).collect::<Result<_, _>>()?;
@@ -255,7 +279,7 @@ where
             .map(|(index, (info, memory, clear))| {
                 chains
                     .images
-                    .get(&chain::Id(index + buffers.len()))
+                    .get(&chain::Id(index))
                     .map(|image| {
                         factory
                             .create_image(
@@ -291,7 +315,7 @@ where
                     log::trace!("For submission {:#?}", submission.id());
                     let builder = node_descs[submission.node()].take().unwrap();
                     log::trace!("Build node {:#?}", builder);
-                    let node = builder.build(
+                    let node = builder.build_impl(
                         factory,
                         aux,
                         family.id(),
@@ -301,7 +325,7 @@ where
                         &submission,
                     )?;
                     log::debug!("Node built: {:#?}", node);
-                    built_nodes[submission.node()] = Some(node);
+                    built_nodes[submission.node()] = Some((node, submission.id().queue()));
                 }
             }
         }
@@ -312,7 +336,12 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Graph {
-            nodes: built_nodes.into_iter().map(Option::unwrap).collect(),
+            nodes: built_nodes.into_iter().map(Option::unwrap).map(|(node, qid)| {
+                GraphNode {
+                    node,
+                    queue: command::QueueId(qid.family(), qid.index()),
+                }
+            }).collect(),
             schedule,
             semaphores,
             buffers: buffers.into_iter().filter_map(|x|x).collect(),
@@ -324,3 +353,37 @@ where
     }
 }
 
+
+fn make_chain_node<B, T>(builder: &dyn NodeBuilder<B, T>, id: usize, factory: &Factory<B>) -> chain::Node
+where
+    B: Backend,
+    T: ?Sized,
+{
+    let buffers = builder.buffers();
+    let images = builder.images();
+    chain::Node {
+        id,
+        family: builder.family(factory.families()).unwrap(),
+        dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
+        buffers: buffers.into_iter()
+            .map(|(id, access)| {
+                (chain::Id(id.0), chain::BufferState {
+                    access: access.access,
+                    stages: access.stages,
+                    layout: (),
+                    usage: access.usage,
+                })
+            })
+            .collect(),
+        images: images.into_iter()
+            .map(|(id, access)| {
+                (chain::Id(id.0), chain::ImageState {
+                    access: access.access,
+                    stages: access.stages,
+                    layout: access.layout,
+                    usage: access.usage,
+                })
+            })
+            .collect(),
+    }
+}

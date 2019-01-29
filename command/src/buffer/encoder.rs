@@ -220,7 +220,8 @@ where
         }
     }
 
-    fn reborrow<K>(&mut self) -> EncoderCommon<'_, B, K>
+    /// Reborrow encoder.
+    pub fn reborrow<K>(&mut self) -> EncoderCommon<'_, B, K>
     where
         C: Supports<K>,
     {
@@ -332,6 +333,13 @@ where
             draw_count,
             stride,
         ) }
+    }
+
+    /// Reborrow encoder.
+    pub fn reborrow(&mut self) -> RenderPassEncoder<'_, B> {
+        RenderPassEncoder {
+            inner: self.inner.reborrow()
+        }
     }
 }
 

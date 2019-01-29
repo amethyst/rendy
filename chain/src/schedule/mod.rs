@@ -14,7 +14,6 @@ mod submission;
 
 use std::ops::{Index, IndexMut};
 
-#[allow(unreachable_pub)]
 pub use self::{
     family::Family,
     queue::{Queue, QueueId},

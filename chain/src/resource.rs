@@ -125,7 +125,6 @@ impl Resource for Image {
     }
 }
 
-
 fn common_layout(acc: Option<gfx_hal::image::Layout>, layout: gfx_hal::image::Layout) -> gfx_hal::image::Layout {
     match (acc, layout) {
         (None, layout) => layout,

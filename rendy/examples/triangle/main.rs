@@ -7,9 +7,9 @@
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{
-    command::{RenderPassInlineEncoder},
+    command::{RenderPassEncoder},
     factory::{Config, Factory},
-    graph::{Graph, GraphBuilder, render::{RenderPass, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{Graph, GraphBuilder, render::{PrepareResult, SimpleRenderPipeline, RenderGroupBuilder}, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -46,11 +46,11 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug)]
-struct TriangleRenderPass<B: gfx_hal::Backend> {
+struct TriangleRenderGroup<B: gfx_hal::Backend> {
     vertex: Option<Buffer<B>>,
 }
 
-impl<B, T> RenderPass<B, T> for TriangleRenderPass<B>
+impl<B, T> SimpleRenderPipeline<B, T> for TriangleRenderGroup<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
@@ -67,11 +67,11 @@ where
         vec![PosColor::VERTEX.gfx_vertex_input_desc(0)]
     }
 
-    fn load_shader_sets<'a>(
+    fn load_shader_set<'a>(
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut T,
-    ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
+    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *VERTEX);
@@ -80,7 +80,7 @@ where
         log::trace!("Load shader module '{:#?}'", *FRAGMENT);
         storage.push(FRAGMENT.module(factory).unwrap());
 
-        vec![gfx_hal::pso::GraphicsShaderSet {
+        gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
                 entry: "main",
                 module: &storage[0],
@@ -94,27 +94,26 @@ where
             hull: None,
             domain: None,
             geometry: None,
-        }]
+        }
     }
 
     fn build<'a>(
         _factory: &mut Factory<B>,
         _aux: &mut T,
-        buffers: &mut [NodeBuffer<'a, B>],
-        images: &mut [NodeImage<'a, B>],
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
-    ) -> Self {
+        buffers: Vec<NodeBuffer<'a, B>>,
+        images: Vec<NodeImage<'a, B>>,
+        set_layouts: &[B::DescriptorSetLayout],
+    ) -> Result<Self, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
-        assert_eq!(sets.len(), 1);
-        assert!(sets[0].as_ref().is_empty());
+        assert!(set_layouts.is_empty());
 
-        TriangleRenderPass {
+        Ok(TriangleRenderGroup {
             vertex: None,
-        }
+        })
     }
 
-    fn prepare(&mut self, factory: &mut Factory<B>, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _index: usize, _aux: &T) -> PrepareResult {
+    fn prepare(&mut self, factory: &mut Factory<B>, _set_layouts: &[B::DescriptorSetLayout], _index: usize, _aux: &T) -> PrepareResult {
         if self.vertex.is_none() {
             let mut vbuf = factory.create_buffer(512, PosColor::VERTEX.stride as u64 * 3, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
                 .unwrap();
@@ -145,14 +144,12 @@ where
 
     fn draw(
         &mut self,
-        _layouts: &[B::PipelineLayout],
-        pipelines: &[B::GraphicsPipeline],
-        mut encoder: RenderPassInlineEncoder<'_, B>,
+        _layout: &B::PipelineLayout,
+        mut encoder: RenderPassEncoder<'_, B>,
         _index: usize,
         _aux: &T,
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
-        encoder.bind_graphics_pipeline(&pipelines[0]);
         encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
         encoder.draw(0..3, 0..1);
     }
@@ -220,13 +217,14 @@ fn main() {
     );
 
     let pass = graph_builder.add_node(
-        TriangleRenderPass::builder()
-            .with_image(color)
+        TriangleRenderGroup::builder()
+            .into_subpass()
+            .with_color(color)
+            .into_pass()
     );
 
     graph_builder.add_node(
-        PresentNode::builder(surface)
-            .with_image(color)
+        PresentNode::builder(surface, color)
             .with_dependency(pass)
     );
 

@@ -271,7 +271,7 @@ where
     {
         debug_assert!(is_slice_sorted(formats));
         debug_assert!(is_slice_sorted_by_key(&self.vbufs, |vbuf| &vbuf.format));
-        
+
         let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
 
         let mut next = 0;

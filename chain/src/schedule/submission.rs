@@ -39,7 +39,8 @@ impl SubmissionId {
 pub struct Submission<S> {
     node: usize,
     id: SubmissionId,
-    resource_links: fnv::FnvHashMap<Id, usize>,
+    buffer_links: fnv::FnvHashMap<Id, usize>,
+    image_links: fnv::FnvHashMap<Id, usize>,
     wait_factor: usize,
     submit_order: usize,
     sync: S,
@@ -71,9 +72,24 @@ impl<S> Submission<S> {
         self.submit_order
     }
 
-    /// Get link index for buffer by id.
-    pub fn resource_link_index(&self, id: Id) -> usize {
-        self.resource_links[&id]
+    /// Get link index for resource by id.
+    pub fn buffer_link_index(&self, id: Id) -> usize {
+        self.buffer_links[&id]
+    }
+
+    /// Set link index for given chain.
+    pub fn set_buffer_link(&mut self, id: Id, link: usize) {
+        assert!(self.buffer_links.insert(id, link).is_none());
+    }
+
+    /// Get link index for resource by id.
+    pub fn image_link_index(&self, id: Id) -> usize {
+        self.image_links[&id]
+    }
+
+    /// Set link index for given chain.
+    pub fn set_image_link(&mut self, id: Id, link: usize) {
+        assert!(self.image_links.insert(id, link).is_none());
     }
 
     /// Create new submission with specified pass.
@@ -86,7 +102,8 @@ impl<S> Submission<S> {
     ) -> Self {
         Submission {
             node,
-            resource_links: fnv::FnvHashMap::default(),
+            buffer_links: fnv::FnvHashMap::default(),
+            image_links: fnv::FnvHashMap::default(),
             id,
             wait_factor,
             submit_order,
@@ -98,16 +115,12 @@ impl<S> Submission<S> {
     pub fn set_sync<T>(&self, sync: T) -> Submission<T> {
         Submission {
             node: self.node,
-            resource_links: self.resource_links.clone(),
+            buffer_links: self.buffer_links.clone(),
+            image_links: self.image_links.clone(),
             id: self.id,
             wait_factor: self.wait_factor,
             submit_order: self.submit_order,
             sync,
         }
-    }
-
-    /// Set link index for given chain.
-    pub fn set_link(&mut self, id: Id, link: usize) {
-        self.resource_links.insert(id, link);
     }
 }
