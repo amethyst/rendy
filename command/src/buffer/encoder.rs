@@ -200,6 +200,25 @@ where
 			)
 		}
     }
+    
+    /// Push graphics constants.
+    pub fn push_constants<'b>(
+        &mut self,
+        layout: &B::PipelineLayout,
+        stages: gfx_hal::pso::ShaderStageFlags,
+        offset: u32,
+        constants: &[u32],
+    ) {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::push_graphics_constants(
+                self.raw,
+                layout,
+                stages,
+                offset,
+                constants
+            );
+        }
+    }
 
     fn reborrow<K>(&mut self) -> EncoderCommon<'_, B, K>
     where
