@@ -53,13 +53,17 @@ This means user can't accidentially:
 `Heaps` provides convenient methods to sub-allocate device-visible memory based on usage and visibility requirements. It also handles mapping for specific usage types.
 **It is possible for [`gfx-hal`] to adopt VMA. In which case `rendy` will use it**
 
-### Framegraph
+### Rendergraph
 
-`rendy`'s framegraph allow writing rendering code in simple modular style.
+`rendy`'s rendergraph allow writing rendering code in simple modular style.
 Making it much easier to composite complex frame from simple parts.
 User defines nodes which declare buffers and images it reads and writes.
-Framegraph takes responsibility for resource allocation and execution synchronization.
+Rendergraph takes responsibility for transient resource allocation and execution synchronization.
 User is responsible only for intra-node synchronization.
+
+`DynNode` implementation - `RenderPassNode` can be constructed from `RenderGroup`s collected into subpasses.
+`RenderPassNode` will do all work for render pass creating and inter-subpass synchronization.
+There will be more `Node`, `DynNode` and `RenderGroup` implementations to further simplify usage and reduce boilerplate code required for various use cases.
 
 ### Cirques
 
@@ -68,7 +72,7 @@ This hybrid of circus and queue simplifies synchronizing host access to resource
 (e.g. `CommandPool` for `CommandBuffer`s, `Factory` for `Buffer`s)
 and gives access to the unused copy.
 
-### CPU-GPU data flow - ***Not yet implemented***
+### CPU-GPU data flow
 
 Rendy can help to send data between device and host.
 `Factory` can upload data to the device local memory choosing most appropriate technique for that.
@@ -77,7 +81,16 @@ Rendy can help to send data between device and host.
 * Staging buffer will be used for bigger uploads or any image uploads.
 `Factoy` will automatically insert synchronization commands according to user request.
 
-### Layouts - ***Not yet implemented. More experiments required***
+### GPU-CPU data flow - **Not yet implemented**
+
+### Data driven pipelines - **WIP**
+
+We think it is possible in many common cases to feed GPU with data in semi-automatic mode.
+`rendy::graph::node::render::RenderGroup` implementation will use `spirv-relfect` (or similiar crate) to read layout information directly from shaders
+and use it to automatically populate descriptors and set index/vertex buffers based on registered data encoders and provided scene instance.
+Current *WIP* implementation will use `specs::World` as scene to render.
+
+### Declarative pipelines - ***Planned***
 
 Pipelines and descriptor sets has declarative nature and it is much easier to define them declaratively.
 `rendy` provides `DescriptorSet` trait.
@@ -100,18 +113,13 @@ struct Example {
     #[descriptor(SampledImage)]
     texture: Texture,
 
-    /// Raw Vulkan objects can be used as well.
+    /// Raw `gfx-hal` objects can be used as well.
     /// But this field will make binding of `Set<Example>` to command buffer to require unsafe operation
     /// since it is user job to ensure that this raw image view is valid during command buffer execution.
     #[descriptor(unsafe, SampledImage)]
     foo: RawImageView,
 }
 ```
-
-### Shader reflection - ***Not yet implemented***
-
-`rendy` will use `spirv-relfect` or similiar crate to read layout information directly from shaders
-and use it to automatically populate descriptors and set index/vertex buffers based on registered data sources.
 
 ### Modularity
 
