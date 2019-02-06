@@ -38,14 +38,14 @@ type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/mesh/shader.vert"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
     static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/mesh/shader.frag"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -113,7 +113,7 @@ struct MeshRenderPipeline<B: gfx_hal::Backend> {
     sets: Vec<Option<B::DescriptorSet>>,
 }
 
-impl<B> SimpleRenderPipeline<B, Scene<B>> for MeshRenderPipeline<B>
+impl<B> SimpleGraphicsPipeline<B, Scene<B>> for MeshRenderPipeline<B>
 where
     B: gfx_hal::Backend,
 {

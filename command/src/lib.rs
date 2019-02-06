@@ -12,11 +12,13 @@
 mod buffer;
 mod capability;
 mod family;
+mod fence;
 mod pool;
 
 pub use crate::{
     buffer::*,
     capability::*,
     family::*,
+    fence::*,
     pool::*,
 };

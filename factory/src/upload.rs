@@ -322,8 +322,8 @@ where
     pub(crate) unsafe fn flush(&mut self, family: &mut Family<B>) {
         for (queue, next) in self.next.drain(..).enumerate().filter_map(|(i, x)| x.map(|x| (i, x))) {
             let (submit, command_buffer) = next.command_buffer.finish().submit_once();
-            
-            family.submit(queue, Some(Submission::new().submits(Some(submit))), Some(&next.fence));
+
+            family.queues_mut()[queue].submit(Some(Submission::new().submits(Some(submit))), Some(&next.fence));
             
             self.pending.push_back(PendingUploads {
                 command_buffer,

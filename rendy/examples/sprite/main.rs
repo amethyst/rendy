@@ -4,14 +4,14 @@
 //! 
 
 use rendy::{
-    command::{RenderPassInlineEncoder, Family, QueueId},
+    command::{RenderPassEncoder, Family, QueueId},
     factory::{Config, Factory},
-    graph::{Graph, GraphBuilder, render::{Layout, RenderPass, SetLayout, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{Graph, GraphBuilder, render::{RenderGroupBuilder, Layout, SimpleGraphicsPipeline, SetLayout, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
-    texture::{pixel::{Rgba8Srgb}, TextureBuilder},
+    texture::{pixel::{Rgba8Srgb}, TextureBuilder, Texture},
 };
 
 use winit::{
@@ -44,13 +44,14 @@ lazy_static::lazy_static! {
 }
 
 #[derive(Debug)]
-struct SpriteRenderPass<B: gfx_hal::Backend> {
+struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
+    texture: Texture<B>,
     vertex: Option<Buffer<B>>,
     descriptor_pool: B::DescriptorPool,
     descriptor_set: B::DescriptorSet,
 }
 
-impl<B, T> RenderPass<B, T> for SpriteRenderPass<B>
+impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
@@ -67,11 +68,11 @@ where
         vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
     }
 
-    fn load_shader_sets<'b>(
+    fn load_shader_set<'b>(
         storage: &'b mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut T,
-    ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'b, B>> {
+    ) -> gfx_hal::pso::GraphicsShaderSet<'b, B> {
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *vertex);
@@ -80,7 +81,7 @@ where
         log::trace!("Load shader module '{:#?}'", *fragment);
         storage.push(fragment.module(factory).unwrap());
 
-        vec![gfx_hal::pso::GraphicsShaderSet {
+        gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
                 entry: "main",
                 module: &storage[0],
@@ -94,11 +95,11 @@ where
             hull: None,
             domain: None,
             geometry: None,
-        }]
+        }
     }
 
-    fn layouts() -> Vec<Layout> {
-        vec![Layout {
+    fn layout() -> Layout {
+        Layout {
             sets: vec![SetLayout {
                 bindings: vec![
                     gfx_hal::pso::DescriptorSetLayoutBinding {
@@ -118,21 +119,19 @@ where
                 ]
             }],
             push_constants: Vec::new(),
-        }]
+        }
     }
 
     fn build<'b>(
         factory: &mut Factory<B>,
         _aux: &mut T,
-        buffers: &mut [NodeBuffer<'b, B>],
-        images: &mut [NodeImage<'b, B>],
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
-    ) -> Self {
+        buffers: Vec<NodeBuffer<'b, B>>,
+        images: Vec<NodeImage<'b, B>>,
+        set_layouts: &[B::DescriptorSetLayout],
+    ) -> Result<Self, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
-        assert_eq!(sets.len(), 1);
-        let set_layouts = sets[0].as_ref();
-        assert!(!set_layouts.is_empty());
+        assert_eq!(set_layouts.len(), 1);
 
         // This is how we can load an image and create a new texture.
         let image_bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/logo.png"));
@@ -162,7 +161,7 @@ where
                 .with_data(&image_data);
 
         let texture = texture_builder
-                .build(QueueId(family.index(), 0), gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal, factory).unwrap();
+                .build(QueueId(family.id(), 0), gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal, factory).unwrap();
 
         let mut descriptor_pool = unsafe { gfx_hal::Device::create_descriptor_pool(
             factory.device(),
@@ -204,14 +203,15 @@ where
             );
         }
 
-        SpriteRenderPass {
+        Ok(SpriteGraphicsPipeline {
+            texture,
             vertex: None,
             descriptor_pool,
             descriptor_set
-        }
+        })
     }
 
-    fn prepare(&mut self, factory: &mut Factory<B>, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _index: usize, _aux: &T) -> PrepareResult {
+    fn prepare(&mut self, factory: &mut Factory<B>, _set_layouts: &[B::DescriptorSetLayout], _index: usize, _aux: &T) -> PrepareResult {
         if self.vertex.is_some() {
             return PrepareResult::DrawReuse;
         }
@@ -256,16 +256,14 @@ where
 
     fn draw(
         &mut self,
-        layouts: &[B::PipelineLayout],
-        pipelines: &[B::GraphicsPipeline],
-        mut encoder: RenderPassInlineEncoder<'_, B>,
+        layout: &B::PipelineLayout,
+        mut encoder: RenderPassEncoder<'_, B>,
         _index: usize,
         _aux: &T,
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
-        encoder.bind_graphics_pipeline(&pipelines[0]);
         encoder.bind_graphics_descriptor_sets(
-            &layouts[0],
+            layout,
             0,
             std::iter::once(&self.descriptor_set),
             std::iter::empty::<u32>(),
@@ -345,13 +343,14 @@ fn main() {
     );
 
     let pass = graph_builder.add_node(
-        SpriteRenderPass::builder()
-            .with_image(color)
+        SpriteGraphicsPipeline::builder()
+            .into_subpass()
+            .with_color(color)
+            .into_pass()
     );
 
     graph_builder.add_node(
-        PresentNode::builder(surface)
-            .with_image(color)
+        PresentNode::builder(surface, color)
             .with_dependency(pass)
     );
 

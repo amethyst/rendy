@@ -49,8 +49,7 @@ where
         &mut self,
         device: &impl gfx_hal::Device<B>,
     ) {
-        for kvp in self.samplers.drain() {
-            let sampler = kvp.1;
+        for (_, sampler) in self.samplers.drain() {
             unsafe { device.destroy_sampler(sampler.unescape().unwrap()) };
         }
     }

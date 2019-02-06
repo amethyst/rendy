@@ -51,7 +51,7 @@ pub struct Pipeline {
 }
 
 /// Simple render pipeline.
-pub trait SimpleRenderPipeline<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync + 'static {
+pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync + 'static {
     /// Render pipeline name.
     fn name() -> &'static str
     where
@@ -215,7 +215,7 @@ impl<B, T, P> RenderGroupDesc<B, T> for PhantomData<P>
 where
     B: Backend,
     T: ?Sized,
-    P: SimpleRenderPipeline<B, T>,
+    P: SimpleGraphicsPipeline<B, T>,
 {
     fn name(&self) -> &str {
         P::name()
@@ -344,7 +344,7 @@ impl<B, T, P> RenderGroup<B, T> for SimpleRenderGroup<B, P>
 where
     B: Backend,
     T: ?Sized,
-    P: SimpleRenderPipeline<B, T>,
+    P: SimpleGraphicsPipeline<B, T>,
 {
     fn prepare(
         &mut self,

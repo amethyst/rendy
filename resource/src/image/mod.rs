@@ -94,8 +94,8 @@ where
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
-    pub(super) fn unescape(self) -> Option<Inner<B>> {
-        Escape::dispose(self.escape)
+    pub fn unescape(self) -> Option<Inner<B>> {
+        Escape::unescape(self.escape)
     }
 
     /// Creates [`KeepAlive`] handler to extend image lifetime.
@@ -203,8 +203,8 @@ where
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
-    pub(super) fn unescape(self) -> Option<InnerView<B>> {
-        Escape::dispose(self.escape)
+    pub fn unescape(self) -> Option<InnerView<B>> {
+        Escape::unescape(self.escape)
     }
 
     /// Creates [`KeepAlive`] handler to extend image lifetime.

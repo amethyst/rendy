@@ -5,7 +5,6 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-rendy-resource = { path = "../resource" }
 gfx-hal = "0.1.0"
 derivative = "1.0"
 failure = "0.1"

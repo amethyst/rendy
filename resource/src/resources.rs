@@ -313,11 +313,31 @@ where
             Self::actually_destroy_image(image, device, heaps);
         }
 
-        self.sampler_cache.destroy(device);
-
         self.dropped_buffers.extend(self.buffers.drain());
         self.dropped_image_views.extend(self.image_views.drain());
         self.dropped_images.extend(self.images.drain());
+    }
+
+    /// Destroy all dropped resources.
+    ///
+    /// # Safety
+    ///
+    /// Device must be idle.
+    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+        log::trace!("Dispose of all resources");
+        for buffer in self.dropped_buffers.drain(..).chain(self.buffers.drain()) {
+            Self::actually_destroy_buffer(buffer, device, heaps);
+        }
+
+        for image_view in self.dropped_image_views.drain(..).chain(self.image_views.drain()) {
+            Self::actually_destroy_image_view(image_view, device);
+        }
+
+        for image in self.dropped_images.drain(..).chain(self.images.drain()) {
+            Self::actually_destroy_image(image, device, heaps);
+        }
+
+        self.sampler_cache.destroy(device);
     }
 }
 

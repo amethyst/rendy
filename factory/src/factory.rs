@@ -17,7 +17,7 @@ pub struct Factory<B: gfx_hal::Backend> {
     #[derivative(Debug = "ignore")] adapter: gfx_hal::Adapter<B>,
     #[derivative(Debug = "ignore")] device: B::Device,
     heaps: std::mem::ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
-    resources: parking_lot::RwLock<Resources<B>>,
+    resources: std::mem::ManuallyDrop<parking_lot::RwLock<Resources<B>>>,
     families: Vec<Family<B>>,
     families_indices: std::collections::HashMap<FamilyId, usize>,
     uploads: Uploader<B>,
@@ -41,9 +41,8 @@ where
         }
 
         unsafe {
-            // All queues complete.
-            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
-            self.resources.get_mut().cleanup(&self.device, self.heaps.get_mut());
+            // Device is idle.
+            std::ptr::read(&mut *self.resources).into_inner().dispose(&self.device, self.heaps.get_mut());
         }
 
         unsafe {
@@ -116,14 +115,14 @@ where
 
         let heaps = unsafe { Heaps::new(types, heaps) };
 
-        let families_indices = families.iter().enumerate().map(|(i, f)| (f.index(), i)).collect();
+        let families_indices = families.iter().enumerate().map(|(i, f)| (f.id(), i)).collect();
 
         let factory = Factory {
             instance: Box::new(instance),
             adapter,
             device,
             heaps: std::mem::ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
-            resources: parking_lot::RwLock::new(Resources::new()),
+            resources: std::mem::ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
             uploads: Uploader::new(families.len()),
             families,
             families_indices,
@@ -146,10 +145,11 @@ where
         size: u64,
         usage: impl buffer::Usage,
     ) -> Result<Buffer<B>, failure::Error> {
+        let mut heaps = self.heaps.lock();
         self.resources.read()
             .create_buffer(
                 &self.device,
-                &mut self.heaps.lock(),
+                &mut heaps,
                 align,
                 size,
                 usage
@@ -167,10 +167,11 @@ where
         view_caps: gfx_hal::image::ViewCapabilities,
         usage: impl image::Usage,
     ) -> Result<Image<B>, failure::Error> {
+        let mut heaps = self.heaps.lock();
         self.resources.read()
             .create_image(
                 &self.device,
-                &mut self.heaps.lock(),
+                &mut heaps,
                 align,
                 kind,
                 levels,

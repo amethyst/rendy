@@ -320,8 +320,7 @@ where
         fence: Option<&B::Fence>,
     ) {
         let submittables = Node::run(&mut self.0, factory, aux, frames);
-        factory.family_mut(qid.family()).submit(
-            qid.index(),
+        factory.family_mut(qid.family()).queues_mut()[qid.index()].submit(
             Some(
                 Submission::new()
                     .submits(submittables)
@@ -521,7 +520,7 @@ where
                 Supports::<<N::Node as Node<B, T>>::Capability>::supports(&family.capability())
                     .is_some()
             })
-            .map(|family| family.index())
+            .map(|family| family.id())
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
