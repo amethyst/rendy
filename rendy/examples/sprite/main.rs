@@ -3,27 +3,10 @@
 //! This examples shows how to render a sprite on a white background.
 //! 
 
-#![forbid(overflowing_literals)]
-#![deny(missing_copy_implementations)]
-#![deny(missing_debug_implementations)]
-#![deny(missing_docs)]
-#![deny(intra_doc_link_resolution_failure)]
-#![deny(path_statements)]
-#![deny(trivial_bounds)]
-#![deny(type_alias_bounds)]
-#![deny(unconditional_recursion)]
-#![deny(unions_with_drop_fields)]
-#![deny(while_true)]
-#![deny(bad_style)]
-#![deny(future_incompatible)]
-#![deny(rust_2018_compatibility)]
-#![deny(rust_2018_idioms)]
-#![allow(unused_unsafe)]
-
 use rendy::{
     command::{RenderPassInlineEncoder, Family, QueueId},
     factory::{Config, Factory},
-    graph::{Graph, GraphBuilder, render::{Layout, RenderPass, SetLayout}, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{Graph, GraphBuilder, render::{Layout, RenderPass, SetLayout, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -79,8 +62,9 @@ where
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
     )> {
-        vec![PosTex::VERTEX.gfx_vertex_input_desc()]
+        vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
     }
 
     fn load_shader_sets<'b>(
@@ -227,9 +211,9 @@ where
         }
     }
 
-    fn prepare(&mut self, factory: &mut Factory<B>, _aux: &T) -> bool {
+    fn prepare(&mut self, factory: &mut Factory<B>, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _index: usize, _aux: &T) -> PrepareResult {
         if self.vertex.is_some() {
-            return false;
+            return PrepareResult::DrawReuse;
         }
 
         let mut vbuf = factory.create_buffer(512, PosTex::VERTEX.stride as u64 * 3, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
@@ -267,7 +251,7 @@ where
 
         self.vertex = Some(vbuf);
 
-        true
+        return PrepareResult::DrawRecord;
     }
 
     fn draw(
@@ -374,8 +358,6 @@ fn main() {
     let graph = graph_builder.build(&mut factory, &mut ()).unwrap();
 
     run(&mut event_loop, &mut factory, graph).unwrap();
-
-    factory.dispose();
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
