@@ -7,7 +7,7 @@
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{
-    command::{RenderPassInlineEncoder, DrawIndexedCommand, QueueId},
+    command::{RenderPassEncoder, DrawIndexedCommand},
     factory::{Config, Factory},
     graph::{GraphBuilder, render::*, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
@@ -79,7 +79,7 @@ struct Camera {
 #[derive(Debug)]
 struct Scene<B: gfx_hal::Backend> {
     camera: Camera,
-    object_mesh: Mesh<B>,
+    object_mesh: Option<Mesh<B>>,
     objects: Vec<nalgebra::Transform3<f32>>,
     lights: Vec<Light>,
 }
@@ -107,13 +107,13 @@ const fn indirect_offset(index: usize) -> u64 {
 }
 
 #[derive(Debug)]
-struct MeshRenderPass<B: gfx_hal::Backend> {
+struct MeshRenderPipeline<B: gfx_hal::Backend> {
     descriptor_pool: B::DescriptorPool,
     buffer: Buffer<B>,
     sets: Vec<Option<B::DescriptorSet>>,
 }
 
-impl<B> RenderPass<B, Scene<B>> for MeshRenderPass<B>
+impl<B> SimpleRenderPipeline<B, Scene<B>> for MeshRenderPipeline<B>
 where
     B: gfx_hal::Backend,
 {
@@ -121,10 +121,8 @@ where
         "Mesh"
     }
 
-    fn depth() -> bool { true }
-
-    fn layouts() -> Vec<Layout> {
-        vec![Layout {
+    fn layout() -> Layout {
+        Layout {
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
@@ -135,7 +133,7 @@ where
                 }]
             }],
             push_constants: Vec::new(),
-        }]
+        }
     }
 
     fn vertices() -> Vec<(
@@ -149,11 +147,11 @@ where
         ]
     }
 
-    fn load_shader_sets<'a>(
+    fn load_shader_set<'a>(
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut Scene<B>,
-    ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
+    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *VERTEX);
@@ -162,7 +160,7 @@ where
         log::trace!("Load shader module '{:#?}'", *FRAGMENT);
         storage.push(FRAGMENT.module(factory).unwrap());
 
-        vec![gfx_hal::pso::GraphicsShaderSet {
+        gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
                 entry: "main",
                 module: &storage[0],
@@ -176,20 +174,19 @@ where
             hull: None,
             domain: None,
             geometry: None,
-        }]
+        }
     }
 
     fn build<'a>(
         factory: &mut Factory<B>,
         _aux: &mut Scene<B>,
-        buffers: &mut [NodeBuffer<'a, B>],
-        images: &mut [NodeImage<'a, B>],
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
-    ) -> Self {
+        buffers: Vec<NodeBuffer<'a, B>>,
+        images: Vec<NodeImage<'a, B>>,
+        set_layouts: &[B::DescriptorSetLayout],
+    ) -> Result<Self, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
-        assert_eq!(sets.len(), 1);
-        assert_eq!(sets[0].as_ref().len(), 1);
+        assert_eq!(set_layouts.len(), 1);
         
         let descriptor_pool = unsafe { factory.create_descriptor_pool(
             5,
@@ -205,17 +202,17 @@ where
             (gfx_hal::buffer::Usage::UNIFORM|gfx_hal::buffer::Usage::INDIRECT|gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
         ).unwrap();
 
-        MeshRenderPass {
+        Ok(MeshRenderPipeline {
             descriptor_pool,
             buffer,
             sets: vec![None, None, None, None, None],
-        }
+        })
     }
 
     fn prepare(
         &mut self,
         factory: &mut Factory<B>,
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
+        set_layouts: &[B::DescriptorSetLayout],
         index: usize,
         scene: &Scene<B>,
     ) -> PrepareResult {
@@ -243,7 +240,7 @@ where
                 &mut self.buffer,
                 indirect_offset(index),
                 &[DrawIndexedCommand {
-                    index_count: scene.object_mesh.len(),
+                    index_count: scene.object_mesh.as_ref().unwrap().len(),
                     instance_count: scene.objects.len() as u32,
                     first_index: 0,
                     vertex_offset: 0,
@@ -262,7 +259,7 @@ where
 
         if self.sets[index].is_none() {
             unsafe { 
-                let set = self.descriptor_pool.allocate_set(&sets[0].as_ref()[0]).unwrap();
+                let set = self.descriptor_pool.allocate_set(&set_layouts[0]).unwrap();
                 factory.write_descriptor_sets(
                     Some(gfx_hal::pso::DescriptorSetWrite {
                         set: &set,
@@ -283,20 +280,18 @@ where
 
     fn draw(
         &mut self,
-        layouts: &[B::PipelineLayout],
-        pipelines: &[B::GraphicsPipeline],
-        mut encoder: RenderPassInlineEncoder<'_, B>,
+        layout: &B::PipelineLayout,
+        mut encoder: RenderPassEncoder<'_, B>,
         index: usize,
         scene: &Scene<B>,
     ) {
-        encoder.bind_graphics_pipeline(&pipelines[0]);
         encoder.bind_graphics_descriptor_sets(
-            &layouts[0],
+            layout,
             0,
             Some(self.sets[index].as_ref().unwrap()),
             std::iter::empty(),
         );
-        assert!(scene.object_mesh.bind(&[PosColorNorm::VERTEX], &mut encoder).is_ok());
+        assert!(scene.object_mesh.as_ref().unwrap().bind(&[PosColorNorm::VERTEX], &mut encoder).is_ok());
         encoder.bind_vertex_buffers(
             1,
             std::iter::once((self.buffer.raw(), transforms_offset(index))),
@@ -336,25 +331,6 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let icosphere = genmesh::generators::IcoSphere::subdivide(4);
-    let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter()).map(|i| i as u32).collect();
-    let vertices: Vec<_> = icosphere.shared_vertex_iter().map(|v| PosColorNorm {
-        position: v.pos.into(),
-        color: [
-            (v.pos.x + 1.0) / 2.0,
-            (v.pos.y + 1.0) / 2.0,
-            (v.pos.z + 1.0) / 2.0,
-            1.0,
-        ].into(),
-        normal: v.normal.into(),
-    }).collect();
-
-    let mesh = Mesh::<Backend>::builder()
-        .with_indices(&indices[..])
-        .with_vertices(&vertices[..])
-        .build(QueueId(gfx_hal::queue::QueueFamilyId(0), 0), &mut factory)
-        .unwrap();
-
     let surface = factory.create_surface(window.into());
 
     let mut scene = Scene {
@@ -362,7 +338,7 @@ fn main() {
             proj: nalgebra::Perspective3::new(surface.aspect(), 3.1415 / 4.0, 1.0, 200.0),
             view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
         },
-        object_mesh: mesh,
+        object_mesh: None,
         objects: vec![],
         lights: vec![
             Light {
@@ -388,8 +364,6 @@ fn main() {
         ],
     };
 
-    log::info!("{:#?}", scene);
-
     let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
 
     let color = graph_builder.create_image(
@@ -409,18 +383,40 @@ fn main() {
     );
 
     let pass = graph_builder.add_node(
-        MeshRenderPass::builder()
-            .with_image(color)
-            .with_image(depth)
+        MeshRenderPipeline::builder()
+            .into_subpass()
+            .with_color(color)
+            .with_depth_stencil(depth)
+            .into_pass()
     );
 
     graph_builder.add_node(
-        PresentNode::builder(surface)
-            .with_image(color)
+        PresentNode::builder(surface, color)
             .with_dependency(pass)
     );
 
+    log::info!("{:#?}", scene);
+
     let mut graph = graph_builder.build(&mut factory, &mut scene).unwrap();
+
+    let icosphere = genmesh::generators::IcoSphere::subdivide(4);
+    let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter()).map(|i| i as u32).collect();
+    let vertices: Vec<_> = icosphere.shared_vertex_iter().map(|v| PosColorNorm {
+        position: v.pos.into(),
+        color: [
+            (v.pos.x + 1.0) / 2.0,
+            (v.pos.y + 1.0) / 2.0,
+            (v.pos.z + 1.0) / 2.0,
+            1.0,
+        ].into(),
+        normal: v.normal.into(),
+    }).collect();
+
+    scene.object_mesh = Some(Mesh::<Backend>::builder()
+        .with_indices(&indices[..])
+        .with_vertices(&vertices[..])
+        .build(graph.node_queue(pass), &mut factory)
+        .unwrap());
 
     let started = time::Instant::now();
 

@@ -6,10 +6,10 @@
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{
-    command::{Compute, RenderPassInlineEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand, FamilyId},
+    command::{Compute, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand, FamilyId},
     factory::{Config, Factory},
     frame::{Frames},
-    graph::{Graph, GraphBuilder, render::{RenderPass, Layout, SetLayout, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
+    graph::{Graph, GraphBuilder, render::{Layout, SetLayout, PrepareResult, SimpleRenderPipeline, RenderGroupBuilder}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -64,10 +64,9 @@ struct QuadsRenderPass<B: gfx_hal::Backend> {
 
     descriptor_pool: B::DescriptorPool,
     descriptor_set: B::DescriptorSet,
-    // buffer_view: B::BufferView,
 }
 
-impl<B, T> RenderPass<B, T> for QuadsRenderPass<B>
+impl<B, T> SimpleRenderPipeline<B, T> for QuadsRenderPass<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
@@ -84,15 +83,11 @@ where
         vec![Color::VERTEX.gfx_vertex_input_desc(0)]
     }
 
-    fn depth() -> bool {
-        true
-    }
-
-    fn load_shader_sets<'a>(
+    fn load_shader_set<'a>(
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut T,
-    ) -> Vec<gfx_hal::pso::GraphicsShaderSet<'a, B>> {
+    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *RENDER_VERTEX);
@@ -101,7 +96,7 @@ where
         log::trace!("Load shader module '{:#?}'", *RENDER_FRAGMENT);
         storage.push(RENDER_FRAGMENT.module(factory).unwrap());
 
-        vec![gfx_hal::pso::GraphicsShaderSet {
+        gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
                 entry: "main",
                 module: &storage[0],
@@ -115,7 +110,7 @@ where
             hull: None,
             domain: None,
             geometry: None,
-        }]
+        }
     }
 
     fn buffers() -> Vec<BufferAccess> {
@@ -126,8 +121,8 @@ where
         }]
     }
 
-    fn layouts() -> Vec<Layout> {
-        vec![Layout {
+    fn layout() -> Layout {
+        Layout {
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
@@ -138,16 +133,16 @@ where
                 }]
             }],
             push_constants: Vec::new(),
-        }]
+        }
     }
 
     fn build<'a>(
         factory: &mut Factory<B>,
         _aux: &mut T,
-        buffers: &mut [NodeBuffer<'a, B>],
-        images: &mut [NodeImage<'a, B>],
-        sets: &[impl AsRef<[B::DescriptorSetLayout]>],
-    ) -> Self {
+        mut buffers: Vec<NodeBuffer<'a, B>>,
+        images: Vec<NodeImage<'a, B>>,
+        set_layouts: &[B::DescriptorSetLayout],
+    ) -> Result<Self, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
@@ -190,8 +185,6 @@ where
             }).collect::<Vec<PosVel>>()).unwrap();
         }
 
-        assert_eq!(sets.len(), 1);
-        let set_layouts = sets[0].as_ref();
         assert_eq!(set_layouts.len(), 1);
 
         let mut descriptor_pool = unsafe { gfx_hal::Device::create_descriptor_pool(
@@ -218,31 +211,27 @@ where
             }),
         ) }
 
-        QuadsRenderPass {
+        Ok(QuadsRenderPass {
             indirect,
             vertices,
-
-            // buffer_view,
             descriptor_pool,
             descriptor_set,
-        }
+        })
     }
 
-    fn prepare(&mut self, _factory: &mut Factory<B>, _sets: &[impl AsRef<[B::DescriptorSetLayout]>], _index: usize, _aux: &T) -> PrepareResult {
+    fn prepare(&mut self, _factory: &mut Factory<B>, _sets: &[B::DescriptorSetLayout], _index: usize, _aux: &T) -> PrepareResult {
         PrepareResult::DrawReuse
     }
 
     fn draw(
         &mut self,
-        layouts: &[B::PipelineLayout],
-        pipelines: &[B::GraphicsPipeline],
-        mut encoder: RenderPassInlineEncoder<'_, B>,
+        layout: &B::PipelineLayout,
+        mut encoder: RenderPassEncoder<'_, B>,
         _index: usize,
         _aux: &T,
     ) {
-        encoder.bind_graphics_pipeline(&pipelines[0]);
         encoder.bind_graphics_descriptor_sets(
-            &layouts[0],
+            layout,
             0,
             std::iter::once(&self.descriptor_set),
             std::iter::empty::<u32>(),
@@ -254,7 +243,6 @@ where
             encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
             encoder.draw(0..6, index * PER_CALL .. (index + 1) * PER_CALL);
         }
-
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
@@ -270,7 +258,6 @@ struct GravBounce<B: gfx_hal::Backend> {
 
     descriptor_pool: B::DescriptorPool,
     descriptor_set: B::DescriptorSet,
-    // buffer_view: B::BufferView,
 
     command_pool: CommandPool<B, Compute>,
     command_buffer: CommandBuffer<B, Compute, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
@@ -338,8 +325,8 @@ where
         factory: &mut Factory<B>,
         _aux: &mut T,
         family: FamilyId,
-        buffers: &mut [NodeBuffer<'a, B>],
-        images: &mut [NodeImage<'a, B>],
+        mut buffers: Vec<NodeBuffer<'a, B>>,
+        images: Vec<NodeImage<'a, B>>,
     ) -> Result<Self::Node, failure::Error> {
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
@@ -539,21 +526,22 @@ fn main() {
     );
 
     let grav = graph_builder.add_node(
-        GravBounce::builder()
+        GravBounceDesc.builder()
             .with_buffer(posvel)
     );
 
     let pass = graph_builder.add_node(
         QuadsRenderPass::builder()
-            .with_image(color)
-            .with_image(depth)
             .with_buffer(posvel)
             .with_dependency(grav)
+            .into_subpass()
+            .with_color(color)
+            .with_depth_stencil(depth)
+            .into_pass()
     );
 
     graph_builder.add_node(
-        PresentNode::builder(surface)
-            .with_image(color)
+        PresentNode::builder(surface, color)
             .with_dependency(pass)
     );
 

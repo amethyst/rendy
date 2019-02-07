@@ -1,12 +1,12 @@
 //! Defines present node.
 
 use crate::{
-    chain::QueueId,
-    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit, FamilyId},
+    ImageId, BufferId, NodeId,
+    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit, FamilyId, QueueId},
     factory::Factory,
     frame::Frames,
     wsi::{Surface, Target, Backbuffer},
-    node::{AnyNodeDesc, AnyNode, NodeImage, NodeBuffer, NodeBuilder, ImageAccess, gfx_acquire_barriers, gfx_release_barriers},
+    node::{NodeBuilder, DynNode, NodeImage, NodeBuffer, ImageAccess, gfx_acquire_barriers, gfx_release_barriers, BufferAccess},
 };
 
 #[derive(Debug)]
@@ -31,47 +31,67 @@ where
     B: gfx_hal::Backend,
 {
     /// Node builder.
-    pub fn builder<T: ?Sized>(surface: Surface<B>) -> NodeBuilder<B, T> {
-        PresentDesc::new(surface).builder()
+    pub fn builder(surface: Surface<B>, image: ImageId) -> PresentBuilder<B> {
+        PresentBuilder {
+            surface,
+            image,
+            dependencies: Vec::new()
+        }
     }
 }
 
 /// Presentation node description.
 #[derive(Debug)]
-pub struct PresentDesc<B: gfx_hal::Backend> {
+pub struct PresentBuilder<B: gfx_hal::Backend> {
     surface: Surface<B>,
+    image: ImageId,
+    dependencies: Vec<NodeId>,
 }
 
-impl<B> PresentDesc<B>
+impl<B> PresentBuilder<B>
 where
     B: gfx_hal::Backend,
 {
-    /// Create present builder
-    pub fn new(
-        surface: Surface<B>,
-    ) -> Self {
-        PresentDesc {
-            surface,
-        }
+    /// Add dependency.
+    /// Node will be placed after its dependencies.
+    pub fn add_dependency(&mut self, dependency: NodeId) -> &mut Self {
+        self.dependencies.push(dependency);
+        self
+    }
+
+    /// Add dependency.
+    /// Node will be placed after its dependencies.
+    pub fn with_dependency(mut self, dependency: NodeId) -> Self {
+        self.add_dependency(dependency);
+        self
     }
 }
 
-impl<B, T> AnyNodeDesc<B, T> for PresentDesc<B>
+impl<B, T> NodeBuilder<B, T> for PresentBuilder<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
     fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
+        // Find correct queue family.
         families.get(0).map(Family::index)
     }
 
-    fn images(&self) -> Vec<ImageAccess> {
-        vec![ImageAccess {
+    fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
+        Vec::new()
+    }
+
+    fn images(&self) -> Vec<(ImageId, ImageAccess)> {
+        vec![(self.image, ImageAccess {
             access: gfx_hal::image::Access::TRANSFER_READ,
             layout: gfx_hal::image::Layout::TransferSrcOptimal,
             usage: gfx_hal::image::Usage::TRANSFER_SRC,
             stages: gfx_hal::pso::PipelineStage::TRANSFER,
-        }]
+        })]
+    }
+
+    fn dependencies(&self) -> Vec<NodeId> {
+        self.dependencies.clone()
     }
 
     fn build<'a>(
@@ -79,9 +99,9 @@ where
         factory: &mut Factory<B>,
         _aux: &mut T,
         family: FamilyId,
-        buffers: &mut [NodeBuffer<'a, B>],
-        images: &mut [NodeImage<'a, B>],
-    ) -> Result<Box<dyn AnyNode<B, T>>, failure::Error> {
+        buffers: Vec<NodeBuffer<'a, B>>,
+        images: Vec<NodeImage<'a, B>>,
+    ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
         assert_eq!(buffers.len(), 0);
         assert_eq!(images.len(), 1);
 
@@ -161,7 +181,7 @@ where
     }
 }
 
-impl<B, T> AnyNode<B, T> for PresentNode<B>
+impl<B, T> DynNode<B, T> for PresentNode<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
