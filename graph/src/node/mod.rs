@@ -7,7 +7,7 @@ pub mod present;
 use {
     crate::{
         chain,
-        command::{Capability, Family, Supports, Submission, Submittable, FamilyId, QueueId},
+        command::{Fence, Capability, Family, Supports, Submission, Submittable, FamilyId, QueueId},
         factory::Factory,
         frame::Frames,
         resource::{Buffer, Image},
@@ -292,7 +292,7 @@ pub trait DynNode<B: gfx_hal::Backend, T: ?Sized>:
         qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
-        fence: Option<&B::Fence>,
+        fence: Option<&mut Fence<B>>,
     );
 
     /// Dispose of the node.
@@ -317,7 +317,7 @@ where
         qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
-        fence: Option<&B::Fence>,
+        fence: Option<&mut Fence<B>>,
     ) {
         let submittables = Node::run(&mut self.0, factory, aux, frames);
         factory.family_mut(qid.family()).queues_mut()[qid.index()].submit(

@@ -168,6 +168,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
     let mut elapsed = started.elapsed();
 
     for _ in &mut frames {
+        factory.cleanup();
         event_loop.poll_events(|_| ());
         graph.run(factory, &mut ());
 

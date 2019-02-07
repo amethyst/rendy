@@ -2,7 +2,7 @@
 
 use crate::{
     ImageId, BufferId, NodeId,
-    command::{CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit, FamilyId, QueueId},
+    command::{Fence, CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit, FamilyId, QueueId},
     factory::Factory,
     frame::Frames,
     wsi::{Surface, Target, Backbuffer},
@@ -194,7 +194,7 @@ where
         qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
-        fence: Option<&B::Fence>,
+        fence: Option<&mut Fence<B>>,
     ) {
         let acquire = self.free.take().unwrap();
         let next = self.target.next_image(&acquire).unwrap();

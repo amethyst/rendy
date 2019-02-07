@@ -7,6 +7,7 @@ use {
     crate::{
         ImageId, BufferId, NodeId,
         command::{
+            Fence,
             Supports, Graphics, Family, QueueId, FamilyId, Submit, CommandBuffer, CommandPool,
             PendingState, ExecutableState, MultiShot, SimultaneousUse, NoSimultaneousUse, SecondaryLevel, IndividualReset,
             Submission,
@@ -537,7 +538,7 @@ where
         qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
-        fence: Option<&B::Fence>,
+        fence: Option<&mut Fence<B>>,
     ) {
         let RenderPassNode {
             subpasses,

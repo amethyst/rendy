@@ -2,7 +2,10 @@
 
 mod usage;
 
-pub use self::usage::*;
+pub use {
+    gfx_hal::image::*,
+    self::usage::{*, Usage},
+};
 
 use crate::{
     escape::{Escape, KeepAlive, Terminal},
@@ -13,19 +16,19 @@ use crate::{
 #[derive(Clone, Copy, Debug)]
 pub struct Info {
     /// Kind of the image.
-    pub kind: gfx_hal::image::Kind,
+    pub kind: Kind,
 
     /// Image mip-level count.
-    pub levels: gfx_hal::image::Level,
+    pub levels: Level,
 
     /// Image format.
     pub format: gfx_hal::format::Format, 
 
     /// Image tiling mode.
-    pub tiling: gfx_hal::image::Tiling, 
+    pub tiling: Tiling, 
 
     /// Image view capabilities.
-    pub view_caps: gfx_hal::image::ViewCapabilities,
+    pub view_caps: ViewCapabilities,
 
     /// Image usage flags.
     pub usage: gfx_hal::image::Usage,

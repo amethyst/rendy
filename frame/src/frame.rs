@@ -1,9 +1,14 @@
 //! Frame module docs.
 
-use crate::factory::Factory;
+use {
+    crate::{
+        factory::Factory,
+        command::Fence,
+    },
+};
 
 /// Fences collection.
-pub type Fences<B> = smallvec::SmallVec<[<B as gfx_hal::Backend>::Fence; 8]>;
+pub type Fences<B> = smallvec::SmallVec<[Fence<B>; 8]>;
 
 /// Single frame rendering task.
 /// Command buffers can be submitted as part of the `Frame`.
@@ -104,7 +109,7 @@ where
             // count >= 1
             let count = self.pending.len() - (self.next.index() - target - 1) as usize;
             let ready = factory.wait_for_fences(
-                self.pending.iter().take(count).flatten(),
+                self.pending.iter_mut().take(count).flatten(),
                 gfx_hal::device::WaitFor::All,
                 !0,
             );
@@ -119,15 +124,13 @@ where
     /// Dispose of the `Frames`
     pub fn dispose(mut self, factory: &mut Factory<B>) {
         let ready = factory.wait_for_fences(
-            self.pending.iter().flatten(),
+            self.pending.iter_mut().flatten(),
             gfx_hal::device::WaitFor::All,
             !0,
         );
         assert_eq!(ready, Ok(true));
 
-        self.pending.drain(..).flatten().for_each(|fence| unsafe { // Waited before destroying
-            factory.destroy_fence(fence)
-        });
+        self.pending.drain(..).flatten().for_each(|fence| factory.destroy_fence(fence));
     }
 
     /// Get range of frame indices in this form: 

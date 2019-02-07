@@ -432,6 +432,7 @@ fn main() {
         let start = frames.start;
         let from = scene.objects.len();
         for _ in &mut frames {
+            factory.cleanup();
             event_loop.poll_events(|_| ());
             graph.run(&mut factory, &mut scene);
 
