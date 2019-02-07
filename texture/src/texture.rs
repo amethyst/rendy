@@ -2,7 +2,8 @@
 use crate::{
     pixel::AsPixel,
     command::QueueId,
-    resource::image::{Image, Texture as TextureUsage},
+    resource::image::{Image, ImageView, Texture as TextureUsage},
+    resource::sampler::Sampler,
     factory::{Factory, ImageState},
     util::cast_cow,
 };
@@ -11,17 +12,21 @@ use crate::{
 /// Can be loaded from various of formats.
 #[derive(Debug)]
 pub struct Texture<B: gfx_hal::Backend> {
-    image: Image<B>,
+    pub image: Image<B>,
+    pub image_view: ImageView<B>,
+    pub sampler: Sampler<B>,
 }
 
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextureBuilder<'a> {
     kind: gfx_hal::image::Kind,
+    view_kind: gfx_hal::image::ViewKind,
     format: gfx_hal::format::Format,
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
+    filter: gfx_hal::image::Filter,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -29,10 +34,12 @@ impl<'a> TextureBuilder<'a> {
     pub fn new() -> Self {
         TextureBuilder {
             kind: gfx_hal::image::Kind::D1(0, 0),
+            view_kind: gfx_hal::image::ViewKind::D1,
             format: gfx_hal::format::Format::Rgba8Unorm,
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
             data_height: 0,
+            filter: gfx_hal::image::Filter::Linear,
         }
     }
 
@@ -85,13 +92,37 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    /// With image view kind.
+    pub fn with_view_kind(mut self, view_kind: gfx_hal::image::ViewKind) -> Self {
+        self.set_view_kind(view_kind);
+        self
+    }
+
+    /// Set image view kind.
+    pub fn set_view_kind(&mut self, view_kind: gfx_hal::image::ViewKind) -> &mut Self {
+        self.view_kind = view_kind;
+        self
+    }
+
+    /// With image filer.
+    pub fn with_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
+        self.set_filter(filter);
+        self
+    }
+
+    /// Set image filter.
+    pub fn set_filter(&mut self, filter: gfx_hal::image::Filter) -> &mut Self {
+        self.filter = filter;
+        self
+    }
+
     /// Build texture.
     pub fn build<B>(
         &self,
         queue: QueueId,
         access: gfx_hal::image::Access,
         layout: gfx_hal::image::Layout,
-        factory: &mut Factory<B>,
+        factory: &'a mut Factory<B>,
     ) -> Result<Texture<B>, failure::Error>
     where
         B: gfx_hal::Backend,
@@ -125,8 +156,24 @@ impl<'a> TextureBuilder<'a> {
             )?;
         }
 
+        let image_view = factory.create_image_view(
+            &image,
+            self.view_kind,
+            self.format,
+            gfx_hal::format::Swizzle::NO,
+            gfx_hal::image::SubresourceRange {
+                aspects: self.format.surface_desc().aspects,
+                levels: 0..1,
+                layers: 0..1,
+            }
+        )?;
+
+        let sampler = factory.create_sampler(self.filter, gfx_hal::image::WrapMode::Clamp)?;
+
         Ok(Texture {
             image,
+            image_view,
+            sampler,
         })
     }
 }

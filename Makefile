@@ -30,3 +30,8 @@ quads:
 triangle:
 	cd rendy && cargo run --features "full $(RENDY_BACKEND)" --example triangle
 
+sprite:
+	cd rendy && cargo run --features "full $(RENDY_BACKEND)" --example sprite
+
+meshes:
+	cd rendy && cargo run --features "full $(RENDY_BACKEND)" --example meshes

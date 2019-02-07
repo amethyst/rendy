@@ -74,7 +74,7 @@ where
 {
     fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
         // Find correct queue family.
-        families.get(0).map(Family::index)
+        families.get(0).map(Family::id)
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
@@ -204,8 +204,7 @@ where
 
         let family = factory.family_mut(qid.family());
 
-        family.submit(
-            qid.index(),
+        family.queues_mut()[qid.index()].submit(
             Some(
                 Submission::new()
                     .submits(Some(&for_image.submit))
@@ -215,7 +214,7 @@ where
             fence,
         );
 
-        next.present(&mut family.queues_mut()[qid.index()], Some(&for_image.release))
+        next.present(family.queues_mut()[qid.index()].raw(), Some(&for_image.release))
             .expect("Fix swapchain error");
     }
 

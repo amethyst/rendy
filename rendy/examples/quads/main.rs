@@ -9,7 +9,7 @@ use rendy::{
     command::{Compute, RenderPassEncoder, Submit, CommandPool, CommandBuffer, PendingState, ExecutableState, MultiShot, SimultaneousUse, DrawCommand, FamilyId},
     factory::{Config, Factory},
     frame::{Frames},
-    graph::{Graph, GraphBuilder, render::{Layout, SetLayout, PrepareResult, SimpleRenderPipeline, RenderGroupBuilder}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
+    graph::{Graph, GraphBuilder, render::{Layout, SetLayout, PrepareResult, SimpleGraphicsPipeline, RenderGroupBuilder}, present::PresentNode, NodeBuffer, NodeImage, BufferAccess, Node, NodeDesc, NodeSubmittable, gfx_acquire_barriers, gfx_release_barriers},
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -66,7 +66,7 @@ struct QuadsRenderPass<B: gfx_hal::Backend> {
     descriptor_set: B::DescriptorSet,
 }
 
-impl<B, T> SimpleRenderPipeline<B, T> for QuadsRenderPass<B>
+impl<B, T> SimpleGraphicsPipeline<B, T> for QuadsRenderPass<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,

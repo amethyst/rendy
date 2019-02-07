@@ -151,7 +151,7 @@ where
                 Supports::<Graphics>::supports(&family.capability())
                     .is_some()
             })
-            .map(|family| family.index())
+            .map(|family| family.id())
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
@@ -613,8 +613,7 @@ where
             }
         );
 
-        factory.family_mut(qid.family()).submit(
-            qid.index(),
+        factory.family_mut(qid.family()).queues_mut()[qid.index()].submit(
             Some(
                 Submission::new()
                     .submits(Some(submit))

@@ -4,6 +4,7 @@ use crate::{
     buffer,
     escape::Terminal,
     image,
+    sampler::{Sampler, SamplerCache},
     memory::{Block, Heaps},
 };
 
@@ -14,9 +15,12 @@ use crate::{
 pub struct Resources<B: gfx_hal::Backend> {
     buffers: Terminal<buffer::Inner<B>>,
     images: Terminal<image::Inner<B>>,
+    image_views: Terminal<image::InnerView<B>>,
+    sampler_cache: SamplerCache<B>,
 
     dropped_buffers: Vec<buffer::Inner<B>>,
     dropped_images: Vec<image::Inner<B>>,
+    dropped_image_views: Vec<image::InnerView<B>>,
 }
 
 impl<B> Resources<B>
@@ -176,6 +180,71 @@ where
         )})
     }
 
+    /// Create an image view.
+    pub fn create_image_view(
+        &self,
+        device: &impl gfx_hal::Device<B>,
+        image: &image::Image<B>,
+        view_kind: gfx_hal::image::ViewKind,
+        format: gfx_hal::format::Format,
+        swizzle: gfx_hal::format::Swizzle,
+        range: gfx_hal::image::SubresourceRange
+    ) -> Result<image::ImageView<B>, failure::Error> {
+        #[derive(Debug)] struct CreateImageView<'a> {
+            image: &'a dyn std::fmt::Debug,
+            view_kind: &'a dyn std::fmt::Debug,
+            format: &'a dyn std::fmt::Debug,
+            swizzle: &'a dyn std::fmt::Debug,
+            range: &'a dyn std::fmt::Debug,
+        };
+        log::trace!("{:#?}", CreateImageView {
+            image: &image,
+            view_kind: &view_kind,
+            format: &format,
+            swizzle: &swizzle,
+            range: &range,
+        });
+
+        let image_info = image.info();
+        assert!(match_kind(image_info.kind, view_kind, image_info.view_caps));
+
+        let image_view = unsafe {
+            device.create_image_view(
+                image.raw(),
+                view_kind,
+                format,
+                swizzle,
+                gfx_hal::image::SubresourceRange {
+                    aspects: range.aspects.clone(),
+                    layers: range.layers.clone(),
+                    levels: range.levels.clone(),
+                },
+            )
+        }?;
+        
+        Ok(unsafe { image::ImageView::new(
+            image::ViewInfo {
+                view_kind,
+                format,
+                swizzle,
+                range,
+            },
+            image,
+            image_view,
+            &self.image_views,
+        )})
+    }
+
+    /// Create a sampler.
+    pub fn create_sampler(
+        &mut self,
+        device: &impl gfx_hal::Device<B>,
+        filter: gfx_hal::image::Filter,
+        wrap_mode: gfx_hal::image::WrapMode,
+    ) -> Result<Sampler<B>, failure::Error> {
+        Ok(self.sampler_cache.get(device, filter, wrap_mode))
+    }
+
     /// Destroy image.
     /// Image can be dropped but this method reduces overhead.
     pub fn destroy_image(
@@ -184,6 +253,16 @@ where
     ) {
         image.unescape()
             .map(|inner| self.dropped_images.push(inner));
+    }
+
+    /// Destroy image_view.
+    /// Image_view can be dropped but this method reduces overhead.
+    pub fn destroy_image_view(
+        &mut self,
+        image_view: image::ImageView<B>,
+    ) {
+        image_view.unescape()
+            .map(|inner| self.dropped_image_views.push(inner));
     }
 
     /// Drop inner image representation.
@@ -201,6 +280,20 @@ where
         block.map(|block| heaps.free(device, block));
     }
 
+    /// Drop inner image view representation.
+    ///
+    /// # Safety
+    ///
+    /// Device must not attempt to use the image view.
+    unsafe fn actually_destroy_image_view(
+        inner: image::InnerView<B>,
+        device: &impl gfx_hal::Device<B>,
+    ) {
+        let (raw, image_kp) = inner.dispose();
+        device.destroy_image_view(raw);
+        drop(image_kp);
+    }
+
     /// Recycle dropped resources.
     ///
     /// # Safety
@@ -212,11 +305,63 @@ where
             Self::actually_destroy_buffer(buffer, device, heaps);
         }
 
+        for image_view in self.dropped_image_views.drain(..) {
+            Self::actually_destroy_image_view(image_view, device);
+        }
+
         for image in self.dropped_images.drain(..) {
             Self::actually_destroy_image(image, device, heaps);
         }
 
         self.dropped_buffers.extend(self.buffers.drain());
+        self.dropped_image_views.extend(self.image_views.drain());
         self.dropped_images.extend(self.images.drain());
+    }
+
+    /// Destroy all dropped resources.
+    ///
+    /// # Safety
+    ///
+    /// Device must be idle.
+    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+        log::trace!("Dispose of all resources");
+        for buffer in self.dropped_buffers.drain(..).chain(self.buffers.drain()) {
+            Self::actually_destroy_buffer(buffer, device, heaps);
+        }
+
+        for image_view in self.dropped_image_views.drain(..).chain(self.image_views.drain()) {
+            Self::actually_destroy_image_view(image_view, device);
+        }
+
+        for image in self.dropped_images.drain(..).chain(self.images.drain()) {
+            Self::actually_destroy_image(image, device, heaps);
+        }
+
+        self.sampler_cache.destroy(device);
+    }
+}
+
+fn match_kind(kind: gfx_hal::image::Kind, view_kind: gfx_hal::image::ViewKind, view_caps: gfx_hal::image::ViewCapabilities) -> bool {
+    match kind {
+        gfx_hal::image::Kind::D1(..) => {
+            match view_kind {
+                gfx_hal::image::ViewKind::D1 | gfx_hal::image::ViewKind::D1Array => true,
+                _ => false,
+            }
+        },
+        gfx_hal::image::Kind::D2(..) => {
+            match view_kind {
+                gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array => true,
+                _ => false,
+            }
+        },
+        gfx_hal::image::Kind::D3(..) => {
+            if view_caps == gfx_hal::image::ViewCapabilities::KIND_2D_ARRAY {
+                if view_kind == gfx_hal::image::ViewKind::D2 { true } 
+                else if view_kind == gfx_hal::image::ViewKind::D2Array { true }
+                else { false }
+            } else if view_kind == gfx_hal::image::ViewKind::D3 { true }
+            else { false }
+        },
     }
 }

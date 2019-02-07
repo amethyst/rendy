@@ -3,13 +3,13 @@
 //! This examples shows colord triangle on white background.
 //! Nothing fancy. Just prove that `rendy` works.
 //! 
-
+    
 #![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
 
 use rendy::{
     command::{RenderPassEncoder},
     factory::{Config, Factory},
-    graph::{Graph, GraphBuilder, render::{PrepareResult, SimpleRenderPipeline, RenderGroupBuilder}, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{Graph, GraphBuilder, render::{PrepareResult, SimpleGraphicsPipeline, RenderGroupBuilder}, present::PresentNode, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
@@ -50,7 +50,7 @@ struct TriangleRenderGroup<B: gfx_hal::Backend> {
     vertex: Option<Buffer<B>>,
 }
 
-impl<B, T> SimpleRenderPipeline<B, T> for TriangleRenderGroup<B>
+impl<B, T> SimpleGraphicsPipeline<B, T> for TriangleRenderGroup<B>
 where
     B: gfx_hal::Backend,
     T: ?Sized,
