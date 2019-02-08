@@ -2,7 +2,10 @@
 
 mod usage;
 
-pub use self::usage::*;
+pub use {
+    gfx_hal::buffer::*,
+    self::usage::{*, Usage},
+};
 
 use crate::{
     escape::{Escape, KeepAlive, Terminal},

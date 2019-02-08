@@ -28,14 +28,14 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref vertex: StaticShaderInfo = StaticShaderInfo::new(
+    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
-    static ref fragment: StaticShaderInfo = StaticShaderInfo::new(
+    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
@@ -75,11 +75,11 @@ where
     ) -> gfx_hal::pso::GraphicsShaderSet<'b, B> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *vertex);
-        storage.push(vertex.module(factory).unwrap());
+        log::trace!("Load shader module '{:#?}'", *VERTEX);
+        storage.push(VERTEX.module(factory).unwrap());
 
-        log::trace!("Load shader module '{:#?}'", *fragment);
-        storage.push(fragment.module(factory).unwrap());
+        log::trace!("Load shader module '{:#?}'", *FRAGMENT);
+        storage.push(FRAGMENT.module(factory).unwrap());
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -294,6 +294,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
     let mut elapsed = started.elapsed();
 
     for _ in &mut frames {
+        factory.cleanup();
         event_loop.poll_events(|_| ());
         graph.run(factory, &mut ());
 

@@ -4,7 +4,7 @@ mod submission;
 mod queue;
 
 use crate::{
-    buffer::{Reset, Submittable, Submit, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass},
+    buffer::Reset,
     capability::{Capability, Supports},
     pool::CommandPool,
 };

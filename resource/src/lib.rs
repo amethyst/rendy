@@ -28,3 +28,6 @@ pub use crate::{
     image::Image,
     resources::Resources,
 };
+
+#[doc(hidden)]
+pub use crate::resources::Epochs;

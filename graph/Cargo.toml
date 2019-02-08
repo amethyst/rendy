@@ -19,7 +19,7 @@ rendy-memory = { path = "../memory" }
 rendy-resource = { path = "../resource" }
 rendy-wsi = { path = "../wsi" }
 
-gfx-hal = "0.1.0"
+gfx-hal = "0.1"
 gfx-backend-empty = { version = "0.1.0", optional = true }
 gfx-backend-dx12 = { version = "0.1.0", optional = true }
 gfx-backend-metal = { version = "0.1.0", optional = true }

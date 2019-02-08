@@ -1,5 +1,7 @@
 //! Capability module docs.
 
+pub use gfx_hal::QueueType;
+
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]
 pub struct Transfer;
@@ -24,81 +26,81 @@ pub struct General;
 pub trait Capability: Copy + std::fmt::Debug + 'static {
     /// Try to create capability instance from queue_type.
     /// Instance will be created if all required queue_type set.
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self>;
+    fn from_queue_type(queue_type: QueueType) -> Option<Self>;
 
-    /// Convert into `gfx_hal::QueueType`
-    fn into_queue_type(self) -> gfx_hal::QueueType;
+    /// Convert into `QueueType`
+    fn into_queue_type(self) -> QueueType;
 }
 
-impl Capability for gfx_hal::QueueType {
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+impl Capability for QueueType {
+    fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         Some(queue_type)
     }
 
-    fn into_queue_type(self) -> gfx_hal::QueueType {
+    fn into_queue_type(self) -> QueueType {
         self
     }
 }
 
 impl Capability for Transfer {
-    fn from_queue_type(_queue_type: gfx_hal::QueueType) -> Option<Self> {
+    fn from_queue_type(_queue_type: QueueType) -> Option<Self> {
         Some(Transfer)
     }
 
-    fn into_queue_type(self) -> gfx_hal::QueueType {
-        gfx_hal::QueueType::Transfer
+    fn into_queue_type(self) -> QueueType {
+        QueueType::Transfer
     }
 }
 
 impl Capability for Execute {
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+    fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
-            gfx_hal::QueueType::Transfer => None,
+            QueueType::Transfer => None,
             _ => Some(Execute),
         }
     }
 
-    fn into_queue_type(self) -> gfx_hal::QueueType {
-        gfx_hal::QueueType::General
+    fn into_queue_type(self) -> QueueType {
+        QueueType::General
     }
 }
 
 impl Capability for Compute {
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+    fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
-            gfx_hal::QueueType::Compute | gfx_hal::QueueType::General => Some(Compute),
+            QueueType::Compute | QueueType::General => Some(Compute),
             _ => None
         }
     }
 
-    fn into_queue_type(self) -> gfx_hal::QueueType {
-        gfx_hal::QueueType::Compute
+    fn into_queue_type(self) -> QueueType {
+        QueueType::Compute
     }
 }
 
 impl Capability for Graphics {
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+    fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
-            gfx_hal::QueueType::Graphics | gfx_hal::QueueType::General => Some(Graphics),
+            QueueType::Graphics | QueueType::General => Some(Graphics),
             _ => None
         }
     }
 
-    fn into_queue_type(self) -> gfx_hal::QueueType {
-        gfx_hal::QueueType::Graphics
+    fn into_queue_type(self) -> QueueType {
+        QueueType::Graphics
     }
 }
 
 impl Capability for General {
-    fn from_queue_type(queue_type: gfx_hal::QueueType) -> Option<Self> {
+    fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
-            gfx_hal::QueueType::General => Some(General),
+            QueueType::General => Some(General),
             _ => None
         }
     }
 
-    fn into_queue_type(self) -> gfx_hal::QueueType {
-        gfx_hal::QueueType::General
+    fn into_queue_type(self) -> QueueType {
+        QueueType::General
     }
 }
 

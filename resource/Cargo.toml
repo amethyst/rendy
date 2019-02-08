@@ -5,10 +5,11 @@ authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-gfx-hal = "0.1.0"
+gfx-hal = "0.1"
 crossbeam-channel = "0.2"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 rendy-memory = { path = "../memory" }
+smallvec = "0.6"

@@ -57,15 +57,15 @@ where
     ///
     /// `fences`    - vector of fences that will be signaled after all commands are complete.
     ///               Fences that are attached to last submissions of every queue are reset.
-    ///               This function may not use all fences. Unused fences are left in signalled state.
+    ///               This function may not use all fences. Unused fences are left in signaled state.
     ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
     ///               So it's OK to start with empty `Vec`.
     pub fn run(&mut self, factory: &mut Factory<B>, aux: &mut T) {
         if self.frames.next().index() >= self.inflight {
             let wait = self.frames.next().index() - self.inflight;
             let ref mut self_fences = self.fences;
-            self.frames.wait_complete(wait, factory, |fences| {
-                factory.reset_fences(&fences).unwrap();
+            self.frames.wait_complete(wait, factory, |mut fences| {
+                factory.reset_fences(&mut fences).unwrap();
                 self_fences.push(fences);
             });
         }
@@ -92,7 +92,7 @@ where
                     fences.push(factory.create_fence(false).unwrap());
                 }
                 fences_used += 1;
-                Some(&fences[fences_used-1])
+                Some(&mut fences[fences_used-1])
             } else {
                 None
             };
