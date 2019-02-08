@@ -21,7 +21,7 @@ rendy-resource = { path = "../resource" }
 rendy-factory = { path = "../factory" }
 rendy-util = { path = "../util" }
 
-gfx-hal = "0.1.0"
+gfx-hal = "0.1"
 
 failure = "0.1"
 serde = { version = "1.0", optional = true, features = ["derive"] }
