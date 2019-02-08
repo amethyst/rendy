@@ -2,11 +2,10 @@
 use {
     super::{QueueId, submission::*},
     crate::{
-        buffer::{Reset, Submittable, Submit, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass},
+        buffer::Submittable,
         fence::*,
     },
-    gfx_hal::{Backend, Device, queue::RawCommandQueue},
-    std::{collections::VecDeque, ops::Range, cmp::max},
+    gfx_hal::{Backend, queue::RawCommandQueue},
 };
 
 #[derive(derivative::Derivative)]
@@ -40,7 +39,7 @@ where
     }
 
     /// Submit commands to the queue of the family.
-    /// Fence must be armed.
+    /// Fence must be submitted.
     pub unsafe fn submit<'a>(&mut self,
         submissions: impl IntoIterator<Item = Submission<
             B,
@@ -80,7 +79,7 @@ where
         }
 
         if let Some(fence) = fence {
-            fence.mark_armed(FenceEpoch {
+            fence.mark_submitted(FenceEpoch {
                 queue: self.id,
                 epoch: self.next_epoch,
             });
@@ -89,7 +88,7 @@ where
     }
 
     /// Submit commands to the queue of the family.
-    /// Fence must be armed.
+    /// Fence must be submitted.
     /// This version uses raw fence and doesn't increment epoch.
     pub unsafe fn submit_raw_fence<'a>(&mut self,
         submissions: impl IntoIterator<Item = Submission<

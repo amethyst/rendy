@@ -57,7 +57,7 @@ where
     ///
     /// `fences`    - vector of fences that will be signaled after all commands are complete.
     ///               Fences that are attached to last submissions of every queue are reset.
-    ///               This function may not use all fences. Unused fences are left in signalled state.
+    ///               This function may not use all fences. Unused fences are left in signaled state.
     ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
     ///               So it's OK to start with empty `Vec`.
     pub fn run(&mut self, factory: &mut Factory<B>, aux: &mut T) {
