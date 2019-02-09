@@ -60,6 +60,8 @@ where
         "Sprite"
     }
 
+    fn depth() -> bool { false }
+
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
@@ -216,7 +218,7 @@ where
             return PrepareResult::DrawReuse;
         }
 
-        let mut vbuf = factory.create_buffer(512, PosTex::VERTEX.stride as u64 * 3, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
+        let mut vbuf = factory.create_buffer(512, PosTex::VERTEX.stride as u64 * 6, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
             .unwrap();
 
         unsafe {
@@ -269,7 +271,8 @@ where
             std::iter::empty::<u32>(),
         );
         encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
-        encoder.draw(0..6, 0..1);
+        encoder.draw(0..3, 0..1);
+        encoder.draw(3..6, 0..1);
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
@@ -315,7 +318,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Warn)
         .filter_module("sprite", log::LevelFilter::Trace)
         .init();
 

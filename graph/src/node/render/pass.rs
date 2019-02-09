@@ -438,7 +438,15 @@ where
         };
 
         let subpasses = self.subpasses.into_iter().enumerate().map(|(index, subpass)| {
+
+            let subpass_colors = subpass.colors.len();
+            let subpass_depth = subpass.depth_stencil.is_some();
+
             subpass.groups.into_iter().map(|group| {
+
+                assert_eq!(group.colors(), subpass_colors);
+                assert_eq!(group.depth(), subpass_depth);
+
                 let mut buffers = buffers.iter_mut();
                 let mut images = images.iter_mut();
 

@@ -85,6 +85,12 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
             .with_group(self)
     }
 
+    /// Number of color output images.
+    fn colors(&self) -> usize;
+
+    /// Is depth image used.
+    fn depth(&self) -> bool;
+
     /// Get buffers used by the group
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)>;
 
@@ -112,6 +118,14 @@ where
     T: ?Sized,
     D: RenderGroupDesc<B, T>,
 {
+    fn colors(&self) -> usize {
+        self.desc.colors()
+    }
+
+    fn depth(&self) -> bool {
+        self.desc.depth()
+    }
+
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
         self.buffers.iter().cloned().zip(self.desc.buffers()).collect()
     }

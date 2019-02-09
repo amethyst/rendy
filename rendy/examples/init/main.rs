@@ -20,7 +20,7 @@ type Backend = rendy::vulkan::Backend;
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Warn)
         .filter_module("init", log::LevelFilter::Trace)
         .init();
 

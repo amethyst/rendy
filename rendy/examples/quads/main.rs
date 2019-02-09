@@ -54,7 +54,7 @@ lazy_static::lazy_static! {
 }
 
 const QUADS: u32 = 2_000_000;
-const DIVIDE: u32 = 580;
+const DIVIDE: u32 = 1;
 const PER_CALL: u32 = QUADS / DIVIDE;
 
 #[derive(Debug)]
@@ -154,9 +154,9 @@ where
         unsafe {
             factory.upload_visible_buffer(&mut indirect, 0, &(0..DIVIDE).map(|index| DrawCommand {
                 vertex_count: 6,
-                instance_count: QUADS / DIVIDE,
+                instance_count: PER_CALL,
                 first_vertex: 0,
-                first_instance: index * (QUADS / DIVIDE),
+                first_instance: index * PER_CALL,
             }).collect::<Vec<_>>()).unwrap();
         }
 
@@ -236,13 +236,8 @@ where
             std::iter::once(&self.descriptor_set),
             std::iter::empty::<u32>(),
         );
-        // encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
-        // encoder.draw_indirect(self.indirect.raw(), 0, DIVIDE, std::mem::size_of::<DrawCommand>() as u32);
-
-        for index in 0 .. DIVIDE {
-            encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
-            encoder.draw(0..6, index * PER_CALL .. (index + 1) * PER_CALL);
-        }
+        encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
+        encoder.draw_indirect(self.indirect.raw(), 0, DIVIDE, std::mem::size_of::<DrawCommand>() as u32);
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
@@ -485,7 +480,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Warn)
         .filter_module("quads", log::LevelFilter::Trace)
         .init();
 
