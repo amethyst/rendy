@@ -1,4 +1,3 @@
-
 use crate::{
     node::State,
     resource::{AccessFlags, Resource},

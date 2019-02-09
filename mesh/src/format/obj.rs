@@ -2,8 +2,8 @@
 
 use {
     crate::{
-        vertex::{PosNormTex, Position, Normal, TexCoord},
         mesh::MeshBuilder,
+        vertex::{Normal, PosNormTex, Position, TexCoord},
     },
     wavefront_obj::obj,
 };
@@ -11,13 +11,15 @@ use {
 /// Load mesh data from obj.
 pub fn load_from_obj(bytes: Vec<u8>, _: ()) -> Result<MeshBuilder<'static>, failure::Error> {
     let string = String::from_utf8(bytes)?;
-    let set = obj::parse(string)
-        .map_err(|e| failure::format_err!("Error during parsing obj-file at line '{}': {}", e.line_number, e.message))?;
+    let set = obj::parse(string).map_err(|e| {
+        failure::format_err!(
+            "Error during parsing obj-file at line '{}': {}",
+            e.line_number,
+            e.message
+        )
+    })?;
     let posnormtex = from_data(set);
-    Ok(
-        MeshBuilder::new()
-            .with_vertices(posnormtex)
-    )
+    Ok(MeshBuilder::new().with_vertices(posnormtex))
 }
 
 fn convert(

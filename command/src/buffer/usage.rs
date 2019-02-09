@@ -1,4 +1,3 @@
-
 use super::SecondaryLevel;
 
 /// Command buffer with this usage flag will move to invalid state after execution.

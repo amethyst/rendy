@@ -3,10 +3,7 @@ pub(crate) mod write;
 
 use std::{ops::Range, ptr::NonNull};
 
-use crate::{
-    memory::Memory,
-    util::fits_usize,
-};
+use crate::{memory::Memory, util::fits_usize};
 
 pub(crate) use self::range::{
     mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range,
@@ -68,20 +65,15 @@ where
         );
         assert!(memory.host_visible());
 
-        let ptr = device.map_memory(
-            memory.raw(),
-            range.clone(),
-        )?;
+        let ptr = device.map_memory(memory.raw(), range.clone())?;
         assert!(
             (ptr as usize).wrapping_neg() >= (range.end - range.start) as usize,
-            "Resulting pointer value + range length must fit in usize. Pointer: {:p}, range {:?}", ptr, range,
+            "Resulting pointer value + range length must fit in usize. Pointer: {:p}, range {:?}",
+            ptr,
+            range,
         );
 
-        Ok(Self::from_raw(
-            memory,
-            NonNull::new_unchecked(ptr),
-            range,
-        ))
+        Ok(Self::from_raw(memory, NonNull::new_unchecked(ptr), range))
     }
 
     /// Construct mapped range from raw mapping
@@ -130,9 +122,8 @@ where
             .ok_or_else(|| gfx_hal::mapping::Error::OutOfBounds)?;
 
         if self.coherent.0 {
-            device.invalidate_mapped_memory_ranges(
-                Some((self.memory.raw(), self.range.clone()))
-            )?;
+            device
+                .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
         }
 
         let slice = mapped_slice::<T>(ptr, range);
@@ -158,9 +149,8 @@ where
             .ok_or_else(|| gfx_hal::mapping::Error::OutOfBounds)?;
 
         if !self.coherent.0 {
-            device.invalidate_mapped_memory_ranges(
-                Some((self.memory.raw(), self.range.clone()))
-            )?;
+            device
+                .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
         }
 
         let slice = mapped_slice_mut::<T>(ptr, range.clone());
@@ -171,12 +161,13 @@ where
             slice,
             flush: if !self.coherent.0 {
                 Some(move || {
-                    device.flush_mapped_memory_ranges(Some((memory.raw(), range)))
+                    device
+                        .flush_mapped_memory_ranges(Some((memory.raw(), range)))
                         .expect("Should flush successfully");
                 })
             } else {
                 None
-            }
+            },
         })
     }
 

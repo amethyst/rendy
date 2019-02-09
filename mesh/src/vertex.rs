@@ -129,7 +129,14 @@ pub struct VertexFormat<'a> {
 
 impl<'a> VertexFormat<'a> {
     /// Convert into gfx digestible type.
-    pub fn gfx_vertex_input_desc(&self, rate: gfx_hal::pso::InstanceRate) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride, gfx_hal::pso::InstanceRate) {
+    pub fn gfx_vertex_input_desc(
+        &self,
+        rate: gfx_hal::pso::InstanceRate,
+    ) -> (
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    ) {
         (self.attributes.clone().into_owned(), self.stride, rate)
     }
 }

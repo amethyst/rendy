@@ -1,30 +1,24 @@
-
 use {
-    std::{
-        collections::HashMap,
-        cmp::min,
-    },
     crate::{
-        ImageId, BufferId, NodeId,
         command::{
-            Fence,
-            Supports, Graphics, Family, QueueId, FamilyId, Submit, CommandBuffer, CommandPool,
-            PendingState, ExecutableState, MultiShot, SimultaneousUse, NoSimultaneousUse, SecondaryLevel, IndividualReset,
-            Submission,
+            CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, Graphics,
+            IndividualReset, MultiShot, NoSimultaneousUse, PendingState, QueueId, SecondaryLevel,
+            SimultaneousUse, Submission, Submit, Supports,
         },
         factory::Factory,
-        frame::{cirque::{CirqueRef, CommandCirque}, Frames},
-        node::{
-            DynNode,
-            BufferAccess, ImageAccess,
-            NodeBuffer, NodeImage,
-            NodeBuilder,
-            render::group::{RenderGroup, RenderGroupBuilder},
-            gfx_acquire_barriers,
-            gfx_release_barriers,
+        frame::{
+            cirque::{CirqueRef, CommandCirque},
+            Frames,
         },
+        node::{
+            gfx_acquire_barriers, gfx_release_barriers,
+            render::group::{RenderGroup, RenderGroupBuilder},
+            BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeImage,
+        },
+        BufferId, ImageId, NodeId,
     },
-    gfx_hal::{Backend, Device, image::Layout},
+    gfx_hal::{image::Layout, Backend, Device},
+    std::{cmp::min, collections::HashMap},
 };
 
 #[derive(derivative::Derivative)]
@@ -108,8 +102,7 @@ where
 
     /// Make render pass from subpass.
     pub fn into_pass(self) -> RenderPassNodeBuilder<B, T> {
-        RenderPassNodeBuilder::new()
-            .with_subpass(self)
+        RenderPassNodeBuilder::new().with_subpass(self)
     }
 }
 
@@ -148,10 +141,7 @@ where
     fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
         families
             .iter()
-            .find(|family| {
-                Supports::<Graphics>::supports(&family.capability())
-                    .is_some()
-            })
+            .find(|family| Supports::<Graphics>::supports(&family.capability()).is_some())
             .map(|family| family.id())
     }
 
@@ -203,7 +193,8 @@ where
                     layout: Layout::ColorAttachmentOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::COLOR_ATTACHMENT_READ | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE;
+                entry.access |= gfx_hal::image::Access::COLOR_ATTACHMENT_READ
+                    | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE;
                 entry.usage |= gfx_hal::image::Usage::COLOR_ATTACHMENT;
                 entry.stages |= gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
             }
@@ -213,14 +204,19 @@ where
                     layout: Layout::DepthStencilAttachmentOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ | gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
+                entry.access |= gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
+                    | gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
                 entry.usage |= gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::EARLY_FRAGMENT_TESTS | gfx_hal::pso::PipelineStage::LATE_FRAGMENT_TESTS;
+                entry.stages |= gfx_hal::pso::PipelineStage::EARLY_FRAGMENT_TESTS
+                    | gfx_hal::pso::PipelineStage::LATE_FRAGMENT_TESTS;
             }
 
             for group in &subpass.groups {
                 for (id, access) in group.images() {
-                    assert!(!attachments.contains_key(&id), "Attachment image can't be used otherwise in render pass");
+                    assert!(
+                        !attachments.contains_key(&id),
+                        "Attachment image can't be used otherwise in render pass"
+                    );
                     let entry = images.entry(id).or_insert(empty);
                     entry.access |= access.access;
                     entry.usage |= access.usage;
@@ -234,7 +230,17 @@ where
     }
 
     fn dependencies(&self) -> Vec<NodeId> {
-        let mut dependencies: Vec<_> = self.subpasses.iter().flat_map(|subpass| subpass.dependencies.iter().cloned().chain(subpass.groups.iter().flat_map(|group| group.dependencies()))).collect();
+        let mut dependencies: Vec<_> = self
+            .subpasses
+            .iter()
+            .flat_map(|subpass| {
+                subpass
+                    .dependencies
+                    .iter()
+                    .cloned()
+                    .chain(subpass.groups.iter().flat_map(|group| group.dependencies()))
+            })
+            .collect();
         dependencies.sort();
         dependencies.dedup();
         dependencies
@@ -248,46 +254,64 @@ where
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
-        let mut attachment_ids: Vec<ImageId> = self.subpasses.iter().flat_map(|subpass| {
-            subpass.inputs.iter()
-                .chain(subpass.colors.iter())
-                .chain(subpass.depth_stencil.as_ref())
-                .cloned()
-        }).collect();
+        let mut attachment_ids: Vec<ImageId> = self
+            .subpasses
+            .iter()
+            .flat_map(|subpass| {
+                subpass
+                    .inputs
+                    .iter()
+                    .chain(subpass.colors.iter())
+                    .chain(subpass.depth_stencil.as_ref())
+                    .cloned()
+            })
+            .collect();
 
         attachment_ids.sort();
         attachment_ids.dedup();
 
-        let (attachments, mut images): (Vec<_>, _) = images.into_iter().partition(|image| {
-            attachment_ids.binary_search(&image.id).is_ok()
-        });
+        let (attachments, mut images): (Vec<_>, _) = images
+            .into_iter()
+            .partition(|image| attachment_ids.binary_search(&image.id).is_ok());
 
         let find_attachment = |id: ImageId| {
-            attachments.iter().find(|a| a.id == id).expect("Attachment image wasn't provided")
+            attachments
+                .iter()
+                .find(|a| a.id == id)
+                .expect("Attachment image wasn't provided")
         };
 
         let mut framebuffer_width = u32::max_value();
         let mut framebuffer_height = u32::max_value();
         let mut framebuffer_layers = u16::max_value();
 
-        let views: Vec<_> = attachment_ids.iter()
+        let views: Vec<_> = attachment_ids
+            .iter()
             .map(|&id| unsafe {
                 let attachment = find_attachment(id);
                 let extent = attachment.image.kind().extent();
                 framebuffer_width = min(framebuffer_width, extent.width);
                 framebuffer_height = min(framebuffer_height, extent.height);
-                framebuffer_layers = min(framebuffer_layers, attachment.range.layers.end - attachment.range.layers.start);
-                factory.device().create_image_view(
-                    attachment.image.raw(),
-                    gfx_hal::image::ViewKind::D2,
-                    attachment.image.format(),
-                    gfx_hal::format::Swizzle::NO,
-                    attachment.range.clone(),
-                ).map_err(failure::Error::from)
-            }).collect::<Result<_, _>>()?;
+                framebuffer_layers = min(
+                    framebuffer_layers,
+                    attachment.range.layers.end - attachment.range.layers.start,
+                );
+                factory
+                    .device()
+                    .create_image_view(
+                        attachment.image.raw(),
+                        gfx_hal::image::ViewKind::D2,
+                        attachment.image.format(),
+                        gfx_hal::format::Swizzle::NO,
+                        attachment.range.clone(),
+                    )
+                    .map_err(failure::Error::from)
+            })
+            .collect::<Result<_, _>>()?;
 
         let render_pass: B::RenderPass = {
-            let attachments: Vec<_> = attachment_ids.iter()
+            let attachments: Vec<_> = attachment_ids
+                .iter()
                 .map(|&id| {
                     let attachment = find_attachment(id);
                     gfx_hal::pass::Attachment {
@@ -321,44 +345,61 @@ where
                 depth_stencil: Option<(usize, Layout)>,
             }
 
-            let subpasses: Vec<_> = self.subpasses.iter().map(|subpass| {
-                OwningSubpassDesc {
-                    inputs: subpass.inputs.iter().map(|&id| (
-                        attachment_ids.iter().position(|&a| a == id).unwrap(),
-                        find_attachment(id).layout,
-                    )).collect(),
-                    colors: subpass.colors.iter().map(|&id| (
-                        attachment_ids.iter().position(|&a| a == id).unwrap(),
-                        find_attachment(id).layout,
-                    )).collect(),
-                    depth_stencil: subpass.depth_stencil.map(|id| (
-                        attachment_ids.iter().position(|&a| a == id).unwrap(),
-                        find_attachment(id).layout,
-                    )),
-                }
-            }).collect();
+            let subpasses: Vec<_> = self
+                .subpasses
+                .iter()
+                .map(|subpass| OwningSubpassDesc {
+                    inputs: subpass
+                        .inputs
+                        .iter()
+                        .map(|&id| {
+                            (
+                                attachment_ids.iter().position(|&a| a == id).unwrap(),
+                                find_attachment(id).layout,
+                            )
+                        })
+                        .collect(),
+                    colors: subpass
+                        .colors
+                        .iter()
+                        .map(|&id| {
+                            (
+                                attachment_ids.iter().position(|&a| a == id).unwrap(),
+                                find_attachment(id).layout,
+                            )
+                        })
+                        .collect(),
+                    depth_stencil: subpass.depth_stencil.map(|id| {
+                        (
+                            attachment_ids.iter().position(|&a| a == id).unwrap(),
+                            find_attachment(id).layout,
+                        )
+                    }),
+                })
+                .collect();
 
-            let subpasses: Vec<_> = subpasses.iter().map(|subpass| {
-                gfx_hal::pass::SubpassDesc {
+            let subpasses: Vec<_> = subpasses
+                .iter()
+                .map(|subpass| gfx_hal::pass::SubpassDesc {
                     inputs: &subpass.inputs[..],
                     colors: &subpass.colors[..],
                     depth_stencil: subpass.depth_stencil.as_ref(),
                     resolves: &[],
                     preserves: &[],
-                }
-            }).collect();
+                })
+                .collect();
 
             let result = unsafe {
-                gfx_hal::Device::create_render_pass(
-                    factory.device(),
-                    attachments,
-                    subpasses,
-                    {
-                        assert_eq!(self.subpasses.len(), 1, "TODO: Implement subpass dependencies to allow more than one subpass");
-                        std::iter::empty::<gfx_hal::pass::SubpassDependency>()
-                    },
-                )
-            }.unwrap();
+                gfx_hal::Device::create_render_pass(factory.device(), attachments, subpasses, {
+                    assert_eq!(
+                        self.subpasses.len(),
+                        1,
+                        "TODO: Implement subpass dependencies to allow more than one subpass"
+                    );
+                    std::iter::empty::<gfx_hal::pass::SubpassDependency>()
+                })
+            }
+            .unwrap();
 
             log::trace!("RenderPass instance created");
             result
@@ -378,12 +419,14 @@ where
 
         log::trace!("Collect clears for render pass");
 
-        let clears: Vec<_> = attachment_ids.iter()
+        let clears: Vec<_> = attachment_ids
+            .iter()
             .filter_map(|&id| find_attachment(id).clear)
             .map(Into::into)
             .collect();
 
-        let mut command_pool = factory.create_command_pool(family)?
+        let mut command_pool = factory
+            .create_command_pool(family)?
             .with_capability()
             .expect("Graph must specify family that supports `Graphics`");
 
@@ -437,38 +480,62 @@ where
             None
         };
 
-        let subpasses = self.subpasses.into_iter().enumerate().map(|(index, subpass)| {
+        let subpasses = self
+            .subpasses
+            .into_iter()
+            .enumerate()
+            .map(|(index, subpass)| {
+                let subpass_colors = subpass.colors.len();
+                let subpass_depth = subpass.depth_stencil.is_some();
 
-            let subpass_colors = subpass.colors.len();
-            let subpass_depth = subpass.depth_stencil.is_some();
+                subpass
+                    .groups
+                    .into_iter()
+                    .map(|group| {
+                        assert_eq!(group.colors(), subpass_colors);
+                        assert_eq!(group.depth(), subpass_depth);
 
-            subpass.groups.into_iter().map(|group| {
+                        let mut buffers = buffers.iter_mut();
+                        let mut images = images.iter_mut();
 
-                assert_eq!(group.colors(), subpass_colors);
-                assert_eq!(group.depth(), subpass_depth);
+                        let buffers: Vec<_> = group
+                            .buffers()
+                            .into_iter()
+                            .map(|(id, _)| {
+                                buffers
+                                    .find(|b| b.id == id)
+                                    .expect("Transient buffer wasn't provided")
+                                    .reborrow()
+                            })
+                            .collect();
+                        let images: Vec<_> = group
+                            .images()
+                            .into_iter()
+                            .map(|(id, _)| {
+                                images
+                                    .find(|i| i.id == id)
+                                    .expect("Transient image wasn't provided")
+                                    .reborrow()
+                            })
+                            .collect();
 
-                let mut buffers = buffers.iter_mut();
-                let mut images = images.iter_mut();
-
-                let buffers: Vec<_> = group.buffers().into_iter().map(|(id, _)| buffers.find(|b| b.id == id).expect("Transient buffer wasn't provided").reborrow()).collect();
-                let images: Vec<_> = group.images().into_iter().map(|(id, _)| images.find(|i| i.id == id).expect("Transient image wasn't provided").reborrow()).collect();
-
-                group.build(
-                    factory,
-                    aux,
-                    framebuffer_width,
-                    framebuffer_height,
-                    gfx_hal::pass::Subpass {
-                        index,
-                        main_pass: &render_pass,
-                    },
-                    buffers,
-                    images,
-                )
+                        group.build(
+                            factory,
+                            aux,
+                            framebuffer_width,
+                            framebuffer_height,
+                            gfx_hal::pass::Subpass {
+                                index,
+                                main_pass: &render_pass,
+                            },
+                            buffers,
+                            images,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(|groups| SubpassNode { groups })
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map(|groups| SubpassNode { groups })
-        }).collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         let node = RenderPassNode {
             subpasses,
@@ -507,7 +574,13 @@ struct SubpassNode<B: Backend, T: ?Sized> {
 #[derivative(Debug(bound = ""))]
 struct BarriersCommands<B: gfx_hal::Backend> {
     submit: Submit<B, SimultaneousUse, SecondaryLevel>,
-    buffer: CommandBuffer<B, Graphics, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>, SecondaryLevel, IndividualReset>,
+    buffer: CommandBuffer<
+        B,
+        Graphics,
+        PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
+        SecondaryLevel,
+        IndividualReset,
+    >,
 }
 
 #[derive(derivative::Derivative)]
@@ -557,7 +630,7 @@ where
             render_pass,
             framebuffer,
             clears,
-            
+
             command_cirque,
             command_pool,
 
@@ -566,68 +639,60 @@ where
             ..
         } = self;
 
-        let submit = command_cirque.encode(
-            frames.range(),
-            command_pool,
-            |mut cbuf| {
-                let index = cbuf.index();
+        let submit = command_cirque.encode(frames.range(), command_pool, |mut cbuf| {
+            let index = cbuf.index();
 
-                let force_record = subpasses.iter_mut().any(|subpass| {
-                    subpass.groups.iter_mut().any(|group| {
-                        group.prepare(factory, index, aux).force_record()
-                    })
-                });
+            let force_record = subpasses.iter_mut().any(|subpass| {
+                subpass
+                    .groups
+                    .iter_mut()
+                    .any(|group| group.prepare(factory, index, aux).force_record())
+            });
 
-                if force_record {
-                    cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
+            if force_record {
+                cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
+            }
+
+            cbuf.or_init(|cbuf| {
+                let mut cbuf = cbuf.begin(MultiShot(NoSimultaneousUse), ());
+                let mut encoder = cbuf.encoder();
+
+                if let Some(barriers) = &acquire {
+                    encoder.execute_commands(std::iter::once(&barriers.submit));
                 }
 
-                cbuf.or_init(|cbuf| {
-                    let mut cbuf = cbuf.begin(MultiShot(NoSimultaneousUse), ());
-                    let mut encoder = cbuf.encoder();
+                let area = gfx_hal::pso::Rect {
+                    x: 0,
+                    y: 0,
+                    w: *framebuffer_width as _,
+                    h: *framebuffer_height as _,
+                };
 
-                    if let Some(barriers) = &acquire {
-                        encoder.execute_commands(std::iter::once(&barriers.submit));
-                    }
+                let mut pass_encoder =
+                    { encoder.begin_render_pass_inline(&render_pass, &framebuffer, area, &clears) };
 
-                    let area = gfx_hal::pso::Rect {
-                        x: 0,
-                        y: 0,
-                        w: *framebuffer_width as _,
-                        h: *framebuffer_height as _,
-                    };
+                subpasses.iter_mut().for_each(|subpass| {
+                    subpass
+                        .groups
+                        .iter_mut()
+                        .for_each(|group| group.draw_inline(pass_encoder.reborrow(), index, aux))
+                });
 
-                    let mut pass_encoder = {
-                        encoder.begin_render_pass_inline(
-                            &render_pass,
-                            &framebuffer,
-                            area,
-                            &clears,
-                        )
-                    };
+                drop(pass_encoder);
 
-                    subpasses.iter_mut().for_each(|subpass| {
-                        subpass.groups.iter_mut().for_each(|group| {
-                            group.draw_inline(pass_encoder.reborrow(), index, aux)
-                        })
-                    });
-
-                    drop(pass_encoder);
-
-                    if let Some(barriers) = &release {
-                        encoder.execute_commands(std::iter::once(&barriers.submit));
-                    }
-                    cbuf.finish()
-                })
-            }
-        );
+                if let Some(barriers) = &release {
+                    encoder.execute_commands(std::iter::once(&barriers.submit));
+                }
+                cbuf.finish()
+            })
+        });
 
         factory.family_mut(qid.family()).queues_mut()[qid.index()].submit(
             Some(
                 Submission::new()
                     .submits(Some(submit))
                     .wait(waits.iter().cloned())
-                    .signal(signals.iter().cloned())
+                    .signal(signals.iter().cloned()),
             ),
             fence,
         )
@@ -643,7 +708,7 @@ where
         let pool = &mut self.command_pool;
         self.command_cirque.dispose(|buffer| {
             buffer.either_with(
-                &mut*pool,
+                &mut *pool,
                 |pool, executable| pool.free_buffers(Some(executable)),
                 |pool, pending| {
                     let executable = pending.mark_complete();
@@ -665,18 +730,15 @@ fn common_layout(acc: Layout, layout: Layout) -> Layout {
     match (acc, layout) {
         (Layout::Undefined, layout) => layout,
         (left, right) if left == right => left,
-        (
-            Layout::DepthStencilReadOnlyOptimal,
-            Layout::DepthStencilAttachmentOptimal,
-        ) => Layout::DepthStencilAttachmentOptimal,
-        (
-            Layout::DepthStencilAttachmentOptimal,
-            Layout::DepthStencilReadOnlyOptimal,
-        ) => Layout::DepthStencilAttachmentOptimal,
+        (Layout::DepthStencilReadOnlyOptimal, Layout::DepthStencilAttachmentOptimal) => {
+            Layout::DepthStencilAttachmentOptimal
+        }
+        (Layout::DepthStencilAttachmentOptimal, Layout::DepthStencilReadOnlyOptimal) => {
+            Layout::DepthStencilAttachmentOptimal
+        }
         (_, _) => Layout::General,
     }
 }
-
 
 #[cfg(feature = "metal")]
 fn is_metal<B: gfx_hal::Backend>() -> bool {

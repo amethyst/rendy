@@ -1,7 +1,7 @@
 //! Family module docs.
 
-mod submission;
 mod queue;
+mod submission;
 
 use crate::{
     buffer::Reset,
@@ -9,7 +9,7 @@ use crate::{
     pool::CommandPool,
 };
 
-pub use self::{submission::*, queue::*};
+pub use self::{queue::*, submission::*};
 
 /// Family id.
 pub type FamilyId = gfx_hal::queue::QueueFamilyId;
@@ -66,7 +66,11 @@ where
             queues: {
                 let queues = queues.take_raw(id).expect("");
                 assert_eq!(queues.len(), count);
-                queues.into_iter().enumerate().map(|(index, queue)| Queue::new(queue, QueueId(id, index))).collect()
+                queues
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, queue)| Queue::new(queue, QueueId(id, index)))
+                    .collect()
             },
             // min_image_transfer_granularity: properties.min_image_transfer_granularity,
             capability: family.queue_type(),
@@ -107,10 +111,7 @@ where
         let reset = R::default();
         let pool = unsafe {
             // Is this family belong to specified device.
-            let raw = device.create_command_pool(
-                self.id,
-                reset.flags(),
-            )?;
+            let raw = device.create_command_pool(self.id, reset.flags())?;
 
             CommandPool::from_raw(raw, self.capability, reset, self.id)
         };
@@ -121,7 +122,7 @@ where
     /// Get family capability.
     pub fn capability(&self) -> C
     where
-        C: Capability
+        C: Capability,
     {
         self.capability
     }
@@ -150,7 +151,7 @@ where
     }
 
     /// Convert capability into type-level one.
-    /// 
+    ///
     pub fn with_capability<U>(self) -> Result<Family<B, U>, Self>
     where
         C: Supports<U>,
@@ -187,7 +188,6 @@ where
 {
     families
         .into_iter()
-        .map(|(index, count)| {
-            Family::from_device(queues, index, count, &queue_types[index.0])
-        }).collect()
+        .map(|(index, count)| Family::from_device(queues, index, count, &queue_types[index.0]))
+        .collect()
 }

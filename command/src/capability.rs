@@ -69,7 +69,7 @@ impl Capability for Compute {
     fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
             QueueType::Compute | QueueType::General => Some(Compute),
-            _ => None
+            _ => None,
         }
     }
 
@@ -82,7 +82,7 @@ impl Capability for Graphics {
     fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
             QueueType::Graphics | QueueType::General => Some(Graphics),
-            _ => None
+            _ => None,
         }
     }
 
@@ -95,7 +95,7 @@ impl Capability for General {
     fn from_queue_type(queue_type: QueueType) -> Option<Self> {
         match queue_type {
             QueueType::General => Some(General),
-            _ => None
+            _ => None,
         }
     }
 

@@ -3,8 +3,8 @@
 mod usage;
 
 pub use {
+    self::usage::{Usage, *},
     gfx_hal::image::*,
-    self::usage::{*, Usage},
 };
 
 use crate::{
@@ -22,10 +22,10 @@ pub struct Info {
     pub levels: Level,
 
     /// Image format.
-    pub format: gfx_hal::format::Format, 
+    pub format: gfx_hal::format::Format,
 
     /// Image tiling mode.
-    pub tiling: Tiling, 
+    pub tiling: Tiling,
 
     /// Image view capabilities.
     pub view_caps: ViewCapabilities,
@@ -70,18 +70,23 @@ where
     B: gfx_hal::Backend,
 {
     /// # Disclaimer
-    /// 
+    ///
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// `info` must match information about raw image.
     /// `block` if provided must be the one bound to the raw image.
     /// `terminal` will receive image and memory block upon drop, it must free image and memory properly.
-    /// 
+    ///
     #[doc(hidden)]
-    pub unsafe fn new(info: Info, raw: B::Image, block: Option<MemoryBlock<B>>, terminal: &Terminal<Inner<B>>) -> Self {
+    pub unsafe fn new(
+        info: Info,
+        raw: B::Image,
+        block: Option<MemoryBlock<B>>,
+        terminal: &Terminal<Inner<B>>,
+    ) -> Self {
         Image {
             escape: terminal.escape(Inner {
                 block,
@@ -93,7 +98,7 @@ where
     }
 
     /// # Disclaimer
-    /// 
+    ///
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
@@ -102,7 +107,7 @@ where
     }
 
     /// Creates [`KeepAlive`] handler to extend image lifetime.
-    /// 
+    ///
     /// [`KeepAlive`]: struct.KeepAlive.html
     pub fn keep_alive(&self) -> KeepAlive {
         Escape::keep_alive(&self.escape)
@@ -118,21 +123,21 @@ where
     }
 
     /// Get image [`Info`].
-    /// 
+    ///
     /// [`Info`]: struct.Info.html
     pub fn info(&self) -> Info {
         self.info
     }
 
     /// Get [`Kind`] of the image.
-    /// 
+    ///
     /// [`Kind`]: ../gfx-hal/image/struct.Kind.html
     pub fn kind(&self) -> gfx_hal::image::Kind {
         self.info.kind
     }
 
     /// Get [`Format`] of the image.
-    /// 
+    ///
     /// [`Format`]: ../gfx-hal/format/struct.Format.html
     pub fn format(&self) -> gfx_hal::format::Format {
         self.info.format
@@ -190,19 +195,24 @@ where
     B: gfx_hal::Backend,
 {
     #[doc(hidden)]
-    pub unsafe fn new(info: ViewInfo, image: &Image<B>, raw: B::ImageView, terminal: &Terminal<InnerView<B>>) -> Self {
+    pub unsafe fn new(
+        info: ViewInfo,
+        image: &Image<B>,
+        raw: B::ImageView,
+        terminal: &Terminal<InnerView<B>>,
+    ) -> Self {
         ImageView {
             escape: terminal.escape(InnerView {
                 raw,
                 image_kp: image.keep_alive(),
-                relevant: relevant::Relevant
+                relevant: relevant::Relevant,
             }),
             info,
         }
     }
 
     /// # Disclaimer
-    /// 
+    ///
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
@@ -211,7 +221,7 @@ where
     }
 
     /// Creates [`KeepAlive`] handler to extend image lifetime.
-    /// 
+    ///
     /// [`KeepAlive`]: struct.KeepAlive.html
     pub fn keep_alive(&self) -> KeepAlive {
         Escape::keep_alive(&self.escape)

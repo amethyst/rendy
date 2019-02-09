@@ -127,11 +127,9 @@ impl<S> Schedule<S> {
         let mut oredered: Vec<SubmissionId> = Vec::new();
 
         {
-            let submissions = self.iter().flat_map(|family| {
-                family.iter().flat_map(|queue| {
-                    queue.iter()
-                })
-            });
+            let submissions = self
+                .iter()
+                .flat_map(|family| family.iter().flat_map(|queue| queue.iter()));
 
             for submission in submissions {
                 if submission.submit_order() == !0 {
@@ -139,7 +137,7 @@ impl<S> Schedule<S> {
                 }
                 let len = oredered.len();
                 if len <= submission.submit_order() {
-                    oredered.extend((len .. submission.submit_order() + 1).map(|_| submission.id()));
+                    oredered.extend((len..submission.submit_order() + 1).map(|_| submission.id()));
                 } else {
                     oredered[submission.submit_order()] = submission.id();
                 }

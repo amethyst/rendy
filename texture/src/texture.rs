@@ -1,10 +1,9 @@
-
 use crate::{
-    pixel::AsPixel,
     command::QueueId,
+    factory::{Factory, ImageState},
+    pixel::AsPixel,
     resource::image::{Image, ImageView, Texture as TextureUsage},
     resource::sampler::Sampler,
-    factory::{Factory, ImageState},
     util::cast_cow,
 };
 
@@ -50,7 +49,10 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// Set pixel data.
-    pub fn set_data<P: AsPixel>(&mut self, data: impl Into<std::borrow::Cow<'a, [P]>>) -> &mut Self {
+    pub fn set_data<P: AsPixel>(
+        &mut self,
+        data: impl Into<std::borrow::Cow<'a, [P]>>,
+    ) -> &mut Self {
         self.data = cast_cow(data.into());
         self.format = P::FORMAT;
         self
@@ -145,14 +147,13 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::SubresourceLayers {
                     aspects: self.format.surface_desc().aspects,
                     level: 0,
-                    layers: 0 .. 1,
+                    layers: 0..1,
                 },
                 gfx_hal::image::Offset::ZERO,
                 self.kind.extent(),
                 &self.data,
                 gfx_hal::image::Layout::Undefined,
-                ImageState::new(queue, layout)
-                    .with_access(access)
+                ImageState::new(queue, layout).with_access(access),
             )?;
         }
 
@@ -165,7 +166,7 @@ impl<'a> TextureBuilder<'a> {
                 aspects: self.format.surface_desc().aspects,
                 levels: 0..1,
                 layers: 0..1,
-            }
+            },
         )?;
 
         let sampler = factory.create_sampler(self.filter, gfx_hal::image::WrapMode::Clamp)?;

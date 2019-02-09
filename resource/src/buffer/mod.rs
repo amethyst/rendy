@@ -3,13 +3,13 @@
 mod usage;
 
 pub use {
+    self::usage::{Usage, *},
     gfx_hal::buffer::*,
-    self::usage::{*, Usage},
 };
 
 use crate::{
     escape::{Escape, KeepAlive, Terminal},
-    memory::{Block, MemoryBlock, MappedRange},
+    memory::{Block, MappedRange, MemoryBlock},
 };
 
 /// Buffer info.
@@ -57,18 +57,23 @@ where
     B: gfx_hal::Backend,
 {
     /// # Disclaimer
-    /// 
+    ///
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// `info` must match information about raw buffer.
     /// `block` if provided must be the one bound to the raw buffer.
     /// `terminal` will receive buffer and memory block upon drop, it must free buffer and memory properly.
-    /// 
+    ///
     #[doc(hidden)]
-    pub unsafe fn new(info: Info, raw: B::Buffer, block: MemoryBlock<B>, terminal: &Terminal<Inner<B>>) -> Self {
+    pub unsafe fn new(
+        info: Info,
+        raw: B::Buffer,
+        block: MemoryBlock<B>,
+        terminal: &Terminal<Inner<B>>,
+    ) -> Self {
         Buffer {
             escape: terminal.escape(Inner {
                 block,
@@ -80,7 +85,7 @@ where
     }
 
     /// # Disclaimer
-    /// 
+    ///
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
@@ -89,7 +94,7 @@ where
     }
 
     /// Creates [`KeepAlive`] handler to extend buffer lifetime.
-    /// 
+    ///
     /// [`KeepAlive`]: struct.KeepAlive.html
     pub fn keep_alive(&self) -> KeepAlive {
         Escape::keep_alive(&self.escape)
@@ -97,15 +102,22 @@ where
 
     /// Check if this buffer could is bound to CPU visible memory and therefore mappable.
     /// If this function returns `false` `map` will always return `InvalidAccess`.
-    /// 
+    ///
     /// [`map`]: #method.map
     /// [`InvalidAccess`]: https://docs.rs/gfx-hal/0.1/gfx_hal/mapping/enum.Error.html#InvalidAccess
     pub fn visible(&self) -> bool {
-        self.escape.block.properties().contains(gfx_hal::memory::Properties::CPU_VISIBLE)
+        self.escape
+            .block
+            .properties()
+            .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
     }
 
     /// Map range of the buffer to the CPU accessible memory.
-    pub fn map<'a>(&'a mut self, device: &B::Device, range: std::ops::Range<u64>) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    pub fn map<'a>(
+        &'a mut self,
+        device: &B::Device,
+        range: std::ops::Range<u64>,
+    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         self.escape.block.map(device, range)
     }
 

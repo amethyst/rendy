@@ -8,7 +8,8 @@ use crate::{buffer::*, capability::*, family::FamilyId};
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndividualReset> {
-    #[derivative(Debug = "ignore")]raw: B::CommandPool,
+    #[derivative(Debug = "ignore")]
+    raw: B::CommandPool,
     capability: C,
     reset: R,
     family: FamilyId,
@@ -28,12 +29,7 @@ where
     /// * The command pool must be created for specified `family` index.
     /// * `capability` must be subset of capabilites of the `family` the pool was created for.
     /// * if `reset` is `IndividualReset` the pool must be created with individual command buffer reset flag set.
-    pub unsafe fn from_raw(
-        raw: B::CommandPool,
-        capability: C,
-        reset: R,
-        family: FamilyId,
-    ) -> Self {
+    pub unsafe fn from_raw(raw: B::CommandPool, capability: C, reset: R, family: FamilyId) -> Self {
         CommandPool {
             raw,
             capability,
@@ -54,11 +50,8 @@ where
     {
         let level = L::default();
 
-        let buffers = gfx_hal::pool::RawCommandPool::allocate_vec(
-            &mut self.raw,
-            count,
-            level.raw_level(),
-        );
+        let buffers =
+            gfx_hal::pool::RawCommandPool::allocate_vec(&mut self.raw, count, level.raw_level());
 
         buffers
             .into_iter()
@@ -71,7 +64,8 @@ where
                     self.reset,
                     self.family,
                 )
-            }).collect()
+            })
+            .collect()
     }
 
     /// Free buffers.

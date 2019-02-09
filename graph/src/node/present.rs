@@ -1,12 +1,18 @@
 //! Defines present node.
 
 use crate::{
-    ImageId, BufferId, NodeId,
-    command::{Fence, CommandPool, CommandBuffer, ExecutableState, PendingState, MultiShot, SimultaneousUse, Family, Submission, Submit, FamilyId, QueueId},
+    command::{
+        CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, MultiShot,
+        PendingState, QueueId, SimultaneousUse, Submission, Submit,
+    },
     factory::Factory,
     frame::Frames,
-    wsi::{Surface, Target, Backbuffer},
-    node::{NodeBuilder, DynNode, NodeImage, NodeBuffer, ImageAccess, gfx_acquire_barriers, gfx_release_barriers, BufferAccess},
+    node::{
+        gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
+        NodeBuilder, NodeImage,
+    },
+    wsi::{Backbuffer, Surface, Target},
+    BufferId, ImageId, NodeId,
 };
 
 #[derive(Debug)]
@@ -14,7 +20,11 @@ struct ForImage<B: gfx_hal::Backend> {
     acquire: B::Semaphore,
     release: B::Semaphore,
     submit: Submit<B, SimultaneousUse>,
-    buffer: CommandBuffer<B, gfx_hal::QueueType, PendingState<ExecutableState<MultiShot<SimultaneousUse>>>>,
+    buffer: CommandBuffer<
+        B,
+        gfx_hal::QueueType,
+        PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
+    >,
 }
 
 /// Node that presents images to the surface.
@@ -35,7 +45,7 @@ where
         PresentBuilder {
             surface,
             image,
-            dependencies: Vec::new()
+            dependencies: Vec::new(),
         }
     }
 }
@@ -82,12 +92,15 @@ where
     }
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
-        vec![(self.image, ImageAccess {
-            access: gfx_hal::image::Access::TRANSFER_READ,
-            layout: gfx_hal::image::Layout::TransferSrcOptimal,
-            usage: gfx_hal::image::Usage::TRANSFER_SRC,
-            stages: gfx_hal::pso::PipelineStage::TRANSFER,
-        })]
+        vec![(
+            self.image,
+            ImageAccess {
+                access: gfx_hal::image::Access::TRANSFER_READ,
+                layout: gfx_hal::image::Layout::TransferSrcOptimal,
+                usage: gfx_hal::image::Usage::TRANSFER_SRC,
+                stages: gfx_hal::pso::PipelineStage::TRANSFER,
+            },
+        )]
     }
 
     fn dependencies(&self) -> Vec<NodeId> {
@@ -112,62 +125,66 @@ where
         let per_image = match target.backbuffer() {
             Backbuffer::Images(target_images) => {
                 let buffers = pool.allocate_buffers(target_images.len());
-                target_images.iter().zip(buffers).map(|(target_image, buf_initial)| {
-                    let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
-                    let mut encoder = buf_recording.encoder();
-                    {
-                        let (stages, barriers) = gfx_acquire_barriers(None, Some(input_image));
-                        log::info!("Acquire {:?} : {:#?}", stages, barriers);
-                        encoder.pipeline_barrier(
-                            stages,
-                            gfx_hal::memory::Dependencies::empty(),
-                            barriers,
+                target_images
+                    .iter()
+                    .zip(buffers)
+                    .map(|(target_image, buf_initial)| {
+                        let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
+                        let mut encoder = buf_recording.encoder();
+                        {
+                            let (stages, barriers) = gfx_acquire_barriers(None, Some(input_image));
+                            log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                            encoder.pipeline_barrier(
+                                stages,
+                                gfx_hal::memory::Dependencies::empty(),
+                                barriers,
+                            );
+                        }
+                        encoder.copy_image(
+                            input_image.image.raw(),
+                            input_image.layout,
+                            target_image.raw(),
+                            gfx_hal::image::Layout::TransferDstOptimal,
+                            Some(gfx_hal::command::ImageCopy {
+                                src_subresource: gfx_hal::image::SubresourceLayers {
+                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    level: 0,
+                                    layers: 0..1,
+                                },
+                                src_offset: gfx_hal::image::Offset::ZERO,
+                                dst_subresource: gfx_hal::image::SubresourceLayers {
+                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    level: 0,
+                                    layers: 0..1,
+                                },
+                                dst_offset: gfx_hal::image::Offset::ZERO,
+                                extent: gfx_hal::image::Extent {
+                                    width: target_image.kind().extent().width,
+                                    height: target_image.kind().extent().height,
+                                    depth: 1,
+                                },
+                            }),
                         );
-                    }
-                    encoder.copy_image(
-                        input_image.image.raw(),
-                        input_image.layout,
-                        target_image.raw(),
-                        gfx_hal::image::Layout::TransferDstOptimal,
-                        Some(gfx_hal::command::ImageCopy {
-                            src_subresource: gfx_hal::image::SubresourceLayers {
-                                aspects: gfx_hal::format::Aspects::COLOR,
-                                level: 0,
-                                layers: 0..1,
-                            },
-                            src_offset: gfx_hal::image::Offset::ZERO,
-                            dst_subresource: gfx_hal::image::SubresourceLayers {
-                                aspects: gfx_hal::format::Aspects::COLOR,
-                                level: 0,
-                                layers: 0..1,
-                            },
-                            dst_offset: gfx_hal::image::Offset::ZERO,
-                            extent: gfx_hal::image::Extent {
-                                width: target_image.kind().extent().width,
-                                height: target_image.kind().extent().height,
-                                depth: 1,
-                            },
-                        }),
-                    );
-                    {
-                        let (stages, barriers) = gfx_release_barriers(None, Some(input_image));
-                        log::info!("Release {:?} : {:#?}", stages, barriers);
-                        encoder.pipeline_barrier(
-                            stages,
-                            gfx_hal::memory::Dependencies::empty(),
-                            barriers,
-                        );
-                    }
+                        {
+                            let (stages, barriers) = gfx_release_barriers(None, Some(input_image));
+                            log::info!("Release {:?} : {:#?}", stages, barriers);
+                            encoder.pipeline_barrier(
+                                stages,
+                                gfx_hal::memory::Dependencies::empty(),
+                                barriers,
+                            );
+                        }
 
-                    let (submit, buffer) = buf_recording.finish().submit();
+                        let (submit, buffer) = buf_recording.finish().submit();
 
-                    ForImage {
-                        submit,
-                        buffer,
-                        acquire: factory.create_semaphore().unwrap(),
-                        release: factory.create_semaphore().unwrap(),
-                    }
-                }).collect()
+                        ForImage {
+                            submit,
+                            buffer,
+                            acquire: factory.create_semaphore().unwrap(),
+                            release: factory.create_semaphore().unwrap(),
+                        }
+                    })
+                    .collect()
             }
             _ => unimplemented!(),
         };
@@ -208,14 +225,20 @@ where
             Some(
                 Submission::new()
                     .submits(Some(&for_image.submit))
-                    .wait(waits.iter().cloned().chain(Some((&for_image.acquire, gfx_hal::pso::PipelineStage::TRANSFER))))
-                    .signal(signals.iter().cloned().chain(Some(&for_image.release)))
+                    .wait(waits.iter().cloned().chain(Some((
+                        &for_image.acquire,
+                        gfx_hal::pso::PipelineStage::TRANSFER,
+                    ))))
+                    .signal(signals.iter().cloned().chain(Some(&for_image.release))),
             ),
             fence,
         );
 
-        next.present(family.queues_mut()[qid.index()].raw(), Some(&for_image.release))
-            .expect("Fix swapchain error");
+        next.present(
+            family.queues_mut()[qid.index()].raw(),
+            Some(&for_image.release),
+        )
+        .expect("Fix swapchain error");
     }
 
     unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &mut T) {
@@ -223,7 +246,8 @@ where
             drop(for_image.submit);
             factory.destroy_semaphore(for_image.acquire);
             factory.destroy_semaphore(for_image.release);
-            self.pool.free_buffers(Some(for_image.buffer.mark_complete()));
+            self.pool
+                .free_buffers(Some(for_image.buffer.mark_complete()));
         }
 
         factory.destroy_semaphore(self.free.unwrap());

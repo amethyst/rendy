@@ -1,13 +1,11 @@
-
 use {
-    super::{
-        RenderGroup,
-        RenderGroupDesc,
-    },
+    super::{RenderGroup, RenderGroupDesc},
     crate::{
-        factory::Factory,
         command::RenderPassEncoder,
-        node::{DescBuilder, BufferAccess, ImageAccess, NodeBuffer, NodeImage, render::PrepareResult},
+        factory::Factory,
+        node::{
+            render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
+        },
     },
     gfx_hal::{Backend, Device},
     std::marker::PhantomData,
@@ -51,7 +49,9 @@ pub struct Pipeline {
 }
 
 /// Simple render pipeline.
-pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync + 'static {
+pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
+    std::fmt::Debug + Send + Sync + 'static
+{
     /// Render pipeline name.
     fn name() -> &'static str
     where
@@ -132,7 +132,8 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>: std::fmt::Debug + Send 
                         gfx_hal::pso::ColorMask::ALL,
                         gfx_hal::pso::BlendState::ALPHA,
                     )
-                }).collect(),
+                })
+                .collect(),
             depth_stencil: if Self::depth() {
                 gfx_hal::pso::DepthStencilDesc {
                     depth: gfx_hal::pso::DepthTest::On {
@@ -179,7 +180,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>: std::fmt::Debug + Send 
         Self: Sized;
 
     /// Prepare to record drawing commands.
-    /// 
+    ///
     /// Should return true if commands must be re-recorded.
     fn prepare(
         &mut self,
@@ -247,7 +248,6 @@ where
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
-
         let mut shaders = Vec::new();
 
         log::trace!("Load shader sets for '{}'", P::name());
@@ -255,21 +255,21 @@ where
 
         let pipeline = P::pipeline();
 
-        let set_layouts = pipeline.layout
+        let set_layouts = pipeline
+            .layout
             .sets
             .into_iter()
             .map(|set| unsafe {
-                factory.device().create_descriptor_set_layout(
-                    set.bindings,
-                    std::iter::empty::<B::Sampler>(),
-                )
-            }).collect::<Result<Vec<_>, _>>()?;
+                factory
+                    .device()
+                    .create_descriptor_set_layout(set.bindings, std::iter::empty::<B::Sampler>())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         let pipeline_layout = unsafe {
-            factory.device().create_pipeline_layout(
-                &set_layouts,
-                pipeline.layout.push_constants,
-            )
+            factory
+                .device()
+                .create_pipeline_layout(&set_layouts, pipeline.layout.push_constants)
         }?;
 
         assert_eq!(pipeline.colors.len(), P::colors());
@@ -321,15 +321,10 @@ where
                 }),
                 None,
             )
-        }.remove(0)?;
+        }
+        .remove(0)?;
 
-        let pipeline = P::build(
-            factory,
-            aux,
-            buffers,
-            images,
-            &set_layouts,
-        )?;
+        let pipeline = P::build(factory, aux, buffers, images, &set_layouts)?;
 
         Ok(Box::new(SimpleRenderGroup::<B, P> {
             set_layouts,
@@ -346,31 +341,27 @@ where
     T: ?Sized,
     P: SimpleGraphicsPipeline<B, T>,
 {
-    fn prepare(
-        &mut self,
-        factory: &mut Factory<B>,
-        index: usize,
-        aux: &T,
-    ) -> PrepareResult {
-        self.pipeline.prepare(factory, &self.set_layouts, index, aux)
+    fn prepare(&mut self, factory: &mut Factory<B>, index: usize, aux: &T) -> PrepareResult {
+        self.pipeline
+            .prepare(factory, &self.set_layouts, index, aux)
     }
 
-    fn draw_inline(
-        &mut self,
-        mut encoder: RenderPassEncoder<'_, B>,
-        index: usize,
-        aux: &T,
-    ) {
+    fn draw_inline(&mut self, mut encoder: RenderPassEncoder<'_, B>, index: usize, aux: &T) {
         encoder.bind_graphics_pipeline(&self.graphics_pipeline);
-        self.pipeline.draw(&self.pipeline_layout, encoder, index, aux);
+        self.pipeline
+            .draw(&self.pipeline_layout, encoder, index, aux);
     }
 
     fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T) {
         self.pipeline.dispose(factory, aux);
-        
+
         unsafe {
-            factory.device().destroy_graphics_pipeline(self.graphics_pipeline);
-            factory.device().destroy_pipeline_layout(self.pipeline_layout);
+            factory
+                .device()
+                .destroy_graphics_pipeline(self.graphics_pipeline);
+            factory
+                .device()
+                .destroy_pipeline_layout(self.pipeline_layout);
             for set_layout in self.set_layouts.into_iter() {
                 factory.device().destroy_descriptor_set_layout(set_layout);
             }

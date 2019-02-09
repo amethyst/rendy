@@ -1,10 +1,9 @@
-
 //! Ring buffers for using with frames.
 
 mod command;
 
-use std::collections::VecDeque;
 pub use self::command::*;
+use std::collections::VecDeque;
 
 /// Reference to one of the values in the `Cirque`.
 /// It can be in either initial or ready state.
@@ -98,7 +97,9 @@ impl<'a, T, I, P> ReadyRef<'a, T, I, P> {
     /// Finish using this value.
     pub fn finish(self, finish: impl FnOnce(T) -> P) {
         self.relevant.dispose();
-        self.cirque.pending.push_back((finish(self.value), self.index, self.frame))
+        self.cirque
+            .pending
+            .push_back((finish(self.value), self.index, self.frame))
     }
 
     /// Get ref index.
@@ -126,12 +127,13 @@ impl<T, I, P> Cirque<T, I, P> {
     }
 
     /// Dispose of the `Cirque`.
-    pub fn dispose(
-        mut self,
-        mut dispose: impl FnMut(either::Either<T, P>),
-    ) {
-        self.pending.drain(..).for_each(|(value, _, _)| dispose(either::Right(value)));
-        self.ready.drain(..).for_each(|(value, _)| dispose(either::Left(value)));
+    pub fn dispose(mut self, mut dispose: impl FnMut(either::Either<T, P>)) {
+        self.pending
+            .drain(..)
+            .for_each(|(value, _, _)| dispose(either::Right(value)));
+        self.ready
+            .drain(..)
+            .for_each(|(value, _)| dispose(either::Left(value)));
     }
 
     /// Get `CirqueRef` for specified frames range.

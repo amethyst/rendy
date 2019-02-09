@@ -1,22 +1,24 @@
 //!
 //! A simple sprite example.
 //! This examples shows how to render a sprite on a white background.
-//! 
+//!
 
 use rendy::{
-    command::{RenderPassEncoder, Family, QueueId},
+    command::{Family, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
-    graph::{Graph, GraphBuilder, render::{RenderGroupBuilder, Layout, SimpleGraphicsPipeline, SetLayout, PrepareResult}, present::PresentNode, NodeBuffer, NodeImage},
+    graph::{
+        present::PresentNode,
+        render::{Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline},
+        Graph, GraphBuilder, NodeBuffer, NodeImage,
+    },
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
-    shader::{Shader, StaticShaderInfo, ShaderKind, SourceLanguage},
     resource::buffer::Buffer,
-    texture::{pixel::{Rgba8Srgb}, TextureBuilder, Texture},
+    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+    texture::{pixel::Rgba8Srgb, Texture, TextureBuilder},
 };
 
-use winit::{
-    EventsLoop, WindowBuilder,
-};
+use winit::{EventsLoop, WindowBuilder};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -60,7 +62,9 @@ where
         "Sprite"
     }
 
-    fn depth() -> bool { false }
+    fn depth() -> bool {
+        false
+    }
 
     fn vertices() -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
@@ -117,8 +121,8 @@ where
                         count: 1,
                         stage_flags: gfx_hal::pso::ShaderStageFlags::FRAGMENT,
                         immutable_samplers: false,
-                    }
-                ]
+                    },
+                ],
             }],
             push_constants: Vec::new(),
         }
@@ -136,54 +140,64 @@ where
         assert_eq!(set_layouts.len(), 1);
 
         // This is how we can load an image and create a new texture.
-        let image_bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/logo.png"));
-        let image = image::load_from_memory(&image_bytes[..])
-            .unwrap()
-            .to_rgba();
+        let image_bytes = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/sprite/logo.png"
+        ));
+        let image = image::load_from_memory(&image_bytes[..]).unwrap().to_rgba();
 
         let (width, height) = image.dimensions();
 
         let family: &Family<B> = factory.families().first().unwrap();
-        
+
         let mut image_data = Vec::<Rgba8Srgb>::new();
 
         for y in 0..height {
             for x in 0..width {
                 image_data.push(Rgba8Srgb {
-                    repr: image.get_pixel(x, y).data
+                    repr: image.get_pixel(x, y).data,
                 });
             }
         }
 
         let texture_builder = TextureBuilder::new()
-                .with_kind(gfx_hal::image::Kind::D2(width, height, 1, 1))
-                .with_view_kind(gfx_hal::image::ViewKind::D2)
-                .with_data_width(width)
-                .with_data_height(height)
-                .with_data(&image_data);
+            .with_kind(gfx_hal::image::Kind::D2(width, height, 1, 1))
+            .with_view_kind(gfx_hal::image::ViewKind::D2)
+            .with_data_width(width)
+            .with_data_height(height)
+            .with_data(&image_data);
 
         let texture = texture_builder
-                .build(QueueId(family.id(), 0), gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal, factory).unwrap();
+            .build(
+                QueueId(family.id(), 0),
+                gfx_hal::image::Access::TRANSFER_WRITE,
+                gfx_hal::image::Layout::TransferDstOptimal,
+                factory,
+            )
+            .unwrap();
 
-        let mut descriptor_pool = unsafe { gfx_hal::Device::create_descriptor_pool(
-            factory.device(),
-            1,
-            &[
-                gfx_hal::pso::DescriptorRangeDesc {
-                    ty: gfx_hal::pso::DescriptorType::SampledImage,
-                    count: 1,
-                },
-                gfx_hal::pso::DescriptorRangeDesc {
-                    ty: gfx_hal::pso::DescriptorType::Sampler,
-                    count: 1,
-                },
-            ],
-        ) }.unwrap();
+        let mut descriptor_pool = unsafe {
+            gfx_hal::Device::create_descriptor_pool(
+                factory.device(),
+                1,
+                &[
+                    gfx_hal::pso::DescriptorRangeDesc {
+                        ty: gfx_hal::pso::DescriptorType::SampledImage,
+                        count: 1,
+                    },
+                    gfx_hal::pso::DescriptorRangeDesc {
+                        ty: gfx_hal::pso::DescriptorType::Sampler,
+                        count: 1,
+                    },
+                ],
+            )
+        }
+        .unwrap();
 
-        let descriptor_set = unsafe { gfx_hal::pso::DescriptorPool::allocate_set(
-            &mut descriptor_pool,
-            &set_layouts[0],
-        ) }.unwrap();
+        let descriptor_set = unsafe {
+            gfx_hal::pso::DescriptorPool::allocate_set(&mut descriptor_pool, &set_layouts[0])
+        }
+        .unwrap();
 
         unsafe {
             gfx_hal::Device::write_descriptor_sets(
@@ -193,13 +207,16 @@ where
                         set: &descriptor_set,
                         binding: 0,
                         array_offset: 0,
-                        descriptors: vec!(gfx_hal::pso::Descriptor::Image(texture.image_view.raw(), gfx_hal::image::Layout::ShaderReadOnlyOptimal)),
+                        descriptors: vec![gfx_hal::pso::Descriptor::Image(
+                            texture.image_view.raw(),
+                            gfx_hal::image::Layout::ShaderReadOnlyOptimal,
+                        )],
                     },
                     gfx_hal::pso::DescriptorSetWrite {
                         set: &descriptor_set,
                         binding: 1,
                         array_offset: 0,
-                        descriptors: vec!(gfx_hal::pso::Descriptor::Sampler(texture.sampler.raw())),
+                        descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler.raw())],
                     },
                 ],
             );
@@ -209,46 +226,63 @@ where
             texture,
             vertex: None,
             descriptor_pool,
-            descriptor_set
+            descriptor_set,
         })
     }
 
-    fn prepare(&mut self, factory: &mut Factory<B>, _set_layouts: &[B::DescriptorSetLayout], _index: usize, _aux: &T) -> PrepareResult {
+    fn prepare(
+        &mut self,
+        factory: &mut Factory<B>,
+        _set_layouts: &[B::DescriptorSetLayout],
+        _index: usize,
+        _aux: &T,
+    ) -> PrepareResult {
         if self.vertex.is_some() {
             return PrepareResult::DrawReuse;
         }
 
-        let mut vbuf = factory.create_buffer(512, PosTex::VERTEX.stride as u64 * 6, (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic))
+        let mut vbuf = factory
+            .create_buffer(
+                512,
+                PosTex::VERTEX.stride as u64 * 6,
+                (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
+            )
             .unwrap();
 
         unsafe {
             // Fresh buffer.
-            factory.upload_visible_buffer(&mut vbuf, 0, &[
-                PosTex {
-                    position: [-0.5, 0.33, 0.0].into(),
-                    tex_coord: [0.0, 1.0].into(),
-                },
-                PosTex {
-                    position: [0.5, 0.33, 0.0].into(),
-                    tex_coord: [1.0, 1.0].into(),
-                },
-                PosTex {
-                    position: [0.5, -0.33, 0.0].into(),
-                    tex_coord: [1.0, 0.0].into(),
-                },
-                PosTex {
-                    position: [-0.5, 0.33, 0.0].into(),
-                    tex_coord: [0.0, 1.0].into(),
-                },
-                PosTex {
-                    position: [0.5, -0.33, 0.0].into(),
-                    tex_coord: [1.0, 0.0].into(),
-                },
-                PosTex {
-                    position: [-0.5, -0.33, 0.0].into(),
-                    tex_coord: [0.0, 0.0].into(),
-                },
-            ]).unwrap();
+            factory
+                .upload_visible_buffer(
+                    &mut vbuf,
+                    0,
+                    &[
+                        PosTex {
+                            position: [-0.5, 0.33, 0.0].into(),
+                            tex_coord: [0.0, 1.0].into(),
+                        },
+                        PosTex {
+                            position: [0.5, 0.33, 0.0].into(),
+                            tex_coord: [1.0, 1.0].into(),
+                        },
+                        PosTex {
+                            position: [0.5, -0.33, 0.0].into(),
+                            tex_coord: [1.0, 0.0].into(),
+                        },
+                        PosTex {
+                            position: [-0.5, 0.33, 0.0].into(),
+                            tex_coord: [0.0, 1.0].into(),
+                        },
+                        PosTex {
+                            position: [0.5, -0.33, 0.0].into(),
+                            tex_coord: [1.0, 0.0].into(),
+                        },
+                        PosTex {
+                            position: [-0.5, -0.33, 0.0].into(),
+                            tex_coord: [0.0, 0.0].into(),
+                        },
+                    ],
+                )
+                .unwrap();
         }
 
         self.vertex = Some(vbuf);
@@ -275,14 +309,15 @@ where
         encoder.draw(3..6, 0..1);
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
-        
-    }
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {}
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: Graph<Backend, ()>) -> Result<(), failure::Error> {
-
+fn run(
+    event_loop: &mut EventsLoop,
+    factory: &mut Factory<Backend>,
+    mut graph: Graph<Backend, ()>,
+) -> Result<(), failure::Error> {
     let started = std::time::Instant::now();
 
     std::thread::spawn(move || {
@@ -293,7 +328,7 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
         std::process::abort();
     });
 
-    let mut frames = 0u64 ..;
+    let mut frames = 0u64..;
     let mut elapsed = started.elapsed();
 
     for _ in &mut frames {
@@ -309,7 +344,12 @@ fn run(event_loop: &mut EventsLoop, factory: &mut Factory<Backend>, mut graph: G
 
     let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
 
-    log::info!("Elapsed: {:?}. Frames: {}. FPS: {}", elapsed, frames.start, frames.start * 1_000_000_000 / elapsed_ns);
+    log::info!(
+        "Elapsed: {:?}. Frames: {}. FPS: {}",
+        elapsed,
+        frames.start,
+        frames.start * 1_000_000_000 / elapsed_ns
+    );
 
     graph.dispose(factory, &mut ());
     Ok(())
@@ -330,7 +370,8 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("Rendy example")
-        .build(&event_loop).unwrap();
+        .build(&event_loop)
+        .unwrap();
 
     event_loop.poll_events(|_| ());
 
@@ -343,20 +384,19 @@ fn main() {
         1,
         gfx_hal::format::Format::Rgba8Unorm,
         MemoryUsageValue::Data,
-        Some(gfx_hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
+        Some(gfx_hal::command::ClearValue::Color(
+            [1.0, 1.0, 1.0, 1.0].into(),
+        )),
     );
 
     let pass = graph_builder.add_node(
         SpriteGraphicsPipeline::builder()
             .into_subpass()
             .with_color(color)
-            .into_pass()
+            .into_pass(),
     );
 
-    graph_builder.add_node(
-        PresentNode::builder(surface, color)
-            .with_dependency(pass)
-    );
+    graph_builder.add_node(PresentNode::builder(surface, color).with_dependency(pass));
 
     let graph = graph_builder.build(&mut factory, &mut ()).unwrap();
 

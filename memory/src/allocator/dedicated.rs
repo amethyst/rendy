@@ -9,13 +9,13 @@ use crate::{
 
 /// Memory block allocated from `DedicatedAllocator`
 #[derive(Debug)]
-pub struct DedicatedBlock<B: gfx_hal::Backend,> {
+pub struct DedicatedBlock<B: gfx_hal::Backend> {
     memory: Memory<B>,
     mapping: Option<(NonNull<u8>, Range<u64>)>,
 }
 
-unsafe impl<B> Send for DedicatedBlock<B> where B: gfx_hal::Backend, {}
-unsafe impl<B> Sync for DedicatedBlock<B> where B: gfx_hal::Backend, {}
+unsafe impl<B> Send for DedicatedBlock<B> where B: gfx_hal::Backend {}
+unsafe impl<B> Sync for DedicatedBlock<B> where B: gfx_hal::Backend {}
 
 impl<B> DedicatedBlock<B>
 where
@@ -119,7 +119,10 @@ impl DedicatedAllocator {
 
     /// Create new `LinearAllocator`
     /// for `memory_type` with `memory_properties` specified
-    pub fn new(memory_type: gfx_hal::MemoryTypeId, memory_properties: gfx_hal::memory::Properties) -> Self {
+    pub fn new(
+        memory_type: gfx_hal::MemoryTypeId,
+        memory_properties: gfx_hal::memory::Properties,
+    ) -> Self {
         DedicatedAllocator {
             memory_type,
             memory_properties,
@@ -147,10 +150,7 @@ where
     ) -> Result<(DedicatedBlock<B>, u64), gfx_hal::device::AllocationError> {
         let memory = unsafe {
             Memory::from_raw(
-                device.allocate_memory(
-                    self.memory_type,
-                    size,
-                )?,
+                device.allocate_memory(self.memory_type, size)?,
                 size,
                 self.memory_properties,
             )

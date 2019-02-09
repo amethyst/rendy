@@ -1,7 +1,7 @@
 //! A cache to store and retrieve samplers
-use std::collections::HashMap;
+use super::{Info, Sampler};
 use crate::escape::Terminal;
-use super::{Sampler, Info};
+use std::collections::HashMap;
 
 #[doc(hidden)]
 #[derive(Debug)]
@@ -19,36 +19,31 @@ where
         &mut self,
         device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
-        wrap_mode: gfx_hal::image::WrapMode
+        wrap_mode: gfx_hal::image::WrapMode,
     ) -> Sampler<B> {
         let raw_samplers = &self.raw_samplers;
-        self.samplers.entry((filter, wrap_mode)).or_insert_with(|| Self::create(raw_samplers, device, filter, wrap_mode)).clone()
+        self.samplers
+            .entry((filter, wrap_mode))
+            .or_insert_with(|| Self::create(raw_samplers, device, filter, wrap_mode))
+            .clone()
     }
 
     fn create(
         raw_samplers: &Terminal<B::Sampler>,
         device: &impl gfx_hal::Device<B>,
         filter: gfx_hal::image::Filter,
-        wrap_mode: gfx_hal::image::WrapMode
+        wrap_mode: gfx_hal::image::WrapMode,
     ) -> Sampler<B> {
         let sampler = unsafe {
-            device.create_sampler(gfx_hal::image::SamplerInfo::new(filter, wrap_mode)).unwrap()
+            device
+                .create_sampler(gfx_hal::image::SamplerInfo::new(filter, wrap_mode))
+                .unwrap()
         };
-        Sampler::new(
-            Info {
-                filter,
-                wrap_mode,
-            },
-            sampler,
-            raw_samplers,
-        )
+        Sampler::new(Info { filter, wrap_mode }, sampler, raw_samplers)
     }
 
     #[doc(hidden)]
-    pub fn destroy(
-        &mut self,
-        device: &impl gfx_hal::Device<B>,
-    ) {
+    pub fn destroy(&mut self, device: &impl gfx_hal::Device<B>) {
         for (_, sampler) in self.samplers.drain() {
             unsafe { device.destroy_sampler(sampler.unescape().unwrap()) };
         }

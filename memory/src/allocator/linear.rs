@@ -153,7 +153,9 @@ where
     ) -> Self {
         log::info!(
             "Create new 'linear' allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
-            memory_type, memory_properties, config
+            memory_type,
+            memory_properties,
+            config
         );
         assert!(memory_properties.contains(Self::properties_required()));
         assert!(
@@ -217,10 +219,9 @@ where
         size: u64,
         align: u64,
     ) -> Result<(LinearBlock<B>, u64), gfx_hal::device::AllocationError> {
-        debug_assert!(
-            self.memory_properties
-                .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-        );
+        debug_assert!(self
+            .memory_properties
+            .contains(gfx_hal::memory::Properties::CPU_VISIBLE));
 
         assert!(size <= self.linear_size);
         assert!(align <= self.linear_size);
@@ -250,12 +251,9 @@ where
         }
 
         let (memory, ptr) = unsafe {
-            let raw = device.allocate_memory(
-                    self.memory_type,
-                    self.linear_size,
-            )?;
+            let raw = device.allocate_memory(self.memory_type, self.linear_size)?;
 
-            let ptr = match device.map_memory(&raw, 0 .. self.linear_size) {
+            let ptr = match device.map_memory(&raw, 0..self.linear_size) {
                 Ok(ptr) => NonNull::new_unchecked(ptr),
                 Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
                     device.free_memory(raw);

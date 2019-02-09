@@ -1,4 +1,3 @@
-
 use crate::memory::{Data, Download, Dynamic, MemoryUsage, Upload};
 
 /// Usage trait that must implemented by usage types.

@@ -1,12 +1,14 @@
+use crate::buffer::{NoSimultaneousUse, OutsideRenderPass, PrimaryLevel, Submit, Submittable};
 
-
-use crate::{
-    buffer::{Submittable, Submit, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass},
-};
-
-#[allow(unused)] type NoWaits<B> = std::iter::Empty<(&'static <B as gfx_hal::Backend>::Semaphore, gfx_hal::pso::PipelineStage)>;
-#[allow(unused)] type NoSignals<B> = std::iter::Empty<&'static <B as gfx_hal::Backend>::Semaphore>;
-#[allow(unused)] type NoSubmits<B> = std::iter::Empty<Submit<B, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass>>;
+#[allow(unused)]
+type NoWaits<B> = std::iter::Empty<(
+    &'static <B as gfx_hal::Backend>::Semaphore,
+    gfx_hal::pso::PipelineStage,
+)>;
+#[allow(unused)]
+type NoSignals<B> = std::iter::Empty<&'static <B as gfx_hal::Backend>::Semaphore>;
+#[allow(unused)]
+type NoSubmits<B> = std::iter::Empty<Submit<B, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass>>;
 
 /// Command queue submission.
 #[derive(Debug)]

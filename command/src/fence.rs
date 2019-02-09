@@ -1,4 +1,3 @@
-
 use {
     crate::family::QueueId,
     gfx_hal::{Backend, Device},
@@ -33,11 +32,18 @@ where
     B: Backend,
 {
     /// Create new fence in signaled or unsignaled state.
-    pub fn new(device: &impl Device<B>, signaled: bool) -> Result<Self, gfx_hal::device::OutOfMemory> {
+    pub fn new(
+        device: &impl Device<B>,
+        signaled: bool,
+    ) -> Result<Self, gfx_hal::device::OutOfMemory> {
         let raw = device.create_fence(false)?;
         Ok(Fence {
             raw,
-            state: if signaled { FenceState::Signaled } else { FenceState::Unsignaled },
+            state: if signaled {
+                FenceState::Signaled
+            } else {
+                FenceState::Unsignaled
+            },
         })
     }
 
@@ -69,7 +75,7 @@ where
         match self.state {
             FenceState::Unsignaled => {
                 self.state = FenceState::Submitted(epoch);
-            },
+            }
             _ => panic!("Must be Unsignaled"),
         }
     }
@@ -77,7 +83,10 @@ where
     /// Reset signaled fence.
     /// Panics if not signaled.
     /// Becomes unsigneled.
-    pub unsafe fn reset(&mut self, device: &impl Device<B>) -> Result<(), gfx_hal::device::OutOfMemory> {
+    pub unsafe fn reset(
+        &mut self,
+        device: &impl Device<B>,
+    ) -> Result<(), gfx_hal::device::OutOfMemory> {
         match self.state {
             FenceState::Signaled => {
                 device.reset_fence(&self.raw)?;
@@ -117,7 +126,11 @@ where
     /// Wait for fence to become signaled.
     /// Panics if not submitted.
     /// Returns submission epoch on success.
-    pub unsafe fn wait_signaled(&mut self, device: &impl Device<B>, timeout_ns: u64) -> Result<Option<FenceEpoch>, gfx_hal::device::OomOrDeviceLost> {
+    pub unsafe fn wait_signaled(
+        &mut self,
+        device: &impl Device<B>,
+        timeout_ns: u64,
+    ) -> Result<Option<FenceEpoch>, gfx_hal::device::OomOrDeviceLost> {
         match self.state {
             FenceState::Submitted(epoch) => {
                 if device.wait_for_fence(&self.raw, timeout_ns)? {
@@ -126,7 +139,7 @@ where
                 } else {
                     Ok(None)
                 }
-            },
+            }
             _ => panic!("Must be submitted"),
         }
     }
@@ -134,7 +147,10 @@ where
     /// Check if fence has became signaled.
     /// Panics if not submitted.
     /// Returns submission epoch on success.
-    pub unsafe fn check_signaled(&mut self, device: &impl Device<B>) -> Result<Option<FenceEpoch>, gfx_hal::device::DeviceLost> {
+    pub unsafe fn check_signaled(
+        &mut self,
+        device: &impl Device<B>,
+    ) -> Result<Option<FenceEpoch>, gfx_hal::device::DeviceLost> {
         match self.state {
             FenceState::Submitted(epoch) => {
                 if device.get_fence_status(&self.raw)? {
@@ -143,7 +159,7 @@ where
                 } else {
                     Ok(None)
                 }
-            },
+            }
             _ => panic!("Must be submitted"),
         }
     }
@@ -158,7 +174,7 @@ where
     /// Panics if not submitted.
     pub fn epoch(&self) -> FenceEpoch {
         match self.state {
-            FenceState::Submitted(epoch) =>  epoch,
+            FenceState::Submitted(epoch) => epoch,
             _ => panic!("Must be submitted"),
         }
     }

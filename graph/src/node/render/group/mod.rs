@@ -1,14 +1,16 @@
-
 mod simple;
 
 pub use self::simple::*;
 
 use {
     crate::{
-        NodeId, BufferId, ImageId,
-        factory::Factory,
         command::RenderPassEncoder,
-        node::{DescBuilder, BufferAccess, ImageAccess, NodeBuffer, NodeImage, render::{PrepareResult, pass::SubpassBuilder}},
+        factory::Factory,
+        node::{
+            render::{pass::SubpassBuilder, PrepareResult},
+            BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
+        },
+        BufferId, ImageId, NodeId,
     },
     gfx_hal::Backend,
 };
@@ -57,32 +59,20 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 }
 
 pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
-    fn prepare(
-        &mut self,
-        factory: &mut Factory<B>,
-        index: usize,
-        aux: &T,
-    ) -> PrepareResult;
+    fn prepare(&mut self, factory: &mut Factory<B>, index: usize, aux: &T) -> PrepareResult;
 
-    fn draw_inline(
-        &mut self,
-        encoder: RenderPassEncoder<'_, B>,
-        index: usize,
-        aux: &T,
-    );
+    fn draw_inline(&mut self, encoder: RenderPassEncoder<'_, B>, index: usize, aux: &T);
 
     fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T);
 }
 
 pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
-
     /// Make subpass from render group.
     fn into_subpass(self) -> SubpassBuilder<B, T>
     where
         Self: Sized + 'static,
     {
-        SubpassBuilder::new()
-            .with_group(self)
+        SubpassBuilder::new().with_group(self)
     }
 
     /// Number of color output images.
@@ -127,11 +117,19 @@ where
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
-        self.buffers.iter().cloned().zip(self.desc.buffers()).collect()
+        self.buffers
+            .iter()
+            .cloned()
+            .zip(self.desc.buffers())
+            .collect()
     }
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
-        self.images.iter().cloned().zip(self.desc.images()).collect()
+        self.images
+            .iter()
+            .cloned()
+            .zip(self.desc.images())
+            .collect()
     }
 
     fn dependencies(&self) -> Vec<NodeId> {

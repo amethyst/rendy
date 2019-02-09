@@ -1,16 +1,12 @@
-
 use {
     crate::{
-        chain,
-        command,
+        chain, command,
         factory::Factory,
-        frame::{Frames, Fences},
+        frame::{Fences, Frames},
         memory::MemoryUsageValue,
         node::{DynNode, NodeBuilder},
         resource::{buffer, image},
-        BufferId,
-        ImageId,
-        NodeId,
+        BufferId, ImageId, NodeId,
     },
     gfx_hal::Backend,
 };
@@ -79,7 +75,10 @@ where
             let sid = submission.id();
             let qid = sid.queue();
 
-            let GraphNode { node, queue } = self.nodes.get_mut(submission.node()).expect("Submission references node with out of bound index");
+            let GraphNode { node, queue } = self
+                .nodes
+                .get_mut(submission.node())
+                .expect("Submission references node with out of bound index");
             debug_assert_eq!(
                 (qid.family(), qid.index()),
                 (queue.family(), queue.index()),
@@ -92,7 +91,7 @@ where
                     fences.push(factory.create_fence(false).unwrap());
                 }
                 fences_used += 1;
-                Some(&mut fences[fences_used-1])
+                Some(&mut fences[fences_used - 1])
             } else {
                 None
             };
@@ -108,7 +107,11 @@ where
                         .wait
                         .iter()
                         .map(|wait| {
-                            log::trace!("Node {} waits for {}", submission.node(), *wait.semaphore());
+                            log::trace!(
+                                "Node {} waits for {}",
+                                submission.node(),
+                                *wait.semaphore()
+                            );
                             (&semaphores[*wait.semaphore()], wait.stage())
                         })
                         .collect::<smallvec::SmallVec<[_; 16]>>(),
@@ -117,7 +120,11 @@ where
                         .signal
                         .iter()
                         .map(|signal| {
-                            log::trace!("Node {} signals {}", submission.node(), *signal.semaphore());
+                            log::trace!(
+                                "Node {} signals {}",
+                                submission.node(),
+                                *signal.semaphore()
+                            );
                             &semaphores[*signal.semaphore()]
                         })
                         .collect::<smallvec::SmallVec<[_; 16]>>(),
@@ -184,13 +191,14 @@ where
     }
 
     /// Create new buffer owned by graph.
-    pub fn create_buffer(
-        &mut self,
-        size: u64,
-        memory: MemoryUsageValue,
-    ) -> BufferId {
-        self.buffers
-            .push((buffer::Info { size, usage: gfx_hal::buffer::Usage::empty() }, memory));
+    pub fn create_buffer(&mut self, size: u64, memory: MemoryUsageValue) -> BufferId {
+        self.buffers.push((
+            buffer::Info {
+                size,
+                usage: gfx_hal::buffer::Usage::empty(),
+            },
+            memory,
+        ));
         BufferId(self.buffers.len() - 1)
     }
 
@@ -262,14 +270,12 @@ where
                     .get(&chain::Id(index))
                     .map(|buffer| {
                         factory
-                            .create_buffer(
-                                UNIVERSAL_ALIGNMENT,
-                                info.size,
-                                (buffer.usage(), memory),
-                            ).map(|buffer| Some(buffer))
+                            .create_buffer(UNIVERSAL_ALIGNMENT, info.size, (buffer.usage(), memory))
+                            .map(|buffer| Some(buffer))
                     })
                     .unwrap_or(Ok(None))
-            }).collect::<Result<_, _>>()?;
+            })
+            .collect::<Result<_, _>>()?;
 
         log::trace!("Allocate images");
         let mut images: Vec<Option<(image::Image<B>, _)>> = self
@@ -290,10 +296,12 @@ where
                                 info.tiling,
                                 info.view_caps,
                                 (image.usage(), *memory),
-                            ).map(|image| Some((image, *clear)))
+                            )
+                            .map(|image| Some((image, *clear)))
                     })
                     .unwrap_or(Ok(None))
-            }).collect::<Result<_, _>>()?;
+            })
+            .collect::<Result<_, _>>()?;
 
         log::trace!("Synchronize");
         let mut semaphores = 0..;
@@ -336,16 +344,22 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Graph {
-            nodes: built_nodes.into_iter().map(Option::unwrap).map(|(node, qid)| {
-                GraphNode {
+            nodes: built_nodes
+                .into_iter()
+                .map(Option::unwrap)
+                .map(|(node, qid)| GraphNode {
                     node,
                     queue: command::QueueId(qid.family(), qid.index()),
-                }
-            }).collect(),
+                })
+                .collect(),
             schedule,
             semaphores,
-            buffers: buffers.into_iter().filter_map(|x|x).collect(),
-            images: images.into_iter().filter_map(|x|x).map(|(image, _)| image).collect(),
+            buffers: buffers.into_iter().filter_map(|x| x).collect(),
+            images: images
+                .into_iter()
+                .filter_map(|x| x)
+                .map(|(image, _)| image)
+                .collect(),
             inflight: 3,
             frames: Frames::new(),
             fences: Vec::new(),
@@ -353,8 +367,11 @@ where
     }
 }
 
-
-fn make_chain_node<B, T>(builder: &dyn NodeBuilder<B, T>, id: usize, factory: &Factory<B>) -> chain::Node
+fn make_chain_node<B, T>(
+    builder: &dyn NodeBuilder<B, T>,
+    id: usize,
+    factory: &Factory<B>,
+) -> chain::Node
 where
     B: Backend,
     T: ?Sized,
@@ -365,24 +382,32 @@ where
         id,
         family: builder.family(factory.families()).unwrap(),
         dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
-        buffers: buffers.into_iter()
+        buffers: buffers
+            .into_iter()
             .map(|(id, access)| {
-                (chain::Id(id.0), chain::BufferState {
-                    access: access.access,
-                    stages: access.stages,
-                    layout: (),
-                    usage: access.usage,
-                })
+                (
+                    chain::Id(id.0),
+                    chain::BufferState {
+                        access: access.access,
+                        stages: access.stages,
+                        layout: (),
+                        usage: access.usage,
+                    },
+                )
             })
             .collect(),
-        images: images.into_iter()
+        images: images
+            .into_iter()
             .map(|(id, access)| {
-                (chain::Id(id.0), chain::ImageState {
-                    access: access.access,
-                    stages: access.stages,
-                    layout: access.layout,
-                    usage: access.usage,
-                })
+                (
+                    chain::Id(id.0),
+                    chain::ImageState {
+                        access: access.access,
+                        stages: access.stages,
+                        layout: access.layout,
+                        usage: access.usage,
+                    },
+                )
             })
             .collect(),
     }

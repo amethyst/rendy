@@ -1,15 +1,12 @@
 //!
 //! Advanced render pass node.
 //! Will replace render pass node when polished.
-//! 
+//!
 
 mod group;
 mod pass;
 
-pub use self::{
-    group::*,
-    pass::*,
-};
+pub use self::{group::*, pass::*};
 
 /// Result of draw preparation.
 #[derive(Clone, Copy, Debug)]

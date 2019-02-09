@@ -1,4 +1,3 @@
-
 use super::state::*;
 
 /// This flag specify that buffer can be reset individually.

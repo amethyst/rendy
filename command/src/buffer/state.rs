@@ -1,4 +1,3 @@
-
 use super::usage::{MultiShot, OutsideRenderPass};
 
 /// Command buffer state in which all buffers start.
@@ -32,4 +31,3 @@ pub type PendingOnceState = PendingState<InvalidState>;
 /// Invalidating any resource referenced in any command recorded to the buffer implicitly move it to the invalid state.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct InvalidState;
-

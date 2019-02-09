@@ -1,12 +1,6 @@
 use std::ops::Range;
 
-use crate::{
-    allocator::*,
-    block::Block,
-    mapping::*,
-    usage::MemoryUsage,
-    util::*,
-};
+use crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, util::*};
 
 /// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
@@ -17,7 +11,10 @@ pub enum HeapsError {
     AllocationError(gfx_hal::device::AllocationError),
 
     /// No memory types among required for resource with requested properties was found.
-    #[fail(display = "Memory type among ({}) with properties ({:?}) not found", _0, _1)]
+    #[fail(
+        display = "Memory type among ({}) with properties ({:?}) not found",
+        _0, _1
+    )]
     NoSuitableMemory(u32, gfx_hal::memory::Properties),
 }
 
@@ -82,7 +79,8 @@ where
                     let heap_index = heap_index as usize;
                     assert!(heap_index < heaps.len());
                     MemoryType::new(memory_type, heap_index, properties, config)
-                }).collect(),
+                })
+                .collect(),
             heaps,
         }
     }
@@ -115,10 +113,14 @@ where
                     } else {
                         None
                     }
-                }).collect::<smallvec::SmallVec<[_; 64]>>();
+                })
+                .collect::<smallvec::SmallVec<[_; 64]>>();
 
             if suitable_types.is_empty() {
-                return Err(HeapsError::NoSuitableMemory(mask, usage.properties_required()));
+                return Err(HeapsError::NoSuitableMemory(
+                    mask,
+                    usage.properties_required(),
+                ));
             }
 
             suitable_types
@@ -199,7 +201,7 @@ pub struct MemoryBlock<B: gfx_hal::Backend> {
 
 impl<B> MemoryBlock<B>
 where
-    B: gfx_hal::Backend
+    B: gfx_hal::Backend,
 {
     /// Get memory type id.
     pub fn memory_type(&self) -> u32 {
@@ -305,7 +307,7 @@ struct MemoryType<B: gfx_hal::Backend> {
 
 impl<B> MemoryType<B>
 where
-    B: gfx_hal::Backend
+    B: gfx_hal::Backend,
 {
     fn new(
         memory_type: gfx_hal::MemoryTypeId,
@@ -339,31 +341,51 @@ where
     ) -> Result<(BlockFlavor<B>, u64), gfx_hal::device::AllocationError> {
         match (self.dynamic.as_mut(), self.linear.as_mut()) {
             (Some(dynamic), Some(linear)) => {
-                if dynamic.max_allocation() >= size && usage.allocator_fitness(Kind::Dynamic) > usage.allocator_fitness(Kind::Linear) {
-                    dynamic.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dynamic(block), size))
-                } else if linear.max_allocation() >= size && usage.allocator_fitness(Kind::Linear) > 0 {
-                    linear.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Linear(block), size))
+                if dynamic.max_allocation() >= size
+                    && usage.allocator_fitness(Kind::Dynamic)
+                        > usage.allocator_fitness(Kind::Linear)
+                {
+                    dynamic
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Dynamic(block), size))
+                } else if linear.max_allocation() >= size
+                    && usage.allocator_fitness(Kind::Linear) > 0
+                {
+                    linear
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Linear(block), size))
                 } else {
-                    self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+                    self.dedicated
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
                 }
-            },
+            }
             (Some(dynamic), None) => {
                 if dynamic.max_allocation() >= size && usage.allocator_fitness(Kind::Dynamic) > 0 {
-                    dynamic.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dynamic(block), size))
+                    dynamic
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Dynamic(block), size))
                 } else {
-                    self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+                    self.dedicated
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
                 }
-            },
+            }
             (None, Some(linear)) => {
                 if linear.max_allocation() >= size && usage.allocator_fitness(Kind::Linear) > 0 {
-                    linear.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Linear(block), size))
+                    linear
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Linear(block), size))
                 } else {
-                    self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+                    self.dedicated
+                        .alloc(device, size, align)
+                        .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
                 }
-            },
-            (None, None) => {
-                self.dedicated.alloc(device, size, align).map(|(block, size)| (BlockFlavor::Dedicated(block), size))
             }
+            (None, None) => self
+                .dedicated
+                .alloc(device, size, align)
+                .map(|(block, size)| (BlockFlavor::Dedicated(block), size)),
         }
     }
 

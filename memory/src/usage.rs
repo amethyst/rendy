@@ -9,9 +9,9 @@ pub trait MemoryUsage: Copy + std::fmt::Debug {
     fn properties_required(&self) -> gfx_hal::memory::Properties;
 
     /// Get comparable fitness value for memory properties.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// This function will panic if properties set doesn't contain required properties.
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32;
 
@@ -26,7 +26,6 @@ pub trait MemoryUsage: Copy + std::fmt::Debug {
 pub struct Data;
 
 impl MemoryUsage for Data {
-
     fn properties_required(&self) -> gfx_hal::memory::Properties {
         gfx_hal::memory::Properties::DEVICE_LOCAL
     }
@@ -35,9 +34,9 @@ impl MemoryUsage for Data {
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
         assert!(properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL));
         0 | ((!properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE)) as u32) << 3
-          | ((!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED)) as u32) << 2
-          | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 1
-          | ((!properties.contains(gfx_hal::memory::Properties::COHERENT)) as u32) << 0
+            | ((!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED)) as u32) << 2
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 1
+            | ((!properties.contains(gfx_hal::memory::Properties::COHERENT)) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -57,7 +56,6 @@ impl MemoryUsage for Data {
 pub struct Dynamic;
 
 impl MemoryUsage for Dynamic {
-
     fn properties_required(&self) -> gfx_hal::memory::Properties {
         gfx_hal::memory::Properties::CPU_VISIBLE
     }
@@ -66,10 +64,10 @@ impl MemoryUsage for Dynamic {
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
         assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
         assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
-    
+
         0 | (properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
-          | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
-          | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -88,7 +86,6 @@ impl MemoryUsage for Dynamic {
 pub struct Upload;
 
 impl MemoryUsage for Upload {
-
     fn properties_required(&self) -> gfx_hal::memory::Properties {
         gfx_hal::memory::Properties::CPU_VISIBLE
     }
@@ -99,8 +96,8 @@ impl MemoryUsage for Upload {
         assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
 
         0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
-          | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
-          | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -119,7 +116,6 @@ impl MemoryUsage for Upload {
 pub struct Download;
 
 impl MemoryUsage for Download {
-
     fn properties_required(&self) -> gfx_hal::memory::Properties {
         gfx_hal::memory::Properties::CPU_VISIBLE
     }
@@ -130,8 +126,8 @@ impl MemoryUsage for Download {
         assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
 
         0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
-          | (properties.contains(gfx_hal::memory::Properties::CPU_CACHED) as u32) << 1
-          | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 0
+            | (properties.contains(gfx_hal::memory::Properties::CPU_CACHED) as u32) << 1
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -147,26 +143,25 @@ impl MemoryUsage for Download {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MemoryUsageValue {
     /// See [`Data`]
-    /// 
+    ///
     /// [`Data`]: struct.Data.html
     Data,
 
     /// See [`Dynamic`]
-    /// 
+    ///
     /// [`Dynamic`]: struct.Dynamic.html
     Dynamic,
 
     /// See [`Upload`]
-    /// 
+    ///
     /// [`Upload`]: struct.Upload.html
     Upload,
 
     /// See [`Download`]
-    /// 
+    ///
     /// [`Download`]: struct.Download.html
     Download,
 }
-
 
 /// Memory usage trait.
 impl MemoryUsage for MemoryUsageValue {

@@ -1,6 +1,4 @@
-use super::{
-    submission::{Submission, SubmissionId},
-};
+use super::submission::{Submission, SubmissionId};
 
 /// Queue id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

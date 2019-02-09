@@ -1,11 +1,6 @@
 //! Frame module docs.
 
-use {
-    crate::{
-        factory::Factory,
-        command::Fence,
-    },
-};
+use crate::{command::Fence, factory::Factory};
 
 /// Fences collection.
 pub type Fences<B> = smallvec::SmallVec<[Fence<B>; 8]>;
@@ -54,9 +49,7 @@ where
     pub fn new() -> Self {
         Frames {
             pending: Default::default(),
-            next: Frame {
-                index: 0,
-            },
+            next: Frame { index: 0 },
         }
     }
 
@@ -68,8 +61,7 @@ where
     /// Advance to the next frame.
     /// All fences of the next frame must be queued.
     pub unsafe fn advance(&mut self, fences: Fences<B>) {
-        self.pending
-            .push_back(fences);
+        self.pending.push_back(fences);
         self.next.index += 1;
     }
 
@@ -99,7 +91,12 @@ where
     /// # Panics
     ///
     /// This function will panic if `target` is greater than or equal to next frame.
-    pub fn wait_complete(&mut self, target: u64, factory: &Factory<B>, free: impl FnMut(Fences<B>)) -> CompleteFrame {
+    pub fn wait_complete(
+        &mut self,
+        target: u64,
+        factory: &Factory<B>,
+        free: impl FnMut(Fences<B>),
+    ) -> CompleteFrame {
         assert!(target <= self.next.index());
         if let Some(complete) = self.complete(target) {
             complete
@@ -114,9 +111,7 @@ where
                 !0,
             );
             assert_eq!(ready, Ok(true));
-            self.pending
-                .drain(..count)
-                .for_each(free);
+            self.pending.drain(..count).for_each(free);
             CompleteFrame { index: target }
         }
     }
@@ -130,12 +125,15 @@ where
         );
         assert_eq!(ready, Ok(true));
 
-        self.pending.drain(..).flatten().for_each(|fence| factory.destroy_fence(fence));
+        self.pending
+            .drain(..)
+            .flatten()
+            .for_each(|fence| factory.destroy_fence(fence));
     }
 
-    /// Get range of frame indices in this form: 
+    /// Get range of frame indices in this form:
     /// `upper bound of finished frames .. next frame`.
     pub fn range(&self) -> std::ops::Range<u64> {
-        self.complete_upper_bound() .. self.next.index
+        self.complete_upper_bound()..self.next.index
     }
 }

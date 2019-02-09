@@ -6,15 +6,16 @@
 //! vertex attributes required by shader interface.
 //!
 
-#[warn(missing_debug_implementations,
-       missing_copy_implementations,
-       missing_docs,
-       trivial_casts,
-       trivial_numeric_casts,
-       unused_extern_crates,
-       unused_import_braces,
-       unused_qualifications)]
-
+#[warn(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications
+)]
 use rendy_command as command;
 use rendy_factory as factory;
 use rendy_resource as resource;
@@ -24,8 +25,4 @@ mod format;
 mod mesh;
 mod vertex;
 
-pub use crate::{
-    mesh::*,
-    vertex::*,
-    format::*,
-};
+pub use crate::{format::*, mesh::*, vertex::*};

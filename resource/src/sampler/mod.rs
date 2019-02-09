@@ -2,9 +2,7 @@
 
 mod cache;
 
-use crate::{
-    escape::{EscapeShared, KeepAlive, Terminal},
-};
+use crate::escape::{EscapeShared, KeepAlive, Terminal};
 
 pub use crate::sampler::cache::SamplerCache;
 
@@ -48,7 +46,7 @@ where
     }
 
     /// # Disclaimer
-    /// 
+    ///
     /// This function is designed to use by other rendy crates.
     /// User experienced enough to use it properly can find it without documentation.
     #[doc(hidden)]
@@ -57,7 +55,7 @@ where
     }
 
     /// Creates [`KeepAlive`] handler to extend image lifetime.
-    /// 
+    ///
     /// [`KeepAlive`]: struct.KeepAlive.html
     pub fn keep_alive(&self) -> KeepAlive {
         EscapeShared::keep_alive(&self.escape)

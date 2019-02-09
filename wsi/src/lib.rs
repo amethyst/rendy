@@ -1,15 +1,15 @@
-
 //! Window system integration.
 
-#[warn(missing_debug_implementations,
-       missing_copy_implementations,
-       missing_docs,
-       trivial_casts,
-       trivial_numeric_casts,
-       unused_extern_crates,
-       unused_import_braces,
-       unused_qualifications)]
-
+#[warn(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications
+)]
 use rendy_resource::{
     escape::Terminal,
     image::{Image, Info, Inner},
@@ -17,28 +17,40 @@ use rendy_resource::{
 
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
-    pub(super) fn create_surface(instance: &gfx_backend_empty::Instance, window: &winit::Window) -> gfx_backend_empty::Surface {
+    pub(super) fn create_surface(
+        instance: &gfx_backend_empty::Instance,
+        window: &winit::Window,
+    ) -> gfx_backend_empty::Surface {
         unimplemented!()
     }
 }
 
 #[cfg(feature = "metal")]
 mod gfx_backend_metal {
-    pub(super) fn create_surface(instance: &gfx_backend_metal::Instance, window: &winit::Window) -> gfx_backend_metal::Surface {
+    pub(super) fn create_surface(
+        instance: &gfx_backend_metal::Instance,
+        window: &winit::Window,
+    ) -> gfx_backend_metal::Surface {
         instance.create_surface(window)
     }
 }
 
 #[cfg(feature = "vulkan")]
 mod gfx_backend_vulkan {
-    pub(super) fn create_surface(instance: &gfx_backend_vulkan::Instance, window: &winit::Window) -> <gfx_backend_vulkan::Backend as gfx_hal::Backend>::Surface {
+    pub(super) fn create_surface(
+        instance: &gfx_backend_vulkan::Instance,
+        window: &winit::Window,
+    ) -> <gfx_backend_vulkan::Backend as gfx_hal::Backend>::Surface {
         instance.create_surface(window)
     }
 }
 
 #[cfg(feature = "dx12")]
 mod gfx_backend_dx12 {
-    pub(super) fn create_surface(instance: &gfx_backend_dx12::Instance, window: &winit::Window) -> <gfx_backend_dx12::Backend as gfx_hal::Backend>::Surface {
+    pub(super) fn create_surface(
+        instance: &gfx_backend_dx12::Instance,
+        window: &winit::Window,
+    ) -> <gfx_backend_dx12::Backend as gfx_hal::Backend>::Surface {
         instance.create_surface(window)
     }
 }
@@ -80,7 +92,10 @@ macro_rules! create_surface_for_backend {
 }
 
 #[allow(unused_variables)]
-fn create_surface<B: gfx_hal::Backend>(instance: &Box<dyn std::any::Any>, window: &winit::Window) -> B::Surface {
+fn create_surface<B: gfx_hal::Backend>(
+    instance: &Box<dyn std::any::Any>,
+    window: &winit::Window,
+) -> B::Surface {
     create_surface_for_backend!(instance, window);
 }
 
@@ -106,15 +121,9 @@ where
     B: gfx_hal::Backend,
 {
     /// Create surface for the window.
-    pub fn new(
-        instance: &Box<dyn std::any::Any>,
-        window: std::sync::Arc<winit::Window>,
-    ) -> Self {
+    pub fn new(instance: &Box<dyn std::any::Any>, window: std::sync::Arc<winit::Window>) -> Self {
         let raw = create_surface::<B>(instance, &window);
-        Surface {
-            window,
-            raw,
-        }
+        Surface { window, raw }
     }
 
     /// Get surface image kind.
@@ -130,14 +139,22 @@ where
 
     /// Get surface ideal format.
     pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
-        let (_capabilities, formats, _present_modes, _alpha) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
+        let (_capabilities, formats, _present_modes, _alpha) =
+            gfx_hal::Surface::compatibility(&self.raw, physical_device);
         let formats = formats.unwrap();
 
-        *formats.iter().max_by_key(|format| {
-            let base = format.base_format();
-            let desc = base.0.desc();
-            (!desc.is_compressed(), base.1 == gfx_hal::format::ChannelType::Srgb, desc.bits)
-        }).unwrap()
+        *formats
+            .iter()
+            .max_by_key(|format| {
+                let base = format.base_format();
+                let desc = base.0.desc();
+                (
+                    !desc.is_compressed(),
+                    base.1 == gfx_hal::format::ChannelType::Srgb,
+                    desc.bits,
+                )
+            })
+            .unwrap()
     }
 
     /// Cast surface into render target.
@@ -148,24 +165,39 @@ where
         image_count: u32,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        let (capabilities, formats, present_modes, _alpha) = gfx_hal::Surface::compatibility(&self.raw, physical_device);
+        let (capabilities, formats, present_modes, _alpha) =
+            gfx_hal::Surface::compatibility(&self.raw, physical_device);
 
-        let present_mode = *present_modes.iter().max_by_key(|mode| match mode {
-            gfx_hal::PresentMode::Immediate => 0,
-            gfx_hal::PresentMode::Mailbox => 3,
-            gfx_hal::PresentMode::Fifo => 2,
-            gfx_hal::PresentMode::Relaxed => 1,
-        }).unwrap();
+        let present_mode = *present_modes
+            .iter()
+            .max_by_key(|mode| match mode {
+                gfx_hal::PresentMode::Immediate => 0,
+                gfx_hal::PresentMode::Mailbox => 3,
+                gfx_hal::PresentMode::Fifo => 2,
+                gfx_hal::PresentMode::Relaxed => 1,
+            })
+            .unwrap();
 
-        log::info!("Surface present modes: {:#?}. Pick {:#?}", present_modes, present_mode);
+        log::info!(
+            "Surface present modes: {:#?}. Pick {:#?}",
+            present_modes,
+            present_mode
+        );
 
         let formats = formats.unwrap();
 
-        let format = *formats.iter().max_by_key(|format| {
-            let base = format.base_format();
-            let desc = base.0.desc();
-            (!desc.is_compressed(), base.1 == gfx_hal::format::ChannelType::Srgb, desc.bits)
-        }).unwrap();
+        let format = *formats
+            .iter()
+            .max_by_key(|format| {
+                let base = format.base_format();
+                let desc = base.0.desc();
+                (
+                    !desc.is_compressed(),
+                    base.1 == gfx_hal::format::ChannelType::Srgb,
+                    desc.bits,
+                )
+            })
+            .unwrap();
 
         log::info!("Surface formats: {:#?}. Pick {:#?}", formats, format);
 
@@ -173,14 +205,22 @@ where
             .min(capabilities.image_count.end)
             .max(capabilities.image_count.start);
 
-        log::info!("Surface capabilities: {:#?}. Pick {} images", capabilities.image_count, image_count);
-        assert!(capabilities.usage.contains(usage), "Surface supports {:?}, but {:?} was requested");
+        log::info!(
+            "Surface capabilities: {:#?}. Pick {} images",
+            capabilities.image_count,
+            image_count
+        );
+        assert!(
+            capabilities.usage.contains(usage),
+            "Surface supports {:?}, but {:?} was requested"
+        );
 
         let extent = capabilities.current_extent.unwrap_or({
             let hidpi_factor = self.window.get_hidpi_factor();
             let start = capabilities.extents.start;
             let end = capabilities.extents.end;
-            let (window_width, window_height) = self.window
+            let (window_width, window_height) = self
+                .window
                 .get_inner_size()
                 .unwrap()
                 .to_physical(hidpi_factor)
@@ -208,23 +248,33 @@ where
         let (backbuffer, terminal) = match backbuffer {
             gfx_hal::Backbuffer::Images(images) => {
                 let terminal = Terminal::new();
-                let backbuffer = Backbuffer::Images(images.into_iter().map(|image| {
-                    Image::new(
-                        Info {
-                            kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
-                            levels: 1,
-                            format,
-                            tiling: gfx_hal::image::Tiling::Optimal,
-                            view_caps: gfx_hal::image::ViewCapabilities::empty(),
-                            usage,
-                        },
-                        image,
-                        None,
-                        &terminal,
-                    )
-                }).collect());
+                let backbuffer = Backbuffer::Images(
+                    images
+                        .into_iter()
+                        .map(|image| {
+                            Image::new(
+                                Info {
+                                    kind: gfx_hal::image::Kind::D2(
+                                        extent.width,
+                                        extent.height,
+                                        1,
+                                        1,
+                                    ),
+                                    levels: 1,
+                                    format,
+                                    tiling: gfx_hal::image::Tiling::Optimal,
+                                    view_caps: gfx_hal::image::ViewCapabilities::empty(),
+                                    usage,
+                                },
+                                image,
+                                None,
+                                &terminal,
+                            )
+                        })
+                        .collect(),
+                );
                 (backbuffer, Some(terminal))
-            },
+            }
             gfx_hal::Backbuffer::Framebuffer(raw) => {
                 let backbuffer = Backbuffer::Framebuffer {
                     raw,
@@ -307,7 +357,8 @@ where
     /// Swapchain must be not in use.
     pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) {
         drop(self.backbuffer);
-        self.terminal.map(|mut terminal| terminal.drain().map(Inner::dispose).for_each(drop));
+        self.terminal
+            .map(|mut terminal| terminal.drain().map(Inner::dispose).for_each(drop));
         self.relevant.dispose();
         device.destroy_swapchain(self.swapchain);
         drop(self.surface);
@@ -338,8 +389,15 @@ where
     }
 
     /// Acquire next image.
-    pub unsafe fn next_image(&mut self, signal: &B::Semaphore) -> Result<NextImages<'_, B>, gfx_hal::AcquireError> {
-        let index = gfx_hal::Swapchain::acquire_image(&mut self.swapchain, !0, gfx_hal::FrameSync::Semaphore(signal))?;
+    pub unsafe fn next_image(
+        &mut self,
+        signal: &B::Semaphore,
+    ) -> Result<NextImages<'_, B>, gfx_hal::AcquireError> {
+        let index = gfx_hal::Swapchain::acquire_image(
+            &mut self.swapchain,
+            !0,
+            gfx_hal::FrameSync::Semaphore(signal),
+        )?;
 
         Ok(NextImages {
             targets: std::iter::once((&*self, index)).collect(),
@@ -375,15 +433,19 @@ where
     pub unsafe fn present<'b>(
         self,
         queue: &mut impl gfx_hal::queue::RawCommandQueue<B>,
-        wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>
+        wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>,
     ) -> Result<(), failure::Error>
     where
-        'a: 'b
+        'a: 'b,
     {
-        queue.present(
-            self.targets.iter().map(|(target, index)| (&target.swapchain, *index)),
-            wait,
-        ).map_err(|()| failure::format_err!("Suboptimal or out of date, or what?"))
+        queue
+            .present(
+                self.targets
+                    .iter()
+                    .map(|(target, index)| (&target.swapchain, *index)),
+                wait,
+            )
+            .map_err(|()| failure::format_err!("Suboptimal or out of date, or what?"))
     }
 }
 

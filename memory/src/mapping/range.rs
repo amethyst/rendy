@@ -51,10 +51,7 @@ pub(crate) fn mapped_sub_range(
 /// User must ensure that:
 /// * this function won't create aliasing slices.
 /// * returned slice doesn't outlive mapping.
-pub(crate) unsafe fn mapped_slice_mut<'a, T>(
-    ptr: NonNull<u8>,
-    range: Range<u64>,
-) -> &'a mut [T] {
+pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, range: Range<u64>) -> &'a mut [T] {
     let size = (range.end - range.start) as usize;
     assert_eq!(
         size % size_of::<T>(),
@@ -62,7 +59,11 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(
         "Range length must be multiple of element size"
     );
     let offset = ptr.as_ptr() as usize;
-    assert_eq!(offset % align_of::<T>(), 0, "Range offset must be multiple of element alignment");
+    assert_eq!(
+        offset % align_of::<T>(),
+        0,
+        "Range offset must be multiple of element alignment"
+    );
     from_raw_parts_mut(ptr.as_ptr() as *mut T, size)
 }
 
@@ -70,10 +71,7 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(
 ///
 /// User must ensure that:
 /// * returned slice doesn't outlive mapping.
-pub(crate) unsafe fn mapped_slice<'a, T>(
-    ptr: NonNull<u8>,
-    range: Range<u64>,
-) -> &'a [T] {
+pub(crate) unsafe fn mapped_slice<'a, T>(ptr: NonNull<u8>, range: Range<u64>) -> &'a [T] {
     let size = (range.end - range.start) as usize;
     assert_eq!(
         size % size_of::<T>(),
@@ -81,6 +79,10 @@ pub(crate) unsafe fn mapped_slice<'a, T>(
         "Range length must be multiple of element size"
     );
     let offset = ptr.as_ptr() as usize;
-    assert_eq!(offset % align_of::<T>(), 0, "Range offset must be multiple of element alignment");
+    assert_eq!(
+        offset % align_of::<T>(),
+        0,
+        "Range offset must be multiple of element alignment"
+    );
     from_raw_parts(ptr.as_ptr() as *const T, size)
 }

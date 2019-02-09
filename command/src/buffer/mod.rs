@@ -12,14 +12,7 @@ use crate::{
     family::FamilyId,
 };
 
-pub use self::{
-    level::*,
-    reset::*,
-    state::*,
-    submit::*,
-    usage::*,
-    encoder::*,
-};
+pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
 
 /// Command buffer wrapper.
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
@@ -47,7 +40,8 @@ where
     R: Send,
     FamilyId: Send,
     relevant::Relevant: Send,
-{}
+{
+}
 
 unsafe impl<B, C, S, L, R> Sync for CommandBuffer<B, C, S, L, R>
 where
@@ -59,7 +53,8 @@ where
     R: Sync,
     FamilyId: Sync,
     relevant::Relevant: Sync,
-{}
+{
+}
 
 impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
 where
@@ -192,12 +187,13 @@ where
         gfx_hal::command::CommandBufferInheritanceInfo {
             subpass: Some(self),
             framebuffer: None,
-            .. gfx_hal::command::CommandBufferInheritanceInfo::default()
+            ..gfx_hal::command::CommandBufferInheritanceInfo::default()
         }
     }
 }
 
-unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel> for (gfx_hal::pass::Subpass<'a, B>, Option<&'a F>)
+unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel>
+    for (gfx_hal::pass::Subpass<'a, B>, Option<&'a F>)
 where
     B: gfx_hal::Backend,
     F: std::borrow::Borrow<B::Framebuffer>,
@@ -208,7 +204,7 @@ where
         gfx_hal::command::CommandBufferInheritanceInfo {
             subpass: Some(self.0),
             framebuffer: self.1.map(F::borrow),
-            .. gfx_hal::command::CommandBufferInheritanceInfo::default()
+            ..gfx_hal::command::CommandBufferInheritanceInfo::default()
         }
     }
 }
@@ -224,7 +220,7 @@ where
         gfx_hal::command::CommandBufferInheritanceInfo {
             subpass: Some(self.0),
             framebuffer: Some(self.1.borrow()),
-            .. gfx_hal::command::CommandBufferInheritanceInfo::default()
+            ..gfx_hal::command::CommandBufferInheritanceInfo::default()
         }
     }
 }
@@ -267,9 +263,7 @@ where
     /// Finish recording command buffer.
     pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::finish(
-                self.raw(),
-            );
+            gfx_hal::command::RawCommandBuffer::finish(self.raw());
 
             self.change_state(|s| ExecutableState(s.0, s.1))
         }
@@ -285,11 +279,11 @@ where
     /// # Safety
     ///
     /// None of [`Submit`] instances created from this `CommandBuffer` are alive.
-    /// 
+    ///
     /// If this is `PrimaryLevel` buffer then
     /// for each command queue where [`Submit`] instance (created from this `CommandBuffer`)
     /// was submitted at least one [`Fence`] submitted within same `Submission` or later in unset state was `set`.
-    /// 
+    ///
     /// If this is `Secondary` buffer then
     /// all primary command buffers where [`Submit`] instance (created from this `CommandBuffer`)
     /// was submitted must be complete.

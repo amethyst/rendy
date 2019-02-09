@@ -1,4 +1,3 @@
-
 use super::queue::QueueId;
 use crate::Id;
 

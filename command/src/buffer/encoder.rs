@@ -1,14 +1,13 @@
-
 use {
     super::{
-        submit::Submittable,
         level::{Level, PrimaryLevel, SecondaryLevel},
         state::RecordingState,
+        submit::Submittable,
         usage::RenderPassContinue,
         CommandBuffer,
     },
     crate::{
-        capability::{Supports, Graphics, Transfer, Compute, Capability},
+        capability::{Capability, Compute, Graphics, Supports, Transfer},
         family::FamilyId,
     },
 };
@@ -68,7 +67,8 @@ pub struct DispatchCommand {
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct EncoderCommon<'a, B: gfx_hal::Backend, C> {
-    #[derivative(Debug = "ignore")] raw: &'a mut B::CommandBuffer,
+    #[derivative(Debug = "ignore")]
+    raw: &'a mut B::CommandBuffer,
     capability: C,
     family: FamilyId,
 }
@@ -78,8 +78,12 @@ where
     B: gfx_hal::Backend,
 {
     /// Bind index buffer.
-    pub fn bind_index_buffer<'b>(&mut self, buffer: &'b B::Buffer, offset: u64, index_type: gfx_hal::IndexType)
-    where
+    pub fn bind_index_buffer<'b>(
+        &mut self,
+        buffer: &'b B::Buffer,
+        offset: u64,
+        index_type: gfx_hal::IndexType,
+    ) where
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -91,14 +95,17 @@ where
                     buffer: buffer,
                     offset,
                     index_type,
-                }
+                },
             )
         }
     }
 
     /// Bind vertex buffers.
-    pub fn bind_vertex_buffers<'b>(&mut self, first_binding: u32, buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>)
-    where
+    pub fn bind_vertex_buffers<'b>(
+        &mut self,
+        first_binding: u32,
+        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
+    ) where
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -131,8 +138,7 @@ where
         first_set: u32,
         sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
         offsets: impl IntoIterator<Item = u32>,
-    )
-    where
+    ) where
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -167,8 +173,7 @@ where
         first_set: u32,
         sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
         offsets: impl IntoIterator<Item = u32>,
-    )
-    where
+    ) where
         C: Supports<Compute>,
     {
         self.capability.assert();
@@ -184,23 +189,23 @@ where
         }
     }
 
-	/// Insert pipeline barrier.
-	pub fn pipeline_barrier<'b>(
-		&mut self,
+    /// Insert pipeline barrier.
+    pub fn pipeline_barrier<'b>(
+        &mut self,
         stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
         dependencies: gfx_hal::memory::Dependencies,
         barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'b, B>>,
-	) {
+    ) {
         unsafe {
-			gfx_hal::command::RawCommandBuffer::pipeline_barrier(
-				self.raw,
-				stages,
-				dependencies,
-				barriers,
-			)
-		}
+            gfx_hal::command::RawCommandBuffer::pipeline_barrier(
+                self.raw,
+                stages,
+                dependencies,
+                barriers,
+            )
+        }
     }
-    
+
     /// Push graphics constants.
     pub fn push_constants<'b>(
         &mut self,
@@ -211,11 +216,7 @@ where
     ) {
         unsafe {
             gfx_hal::command::RawCommandBuffer::push_graphics_constants(
-                self.raw,
-                layout,
-                stages,
-                offset,
-                constants
+                self.raw, layout, stages, offset, constants,
             );
         }
     }
@@ -227,7 +228,7 @@ where
     {
         EncoderCommon {
             capability: self.capability.supports().unwrap(),
-            raw: &mut*self.raw,
+            raw: &mut *self.raw,
             family: self.family,
         }
     }
@@ -264,81 +265,73 @@ where
     B: gfx_hal::Backend,
 {
     /// Draw.
-    pub fn draw(
-        &mut self, 
-        vertices: std::ops::Range<u32>, 
-        instances: std::ops::Range<u32>,
-    ) {
-        unsafe { gfx_hal::command::RawCommandBuffer::draw(
-            self.inner.raw,
-            vertices,
-            instances,
-        ) }
+    pub fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
+        unsafe { gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances) }
     }
 
     /// Draw indexed.
     pub fn draw_indexed(
-        &mut self, 
-        indices: std::ops::Range<u32>, 
-        base_vertex: i32, 
+        &mut self,
+        indices: std::ops::Range<u32>,
+        base_vertex: i32,
         instances: std::ops::Range<u32>,
     ) {
-        unsafe { gfx_hal::command::RawCommandBuffer::draw_indexed(
-            self.inner.raw,
-            indices,
-            base_vertex,
-            instances,
-        ) }
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::draw_indexed(
+                self.inner.raw,
+                indices,
+                base_vertex,
+                instances,
+            )
+        }
     }
 
     /// Draw indirect.
     /// Similar to [`draw`] except takes vertices and indices from `buffer` at specified `offset`.
     /// `buffer` must contain `draw_count` of [`DrawCommand`] starting from `offset` with `stride` bytes between each.
-    /// 
+    ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
     /// [`DrawCommand`]: struct.DrawCommand.html
-    pub fn draw_indirect(
-        &mut self, 
-        buffer: &B::Buffer, 
-        offset: u64, 
-        draw_count: u32, 
-        stride: u32,
-    ) {
-        unsafe { gfx_hal::command::RawCommandBuffer::draw_indirect(
-            self.inner.raw,
-            buffer,
-            offset,
-            draw_count,
-            stride,
-        ) }
+    pub fn draw_indirect(&mut self, buffer: &B::Buffer, offset: u64, draw_count: u32, stride: u32) {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::draw_indirect(
+                self.inner.raw,
+                buffer,
+                offset,
+                draw_count,
+                stride,
+            )
+        }
     }
 
     /// Draw indirect.
     /// Similar to [`draw`] except takes vertices and indices from `buffer` at specified `offset`.
     /// `buffer` must contain `draw_count` of [`DrawCommand`] starting from `offset` with `stride` bytes between each.
-    /// 
+    ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
     /// [`DrawCommand`]: struct.DrawCommand.html
     pub fn draw_indexed_indirect(
-        &mut self, 
-        buffer: &B::Buffer, 
-        offset: u64, 
-        draw_count: u32, 
+        &mut self,
+        buffer: &B::Buffer,
+        offset: u64,
+        draw_count: u32,
         stride: u32,
     ) {
-        unsafe { gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
-            self.inner.raw,
-            buffer,
-            offset,
-            draw_count,
-            stride,
-        ) }
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
+                self.inner.raw,
+                buffer,
+                offset,
+                draw_count,
+                stride,
+            )
+        }
     }
 
     /// Reborrow encoder.
     pub fn reborrow(&mut self) -> RenderPassEncoder<'_, B> {
         RenderPassEncoder {
-            inner: self.inner.reborrow()
+            inner: self.inner.reborrow(),
         }
     }
 }
@@ -354,11 +347,7 @@ where
     B: gfx_hal::Backend,
 {
     fn drop(&mut self) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::end_render_pass(
-                self.inner.inner.raw,
-            )
-        }
+        unsafe { gfx_hal::command::RawCommandBuffer::end_render_pass(self.inner.inner.raw) }
     }
 }
 
@@ -429,11 +418,7 @@ where
     B: gfx_hal::Backend,
 {
     fn drop(&mut self) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::end_render_pass(
-                self.inner.raw,
-            )
-        }
+        unsafe { gfx_hal::command::RawCommandBuffer::end_render_pass(self.inner.raw) }
     }
 }
 
@@ -442,20 +427,20 @@ where
     B: gfx_hal::Backend,
 {
     /// Execute commands from secondary buffers.
-	pub fn execute_commands(
+    pub fn execute_commands(
         &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>
+        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>,
     ) {
         let family = self.inner.family;
         unsafe {
-			gfx_hal::command::RawCommandBuffer::execute_commands(
-				self.inner.raw,
+            gfx_hal::command::RawCommandBuffer::execute_commands(
+                self.inner.raw,
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
                     submit.raw()
-                })
-			)
-		}
+                }),
+            )
+        }
     }
 
     /// Record next subpass inline.
@@ -471,7 +456,7 @@ where
             let next = RenderPassInlineEncoder {
                 inner: RenderPassEncoder {
                     inner: std::ptr::read(&self.inner),
-                }
+                },
             };
 
             std::mem::forget(self);
@@ -526,9 +511,9 @@ where
     /// Beging recording render pass inline.
     pub fn begin_render_pass_inline(
         &mut self,
-        render_pass: &B::RenderPass, 
-        framebuffer: &B::Framebuffer, 
-        render_area: gfx_hal::pso::Rect, 
+        render_pass: &B::RenderPass,
+        framebuffer: &B::Framebuffer,
+        render_area: gfx_hal::pso::Rect,
         clear_values: &[gfx_hal::command::ClearValueRaw],
     ) -> RenderPassInlineEncoder<'_, B>
     where
@@ -550,16 +535,16 @@ where
         RenderPassInlineEncoder {
             inner: RenderPassEncoder {
                 inner: self.inner.reborrow(),
-            }
+            },
         }
     }
 
     /// Beging recording render pass secondary.
     pub fn begin_render_pass_secondary(
         &mut self,
-        render_pass: &B::RenderPass, 
-        framebuffer: &B::Framebuffer, 
-        render_area: gfx_hal::pso::Rect, 
+        render_pass: &B::RenderPass,
+        framebuffer: &B::Framebuffer,
+        render_area: gfx_hal::pso::Rect,
         clear_values: &[gfx_hal::command::ClearValueRaw],
     ) -> RenderPassSecondaryEncoder<'_, B>
     where
@@ -584,20 +569,20 @@ where
     }
 
     /// Execute commands from secondary buffers.
-	pub fn execute_commands(
+    pub fn execute_commands(
         &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>
+        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>,
     ) {
         let family = self.inner.family;
         unsafe {
-			gfx_hal::command::RawCommandBuffer::execute_commands(
-				self.inner.raw,
+            gfx_hal::command::RawCommandBuffer::execute_commands(
+                self.inner.raw,
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
                     submit.raw()
-                })
-			)
-		}
+                }),
+            )
+        }
     }
 }
 
@@ -622,31 +607,24 @@ where
         src: &B::Buffer,
         dst: &B::Buffer,
         regions: impl IntoIterator<Item = gfx_hal::command::BufferCopy>,
-    )
-    where
+    ) where
         C: Supports<Transfer>,
     {
         self.capability.assert();
 
         unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_buffer(
-                self.inner.raw,
-                src,
-                dst,
-                regions,
-            )
+            gfx_hal::command::RawCommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
         }
     }
 
     /// Copy buffer region to image subresource range.
     pub fn copy_buffer_to_image(
-        &mut self, 
-        src: &B::Buffer, 
-        dst: &B::Image, 
+        &mut self,
+        src: &B::Buffer,
+        dst: &B::Image,
         dst_layout: gfx_hal::image::Layout,
-        regions: impl IntoIterator<Item = gfx_hal::command::BufferImageCopy>
-    )
-    where
+        regions: impl IntoIterator<Item = gfx_hal::command::BufferImageCopy>,
+    ) where
         C: Supports<Transfer>,
     {
         self.capability.assert();
@@ -664,14 +642,13 @@ where
 
     /// Copy image regions.
     pub fn copy_image(
-        &mut self, 
-        src: &B::Image, 
-        src_layout: gfx_hal::image::Layout, 
-        dst: &B::Image, 
-        dst_layout: gfx_hal::image::Layout, 
-        regions: impl IntoIterator<Item = gfx_hal::command::ImageCopy>
-    )
-    where
+        &mut self,
+        src: &B::Image,
+        src_layout: gfx_hal::image::Layout,
+        dst: &B::Image,
+        dst_layout: gfx_hal::image::Layout,
+        regions: impl IntoIterator<Item = gfx_hal::command::ImageCopy>,
+    ) where
         C: Supports<Transfer>,
     {
         self.capability.assert();
@@ -695,18 +672,13 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::dispatch(
-                self.inner.raw,
-                [x, y, z],
-            )
-        }
+        unsafe { gfx_hal::command::RawCommandBuffer::dispatch(self.inner.raw, [x, y, z]) }
     }
 
     /// Dispatch indirect.
     /// Similar to [`dispatch`] except takes vertices and indices from `buffer` at specified `offset`.
     /// `buffer` must contain [`DispatchCommand`] at `offset`.
-    /// 
+    ///
     /// [`dispatch`]: trait.Encoder.html#tymethod.dispatch
     /// [`DispatchCommand`]: struct.DispatchCommand.html
     pub fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
@@ -716,11 +688,7 @@ where
         self.capability.assert();
 
         unsafe {
-            gfx_hal::command::RawCommandBuffer::dispatch_indirect(
-                self.inner.raw,
-                buffer,
-                offset,
-            )
+            gfx_hal::command::RawCommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
         }
     }
 }

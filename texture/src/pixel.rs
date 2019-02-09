@@ -1,40 +1,52 @@
 //! Typed pixel formats.
 
 /// Normalized unsigned integer representation
-#[derive(Clone, Copy, Debug, Default)] pub struct Unorm;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Unorm;
 
 /// Normalized signed integer representation
-#[derive(Clone, Copy, Debug, Default)] pub struct Inorm;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Inorm;
 
 /// Unsigned integer representation
-#[derive(Clone, Copy, Debug, Default)] pub struct Uint;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Uint;
 
 /// Signed integer representation
-#[derive(Clone, Copy, Debug, Default)] pub struct Int;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Int;
 
 /// ???
-#[derive(Clone, Copy, Debug, Default)] pub struct Uscaled;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Uscaled;
 
 /// ???
-#[derive(Clone, Copy, Debug, Default)] pub struct Iscaled;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Iscaled;
 
 /// `Unorm` but in with srgb gammar correction.
-#[derive(Clone, Copy, Debug, Default)] pub struct Srgb;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Srgb;
 
 /// Floating point representation.
-#[derive(Clone, Copy, Debug, Default)] pub struct Float;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Float;
 
 /// 8 bits marker type
-#[derive(Clone, Copy, Debug, Default)] pub struct _8;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct _8;
 
 /// 16 bits marker type
-#[derive(Clone, Copy, Debug, Default)] pub struct _16;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct _16;
 
 /// 32 bits marker type
-#[derive(Clone, Copy, Debug, Default)] pub struct _32;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct _32;
 
 /// 64 bits marker type
-#[derive(Clone, Copy, Debug, Default)] pub struct _64;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct _64;
 
 /// Size of the channel.
 pub trait ChannelSize {
@@ -42,10 +54,18 @@ pub trait ChannelSize {
     const SIZE: u32;
 }
 
-impl ChannelSize for _8 { const SIZE: u32 = 1; }
-impl ChannelSize for _16 { const SIZE: u32 = 2; }
-impl ChannelSize for _32 { const SIZE: u32 = 4; }
-impl ChannelSize for _64 { const SIZE: u32 = 8; }
+impl ChannelSize for _8 {
+    const SIZE: u32 = 1;
+}
+impl ChannelSize for _16 {
+    const SIZE: u32 = 2;
+}
+impl ChannelSize for _32 {
+    const SIZE: u32 = 4;
+}
+impl ChannelSize for _64 {
+    const SIZE: u32 = 8;
+}
 
 /// Channel representation.
 pub trait ChannelRepr<S> {
@@ -97,13 +117,20 @@ impl_channel_repr! {
     Float * _64 = f64;
 }
 
-#[derive(Clone, Copy, Debug, Default)] pub struct R;
-#[derive(Clone, Copy, Debug, Default)] pub struct Rg;
-#[derive(Clone, Copy, Debug, Default)] pub struct Rgb;
-#[derive(Clone, Copy, Debug, Default)] pub struct Rgba;
-#[derive(Clone, Copy, Debug, Default)] pub struct Bgr;
-#[derive(Clone, Copy, Debug, Default)] pub struct Bgra;
-#[derive(Clone, Copy, Debug, Default)] pub struct Abgr;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct R;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rg;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rgb;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rgba;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Bgr;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Bgra;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Abgr;
 
 /// Pixel representation.
 pub trait PixelRepr<S, T> {
@@ -112,13 +139,27 @@ pub trait PixelRepr<S, T> {
 }
 
 macro_rules! num_channels {
-    (R) => { 1 };
-    (Rg) => { 2 };
-    (Rgb) => { 3 };
-    (Rgba) => { 4 };
-    (Bgr) => { 3 };
-    (Bgra) => { 4 };
-    (Abgr) => { 4 };
+    (R) => {
+        1
+    };
+    (Rg) => {
+        2
+    };
+    (Rgb) => {
+        3
+    };
+    (Rgba) => {
+        4
+    };
+    (Bgr) => {
+        3
+    };
+    (Bgra) => {
+        4
+    };
+    (Abgr) => {
+        4
+    };
 }
 
 macro_rules! impl_pixel_repr {
@@ -147,9 +188,17 @@ impl_pixel_repr! {
 
 /// One pixel
 #[derive(derivative::Derivative)]
-#[derivative(Clone(bound = ""), Copy(bound = ""), Debug(bound = ""), Default(bound = ""))]
+#[derivative(
+    Clone(bound = ""),
+    Copy(bound = ""),
+    Debug(bound = ""),
+    Default(bound = "")
+)]
 #[repr(transparent)]
-pub struct Pixel<C, S, T> where C: PixelRepr<S, T> {
+pub struct Pixel<C, S, T>
+where
+    C: PixelRepr<S, T>,
+{
     pub repr: <C as PixelRepr<S, T>>::Repr,
 }
 

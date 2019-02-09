@@ -1,11 +1,7 @@
-
 use {
-    super::{QueueId, submission::*},
-    crate::{
-        buffer::Submittable,
-        fence::*,
-    },
-    gfx_hal::{Backend, queue::RawCommandQueue},
+    super::{submission::*, QueueId},
+    crate::{buffer::Submittable, fence::*},
+    gfx_hal::{queue::RawCommandQueue, Backend},
 };
 
 #[derive(derivative::Derivative)]
@@ -40,16 +36,24 @@ where
 
     /// Submit commands to the queue of the family.
     /// Fence must be submitted.
-    pub unsafe fn submit<'a>(&mut self,
-        submissions: impl IntoIterator<Item = Submission<
-            B,
-            impl IntoIterator<Item = (&'a (impl std::borrow::Borrow<B::Semaphore> + 'a), gfx_hal::pso::PipelineStage)>,
-            impl IntoIterator<Item = impl Submittable<B>>,
-            impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
-        >>,
+    pub unsafe fn submit<'a>(
+        &mut self,
+        submissions: impl IntoIterator<
+            Item = Submission<
+                B,
+                impl IntoIterator<
+                    Item = (
+                        &'a (impl std::borrow::Borrow<B::Semaphore> + 'a),
+                        gfx_hal::pso::PipelineStage,
+                    ),
+                >,
+                impl IntoIterator<Item = impl Submittable<B>>,
+                impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
+            >,
+        >,
         fence: Option<&mut Fence<B>>,
     ) {
-        assert!(fence.as_ref().map_or(true, |f|f.is_unsignaled()));
+        assert!(fence.as_ref().map_or(true, |f| f.is_unsignaled()));
 
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
@@ -59,7 +63,7 @@ where
                     wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
                     signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
                 },
-                fence.as_ref().map(|f| f.raw())
+                fence.as_ref().map(|f| f.raw()),
             );
         } else {
             let family = self.id.family();
@@ -73,7 +77,9 @@ where
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
                         signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
                     },
-                    submissions.peek().map_or(fence.as_ref().map(|f| f.raw()), |_| None),
+                    submissions
+                        .peek()
+                        .map_or(fence.as_ref().map(|f| f.raw()), |_| None),
                 );
             }
         }
@@ -90,13 +96,21 @@ where
     /// Submit commands to the queue of the family.
     /// Fence must be submitted.
     /// This version uses raw fence and doesn't increment epoch.
-    pub unsafe fn submit_raw_fence<'a>(&mut self,
-        submissions: impl IntoIterator<Item = Submission<
-            B,
-            impl IntoIterator<Item = (&'a (impl std::borrow::Borrow<B::Semaphore> + 'a), gfx_hal::pso::PipelineStage)>,
-            impl IntoIterator<Item = impl Submittable<B>>,
-            impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
-        >>,
+    pub unsafe fn submit_raw_fence<'a>(
+        &mut self,
+        submissions: impl IntoIterator<
+            Item = Submission<
+                B,
+                impl IntoIterator<
+                    Item = (
+                        &'a (impl std::borrow::Borrow<B::Semaphore> + 'a),
+                        gfx_hal::pso::PipelineStage,
+                    ),
+                >,
+                impl IntoIterator<Item = impl Submittable<B>>,
+                impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
+            >,
+        >,
         fence: Option<&B::Fence>,
     ) {
         let mut submissions = submissions.into_iter().peekable();

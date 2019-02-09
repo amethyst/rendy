@@ -1,15 +1,15 @@
 //! This module provides `Allocator` trait and few allocators that implements the trait.
 
-mod linear;
 mod dedicated;
 mod dynamic;
+mod linear;
 
 use crate::block::Block;
 
 pub use self::{
-    linear::{LinearAllocator, LinearBlock, LinearConfig},
     dedicated::{DedicatedAllocator, DedicatedBlock},
     dynamic::{DynamicAllocator, DynamicBlock, DynamicConfig},
+    linear::{LinearAllocator, LinearBlock, LinearConfig},
 };
 
 /// Allocator kind.

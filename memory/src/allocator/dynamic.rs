@@ -1,4 +1,4 @@
-use std::{ops::Range, ptr::NonNull, collections::HashMap};
+use std::{collections::HashMap, ops::Range, ptr::NonNull};
 
 use crate::{
     allocator::{Allocator, Kind},
@@ -176,7 +176,9 @@ where
     ) -> Self {
         log::info!(
             "Create new allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
-            memory_type, memory_properties, config
+            memory_type,
+            memory_properties,
+            config
         );
         // This is hack to simplify implementation of chunk cleaning.
         config.blocks_per_chunk = std::mem::size_of::<usize>() as u32 * 8;
@@ -244,22 +246,19 @@ where
             // Allocate from device.
             let (memory, mapping) = unsafe {
                 // Valid memory type specified.
-                let raw = device.allocate_memory(
-                    self.memory_type,
-                    size,
-                )?;
+                let raw = device.allocate_memory(self.memory_type, size)?;
 
                 let mapping = if self
                     .memory_properties
                     .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
                 {
                     log::trace!("Map new memory object");
-                    match device.map_memory(&raw, 0 .. size) {
+                    match device.map_memory(&raw, 0..size) {
                         Ok(mapping) => Some(NonNull::new_unchecked(mapping)),
                         Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
                             device.free_memory(raw);
                             return Err(error.into());
-                        },
+                        }
                         Err(_) => panic!("Unexpected mapping failure"),
                     }
                 } else {
@@ -305,32 +304,39 @@ where
         device: &impl gfx_hal::Device<B>,
         size: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!("Allocate block. type: {}, size: {}", self.memory_type.0, size);
+        log::trace!(
+            "Allocate block. type: {}, size: {}",
+            self.memory_type.0,
+            size
+        );
         let max = self.max_chunks_per_size();
         let size_index = self.size_index(size);
-        let (block_index, allocated) = match hibitset::BitSetLike::iter(&self.sizes.entry(size_index).or_default().blocks).next() {
-            Some(block_index) => {
-                let size_entry = self.sizes.entry(size_index).or_default();
-                assert!(size_entry.blocks.remove(block_index));
-                (block_index, 0)
-            }
-            None => {
-                if self.sizes.entry(size_index).or_default().total_chunks == max {
-                    return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
+        let (block_index, allocated) =
+            match hibitset::BitSetLike::iter(&self.sizes.entry(size_index).or_default().blocks)
+                .next()
+            {
+                Some(block_index) => {
+                    let size_entry = self.sizes.entry(size_index).or_default();
+                    assert!(size_entry.blocks.remove(block_index));
+                    (block_index, 0)
                 }
-                let chunk_size = size * self.blocks_per_chunk as u64;
-                let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
-                let size_entry = self.sizes.entry(size_index).or_default();
-                let chunk_index = size_entry.chunks.push(chunk) as u32;
-                size_entry.total_chunks += 1;
-                let block_index_start = chunk_index * self.blocks_per_chunk;
-                let block_index_end = block_index_start + self.blocks_per_chunk;
-                for block_index in block_index_start + 1..block_index_end {
-                    assert!(!size_entry.blocks.add(block_index));
+                None => {
+                    if self.sizes.entry(size_index).or_default().total_chunks == max {
+                        return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
+                    }
+                    let chunk_size = size * self.blocks_per_chunk as u64;
+                    let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
+                    let size_entry = self.sizes.entry(size_index).or_default();
+                    let chunk_index = size_entry.chunks.push(chunk) as u32;
+                    size_entry.total_chunks += 1;
+                    let block_index_start = chunk_index * self.blocks_per_chunk;
+                    let block_index_end = block_index_start + self.blocks_per_chunk;
+                    for block_index in block_index_start + 1..block_index_end {
+                        assert!(!size_entry.blocks.add(block_index));
+                    }
+                    (block_index_start, allocated)
                 }
-                (block_index_start, allocated)
-            }
-        };
+            };
 
         let chunk_index = block_index / self.blocks_per_chunk;
 
@@ -393,19 +399,35 @@ where
         let block_index = block.index;
         block.dispose();
 
-        let old = self.sizes.entry(size_index).or_default().blocks.add(block_index);
+        let old = self
+            .sizes
+            .entry(size_index)
+            .or_default()
+            .blocks
+            .add(block_index);
         debug_assert!(!old);
 
         let chunk_index = block_index / self.blocks_per_chunk;
         let chunk_start = chunk_index * self.blocks_per_chunk;
         let chunk_end = chunk_start + self.blocks_per_chunk;
 
-        if check_bit_range_set(&self.sizes.entry(size_index).or_default().blocks, chunk_start..chunk_end) {
+        if check_bit_range_set(
+            &self.sizes.entry(size_index).or_default().blocks,
+            chunk_start..chunk_end,
+        ) {
             for index in chunk_start..chunk_end {
-                let old = self.sizes.entry(size_index).or_default().blocks.remove(index);
+                let old = self
+                    .sizes
+                    .entry(size_index)
+                    .or_default()
+                    .blocks
+                    .remove(index);
                 debug_assert!(old);
             }
-            let chunk = self.sizes.entry(size_index).or_default()
+            let chunk = self
+                .sizes
+                .entry(size_index)
+                .or_default()
                 .chunks
                 .pop(chunk_index as usize)
                 .expect("Chunk must exist");

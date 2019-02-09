@@ -1,12 +1,13 @@
 //!
 //! Basic example initializes core type of the rendy - `Factory` and exits.
-//! 
+//!
 
-#![cfg_attr(not(any(feature = "dx12", feature = "metal", feature = "vulkan")), allow(unused))]
+#![cfg_attr(
+    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
+    allow(unused)
+)]
 
-use rendy::{
-    factory::{Config, Factory},
-};
+use rendy::factory::{Config, Factory};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;

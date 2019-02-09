@@ -95,7 +95,10 @@ where
         }
     }
 
-    fn transfer(families: Range<gfx_hal::queue::QueueFamilyId>, states: Range<(R::Access, R::Layout)>) -> Self {
+    fn transfer(
+        families: Range<gfx_hal::queue::QueueFamilyId>,
+        states: Range<(R::Access, R::Layout)>,
+    ) -> Self {
         Barrier {
             families: Some(families),
             states: (
@@ -326,7 +329,8 @@ where
         .map(|(qid, queue)| {
             let sid = SubmissionId::new(qid, queue.last);
             (schedule[sid].submit_order(), sid)
-        }).max_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
+        })
+        .max_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
         .unwrap();
     sid
 }
@@ -340,7 +344,8 @@ where
         .map(|(qid, queue)| {
             let sid = SubmissionId::new(qid, queue.first);
             (schedule[sid].submit_order(), sid)
-        }).min_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
+        })
+        .min_by_key(|&(submit_order, sid)| (submit_order, sid.queue().index()))
         .unwrap();
     sid
 }
@@ -373,13 +378,10 @@ where
         .windows(2)
         .map(|pair| (&pair[0], &pair[1]))
         .chain(
-            chain.links()
+            chain
+                .links()
                 .first()
-                .and_then(|first| 
-                    chain.links()
-                        .last()
-                        .map(move |last| (last, first))
-                )
+                .and_then(|first| chain.links().last().map(move |last| (last, first))),
         );
 
     for (prev_link, link) in pairs {

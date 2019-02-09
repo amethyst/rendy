@@ -1,10 +1,9 @@
-
 use {
     super::{
-        CommandBuffer,
         level::PrimaryLevel,
-        state::{ExecutableState, PendingState, InvalidState},
-        usage::{OneShot, MultiShot, SimultaneousUse, NoSimultaneousUse, OutsideRenderPass},
+        state::{ExecutableState, InvalidState, PendingState},
+        usage::{MultiShot, NoSimultaneousUse, OneShot, OutsideRenderPass, SimultaneousUse},
+        CommandBuffer,
     },
     crate::family::FamilyId,
 };
@@ -12,7 +11,12 @@ use {
 /// Structure contains command buffer ready for submission.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct Submit<B: gfx_hal::Backend, S = NoSimultaneousUse, L = PrimaryLevel, P = OutsideRenderPass> {
+pub struct Submit<
+    B: gfx_hal::Backend,
+    S = NoSimultaneousUse,
+    L = PrimaryLevel,
+    P = OutsideRenderPass,
+> {
     #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
     family: FamilyId,
@@ -29,7 +33,8 @@ where
     S: Send,
     L: Send,
     P: Send,
-{}
+{
+}
 
 unsafe impl<B, S, L, P> Sync for Submit<B, S, L, P>
 where
@@ -38,7 +43,8 @@ where
     S: Sync,
     L: Sync,
     P: Sync,
-{}
+{
+}
 
 /// Submittable object.
 /// Values that implement this trait can be submitted to the queues
@@ -49,9 +55,9 @@ pub unsafe trait Submittable<B: gfx_hal::Backend, L = PrimaryLevel, P = OutsideR
 
     /// Get raw command buffer.
     /// This function is intended for submitting command buffer into raw queue.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// This function returns unbound reference to the raw command buffer.
     /// The actual lifetime of the command buffer is tied to the original `CommandBuffer` wrapper.
     /// `CommandBuffer` must not destroy raw command buffer or give access to it before submitted command is complete so

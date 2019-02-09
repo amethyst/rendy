@@ -2,16 +2,14 @@
 //! Manage vertex and index buffers of single objects with ease.
 //!
 
-use std::{
-    borrow::Cow,
-    cmp::min,
-    mem::size_of,
-};
+use std::{borrow::Cow, cmp::min, mem::size_of};
 
 use crate::{
-    command::{QueueId, EncoderCommon, Graphics, Supports},
-    factory::{Factory, BufferState},
-    resource::buffer::{Buffer, VertexBuffer as UsageVertexBuffer, IndexBuffer as UsageIndexBuffer},
+    command::{EncoderCommon, Graphics, QueueId, Supports},
+    factory::{BufferState, Factory},
+    resource::buffer::{
+        Buffer, IndexBuffer as UsageIndexBuffer, VertexBuffer as UsageVertexBuffer,
+    },
     util::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
     vertex::{AsVertex, VertexFormat},
 };
@@ -159,7 +157,11 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new mesh.
-    pub fn build<B>(&self, queue: QueueId, factory: &mut Factory<B>) -> Result<Mesh<B>, failure::Error>
+    pub fn build<B>(
+        &self,
+        queue: QueueId,
+        factory: &mut Factory<B>,
+    ) -> Result<Mesh<B>, failure::Error>
     where
         B: gfx_hal::Backend,
     {
@@ -172,11 +174,8 @@ impl<'a> MeshBuilder<'a> {
                     len = min(len, vertices.len() as u32 / format.stride);
                     Ok(VertexBuffer {
                         buffer: {
-                            let mut buffer = factory.create_buffer(
-                                1,
-                                vertices.len() as _,
-                                UsageVertexBuffer,
-                            )?;
+                            let mut buffer =
+                                factory.create_buffer(1, vertices.len() as _, UsageVertexBuffer)?;
                             unsafe {
                                 // New buffer can't be touched by device yet.
                                 factory.upload_buffer(
@@ -185,14 +184,15 @@ impl<'a> MeshBuilder<'a> {
                                     vertices,
                                     None,
                                     BufferState::new(queue)
-                                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
+                                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ),
                                 )?;
                             }
                             buffer
                         },
                         format: format.clone(),
                     })
-                }).collect::<Result<_, failure::Error>>()?,
+                })
+                .collect::<Result<_, failure::Error>>()?,
             ibuf: match self.indices {
                 None => None,
                 Some((ref indices, index_type)) => {
@@ -203,11 +203,8 @@ impl<'a> MeshBuilder<'a> {
                     len = indices.len() as u32 / stride as u32;
                     Some(IndexBuffer {
                         buffer: {
-                            let mut buffer = factory.create_buffer(
-                                1,
-                                indices.len() as _,
-                                UsageIndexBuffer,
-                            )?;
+                            let mut buffer =
+                                factory.create_buffer(1, indices.len() as _, UsageIndexBuffer)?;
                             unsafe {
                                 // New buffer can't be touched by device yet.
                                 factory.upload_buffer(
@@ -216,7 +213,7 @@ impl<'a> MeshBuilder<'a> {
                                     indices,
                                     None,
                                     BufferState::new(queue)
-                                        .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
+                                        .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ),
                                 )?;
                             }
                             buffer
@@ -287,16 +284,12 @@ where
         }
         match self.ibuf.as_ref() {
             Some(ibuf) => {
-                encoder.bind_index_buffer(
-                    ibuf.buffer.raw(),
-                    0,
-                    ibuf.index_type,
-                );
+                encoder.bind_index_buffer(ibuf.buffer.raw(), 0, ibuf.index_type);
                 encoder.bind_vertex_buffers(0, vertex.iter().cloned());
-            },
+            }
             None => {
                 encoder.bind_vertex_buffers(0, vertex.iter().cloned());
-            },
+            }
         }
 
         Ok(self.len)

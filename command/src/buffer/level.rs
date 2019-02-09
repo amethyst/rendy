@@ -1,4 +1,3 @@
-
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PrimaryLevel;

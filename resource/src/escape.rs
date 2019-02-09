@@ -4,15 +4,15 @@
 //! Users are encouraged to dispose of the values manually while `Escape` be just a safety net.
 
 use {
+    crossbeam_channel::{Receiver, Sender},
     std::{
-        sync::Arc,
         cell::UnsafeCell,
         iter::repeat,
         mem::{forget, ManuallyDrop},
         ops::{Deref, DerefMut},
         ptr::read,
+        sync::Arc,
     },
-    crossbeam_channel::{Receiver, Sender},
 };
 
 #[derive(Debug)] // `Debug` impl doesn't access value stored in `UnsafeCell`
@@ -35,7 +35,7 @@ unsafe impl<T: Send + Sync> Sync for Inner<T> {}
 
 impl<T> Drop for Inner<T> {
     fn drop(&mut self) {
-        if let Some(value) = unsafe {&mut*self.value.get()}.take() {
+        if let Some(value) = unsafe { &mut *self.value.get() }.take() {
             self.sender.send(value);
         }
     }
@@ -79,7 +79,10 @@ impl<T> Escape<T> {
 
             match Arc::try_unwrap(inner) {
                 Ok(_) => Some(value),
-                Err(inner) => { inner.escape(value); None }
+                Err(inner) => {
+                    inner.escape(value);
+                    None
+                }
             }
         }
     }
@@ -193,20 +196,20 @@ impl<T> Deref for EscapeShared<T> {
 }
 
 /// Values of `KeepAlive` keeps resources from destroying.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```
 /// # extern crate rendy_resource;
 /// # use rendy_resource::*;
-/// 
+///
 /// fn foo<B: gfx_hal::Backend>(buffer: Buffer<B>) {
 ///     let kp: KeepAlive = buffer.keep_alive();
-/// 
+///
 ///     // `kp` keeps this buffer from being destroyed.
 ///     // It still can be referenced by command buffer on used by GPU.
 ///     drop(buffer);
-/// 
+///
 ///     // If there is no `KeepAlive` instances created from this buffer
 ///     // then it can be destrouyed after this line.
 ///     drop(kp);
