@@ -11,13 +11,13 @@ metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-factory/gfx-
 vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/gfx-backend-vulkan"]
 
 [dependencies]
-rendy-chain = { path = "../chain" }
-rendy-command = { path = "../command" }
-rendy-factory = { path = "../factory" }
-rendy-frame = { path = "../frame" }
-rendy-memory = { path = "../memory" }
-rendy-resource = { path = "../resource" }
-rendy-wsi = { path = "../wsi" }
+rendy-chain = { version = "0.1.0", path = "../chain" }
+rendy-command = { version = "0.1.0", path = "../command" }
+rendy-factory = { version = "0.1.0", path = "../factory" }
+rendy-frame = { version = "0.1.0", path = "../frame" }
+rendy-memory = { version = "0.1.0", path = "../memory" }
+rendy-resource = { version = "0.1.0", path = "../resource" }
+rendy-wsi = { version = "0.1.0", path = "../wsi" }
 
 gfx-hal = "0.1"
 gfx-backend-empty = { version = "0.1.0", optional = true }

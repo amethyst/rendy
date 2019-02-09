@@ -11,5 +11,5 @@ derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
-rendy-memory = { path = "../memory" }
+rendy-memory = { version = "0.1.0", path = "../memory" }
 smallvec = "0.6"

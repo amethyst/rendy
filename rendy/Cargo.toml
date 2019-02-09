@@ -23,21 +23,21 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-full = ["graph", "mesh", "texture", "shader"]
+full = ["command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
 default = ["full"]
 
 [dependencies]
-rendy-command = { path = "../command", optional = true }
-rendy-factory = { path = "../factory", optional = true }
-rendy-frame = { path = "../frame", optional = true }
-rendy-graph = { path = "../graph", optional = true }
-rendy-memory = { path = "../memory", optional = true }
-rendy-mesh = { path = "../mesh", optional = true }
-rendy-shader = { path = "../shader", optional = true }
-rendy-resource = { path = "../resource", optional = true }
-rendy-texture = { path = "../texture", optional = true }
-rendy-util = { path = "../util", optional = true }
-rendy-wsi = { path = "../wsi", optional = true }
+rendy-command = { version = "0.1.0", path = "../command", optional = true }
+rendy-factory = { version = "0.1.0", path = "../factory", optional = true }
+rendy-frame = { version = "0.1.0", path = "../frame", optional = true }
+rendy-graph = { version = "0.1.0", path = "../graph", optional = true }
+rendy-memory = { version = "0.1.0", path = "../memory", optional = true }
+rendy-mesh = { version = "0.1.0", path = "../mesh", optional = true }
+rendy-shader = { version = "0.1.0", path = "../shader", optional = true }
+rendy-resource = { version = "0.1.0", path = "../resource", optional = true }
+rendy-texture = { version = "0.1.0", path = "../texture", optional = true }
+rendy-util = { version = "0.1.0", path = "../util", optional = true }
+rendy-wsi = { version = "0.1.0", path = "../wsi", optional = true }
 
 gfx-hal = "0.1"
 gfx-backend-empty = { version = "0.1.0", optional = true }

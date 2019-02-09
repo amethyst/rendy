@@ -14,11 +14,11 @@ edition = "2018"
 serde-1 = ["serde", "gfx-hal/serde", "rendy-factory/serde"]
 
 [dependencies]
-rendy-command = { path = "../command" }
-rendy-memory = { path = "../memory" }
-rendy-resource = { path = "../resource" }
-rendy-factory = { path = "../factory" }
-rendy-util = { path = "../util" }
+rendy-command = { version = "0.1.0", path = "../command" }
+rendy-memory = { version = "0.1.0", path = "../memory" }
+rendy-resource = { version = "0.1.0", path = "../resource" }
+rendy-factory = { version = "0.1.0", path = "../factory" }
+rendy-util = { version = "0.1.0", path = "../util" }
 
 gfx-hal = "0.1"
 
