@@ -4,7 +4,8 @@
 layout(location = 0) in vec3 pos;
 layout(location = 1) in vec4 color;
 layout(location = 2) in vec3 norm;
-layout(location = 3) in mat4 model; // per-instance.
+// vec4[4] is used instead of mat4 due to spirv-cross bug for dx12 backend
+layout(location = 3) in vec4 model[4]; // per-instance.
 
 layout(set = 0, binding = 0) uniform Args {
     mat4 proj;
@@ -16,8 +17,9 @@ layout(location = 1) out vec3 frag_norm;
 layout(location = 2) out vec4 frag_color;
 
 void main() {
+    mat4 model_mat = mat4(model[0], model[1], model[2], model[3]);
     frag_color = color;
-    frag_norm = normalize((vec4(norm, 1.0) * model).xyz);
-    frag_pos = model * vec4(pos, 1.0);
+    frag_norm = normalize((vec4(norm, 1.0) * model_mat).xyz);
+    frag_pos = model_mat * vec4(pos, 1.0);
     gl_Position = proj * view * frag_pos;
 }
