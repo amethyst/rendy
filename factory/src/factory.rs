@@ -8,7 +8,7 @@ use {
         config::{Config, HeapsConfigure, QueuesConfigure, DevicesConfigure},
         upload::{Uploader, BufferState, ImageState, ImageStateOrLayout},
     },
-    std::{borrow::BorrowMut, cmp::max},
+    std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
     smallvec::SmallVec,
     gfx_hal::{device::*, Adapter, Backend, Device, Instance, Features, Limits, PhysicalDevice, Gpu, error::HostExecutionError, format, Surface as GfxSurface},
 };
@@ -20,15 +20,15 @@ static FACTORY_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsi
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Factory<B: Backend> {
-    #[derivative(Debug = "ignore")] instance: Box<dyn std::any::Any>,
-    #[derivative(Debug = "ignore")] adapter: Adapter<B>,
-    #[derivative(Debug = "ignore")] device: B::Device,
-    heaps: std::mem::ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
-    resources: std::mem::ManuallyDrop<parking_lot::RwLock<Resources<B>>>,
+    heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
+    resources: ManuallyDrop<parking_lot::RwLock<Resources<B>>>,
     families: Vec<Family<B>>,
     families_indices: Vec<usize>,
     epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
     uploads: Uploader<B>,
+    #[derivative(Debug = "ignore")] device: B::Device,
+    #[derivative(Debug = "ignore")] adapter: Adapter<B>,
+    #[derivative(Debug = "ignore")] instance: Box<dyn std::any::Any>,
 }
 
 impl<B> Drop for Factory<B>
@@ -36,6 +36,7 @@ where
     B: Backend,
 {
     fn drop(&mut self) {
+        log::debug!("Dropping factory");
         let _ = self.wait_idle();
 
         for uploads in self.uploads.families.drain(..) {
@@ -43,10 +44,12 @@ where
                 uploads.into_inner().dispose(&self.device);
             }
         }
+        log::trace!("Uploader disposed");
 
         for family in self.families.drain(..) {
             family.dispose();
         }
+        log::trace!("Families disposed");
 
         unsafe {
             // Device is idle.
@@ -57,7 +60,7 @@ where
             std::ptr::read(&mut *self.heaps).into_inner().dispose(&self.device);
         }
 
-        log::trace!("Factory destroyed");
+        log::trace!("Factory dropped");
     }
 }
 
@@ -132,10 +135,10 @@ where
 
         let factory = Factory {
             instance: Box::new(instance),
-            adapter,
+            adapter: adapter,
             device,
-            heaps: std::mem::ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
-            resources: std::mem::ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
+            heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
+            resources: ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
             uploads: Uploader::new(families.len()),
             epochs: families.iter().map(|f| {
                 let queues = f.queues().len();
@@ -152,7 +155,9 @@ where
     /// This function is very heavy and
     /// usually used only for teardown.
     pub fn wait_idle(&self) -> Result<(), HostExecutionError> {
-        self.device.wait_idle()
+        self.device.wait_idle()?;
+        log::trace!("Device idle");
+        Ok(())
     }
 
     /// Creates a buffer that is managed with the specified properties.
