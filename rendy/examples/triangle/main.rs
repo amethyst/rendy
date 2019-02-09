@@ -67,6 +67,8 @@ where
         vec![PosColor::VERTEX.gfx_vertex_input_desc(0)]
     }
 
+    fn depth() -> bool { false }
+
     fn load_shader_set<'a>(
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
