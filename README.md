@@ -13,7 +13,7 @@
 [s1]: https://travis-ci.org/omni-viral/rendy.svg?branch=master
 [s2]: https://img.shields.io/crates/v/rendy.svg
 [docs-badge]: https://img.shields.io/badge/docs-website-blue.svg
-[docs]: https://omni-viral.github.io/rendy-docs/rendy/index.html
+[docs]: https://docs.rs/rendy
 [s3]: https://img.shields.io/badge/license-MIT%2FApache-blue.svg
 [s4]: https://tokei.rs/b1/github/omni-viral/rendy?category=code
 [tc]: https://travis-ci.org/omni-viral/rendy
