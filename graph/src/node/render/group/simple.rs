@@ -132,7 +132,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 
     /// Build pass instance.
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &mut T,
@@ -213,7 +213,7 @@ where
     }
 
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &mut T,
