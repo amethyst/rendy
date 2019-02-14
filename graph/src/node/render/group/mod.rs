@@ -44,7 +44,7 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 
     /// Build render group.
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &mut T,
@@ -95,7 +95,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn dependencies(&self) -> Vec<NodeId>;
 
     fn build<'a>(
-        &self,
+        self: Box<Self>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &mut T,
@@ -142,7 +142,7 @@ where
     }
 
     fn build<'a>(
-        &self,
+        self: Box<Self>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &mut T,
