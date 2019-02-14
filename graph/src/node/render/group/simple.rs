@@ -149,11 +149,14 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
     type Desc: SimpleGraphicsPipelineDesc<B, T, Pipeline = Self>;
 
     /// Make simple render group builder.
-    fn builder() -> DescBuilder<B, T, Self::Desc>
+    fn builder() -> DescBuilder<B, T, SimpleRenderGroupDesc<Self::Desc>>
     where
         Self::Desc: Default,
     {
-        Self::Desc::default().builder()
+        SimpleRenderGroupDesc {
+            inner: Self::Desc::default(),
+        }
+        .builder()
     }
 
     /// Prepare to record drawing commands.
@@ -190,26 +193,31 @@ pub struct SimpleRenderGroup<B: Backend, P> {
     pipeline: P,
 }
 
-impl<B, T, P> RenderGroupDesc<B, T> for P
+#[derive(Debug)]
+pub struct SimpleRenderGroupDesc<P: std::fmt::Debug> {
+    inner: P,
+}
+
+impl<B, T, P> RenderGroupDesc<B, T> for SimpleRenderGroupDesc<P>
 where
     B: Backend,
     T: ?Sized,
     P: SimpleGraphicsPipelineDesc<B, T>,
 {
     fn buffers(&self) -> Vec<BufferAccess> {
-        self.buffers()
+        self.inner.buffers()
     }
 
     fn images(&self) -> Vec<ImageAccess> {
-        self.images()
+        self.inner.images()
     }
 
     fn colors(&self) -> usize {
-        self.colors().len()
+        self.inner.colors().len()
     }
 
     fn depth(&self) -> bool {
-        self.depth_stencil().is_some()
+        self.inner.depth_stencil().is_some()
     }
 
     fn build<'a>(
@@ -226,9 +234,9 @@ where
         let mut shaders = Vec::new();
 
         log::trace!("Load shader sets for");
-        let shader_set = self.load_shader_set(&mut shaders, factory, aux);
+        let shader_set = self.inner.load_shader_set(&mut shaders, factory, aux);
 
-        let pipeline = self.pipeline();
+        let pipeline = self.inner.pipeline();
 
         let set_layouts = pipeline
             .layout
@@ -247,7 +255,7 @@ where
                 .create_pipeline_layout(&set_layouts, pipeline.layout.push_constants)
         }?;
 
-        assert_eq!(pipeline.colors.len(), self.colors().len());
+        assert_eq!(pipeline.colors.len(), self.inner.colors().len());
 
         let mut vertex_buffers = Vec::new();
         let mut attributes = Vec::new();
@@ -299,7 +307,9 @@ where
         }
         .remove(0)?;
 
-        let pipeline = self.build(factory, queue, aux, buffers, images, &set_layouts)?;
+        let pipeline = self
+            .inner
+            .build(factory, queue, aux, buffers, images, &set_layouts)?;
 
         Ok(Box::new(SimpleRenderGroup::<B, _> {
             set_layouts,
