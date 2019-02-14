@@ -2,8 +2,8 @@ use {
     crate::{
         command::{
             CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, Graphics,
-            IndividualReset, MultiShot, NoSimultaneousUse, PendingState, QueueId, SecondaryLevel,
-            SimultaneousUse, Submission, Submit, Supports,
+            IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
+            SecondaryLevel, SimultaneousUse, Submission, Submit, Supports,
         },
         factory::Factory,
         frame::{
@@ -249,8 +249,9 @@ where
     fn build<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        queue: usize,
         aux: &mut T,
-        family: FamilyId,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
@@ -521,6 +522,7 @@ where
 
                         group.build(
                             factory,
+                            QueueId(family.id(), queue),
                             aux,
                             framebuffer_width,
                             framebuffer_height,
@@ -613,10 +615,10 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
-        factory: &mut Factory<B>,
-        aux: &mut T,
+        factory: &Factory<B>,
+        queue: &mut Queue<B>,
+        aux: &T,
         frames: &Frames<B>,
-        qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
@@ -643,10 +645,11 @@ where
             let index = cbuf.index();
 
             let force_record = subpasses.iter_mut().any(|subpass| {
-                subpass
-                    .groups
-                    .iter_mut()
-                    .any(|group| group.prepare(factory, index, aux).force_record())
+                subpass.groups.iter_mut().any(|group| {
+                    group
+                        .prepare(factory, queue.id(), index, aux)
+                        .force_record()
+                })
             });
 
             if force_record {
@@ -687,7 +690,7 @@ where
             })
         });
 
-        factory.family_mut(qid.family()).queues_mut()[qid.index()].submit(
+        queue.submit(
             Some(
                 Submission::new()
                     .submits(Some(submit))

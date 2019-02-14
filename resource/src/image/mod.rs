@@ -42,37 +42,15 @@ pub struct Info {
 /// `B` - raw image type.
 #[derive(Debug)]
 pub struct Image<B: gfx_hal::Backend> {
-    escape: Escape<Inner<B>>,
+    escape: Escape<(B::Image, Option<MemoryBlock<B>>)>,
     info: Info,
-}
-
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct Inner<B: gfx_hal::Backend> {
-    block: Option<MemoryBlock<B>>,
-    raw: B::Image,
-    relevant: relevant::Relevant,
-}
-
-impl<B> Inner<B>
-where
-    B: gfx_hal::Backend,
-{
-    #[doc(hidden)]
-    pub fn dispose(self) -> (B::Image, Option<MemoryBlock<B>>) {
-        self.relevant.dispose();
-        (self.raw, self.block)
-    }
 }
 
 impl<B> Image<B>
 where
     B: gfx_hal::Backend,
 {
-    /// # Disclaimer
-    ///
-    /// This function is designed to use by other rendy crates.
-    /// User experienced enough to use it properly can find it without documentation.
+    /// Wrap an image.
     ///
     /// # Safety
     ///
@@ -80,29 +58,21 @@ where
     /// `block` if provided must be the one bound to the raw image.
     /// `terminal` will receive image and memory block upon drop, it must free image and memory properly.
     ///
-    #[doc(hidden)]
     pub unsafe fn new(
         info: Info,
         raw: B::Image,
         block: Option<MemoryBlock<B>>,
-        terminal: &Terminal<Inner<B>>,
+        terminal: &Terminal<(B::Image, Option<MemoryBlock<B>>)>,
     ) -> Self {
         Image {
-            escape: terminal.escape(Inner {
-                block,
-                raw,
-                relevant: relevant::Relevant,
-            }),
+            escape: terminal.escape((raw, block)),
             info,
         }
     }
 
-    /// # Disclaimer
-    ///
-    /// This function is designed to use by other rendy crates.
-    /// User experienced enough to use it properly can find it without documentation.
-    #[doc(hidden)]
-    pub fn unescape(self) -> Option<Inner<B>> {
+    /// This will return `None` and would be equivalent to dropping
+    /// if there are `KeepAlive` created from this `Image.
+    pub fn unescape(self) -> Option<(B::Image, Option<MemoryBlock<B>>)> {
         Escape::unescape(self.escape)
     }
 
@@ -119,7 +89,7 @@ where
     ///
     /// Raw image handler should not be usage to violate this object valid usage.
     pub fn raw(&self) -> &B::Image {
-        &self.escape.raw
+        &self.escape.0
     }
 
     /// Get image [`Info`].
@@ -167,56 +137,35 @@ pub struct ViewInfo {
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct ImageView<B: gfx_hal::Backend> {
-    escape: Escape<InnerView<B>>,
+    escape: Escape<(B::ImageView, KeepAlive)>,
     info: ViewInfo,
-}
-
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct InnerView<B: gfx_hal::Backend> {
-    raw: B::ImageView,
-    image_kp: KeepAlive,
-    relevant: relevant::Relevant,
-}
-
-impl<B> InnerView<B>
-where
-    B: gfx_hal::Backend,
-{
-    #[doc(hidden)]
-    pub fn dispose(self) -> (B::ImageView, KeepAlive) {
-        self.relevant.dispose();
-        (self.raw, self.image_kp)
-    }
 }
 
 impl<B> ImageView<B>
 where
     B: gfx_hal::Backend,
 {
-    #[doc(hidden)]
+    /// Wrap an image view.
+    ///
+    /// `raw` image view must be created from the `image`.
+    /// `info` must match information about raw image view.
+    /// `terminal` will receive image and memory block upon drop, it must free image and memory properly.
+    ///
     pub unsafe fn new(
         info: ViewInfo,
         image: &Image<B>,
         raw: B::ImageView,
-        terminal: &Terminal<InnerView<B>>,
+        terminal: &Terminal<(B::ImageView, KeepAlive)>,
     ) -> Self {
         ImageView {
-            escape: terminal.escape(InnerView {
-                raw,
-                image_kp: image.keep_alive(),
-                relevant: relevant::Relevant,
-            }),
+            escape: terminal.escape((raw, image.keep_alive())),
             info,
         }
     }
 
-    /// # Disclaimer
-    ///
-    /// This function is designed to use by other rendy crates.
-    /// User experienced enough to use it properly can find it without documentation.
-    #[doc(hidden)]
-    pub fn unescape(self) -> Option<InnerView<B>> {
+    /// This will return `None` and would be equivalent to dropping
+    /// if there are `KeepAlive` created from this `ImageView.
+    pub fn unescape(self) -> Option<(B::ImageView, KeepAlive)> {
         Escape::unescape(self.escape)
     }
 
@@ -233,6 +182,6 @@ where
     ///
     /// Raw image handler should not be usage to violate this object valid usage.
     pub fn raw(&self) -> &B::ImageView {
-        &self.escape.raw
+        &self.escape.0
     }
 }

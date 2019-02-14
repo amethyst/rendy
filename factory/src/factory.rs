@@ -1,6 +1,8 @@
 use {
     crate::{
-        command::{families_from_device, CommandPool, Family, FamilyId, Fence, QueueType, Reset},
+        command::{
+            families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
+        },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
         memory::{Heaps, Write},
         resource::{
@@ -29,16 +31,15 @@ static FACTORY_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsi
 pub struct Factory<B: Backend> {
     heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
     resources: ManuallyDrop<parking_lot::RwLock<Resources<B>>>,
-    families: Vec<Family<B>>,
-    families_indices: Vec<usize>,
     epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
-    uploads: Uploader<B>,
+    uploader: Uploader<B>,
+    families_indices: Vec<usize>,
     #[derivative(Debug = "ignore")]
     device: B::Device,
     #[derivative(Debug = "ignore")]
     adapter: Adapter<B>,
     #[derivative(Debug = "ignore")]
-    instance: Box<dyn std::any::Any>,
+    instance: Box<dyn std::any::Any + Send + Sync>,
 }
 
 impl<B> Drop for Factory<B>
@@ -49,20 +50,10 @@ where
         log::debug!("Dropping factory");
         let _ = self.wait_idle();
 
-        for uploads in self.uploads.families.drain(..) {
-            unsafe {
-                uploads.into_inner().dispose(&self.device);
-            }
-        }
-        log::trace!("Uploader disposed");
-
-        for family in self.families.drain(..) {
-            family.dispose();
-        }
-        log::trace!("Families disposed");
-
         unsafe {
             // Device is idle.
+            self.uploader.dispose(&self.device);
+            log::trace!("Uploader disposed");
             std::ptr::read(&mut *self.resources)
                 .into_inner()
                 .dispose(&self.device, self.heaps.get_mut());
@@ -82,116 +73,6 @@ impl<B> Factory<B>
 where
     B: Backend,
 {
-    /// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
-    /// from the specified `vk::PhysicalDevice`.
-    pub fn init(
-        instance: impl Instance<Backend = B>,
-        config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-    ) -> Result<Self, failure::Error> {
-        let mut adapters = instance.enumerate_adapters();
-
-        if adapters.is_empty() {
-            failure::bail!("No physical devices found");
-        }
-
-        log::info!(
-            "Physical devices:\n{:#?}",
-            adapters
-                .iter()
-                .map(|adapter| &adapter.info)
-                .collect::<SmallVec<[_; 32]>>()
-        );
-
-        let picked = config.devices.pick(&adapters);
-        if picked >= adapters.len() {
-            panic!("Physical device pick config returned index out of bound");
-        }
-        let adapter = adapters.swap_remove(picked);
-
-        #[derive(Debug)]
-        struct PhysicalDeviceInfo<'a> {
-            name: &'a str,
-            features: Features,
-            limits: Limits,
-        }
-
-        log::info!(
-            "Physical device picked: {:#?}",
-            PhysicalDeviceInfo {
-                name: &adapter.info.name,
-                features: adapter.physical_device.features(),
-                limits: adapter.physical_device.limits(),
-            }
-        );
-
-        let (device, families) = {
-            let families = config
-                .queues
-                .configure(&adapter.queue_families)
-                .into_iter()
-                .collect::<SmallVec<[_; 16]>>();
-            let (create_queues, get_queues): (SmallVec<[_; 32]>, SmallVec<[_; 32]>) = families
-                .iter()
-                .map(|(index, priorities)| {
-                    (
-                        (&adapter.queue_families[index.0], priorities.as_ref()),
-                        (*index, priorities.as_ref().len()),
-                    )
-                })
-                .unzip();
-
-            log::info!("Queues: {:#?}", get_queues);
-
-            let Gpu { device, mut queues } =
-                unsafe { adapter.physical_device.open(&create_queues) }?;
-
-            assert_eq!(
-                FACTORY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-                0,
-                "Only one Factory supported"
-            );
-
-            let families =
-                unsafe { families_from_device(&mut queues, get_queues, &adapter.queue_families) };
-            (device, families)
-        };
-
-        let (types, heaps) = config
-            .heaps
-            .configure(&adapter.physical_device.memory_properties());
-        let heaps = heaps.into_iter().collect::<SmallVec<[_; 16]>>();
-        let types = types.into_iter().collect::<SmallVec<[_; 32]>>();
-
-        log::info!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
-
-        let heaps = unsafe { Heaps::new(types, heaps) };
-
-        let mut families_indices = vec![!0; families.len()];
-        for (index, family) in families.iter().enumerate() {
-            families_indices[family.id().0] = index;
-        }
-
-        let factory = Factory {
-            instance: Box::new(instance),
-            adapter: adapter,
-            device,
-            heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
-            resources: ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
-            uploads: Uploader::new(families.len()),
-            epochs: families
-                .iter()
-                .map(|f| {
-                    let queues = f.queues().len();
-                    parking_lot::RwLock::new(vec![0; queues])
-                })
-                .collect(),
-            families,
-            families_indices,
-        };
-
-        Ok(factory)
-    }
-
     /// Wait for whole device become idle.
     /// This function is very heavy and
     /// usually used only for teardown.
@@ -260,12 +141,12 @@ where
 
     /// Create a sampler
     pub fn create_sampler(
-        &mut self,
+        &self,
         filter: image::Filter,
         wrap_mode: image::WrapMode,
     ) -> Result<Sampler<B>, failure::Error> {
         self.resources
-            .get_mut()
+            .write()
             .create_sampler(&self.device, filter, wrap_mode)
     }
 
@@ -313,16 +194,8 @@ where
 
         self.upload_visible_buffer(&mut staging, 0, content)?;
 
-        let family_index = self.families_indices[next.queue.family().0];
-        self.uploads.families[family_index].lock().upload_buffer(
-            &self.device,
-            &self.families[family_index],
-            buffer,
-            offset,
-            staging,
-            last,
-            next,
-        )
+        self.uploader
+            .upload_buffer(&self.device, buffer, offset, staging, last, next)
     }
 
     /// Upload image.
@@ -364,10 +237,8 @@ where
 
         self.upload_visible_buffer(&mut staging, 0, content)?;
 
-        let family_index = self.families_indices[next.queue.family().0];
-        self.uploads.families[family_index].lock().upload_image(
+        self.uploader.upload_image(
             &self.device,
-            &self.families[family_index],
             image,
             data_width,
             data_height,
@@ -382,7 +253,7 @@ where
 
     /// Create rendering surface from window.
     pub fn create_surface(&self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
-        Surface::new(&self.instance, window)
+        Surface::new(&*self.instance, window)
     }
 
     /// Get surface format.
@@ -415,30 +286,6 @@ where
     /// Destroy target returning underlying window back to the caller.
     pub unsafe fn destroy_target(&self, target: Target<B>) {
         target.dispose(&self.device);
-    }
-
-    /// Get queue families of the factory.
-    pub fn families(&self) -> &[Family<B>] {
-        &self.families
-    }
-
-    /// Get queue families of the factory.
-    pub fn family(&self, id: FamilyId) -> &Family<B> {
-        &self.families[self.families_indices[id.0]]
-    }
-
-    /// Get queue family of the factory.
-    /// This function also flushes all pending uploads for the family.
-    pub unsafe fn family_mut(&mut self, id: FamilyId) -> &mut Family<B> {
-        let family_index = self.families_indices[id.0];
-        let family = &mut self.families[family_index];
-
-        let family_uploads = self.uploads.families[family_index].get_mut();
-
-        family_uploads.cleanup(&self.device);
-        family_uploads.flush(family);
-
-        family
     }
 
     /// Get surface support for family.
@@ -539,8 +386,8 @@ where
 
         let mut epoch_locks = SmallVec::<[_; 32]>::new();
         for fence in &fences {
-            let family_index = self.families_indices[fence.epoch().queue.family().0];
-            while family_index >= epoch_locks.len() {
+            let family_id = fence.epoch().queue.family();
+            while family_id.0 >= epoch_locks.len() {
                 epoch_locks.push(None);
             }
         }
@@ -553,8 +400,12 @@ where
                             /*status checked*/
                             fence.mark_signaled()
                         };
-                        let family_index = self.families_indices[epoch.queue.family().0];
-                        let lock = epoch_locks[family_index]
+                        let family_id = epoch.queue.family();
+                        let family_index = *self
+                            .families_indices
+                            .get(family_id.0)
+                            .expect("Valid family id expected");
+                        let lock = epoch_locks[family_id.0]
                             .get_or_insert_with(|| self.epochs[family_index].write());
                         let queue_epoch = &mut lock[epoch.queue.index()];
                         *queue_epoch = max(*queue_epoch, epoch.epoch);
@@ -567,8 +418,12 @@ where
                         /*all fences signaled*/
                         fence.mark_signaled()
                     };
-                    let family_index = self.families_indices[epoch.queue.family().0];
-                    let lock = epoch_locks[family_index]
+                    let family_id = epoch.queue.family();
+                    let family_index = *self
+                        .families_indices
+                        .get(family_id.0)
+                        .expect("Valid family id expected");
+                    let lock = epoch_locks[family_id.0]
                         .get_or_insert_with(|| self.epochs[family_index].write());
                     let queue_epoch = &mut lock[epoch.queue.index()];
                     *queue_epoch = max(*queue_epoch, epoch.epoch);
@@ -586,14 +441,12 @@ where
     /// Create new command pool for specified family.
     pub fn create_command_pool<R>(
         &self,
-        family: FamilyId,
+        family: &Family<B>,
     ) -> Result<CommandPool<B, QueueType, R>, failure::Error>
     where
         R: Reset,
     {
-        self.family(family)
-            .create_pool(&self.device)
-            .map_err(Into::into)
+        family.create_pool(&self.device).map_err(Into::into)
     }
 
     /// Create new command pool for specified family.
@@ -604,12 +457,12 @@ where
         pool.dispose(&self.device);
     }
 
-    fn next_epochs(&mut self) -> Epochs {
+    fn next_epochs(&mut self, families: &Families<B>) -> Epochs {
         Epochs {
-            values: self
-                .families
+            values: families
+                .as_slice()
                 .iter()
-                .map(|f| f.queues().iter().map(|q| q.next_epoch()).collect())
+                .map(|f| f.as_slice().iter().map(|q| q.next_epoch()).collect())
                 .collect(),
         }
     }
@@ -624,66 +477,27 @@ where
         }
     }
 
-    /// Perform cleanup
-    pub fn cleanup(&mut self) {
-        let next = self.next_epochs();
+    /// Cleanup unused resources
+    pub fn cleanup(&mut self, families: &Families<B>) {
+        let next = self.next_epochs(families);
         let complete = self.complete_epochs();
         unsafe {
+            self.uploader.cleanup(&self.device);
             self.resources
                 .get_mut()
                 .cleanup(&self.device, self.heaps.get_mut(), next, complete);
         }
     }
-}
 
-macro_rules! init_factory_for_backend {
-    (match $target:ident, $config:ident $(| $backend:ident @ $feature:meta)+) => {{
-        #[allow(non_camel_case_types)]
-        enum _B {$(
-            $backend,
-        )+}
+    /// Flush uploads
+    pub fn flush_uploads(&mut self, families: &mut Families<B>) {
+        unsafe { self.uploader.flush(families) }
+    }
 
-        for b in [$(_B::$backend),+].iter() {
-            match b {$(
-                #[$feature]
-                _B::$backend => {
-                    if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
-                        let instance = $backend::Instance::create("Rendy", 1);
-                        let factory: Box<dyn std::any::Any> = Box::new(Factory::init(instance, $config)?);
-                        return Ok(*factory.downcast::<Factory<$target>>().unwrap());
-                    }
-                })+
-                _ => continue,
-            }
-        }
-        panic!("
-            Undefined backend requested.
-            Make sure feature for required backend is enabled.
-            Try to add `--features=vulkan` or if on macos `--features=metal`.
-        ")
-    }};
-
-    ($target:ident, $config:ident) => {{
-        init_factory_for_backend!(match $target, $config
-            | gfx_backend_empty @ cfg(feature = "empty")
-            | gfx_backend_dx12 @ cfg(feature = "dx12")
-            | gfx_backend_metal @ cfg(feature = "metal")
-            | gfx_backend_vulkan @ cfg(feature = "vulkan")
-        );
-    }};
-}
-
-impl<B> Factory<B>
-where
-    B: Backend,
-{
-    /// Init factory.
-    #[allow(unused_variables)]
-    pub fn new(
-        config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-    ) -> Result<Factory<B>, failure::Error> {
-        log::debug!("Creating factory");
-        init_factory_for_backend!(B, config)
+    /// Flush uploads and cleanup unused resources.
+    pub fn maintain(&mut self, families: &mut Families<B>) {
+        self.flush_uploads(families);
+        self.cleanup(families);
     }
 }
 
@@ -697,4 +511,166 @@ where
     fn deref(&self) -> &B::Device {
         &self.device
     }
+}
+
+macro_rules! init_for_backend {
+    (match $target:ident, $config:ident $(| $backend:ident @ $feature:meta)+) => {{
+        #[allow(non_camel_case_types)]
+        enum _B {$(
+            $backend,
+        )+}
+
+        for b in [$(_B::$backend),+].iter() {
+            match b {$(
+                #[$feature]
+                _B::$backend => {
+                    if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
+                        let instance = $backend::Instance::create("Rendy", 1);
+
+                        let (factory, families) = init_with_instance(instance, $config)?;
+
+                        let factory: Box<dyn std::any::Any> = Box::new(factory);
+                        let families: Box<dyn std::any::Any> = Box::new(families);
+                        return Ok((
+                            *factory.downcast::<Factory<$target>>().unwrap(),
+                            *families.downcast::<Families<$target>>().unwrap(),
+                        ));
+                    }
+                })+
+                _ => continue,
+            }
+        }
+        panic!("
+            Undefined backend requested.
+            Make sure feature for required backend is enabled.
+            Try to add `--features=vulkan` or if on macos `--features=metal`.
+        ")
+    }};
+
+    ($target:ident, $config:ident) => {{
+        init_for_backend!(match $target, $config
+            | gfx_backend_empty @ cfg(feature = "empty")
+            | gfx_backend_dx12 @ cfg(feature = "dx12")
+            | gfx_backend_metal @ cfg(feature = "metal")
+            | gfx_backend_vulkan @ cfg(feature = "vulkan")
+        );
+    }};
+}
+
+/// Init factory.
+#[allow(unused_variables)]
+pub fn init<B>(
+    config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
+) -> Result<(Factory<B>, Families<B>), failure::Error>
+where
+    B: gfx_hal::Backend,
+{
+    log::debug!("Creating factory");
+    init_for_backend!(B, config)
+}
+
+/// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
+/// from the specified `vk::PhysicalDevice`.
+pub fn init_with_instance<B>(
+    instance: impl Instance<Backend = B>,
+    config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
+) -> Result<(Factory<B>, Families<B>), failure::Error>
+where
+    B: gfx_hal::Backend,
+{
+    let mut adapters = instance.enumerate_adapters();
+
+    if adapters.is_empty() {
+        failure::bail!("No physical devices found");
+    }
+
+    log::info!(
+        "Physical devices:\n{:#?}",
+        adapters
+            .iter()
+            .map(|adapter| &adapter.info)
+            .collect::<SmallVec<[_; 32]>>()
+    );
+
+    let picked = config.devices.pick(&adapters);
+    if picked >= adapters.len() {
+        panic!("Physical device pick config returned index out of bound");
+    }
+    let adapter = adapters.swap_remove(picked);
+
+    #[derive(Debug)]
+    struct PhysicalDeviceInfo<'a> {
+        name: &'a str,
+        features: Features,
+        limits: Limits,
+    }
+
+    log::info!(
+        "Physical device picked: {:#?}",
+        PhysicalDeviceInfo {
+            name: &adapter.info.name,
+            features: adapter.physical_device.features(),
+            limits: adapter.physical_device.limits(),
+        }
+    );
+
+    let (device, families) = {
+        let families = config
+            .queues
+            .configure(&adapter.queue_families)
+            .into_iter()
+            .collect::<SmallVec<[_; 16]>>();
+        let (create_queues, get_queues): (SmallVec<[_; 32]>, SmallVec<[_; 32]>) = families
+            .iter()
+            .map(|(index, priorities)| {
+                (
+                    (&adapter.queue_families[index.0], priorities.as_ref()),
+                    (*index, priorities.as_ref().len()),
+                )
+            })
+            .unzip();
+
+        log::info!("Queues: {:#?}", get_queues);
+
+        let Gpu { device, mut queues } = unsafe { adapter.physical_device.open(&create_queues) }?;
+
+        assert_eq!(
+            FACTORY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            0,
+            "Only one Factory supported"
+        );
+
+        let families =
+            unsafe { families_from_device(&mut queues, get_queues, &adapter.queue_families) };
+        (device, families)
+    };
+
+    let (types, heaps) = config
+        .heaps
+        .configure(&adapter.physical_device.memory_properties());
+    let heaps = heaps.into_iter().collect::<SmallVec<[_; 16]>>();
+    let types = types.into_iter().collect::<SmallVec<[_; 32]>>();
+
+    log::info!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
+
+    let heaps = unsafe { Heaps::new(types, heaps) };
+
+    let epochs = families
+        .as_slice()
+        .iter()
+        .map(|f| parking_lot::RwLock::new(vec![0; f.as_slice().len()]))
+        .collect();
+
+    let factory = Factory {
+        heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
+        resources: ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
+        uploader: unsafe { Uploader::new(&device, &families) }?,
+        families_indices: families.indices().into(),
+        epochs,
+        device,
+        adapter,
+        instance: Box::new(instance),
+    };
+
+    Ok((factory, families))
 }

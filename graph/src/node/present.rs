@@ -3,7 +3,7 @@
 use crate::{
     command::{
         CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, MultiShot,
-        PendingState, QueueId, SimultaneousUse, Submission, Submit,
+        PendingState, Queue, SimultaneousUse, Submission, Submit,
     },
     factory::Factory,
     frame::Frames,
@@ -110,8 +110,9 @@ where
     fn build<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        _queue: usize,
         _aux: &mut T,
-        family: FamilyId,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
@@ -205,10 +206,10 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
-        factory: &mut Factory<B>,
-        _aux: &mut T,
+        _factory: &Factory<B>,
+        queue: &mut Queue<B>,
+        _aux: &T,
         _frames: &Frames<B>,
-        qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
@@ -219,9 +220,7 @@ where
         let ref mut for_image = self.per_image[next[0] as usize];
         self.free = Some(std::mem::replace(&mut for_image.acquire, acquire));
 
-        let family = factory.family_mut(qid.family());
-
-        family.queues_mut()[qid.index()].submit(
+        queue.submit(
             Some(
                 Submission::new()
                     .submits(Some(&for_image.submit))
@@ -234,11 +233,8 @@ where
             fence,
         );
 
-        next.present(
-            family.queues_mut()[qid.index()].raw(),
-            Some(&for_image.release),
-        )
-        .expect("Fix swapchain error");
+        next.present(queue.raw(), Some(&for_image.release))
+            .expect("Fix swapchain error");
     }
 
     unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &mut T) {

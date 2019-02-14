@@ -37,20 +37,14 @@ impl<B> Sampler<B>
 where
     B: gfx_hal::Backend,
 {
-    #[doc(hidden)]
-    pub fn new(info: Info, raw: B::Sampler, terminal: &Terminal<B::Sampler>) -> Self {
+    pub(crate) fn new(info: Info, raw: B::Sampler, terminal: &Terminal<B::Sampler>) -> Self {
         Sampler {
             escape: terminal.escape_shared(raw),
             info,
         }
     }
 
-    /// # Disclaimer
-    ///
-    /// This function is designed to use by other rendy crates.
-    /// User experienced enough to use it properly can find it without documentation.
-    #[doc(hidden)]
-    pub fn unescape(self) -> Option<B::Sampler> {
+    pub(crate) fn unescape(self) -> Option<B::Sampler> {
         EscapeShared::unescape(self.escape)
     }
 
@@ -61,7 +55,6 @@ where
         EscapeShared::keep_alive(&self.escape)
     }
 
-    #[doc(hidden)]
     pub fn raw(&self) -> &B::Sampler {
         &self.escape
     }

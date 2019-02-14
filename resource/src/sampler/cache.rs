@@ -14,7 +14,6 @@ impl<B> SamplerCache<B>
 where
     B: gfx_hal::Backend,
 {
-    #[doc(hidden)]
     pub fn get(
         &mut self,
         device: &impl gfx_hal::Device<B>,
@@ -42,7 +41,6 @@ where
         Sampler::new(Info { filter, wrap_mode }, sampler, raw_samplers)
     }
 
-    #[doc(hidden)]
     pub fn destroy(&mut self, device: &impl gfx_hal::Device<B>) {
         for (_, sampler) in self.samplers.drain() {
             unsafe { device.destroy_sampler(sampler.unescape().unwrap()) };

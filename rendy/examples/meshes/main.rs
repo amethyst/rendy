@@ -10,7 +10,7 @@
 )]
 
 use rendy::{
-    command::{DrawIndexedCommand, RenderPassEncoder},
+    command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, GraphBuilder, NodeBuffer, NodeImage},
     hal::{pso::DescriptorPool, Device},
@@ -86,7 +86,7 @@ struct Scene<B: gfx_hal::Backend> {
 }
 
 const MAX_LIGHTS: usize = 32;
-const MAX_OBJECTS: usize = 1024 * 8;
+const MAX_OBJECTS: usize = 1024;
 
 const UBERALIGN: u64 = 256;
 const MAX_FRAMES: u64 = 5;
@@ -108,6 +108,9 @@ const fn indirect_offset(index: usize) -> u64 {
     transforms_offset(index) + TRANSFORMS_SIZE
 }
 
+#[derive(Debug, Default)]
+struct MeshRenderPipelineDesc;
+
 #[derive(Debug)]
 struct MeshRenderPipeline<B: gfx_hal::Backend> {
     descriptor_pool: B::DescriptorPool,
@@ -115,15 +118,13 @@ struct MeshRenderPipeline<B: gfx_hal::Backend> {
     sets: Vec<Option<B::DescriptorSet>>,
 }
 
-impl<B> SimpleGraphicsPipeline<B, Scene<B>> for MeshRenderPipeline<B>
+impl<B> SimpleGraphicsPipelineDesc<B, Scene<B>> for MeshRenderPipelineDesc
 where
     B: gfx_hal::Backend,
 {
-    fn name() -> &'static str {
-        "Mesh"
-    }
+    type Pipeline = MeshRenderPipeline<B>;
 
-    fn layout() -> Layout {
+    fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
@@ -138,7 +139,9 @@ where
         }
     }
 
-    fn vertices() -> Vec<(
+    fn vertices(
+        &self,
+    ) -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
@@ -150,6 +153,7 @@ where
     }
 
     fn load_shader_set<'a>(
+        &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut Scene<B>,
@@ -180,12 +184,14 @@ where
     }
 
     fn build<'a>(
+        &self,
         factory: &mut Factory<B>,
+        _queue: QueueId,
         _aux: &mut Scene<B>,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<MeshRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
@@ -220,10 +226,18 @@ where
             sets: vec![None, None, None, None, None],
         })
     }
+}
+
+impl<B> SimpleGraphicsPipeline<B, Scene<B>> for MeshRenderPipeline<B>
+where
+    B: gfx_hal::Backend,
+{
+    type Desc = MeshRenderPipelineDesc;
 
     fn prepare(
         &mut self,
-        factory: &mut Factory<B>,
+        factory: &Factory<B>,
+        _queue: QueueId,
         set_layouts: &[B::DescriptorSetLayout],
         index: usize,
         scene: &Scene<B>,
@@ -347,7 +361,7 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let mut factory: Factory<Backend> = Factory::new(config).unwrap();
+    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
     let mut event_loop = EventsLoop::new();
 
@@ -425,7 +439,9 @@ fn main() {
 
     log::info!("{:#?}", scene);
 
-    let mut graph = graph_builder.build(&mut factory, &mut scene).unwrap();
+    let mut graph = graph_builder
+        .build(&mut factory, &mut families, &mut scene)
+        .unwrap();
 
     let icosphere = genmesh::generators::IcoSphere::subdivide(4);
     let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter())
@@ -468,9 +484,9 @@ fn main() {
         let start = frames.start;
         let from = scene.objects.len();
         for _ in &mut frames {
-            factory.cleanup();
+            factory.maintain(&mut families);
             event_loop.poll_events(|_| ());
-            graph.run(&mut factory, &mut scene);
+            graph.run(&mut factory, &mut families, &mut scene);
 
             let elapsed = checkpoint.elapsed();
 
@@ -479,8 +495,8 @@ fn main() {
                     let z = rz.sample(&mut rng);
                     nalgebra::Transform3::identity()
                         * nalgebra::Translation3::new(
-                            rxy.sample(&mut rng) * (z + 10.0),
-                            rxy.sample(&mut rng) * (z + 10.0),
+                            rxy.sample(&mut rng) * (z / 2.0 + 4.0),
+                            rxy.sample(&mut rng) * (z / 2.0 + 4.0),
                             -z,
                         )
                 })

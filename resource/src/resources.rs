@@ -1,9 +1,9 @@
 use {
     crate::{
         buffer,
-        escape::Terminal,
+        escape::{KeepAlive, Terminal},
         image,
-        memory::{Block, Heaps},
+        memory::{Block, Heaps, MemoryBlock},
         sampler::{Sampler, SamplerCache},
     },
     smallvec::SmallVec,
@@ -31,14 +31,14 @@ impl Epochs {
 #[derive(Debug, Derivative)]
 #[derivative(Default(bound = ""))]
 pub struct Resources<B: gfx_hal::Backend> {
-    buffers: Terminal<buffer::Inner<B>>,
-    images: Terminal<image::Inner<B>>,
-    image_views: Terminal<image::InnerView<B>>,
+    buffers: Terminal<(B::Buffer, MemoryBlock<B>)>,
+    images: Terminal<(B::Image, Option<MemoryBlock<B>>)>,
+    image_views: Terminal<(B::ImageView, KeepAlive)>,
     sampler_cache: SamplerCache<B>,
 
-    dropped_buffers: VecDeque<(Epochs, buffer::Inner<B>)>,
-    dropped_images: VecDeque<(Epochs, image::Inner<B>)>,
-    dropped_image_views: VecDeque<(Epochs, image::InnerView<B>)>,
+    dropped_buffers: VecDeque<(Epochs, B::Buffer, MemoryBlock<B>)>,
+    dropped_images: VecDeque<(Epochs, B::Image, Option<MemoryBlock<B>>)>,
+    dropped_image_views: VecDeque<(Epochs, B::ImageView, KeepAlive)>,
 }
 
 impl<B> Resources<B>
@@ -102,24 +102,10 @@ where
     // /// Destroy buffer.
     // /// Buffer can be dropped but this method reduces overhead.
     // pub fn destroy_buffer(&mut self, buffer: buffer::Buffer<B>) {
-    //     buffer.unescape()
-    //         .map(|inner| self.dropped_buffers.push(inner));
+    //     buffer
+    //         .unescape()
+    //         .map(|(raw, block)| self.dropped_buffers.push(inner));
     // }
-
-    /// Drop inner buffer representation.
-    ///
-    /// # Safety
-    ///
-    /// Device must not attempt to use the buffer.
-    unsafe fn actually_destroy_buffer(
-        inner: buffer::Inner<B>,
-        device: &impl gfx_hal::Device<B>,
-        heaps: &mut Heaps<B>,
-    ) {
-        let (raw, block) = inner.dispose();
-        device.destroy_buffer(raw);
-        heaps.free(device, block);
-    }
 
     /// Create an image and bind to the memory that support intended usage.
     pub fn create_image(
@@ -286,35 +272,6 @@ where
     //         .map(|inner| self.dropped_image_views.push(inner));
     // }
 
-    /// Drop inner image representation.
-    ///
-    /// # Safety
-    ///
-    /// Device must not attempt to use the image.
-    unsafe fn actually_destroy_image(
-        inner: image::Inner<B>,
-        device: &impl gfx_hal::Device<B>,
-        heaps: &mut Heaps<B>,
-    ) {
-        let (raw, block) = inner.dispose();
-        device.destroy_image(raw);
-        block.map(|block| heaps.free(device, block));
-    }
-
-    /// Drop inner image view representation.
-    ///
-    /// # Safety
-    ///
-    /// Device must not attempt to use the image view.
-    unsafe fn actually_destroy_image_view(
-        inner: image::InnerView<B>,
-        device: &impl gfx_hal::Device<B>,
-    ) {
-        let (raw, image_kp) = inner.dispose();
-        device.destroy_image_view(raw);
-        drop(image_kp);
-    }
-
     /// Recycle dropped resources.
     pub unsafe fn cleanup(
         &mut self,
@@ -325,39 +282,48 @@ where
     ) {
         log::trace!("Cleanup resources");
 
-        while let Some((epoch, buffer)) = self.dropped_buffers.pop_front() {
+        while let Some((epoch, raw, block)) = self.dropped_buffers.pop_front() {
             if Epochs::is_before(&epoch, &complete) {
-                self.dropped_buffers.push_front((epoch, buffer));
+                self.dropped_buffers.push_front((epoch, raw, block));
                 break;
             }
 
-            Self::actually_destroy_buffer(buffer, device, heaps);
+            device.destroy_buffer(raw);
+            heaps.free(device, block);
         }
 
-        while let Some((epoch, image_view)) = self.dropped_image_views.pop_front() {
+        while let Some((epoch, raw, kp)) = self.dropped_image_views.pop_front() {
             if Epochs::is_before(&epoch, &complete) {
-                self.dropped_image_views.push_front((epoch, image_view));
+                self.dropped_image_views.push_front((epoch, raw, kp));
                 break;
             }
 
-            Self::actually_destroy_image_view(image_view, device);
+            device.destroy_image_view(raw);
+            drop(kp);
         }
 
-        while let Some((epoch, image)) = self.dropped_images.pop_front() {
+        while let Some((epoch, raw, block)) = self.dropped_images.pop_front() {
             if Epochs::is_before(&epoch, &complete) {
-                self.dropped_images.push_front((epoch, image));
+                self.dropped_images.push_front((epoch, raw, block));
                 break;
             }
 
-            Self::actually_destroy_image(image, device, heaps);
+            device.destroy_image(raw);
+            block.map(|block| heaps.free(device, block));
         }
 
-        self.dropped_buffers
-            .extend(self.buffers.drain().map(|r| (next.clone(), r)));
-        self.dropped_image_views
-            .extend(self.image_views.drain().map(|r| (next.clone(), r)));
+        self.dropped_buffers.extend(
+            self.buffers
+                .drain()
+                .map(|(raw, block)| (next.clone(), raw, block)),
+        );
+        self.dropped_image_views.extend(
+            self.image_views
+                .drain()
+                .map(|(raw, block)| (next.clone(), raw, block)),
+        );
         self.dropped_images
-            .extend(self.images.drain().map(|r| (next.clone(), r)));
+            .extend(self.images.drain().map(|(raw, kp)| (next.clone(), raw, kp)));
     }
 
     /// Destroy all dropped resources.
@@ -367,31 +333,34 @@ where
     /// Device must be idle.
     pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
         log::trace!("Dispose of all resources");
-        for buffer in self
+        for (raw, block) in self
             .dropped_buffers
             .drain(..)
-            .map(|(_, r)| r)
+            .map(|(_, raw, block)| (raw, block))
             .chain(self.buffers.drain())
         {
-            Self::actually_destroy_buffer(buffer, device, heaps);
+            device.destroy_buffer(raw);
+            heaps.free(device, block);
         }
 
-        for image_view in self
+        for (raw, kp) in self
             .dropped_image_views
             .drain(..)
-            .map(|(_, r)| r)
+            .map(|(_, raw, kp)| (raw, kp))
             .chain(self.image_views.drain())
         {
-            Self::actually_destroy_image_view(image_view, device);
+            device.destroy_image_view(raw);
+            drop(kp);
         }
 
-        for image in self
+        for (raw, block) in self
             .dropped_images
             .drain(..)
-            .map(|(_, r)| r)
+            .map(|(_, raw, block)| (raw, block))
             .chain(self.images.drain())
         {
-            Self::actually_destroy_image(image, device, heaps);
+            device.destroy_image(raw);
+            block.map(|block| heaps.free(device, block));
         }
 
         self.sampler_cache.destroy(device);

@@ -30,8 +30,12 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-full = ["command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
-default = ["full"]
+base = ["command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+default = ["base"]
+
+mesh-obj = ["mesh", "rendy-mesh/obj"]
+
+full = ["base", "mesh-obj"]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }

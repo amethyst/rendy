@@ -12,8 +12,10 @@
 )]
 use rendy_resource::{
     escape::Terminal,
-    image::{Image, Info, Inner},
+    image::{Image, Info},
 };
+
+use rendy_memory::MemoryBlock;
 
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
@@ -66,7 +68,7 @@ macro_rules! create_surface_for_backend {
             match b {$(
                 #[$feature]
                 _B::$backend => {
-                    if let Some(instance) = std::any::Any::downcast_ref(&**$instance) {
+                    if let Some(instance) = std::any::Any::downcast_ref($instance) {
                         let surface: Box<dyn std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
                         return *surface.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
                     }
@@ -93,7 +95,7 @@ macro_rules! create_surface_for_backend {
 
 #[allow(unused_variables)]
 fn create_surface<B: gfx_hal::Backend>(
-    instance: &Box<dyn std::any::Any>,
+    instance: &dyn std::any::Any,
     window: &winit::Window,
 ) -> B::Surface {
     create_surface_for_backend!(instance, window);
@@ -121,7 +123,7 @@ where
     B: gfx_hal::Backend,
 {
     /// Create surface for the window.
-    pub fn new(instance: &Box<dyn std::any::Any>, window: std::sync::Arc<winit::Window>) -> Self {
+    pub fn new(instance: &dyn std::any::Any, window: std::sync::Arc<winit::Window>) -> Self {
         let raw = create_surface::<B>(instance, &window);
         Surface { window, raw }
     }
@@ -329,7 +331,7 @@ pub struct Target<B: gfx_hal::Backend> {
     surface: B::Surface,
     swapchain: B::Swapchain,
     backbuffer: Backbuffer<B>,
-    terminal: Option<Terminal<Inner<B>>>,
+    terminal: Option<Terminal<(B::Image, Option<MemoryBlock<B>>)>>,
     window: std::sync::Arc<winit::Window>,
     relevant: relevant::Relevant,
 }
@@ -358,7 +360,7 @@ where
     pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) {
         drop(self.backbuffer);
         self.terminal
-            .map(|mut terminal| terminal.drain().map(Inner::dispose).for_each(drop));
+            .map(|mut terminal| terminal.drain().for_each(drop));
         self.relevant.dispose();
         device.destroy_swapchain(self.swapchain);
         drop(self.surface);

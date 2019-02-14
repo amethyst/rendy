@@ -4,7 +4,7 @@ pub use self::simple::*;
 
 use {
     crate::{
-        command::RenderPassEncoder,
+        command::{QueueId, RenderPassEncoder},
         factory::Factory,
         node::{
             render::{pass::SubpassBuilder, PrepareResult},
@@ -30,9 +30,6 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         }
     }
 
-    /// RenderGroup name.
-    fn name(&self) -> &str;
-
     /// Get buffers used by the group
     fn buffers(&self) -> Vec<BufferAccess>;
 
@@ -49,6 +46,7 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
+        queue: QueueId,
         aux: &mut T,
         framebuffer_width: u32,
         framebuffer_height: u32,
@@ -59,7 +57,13 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 }
 
 pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
-    fn prepare(&mut self, factory: &mut Factory<B>, index: usize, aux: &T) -> PrepareResult;
+    fn prepare(
+        &mut self,
+        factory: &Factory<B>,
+        queue: QueueId,
+        index: usize,
+        aux: &T,
+    ) -> PrepareResult;
 
     fn draw_inline(&mut self, encoder: RenderPassEncoder<'_, B>, index: usize, aux: &T);
 
@@ -93,6 +97,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
+        queue: QueueId,
         aux: &mut T,
         framebuffer_width: u32,
         framebuffer_height: u32,
@@ -139,6 +144,7 @@ where
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
+        queue: QueueId,
         aux: &mut T,
         framebuffer_width: u32,
         framebuffer_height: u32,
@@ -148,6 +154,7 @@ where
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
         self.desc.build(
             factory,
+            queue,
             aux,
             framebuffer_width,
             framebuffer_height,

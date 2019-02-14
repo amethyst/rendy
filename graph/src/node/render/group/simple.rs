@@ -1,14 +1,13 @@
 use {
     super::{RenderGroup, RenderGroupDesc},
     crate::{
-        command::RenderPassEncoder,
+        command::{QueueId, RenderPassEncoder},
         factory::Factory,
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
         },
     },
     gfx_hal::{Backend, Device},
-    std::marker::PhantomData,
 };
 
 /// Set layout
@@ -48,70 +47,53 @@ pub struct Pipeline {
     pub depth_stencil: gfx_hal::pso::DepthStencilDesc,
 }
 
-/// Simple render pipeline.
-pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
-    std::fmt::Debug + Send + Sync + 'static
-{
-    /// Render pipeline name.
-    fn name() -> &'static str
-    where
-        Self: Sized;
-
-    /// Make simple render group builder.
-    fn builder() -> DescBuilder<B, T, PhantomData<Self>>
-    where
-        Self: Sized,
-    {
-        PhantomData.builder()
-    }
+pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
+    type Pipeline: SimpleGraphicsPipeline<B, T>;
 
     /// Get set or buffer resources the node uses.
-    fn buffers() -> Vec<BufferAccess>
-    where
-        Self: Sized,
-    {
+    fn buffers(&self) -> Vec<BufferAccess> {
         Vec::new()
     }
 
     /// Get set or image resources the node uses.
-    fn images() -> Vec<ImageAccess>
-    where
-        Self: Sized,
-    {
+    fn images(&self) -> Vec<ImageAccess> {
         Vec::new()
     }
 
-    /// Number of color output images.
-    fn colors() -> usize
-    where
-        Self: Sized,
-    {
-        1
+    /// Color blend descs.
+    fn colors(&self) -> Vec<gfx_hal::pso::ColorBlendDesc> {
+        vec![gfx_hal::pso::ColorBlendDesc(
+            gfx_hal::pso::ColorMask::ALL,
+            gfx_hal::pso::BlendState::ALPHA,
+        )]
     }
 
-    /// Is depth image used.
-    fn depth() -> bool
-    where
-        Self: Sized,
-    {
-        true
+    /// Depth stencil desc.
+    fn depth_stencil(&self) -> Option<gfx_hal::pso::DepthStencilDesc> {
+        Some(gfx_hal::pso::DepthStencilDesc {
+            depth: gfx_hal::pso::DepthTest::On {
+                fun: gfx_hal::pso::Comparison::Less,
+                write: true,
+            },
+            depth_bounds: false,
+            stencil: gfx_hal::pso::StencilTest::Off,
+        })
     }
 
     /// Get vertex input.
-    fn vertices() -> Vec<(
+    fn vertices(
+        &self,
+    ) -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
-    )>
-    where
-        Self: Sized,
-    {
+    )> {
         Vec::new()
     }
 
     /// Layout for graphics pipeline
     /// Default implementation for `pipeline` will use this.
-    fn layout() -> Layout {
+    fn layout(&self) -> Layout {
         Layout {
             sets: Vec::new(),
             push_constants: Vec::new(),
@@ -119,33 +101,14 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
     }
 
     /// Graphics pipelines
-    fn pipeline() -> Pipeline
-    where
-        Self: Sized,
-    {
+    fn pipeline(&self) -> Pipeline {
         Pipeline {
-            layout: Self::layout(),
-            vertices: Self::vertices(),
-            colors: (0..Self::colors())
-                .map(|_| {
-                    gfx_hal::pso::ColorBlendDesc(
-                        gfx_hal::pso::ColorMask::ALL,
-                        gfx_hal::pso::BlendState::ALPHA,
-                    )
-                })
-                .collect(),
-            depth_stencil: if Self::depth() {
-                gfx_hal::pso::DepthStencilDesc {
-                    depth: gfx_hal::pso::DepthTest::On {
-                        fun: gfx_hal::pso::Comparison::Less,
-                        write: true,
-                    },
-                    depth_bounds: false,
-                    stencil: gfx_hal::pso::StencilTest::Off,
-                }
-            } else {
-                gfx_hal::pso::DepthStencilDesc::default()
-            },
+            layout: self.layout(),
+            vertices: self.vertices(),
+            colors: self.colors(),
+            depth_stencil: self
+                .depth_stencil()
+                .unwrap_or(gfx_hal::pso::DepthStencilDesc::default()),
         }
     }
 
@@ -161,30 +124,45 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
     /// `aux`       - auxiliary data container. May be anything the implementation desires.
     ///
     fn load_shader_set<'a>(
+        &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         aux: &mut T,
-    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B>
-    where
-        Self: Sized;
+    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B>;
 
     /// Build pass instance.
     fn build<'a>(
+        &self,
         factory: &mut Factory<B>,
+        queue: QueueId,
         aux: &mut T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
-    ) -> Result<Self, failure::Error>
+    ) -> Result<Self::Pipeline, failure::Error>;
+}
+
+/// Simple render pipeline.
+pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
+    std::fmt::Debug + Sized + Send + Sync + 'static
+{
+    type Desc: SimpleGraphicsPipelineDesc<B, T, Pipeline = Self>;
+
+    /// Make simple render group builder.
+    fn builder() -> DescBuilder<B, T, Self::Desc>
     where
-        Self: Sized;
+        Self::Desc: Default,
+    {
+        Self::Desc::default().builder()
+    }
 
     /// Prepare to record drawing commands.
     ///
     /// Should return true if commands must be re-recorded.
     fn prepare(
         &mut self,
-        _factory: &mut Factory<B>,
+        _factory: &Factory<B>,
+        _queue: QueueId,
         _set_layouts: &[B::DescriptorSetLayout],
         _index: usize,
         _aux: &T,
@@ -212,35 +190,32 @@ pub struct SimpleRenderGroup<B: Backend, P> {
     pipeline: P,
 }
 
-impl<B, T, P> RenderGroupDesc<B, T> for PhantomData<P>
+impl<B, T, P> RenderGroupDesc<B, T> for P
 where
     B: Backend,
     T: ?Sized,
-    P: SimpleGraphicsPipeline<B, T>,
+    P: SimpleGraphicsPipelineDesc<B, T>,
 {
-    fn name(&self) -> &str {
-        P::name()
-    }
-
     fn buffers(&self) -> Vec<BufferAccess> {
-        P::buffers()
+        self.buffers()
     }
 
     fn images(&self) -> Vec<ImageAccess> {
-        P::images()
+        self.images()
     }
 
     fn colors(&self) -> usize {
-        P::colors()
+        self.colors().len()
     }
 
     fn depth(&self) -> bool {
-        P::depth()
+        self.depth_stencil().is_some()
     }
 
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
+        queue: QueueId,
         aux: &mut T,
         framebuffer_width: u32,
         framebuffer_height: u32,
@@ -250,10 +225,10 @@ where
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
         let mut shaders = Vec::new();
 
-        log::trace!("Load shader sets for '{}'", P::name());
-        let shader_set = P::load_shader_set(&mut shaders, factory, aux);
+        log::trace!("Load shader sets for");
+        let shader_set = self.load_shader_set(&mut shaders, factory, aux);
 
-        let pipeline = P::pipeline();
+        let pipeline = self.pipeline();
 
         let set_layouts = pipeline
             .layout
@@ -272,7 +247,7 @@ where
                 .create_pipeline_layout(&set_layouts, pipeline.layout.push_constants)
         }?;
 
-        assert_eq!(pipeline.colors.len(), P::colors());
+        assert_eq!(pipeline.colors.len(), self.colors().len());
 
         let mut vertex_buffers = Vec::new();
         let mut attributes = Vec::new();
@@ -324,9 +299,9 @@ where
         }
         .remove(0)?;
 
-        let pipeline = P::build(factory, aux, buffers, images, &set_layouts)?;
+        let pipeline = self.build(factory, queue, aux, buffers, images, &set_layouts)?;
 
-        Ok(Box::new(SimpleRenderGroup::<B, P> {
+        Ok(Box::new(SimpleRenderGroup::<B, _> {
             set_layouts,
             pipeline_layout,
             graphics_pipeline,
@@ -341,9 +316,15 @@ where
     T: ?Sized,
     P: SimpleGraphicsPipeline<B, T>,
 {
-    fn prepare(&mut self, factory: &mut Factory<B>, index: usize, aux: &T) -> PrepareResult {
+    fn prepare(
+        &mut self,
+        factory: &Factory<B>,
+        queue: QueueId,
+        index: usize,
+        aux: &T,
+    ) -> PrepareResult {
         self.pipeline
-            .prepare(factory, &self.set_layouts, index, aux)
+            .prepare(factory, queue, &self.set_layouts, index, aux)
     }
 
     fn draw_inline(&mut self, mut encoder: RenderPassEncoder<'_, B>, index: usize, aux: &T) {
