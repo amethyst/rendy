@@ -3,14 +3,15 @@
 //! This examples shows how to render a sprite on a white background.
 //!
 
+#![cfg_attr(
+    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
+    allow(unused)
+)]
+
 use rendy::{
-    command::{Family, QueueId, RenderPassEncoder},
+    command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
-    graph::{
-        present::PresentNode,
-        render::{Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline},
-        Graph, GraphBuilder, NodeBuffer, NodeImage,
-    },
+    graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
     resource::buffer::Buffer,
@@ -45,6 +46,9 @@ lazy_static::lazy_static! {
     );
 }
 
+#[derive(Debug, Default)]
+struct SpriteGraphicsPipelineDesc;
+
 #[derive(Debug)]
 struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
     texture: Texture<B>,
@@ -53,20 +57,20 @@ struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
     descriptor_set: B::DescriptorSet,
 }
 
-impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
+impl<B, T> SimpleGraphicsPipelineDesc<B, T> for SpriteGraphicsPipelineDesc
 where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
-    fn name() -> &'static str {
-        "Sprite"
+    type Pipeline = SpriteGraphicsPipeline<B>;
+
+    fn depth_stencil(&self) -> Option<gfx_hal::pso::DepthStencilDesc> {
+        None
     }
 
-    fn depth() -> bool {
-        false
-    }
-
-    fn vertices() -> Vec<(
+    fn vertices(
+        &self,
+    ) -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
@@ -75,6 +79,7 @@ where
     }
 
     fn load_shader_set<'b>(
+        &self,
         storage: &'b mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut T,
@@ -104,7 +109,7 @@ where
         }
     }
 
-    fn layout() -> Layout {
+    fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
                 bindings: vec![
@@ -129,12 +134,14 @@ where
     }
 
     fn build<'b>(
+        &self,
         factory: &mut Factory<B>,
+        queue: QueueId,
         _aux: &mut T,
         buffers: Vec<NodeBuffer<'b, B>>,
         images: Vec<NodeImage<'b, B>>,
         set_layouts: &[B::DescriptorSetLayout],
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<SpriteGraphicsPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
@@ -147,8 +154,6 @@ where
         let image = image::load_from_memory(&image_bytes[..]).unwrap().to_rgba();
 
         let (width, height) = image.dimensions();
-
-        let family: &Family<B> = factory.families().first().unwrap();
 
         let mut image_data = Vec::<Rgba8Srgb>::new();
 
@@ -169,7 +174,7 @@ where
 
         let texture = texture_builder
             .build(
-                QueueId(family.id(), 0),
+                queue,
                 gfx_hal::image::Access::TRANSFER_WRITE,
                 gfx_hal::image::Layout::TransferDstOptimal,
                 factory,
@@ -229,10 +234,19 @@ where
             descriptor_set,
         })
     }
+}
+
+impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
+where
+    B: gfx_hal::Backend,
+    T: ?Sized,
+{
+    type Desc = SpriteGraphicsPipelineDesc;
 
     fn prepare(
         &mut self,
-        factory: &mut Factory<B>,
+        factory: &Factory<B>,
+        _queue: QueueId,
         _set_layouts: &[B::DescriptorSetLayout],
         _index: usize,
         _aux: &T,
@@ -316,6 +330,7 @@ where
 fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
+    families: &mut Families<Backend>,
     mut graph: Graph<Backend, ()>,
 ) -> Result<(), failure::Error> {
     let started = std::time::Instant::now();
@@ -332,9 +347,9 @@ fn run(
     let mut elapsed = started.elapsed();
 
     for _ in &mut frames {
-        factory.cleanup();
+        factory.maintain(families);
         event_loop.poll_events(|_| ());
-        graph.run(factory, &mut ());
+        graph.run(factory, families, &mut ());
 
         elapsed = started.elapsed();
         if elapsed >= std::time::Duration::new(5, 0) {
@@ -364,7 +379,7 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let mut factory: Factory<Backend> = Factory::new(config).unwrap();
+    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
     let mut event_loop = EventsLoop::new();
 
@@ -398,9 +413,11 @@ fn main() {
 
     graph_builder.add_node(PresentNode::builder(surface, color).with_dependency(pass));
 
-    let graph = graph_builder.build(&mut factory, &mut ()).unwrap();
+    let graph = graph_builder
+        .build(&mut factory, &mut families, &mut ())
+        .unwrap();
 
-    run(&mut event_loop, &mut factory, graph).unwrap();
+    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

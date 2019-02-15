@@ -6,7 +6,7 @@ pub mod render;
 
 use crate::{
     chain,
-    command::{Capability, Family, FamilyId, Fence, QueueId, Submission, Submittable, Supports},
+    command::{Capability, Family, FamilyId, Fence, Queue, Submission, Submittable, Supports},
     factory::Factory,
     frame::Frames,
     resource::{Buffer, Image},
@@ -213,8 +213,8 @@ pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
     /// Returned submits are guaranteed to be submitted within specified frame.
     fn run<'a>(
         &'a mut self,
-        factory: &mut Factory<B>,
-        aux: &mut T,
+        factory: &Factory<B>,
+        aux: &T,
         frames: &'a Frames<B>,
     ) -> <Self as NodeSubmittable<'a, B>>::Submittables;
 
@@ -267,8 +267,9 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        queue: usize,
         aux: &mut T,
-        family: FamilyId,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Self::Node, failure::Error>;
@@ -280,10 +281,10 @@ pub trait DynNode<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sync + Send
     /// Recorded buffers go into `submits`.
     unsafe fn run<'a>(
         &mut self,
-        factory: &mut Factory<B>,
-        aux: &mut T,
+        factory: &Factory<B>,
+        queue: &mut Queue<B>,
+        aux: &T,
         frames: &Frames<B>,
-        qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
@@ -305,16 +306,16 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
-        factory: &mut Factory<B>,
-        aux: &mut T,
+        factory: &Factory<B>,
+        queue: &mut Queue<B>,
+        aux: &T,
         frames: &Frames<B>,
-        qid: QueueId,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
         let submittables = Node::run(&mut self.0, factory, aux, frames);
-        factory.family_mut(qid.family()).queues_mut()[qid.index()].submit(
+        queue.submit(
             Some(
                 Submission::new()
                     .submits(submittables)
@@ -347,18 +348,22 @@ pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
     fn build<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        queue: usize,
         aux: &mut T,
-        family: FamilyId,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error>;
 
+    /// TODO: Make this code part of `GraphBuilder::build`
+    /// Hidden because no one should use or override it.
     #[doc(hidden)]
     fn build_impl<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        queue: usize,
         aux: &mut T,
-        family: FamilyId,
         buffers: &'a mut [Option<Buffer<B>>],
         images: &'a mut [Option<(Image<B>, Option<gfx_hal::command::ClearValue>)>],
         chains: &chain::Chains,
@@ -450,7 +455,7 @@ pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
                 }
             })
             .collect();
-        self.build(factory, aux, family, buffers, images)
+        self.build(factory, family, queue, aux, buffers, images)
     }
 }
 
@@ -550,14 +555,15 @@ where
     fn build<'a>(
         self: Box<Self>,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        queue: usize,
         aux: &mut T,
-        family: FamilyId,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
         Ok(Box::new((self
             .desc
-            .build(factory, aux, family, buffers, images)?,)))
+            .build(factory, family, queue, aux, buffers, images)?,)))
     }
 }
 

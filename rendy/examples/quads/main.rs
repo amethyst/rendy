@@ -10,15 +10,18 @@
 
 use rendy::{
     command::{
-        CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, FamilyId, MultiShot,
-        PendingState, RenderPassEncoder, SimultaneousUse, Submit,
+        CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
+        MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
     factory::{Config, Factory},
     frame::Frames,
     graph::{
         gfx_acquire_barriers, gfx_release_barriers,
         present::PresentNode,
-        render::{Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline},
+        render::{
+            Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline,
+            SimpleGraphicsPipelineDesc,
+        },
         BufferAccess, Graph, GraphBuilder, Node, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
     },
     hal::{pso::DescriptorPool, Device},
@@ -66,8 +69,11 @@ const QUADS: u32 = 2_000_000;
 const DIVIDE: u32 = 1;
 const PER_CALL: u32 = QUADS / DIVIDE;
 
+#[derive(Debug, Default)]
+struct QuadsRenderPipelineDesc;
+
 #[derive(Debug)]
-struct QuadsRenderPass<B: gfx_hal::Backend> {
+struct QuadsRenderPipeline<B: gfx_hal::Backend> {
     indirect: Buffer<B>,
     vertices: Buffer<B>,
 
@@ -75,16 +81,16 @@ struct QuadsRenderPass<B: gfx_hal::Backend> {
     descriptor_set: B::DescriptorSet,
 }
 
-impl<B, T> SimpleGraphicsPipeline<B, T> for QuadsRenderPass<B>
+impl<B, T> SimpleGraphicsPipelineDesc<B, T> for QuadsRenderPipelineDesc
 where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
-    fn name() -> &'static str {
-        "Quads"
-    }
+    type Pipeline = QuadsRenderPipeline<B>;
 
-    fn vertices() -> Vec<(
+    fn vertices(
+        &self,
+    ) -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
@@ -93,6 +99,7 @@ where
     }
 
     fn load_shader_set<'a>(
+        &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
         _aux: &mut T,
@@ -122,7 +129,7 @@ where
         }
     }
 
-    fn buffers() -> Vec<BufferAccess> {
+    fn buffers(&self) -> Vec<BufferAccess> {
         vec![BufferAccess {
             access: gfx_hal::buffer::Access::SHADER_READ,
             stages: gfx_hal::pso::PipelineStage::VERTEX_SHADER,
@@ -130,7 +137,7 @@ where
         }]
     }
 
-    fn layout() -> Layout {
+    fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
@@ -146,12 +153,14 @@ where
     }
 
     fn build<'a>(
+        &self,
         factory: &mut Factory<B>,
+        _queue: QueueId,
         _aux: &mut T,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
@@ -293,17 +302,26 @@ where
             )
         }
 
-        Ok(QuadsRenderPass {
+        Ok(QuadsRenderPipeline {
             indirect,
             vertices,
             descriptor_pool,
             descriptor_set,
         })
     }
+}
+
+impl<B, T> SimpleGraphicsPipeline<B, T> for QuadsRenderPipeline<B>
+where
+    B: gfx_hal::Backend,
+    T: ?Sized,
+{
+    type Desc = QuadsRenderPipelineDesc;
 
     fn prepare(
         &mut self,
-        _factory: &mut Factory<B>,
+        _factory: &Factory<B>,
+        _queue: QueueId,
         _sets: &[B::DescriptorSetLayout],
         _index: usize,
         _aux: &T,
@@ -370,8 +388,8 @@ where
 
     fn run<'a>(
         &'a mut self,
-        _factory: &mut Factory<B>,
-        _aux: &mut T,
+        _factory: &Factory<B>,
+        _aux: &T,
         _frames: &'a Frames<B>,
     ) -> &'a [Submit<B, SimultaneousUse>] {
         std::slice::from_ref(&self.submit)
@@ -411,8 +429,9 @@ where
     fn build<'a>(
         &self,
         factory: &mut Factory<B>,
+        family: &mut Family<B>,
+        _queue: usize,
         _aux: &mut T,
-        family: FamilyId,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Self::Node, failure::Error> {
@@ -547,6 +566,7 @@ where
 fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
+    families: &mut Families<Backend>,
     mut graph: Graph<Backend, ()>,
 ) -> Result<(), failure::Error> {
     let started = std::time::Instant::now();
@@ -555,9 +575,9 @@ fn run(
     let mut elapsed = started.elapsed();
 
     for _ in &mut frames {
-        factory.cleanup();
+        factory.maintain(families);
         event_loop.poll_events(|_| ());
-        graph.run(factory, &mut ());
+        graph.run(factory, families, &mut ());
 
         elapsed = started.elapsed();
         if elapsed >= std::time::Duration::new(5, 0) {
@@ -587,7 +607,7 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let mut factory: Factory<Backend> = Factory::new(config).unwrap();
+    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
     let mut event_loop = EventsLoop::new();
 
@@ -630,7 +650,7 @@ fn main() {
     let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));
 
     let pass = graph_builder.add_node(
-        QuadsRenderPass::builder()
+        QuadsRenderPipeline::builder()
             .with_buffer(posvel)
             .with_dependency(grav)
             .into_subpass()
@@ -641,9 +661,11 @@ fn main() {
 
     graph_builder.add_node(PresentNode::builder(surface, color).with_dependency(pass));
 
-    let graph = graph_builder.build(&mut factory, &mut ()).unwrap();
+    let graph = graph_builder
+        .build(&mut factory, &mut families, &mut ())
+        .unwrap();
 
-    run(&mut event_loop, &mut factory, graph).unwrap();
+    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

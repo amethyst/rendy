@@ -1,6 +1,7 @@
 use {
     crate::{
-        chain, command,
+        chain,
+        command::{Families, QueueId},
         factory::Factory,
         frame::{Fences, Frames},
         memory::MemoryUsageValue,
@@ -17,7 +18,7 @@ const UNIVERSAL_ALIGNMENT: u64 = 512;
 #[derive(Debug)]
 struct GraphNode<B: Backend, T: ?Sized> {
     node: Box<dyn DynNode<B, T>>,
-    queue: command::QueueId,
+    queue: QueueId,
 }
 
 /// Graph that renders whole frame.
@@ -56,7 +57,7 @@ where
     ///               This function may not use all fences. Unused fences are left in signaled state.
     ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
     ///               So it's OK to start with empty `Vec`.
-    pub fn run(&mut self, factory: &mut Factory<B>, aux: &mut T) {
+    pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
         if self.frames.next().index() >= self.inflight {
             let wait = self.frames.next().index() - self.inflight;
             let ref mut self_fences = self.fences;
@@ -99,9 +100,9 @@ where
             unsafe {
                 node.run(
                     factory,
+                    families.family_mut(queue.family()).queue_mut(queue.index()),
                     aux,
                     &self.frames,
-                    *queue,
                     &submission
                         .sync()
                         .wait
@@ -140,7 +141,7 @@ where
     }
 
     /// Get queue that will exeute given node.
-    pub fn node_queue(&self, node: NodeId) -> command::QueueId {
+    pub fn node_queue(&self, node: NodeId) -> QueueId {
         self.nodes[node.0].queue
     }
 
@@ -246,6 +247,7 @@ where
     pub fn build(
         self,
         factory: &mut Factory<B>,
+        families: &mut Families<B>,
         aux: &mut T,
     ) -> Result<Graph<B, T>, failure::Error> {
         log::trace!("Schedule nodes execution");
@@ -253,10 +255,10 @@ where
             .nodes
             .iter()
             .enumerate()
-            .map(|(i, b)| make_chain_node(&**b, i, &factory))
+            .map(|(i, b)| make_chain_node(&**b, i, families))
             .collect();
 
-        let chains = chain::collect(chain_nodes, |qid| factory.family(qid).queues().len());
+        let chains = chain::collect(chain_nodes, |id| families.family(id).as_slice().len());
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
         log::trace!("Allocate buffers");
@@ -325,8 +327,9 @@ where
                     log::trace!("Build node {:#?}", builder);
                     let node = builder.build_impl(
                         factory,
+                        families.family_mut(family.id()),
+                        queue.id().index(),
                         aux,
-                        family.id(),
                         &mut buffers,
                         &mut images,
                         &chains,
@@ -349,7 +352,7 @@ where
                 .map(Option::unwrap)
                 .map(|(node, qid)| GraphNode {
                     node,
-                    queue: command::QueueId(qid.family(), qid.index()),
+                    queue: QueueId(qid.family(), qid.index()),
                 })
                 .collect(),
             schedule,
@@ -370,7 +373,7 @@ where
 fn make_chain_node<B, T>(
     builder: &dyn NodeBuilder<B, T>,
     id: usize,
-    factory: &Factory<B>,
+    families: &Families<B>,
 ) -> chain::Node
 where
     B: Backend,
@@ -380,7 +383,7 @@ where
     let images = builder.images();
     chain::Node {
         id,
-        family: builder.family(factory.families()).unwrap(),
+        family: builder.family(families.as_slice()).unwrap(),
         dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
         buffers: buffers
             .into_iter()

@@ -3,6 +3,12 @@ name = "rendy-chain"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/omni-viral/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy-chain"
+keywords = ["graphics", "gfx-hal", "rendy"]
+categories = ["rendering"]
+description = "Rendy's node synchronization tool"
 
 [dependencies]
 gfx-hal = "0.1"

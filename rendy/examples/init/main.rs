@@ -27,7 +27,8 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let factory: Factory<Backend> = Factory::new(config).unwrap();
+    let (factory, families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
+    drop(families);
     drop(factory);
 }
 

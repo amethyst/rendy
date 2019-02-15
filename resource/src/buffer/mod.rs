@@ -23,43 +23,17 @@ pub struct Info {
 }
 
 /// Generic buffer object wrapper.
-///
-/// # Parameters
-///
-/// `T` - type of the memory object of memory block.
-/// `B` - raw buffer type.
 #[derive(Debug)]
 pub struct Buffer<B: gfx_hal::Backend> {
-    escape: Escape<Inner<B>>,
+    escape: Escape<(B::Buffer, MemoryBlock<B>)>,
     info: Info,
-}
-
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct Inner<B: gfx_hal::Backend> {
-    block: MemoryBlock<B>,
-    raw: B::Buffer,
-    relevant: relevant::Relevant,
-}
-
-impl<B> Inner<B>
-where
-    B: gfx_hal::Backend,
-{
-    pub(super) fn dispose(self) -> (B::Buffer, MemoryBlock<B>) {
-        self.relevant.dispose();
-        (self.raw, self.block)
-    }
 }
 
 impl<B> Buffer<B>
 where
     B: gfx_hal::Backend,
 {
-    /// # Disclaimer
-    ///
-    /// This function is designed to use by other rendy crates.
-    /// User experienced enough to use it properly can find it without documentation.
+    /// Wrap a buffer.
     ///
     /// # Safety
     ///
@@ -67,29 +41,21 @@ where
     /// `block` if provided must be the one bound to the raw buffer.
     /// `terminal` will receive buffer and memory block upon drop, it must free buffer and memory properly.
     ///
-    #[doc(hidden)]
     pub unsafe fn new(
         info: Info,
         raw: B::Buffer,
         block: MemoryBlock<B>,
-        terminal: &Terminal<Inner<B>>,
+        terminal: &Terminal<(B::Buffer, MemoryBlock<B>)>,
     ) -> Self {
         Buffer {
-            escape: terminal.escape(Inner {
-                block,
-                raw,
-                relevant: relevant::Relevant,
-            }),
+            escape: terminal.escape((raw, block)),
             info,
         }
     }
 
-    /// # Disclaimer
-    ///
-    /// This function is designed to use by other rendy crates.
-    /// User experienced enough to use it properly can find it without documentation.
-    #[doc(hidden)]
-    pub fn unescape(self) -> Option<Inner<B>> {
+    /// This will return `None` and would be equivalent to dropping
+    /// if there are `KeepAlive` created from this `Buffer.
+    pub fn unescape(self) -> Option<(B::Buffer, MemoryBlock<B>)> {
         Escape::unescape(self.escape)
     }
 
@@ -107,7 +73,7 @@ where
     /// [`InvalidAccess`]: https://docs.rs/gfx-hal/0.1/gfx_hal/mapping/enum.Error.html#InvalidAccess
     pub fn visible(&self) -> bool {
         self.escape
-            .block
+            .1
             .properties()
             .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
     }
@@ -118,12 +84,12 @@ where
         device: &B::Device,
         range: std::ops::Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
-        self.escape.block.map(device, range)
+        self.escape.1.map(device, range)
     }
 
     // /// Map range of the buffer to the CPU accessible memory.
     // pub fn persistent_map(&mut self, range: std::ops::Range<u64>) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
-    //     self.escape.block.map(device, range)
+    //     self.escape.1.map(device, range)
     // }
 
     /// Get raw buffer handle.
@@ -132,7 +98,7 @@ where
     ///
     /// Raw buffer handler should not be usage to violate this object valid usage.
     pub fn raw(&self) -> &B::Buffer {
-        &self.escape.raw
+        &self.escape.0
     }
 
     /// Get buffer info.

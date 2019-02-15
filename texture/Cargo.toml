@@ -2,13 +2,13 @@
 name = "rendy-texture"
 version = "0.1.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
-description = "Crate for rendy to create and use textures"
-keywords = ["graphics", "rendy"]
-readme = "README.md"
-license = "MIT/Apache-2.0"
-repository = "https://github.com/rustgd/rendy.git"
-documentation = "https://docs.rs/crate/rendy-texture/0.1.0"
 edition = "2018"
+repository = "https://github.com/omni-viral/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy-texture"
+keywords = ["graphics", "gfx-hal", "rendy"]
+categories = ["rendering"]
+description = "Rendy's texture"
 
 [features]
 serde-1 = ["serde", "gfx-hal/serde", "rendy-factory/serde"]

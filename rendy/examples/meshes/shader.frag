@@ -14,7 +14,7 @@ struct Light {
     float intencity;
 };
 
-layout(set = 0, binding = 0) uniform Args {
+layout(std140, set = 0, binding = 0) uniform Args {
     mat4 proj;
     mat4 view;
     int lights_count;

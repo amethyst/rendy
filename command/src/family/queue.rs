@@ -25,6 +25,10 @@ where
         }
     }
 
+    pub fn id(&self) -> QueueId {
+        self.id
+    }
+
     pub fn raw(&mut self) -> &mut impl RawCommandQueue<B> {
         &mut self.raw
     }

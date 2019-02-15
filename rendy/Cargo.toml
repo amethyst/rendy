@@ -1,8 +1,15 @@
 [package]
 name = "rendy"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/omni-viral/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy"
+keywords = ["graphics", "gfx-hal", "rendy"]
+description = "Higher-level graphics abstrations based on gfx-hal"
+categories = ["rendering"]
+readme = "../README.md"
 
 [features]
 empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-backend-empty"]
@@ -23,8 +30,12 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-full = ["command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
-default = ["full"]
+base = ["command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+default = ["base"]
+
+mesh-obj = ["mesh", "rendy-mesh/obj"]
+
+full = ["base", "mesh-obj"]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }

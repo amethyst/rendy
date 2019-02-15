@@ -40,7 +40,6 @@ pub struct Family<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
     queues: Vec<Queue<B>>,
     // min_image_transfer_granularity: gfx_hal::image::Extent,
     capability: C,
-    relevant: relevant::Relevant,
 }
 
 impl<B> Family<B>
@@ -74,7 +73,6 @@ where
             },
             // min_image_transfer_granularity: properties.min_image_transfer_granularity,
             capability: family.queue_type(),
-            relevant: relevant::Relevant,
         }
     }
 }
@@ -88,13 +86,23 @@ where
         self.id
     }
 
+    /// Get queue by index
+    pub fn queue(&self, index: usize) -> &Queue<B> {
+        &self.queues[index]
+    }
+
+    /// Get queue by index
+    pub fn queue_mut(&mut self, index: usize) -> &mut Queue<B> {
+        &mut self.queues[index]
+    }
+
     /// Get queues of the family.
-    pub fn queues(&self) -> &[Queue<B>] {
+    pub fn as_slice(&self) -> &[Queue<B>] {
         &self.queues
     }
 
     /// Get queues of the family.
-    pub fn queues_mut(&mut self) -> &mut [Queue<B>] {
+    pub fn as_slice_mut(&mut self) -> &mut [Queue<B>] {
         &mut self.queues
     }
 
@@ -127,15 +135,6 @@ where
         self.capability
     }
 
-    /// Dispose of queue family container.
-    pub fn dispose(self) {
-        for queue in self.queues {
-            queue.wait_idle().unwrap();
-        }
-
-        self.relevant.dispose();
-    }
-
     /// Convert capability from type-level to value-level.
     pub fn with_queue_type(self) -> Family<B, gfx_hal::QueueType>
     where
@@ -146,7 +145,6 @@ where
             queues: self.queues,
             // min_image_transfer_granularity: self.min_image_transfer_granularity,
             capability: self.capability.into_queue_type(),
-            relevant: self.relevant,
         }
     }
 
@@ -162,11 +160,46 @@ where
                 queues: self.queues,
                 // min_image_transfer_granularity: self.min_image_transfer_granularity,
                 capability,
-                relevant: self.relevant,
             })
         } else {
             Err(self)
         }
+    }
+}
+
+/// Collection of queue families of one device.
+pub struct Families<B: gfx_hal::Backend> {
+    families: Vec<Family<B>>,
+    families_indices: Vec<usize>,
+}
+
+impl<B> Families<B>
+where
+    B: gfx_hal::Backend,
+{
+    /// Get queue family by id.
+    pub fn family(&self, id: FamilyId) -> &Family<B> {
+        &self.families[self.families_indices[id.0]]
+    }
+
+    /// Get queue family by id.
+    pub fn family_mut(&mut self, id: FamilyId) -> &mut Family<B> {
+        &mut self.families[self.families_indices[id.0]]
+    }
+
+    /// Get queue families as slice.
+    pub fn as_slice(&self) -> &[Family<B>] {
+        &self.families
+    }
+
+    /// Get queue families as slice.
+    pub fn as_slice_mut(&mut self) -> &mut [Family<B>] {
+        &mut self.families
+    }
+
+    /// Get id -> index mapping.
+    pub fn indices(&self) -> &[usize] {
+        &self.families_indices
     }
 }
 
@@ -182,12 +215,22 @@ pub unsafe fn families_from_device<B>(
     queues: &mut gfx_hal::queue::Queues<B>,
     families: impl IntoIterator<Item = (FamilyId, usize)>,
     queue_types: &[impl gfx_hal::queue::QueueFamily],
-) -> Vec<Family<B>>
+) -> Families<B>
 where
     B: gfx_hal::Backend,
 {
-    families
+    let families: Vec<_> = families
         .into_iter()
         .map(|(index, count)| Family::from_device(queues, index, count, &queue_types[index.0]))
-        .collect()
+        .collect();
+
+    let mut families_indices = vec![!0; families.len()];
+    for (index, family) in families.iter().enumerate() {
+        families_indices[family.id().0] = index;
+    }
+
+    Families {
+        families,
+        families_indices,
+    }
 }
