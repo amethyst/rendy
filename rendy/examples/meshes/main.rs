@@ -184,7 +184,7 @@ where
     }
 
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &mut Scene<B>,
