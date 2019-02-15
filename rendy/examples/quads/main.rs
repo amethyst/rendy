@@ -153,7 +153,7 @@ where
     }
 
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &mut T,
@@ -427,7 +427,7 @@ where
     }
 
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,

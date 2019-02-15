@@ -265,7 +265,7 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
     ///               with barriers required for interface resources.
     ///
     fn build<'a>(
-        &self,
+        self,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,

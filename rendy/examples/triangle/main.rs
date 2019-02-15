@@ -107,7 +107,7 @@ where
     }
 
     fn build<'a>(
-        &self,
+        self,
         _factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &mut T,
