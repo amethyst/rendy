@@ -557,7 +557,7 @@ macro_rules! init_for_backend {
     }};
 }
 
-/// Init factory.
+/// Initialize `Factory` and Queue `Families` associated with Device.
 #[allow(unused_variables)]
 pub fn init<B>(
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
@@ -569,8 +569,8 @@ where
     init_for_backend!(B, config)
 }
 
-/// Creates a new `Factory` based off of a `Config<Q, W>` with some `QueuesConfigure`
-/// from the specified `vk::PhysicalDevice`.
+/// Initialize `Factory` and Queue `Families` associated with Device
+/// using existing `Instance`.
 pub fn init_with_instance<B>(
     instance: impl Instance<Backend = B>,
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
