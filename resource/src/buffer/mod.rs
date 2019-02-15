@@ -81,7 +81,7 @@ where
     /// Map range of the buffer to the CPU accessible memory.
     pub fn map<'a>(
         &'a mut self,
-        device: &B::Device,
+        device: &impl gfx_hal::Device<B>,
         range: std::ops::Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         self.escape.1.map(device, range)
