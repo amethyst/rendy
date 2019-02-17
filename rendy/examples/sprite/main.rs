@@ -52,7 +52,7 @@ struct SpriteGraphicsPipelineDesc;
 #[derive(Debug)]
 struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
     texture: Texture<B>,
-    vertex: Option<Buffer<B>>,
+    vbuf: Buffer<B>,
     descriptor_pool: B::DescriptorPool,
     descriptor_set: B::DescriptorSet,
 }
@@ -227,34 +227,6 @@ where
             );
         }
 
-        Ok(SpriteGraphicsPipeline {
-            texture,
-            vertex: None,
-            descriptor_pool,
-            descriptor_set,
-        })
-    }
-}
-
-impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
-where
-    B: gfx_hal::Backend,
-    T: ?Sized,
-{
-    type Desc = SpriteGraphicsPipelineDesc;
-
-    fn prepare(
-        &mut self,
-        factory: &Factory<B>,
-        _queue: QueueId,
-        _set_layouts: &[B::DescriptorSetLayout],
-        _index: usize,
-        _aux: &T,
-    ) -> PrepareResult {
-        if self.vertex.is_some() {
-            return PrepareResult::DrawReuse;
-        }
-
         let mut vbuf = factory
             .create_buffer(
                 512,
@@ -299,9 +271,32 @@ where
                 .unwrap();
         }
 
-        self.vertex = Some(vbuf);
 
-        return PrepareResult::DrawRecord;
+        Ok(SpriteGraphicsPipeline {
+            texture,
+            vbuf,
+            descriptor_pool,
+            descriptor_set,
+        })
+    }
+}
+
+impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
+where
+    B: gfx_hal::Backend,
+    T: ?Sized,
+{
+    type Desc = SpriteGraphicsPipelineDesc;
+
+    fn prepare(
+        &mut self,
+        factory: &Factory<B>,
+        _queue: QueueId,
+        _set_layouts: &[B::DescriptorSetLayout],
+        _index: usize,
+        _aux: &T,
+    ) -> PrepareResult {
+        PrepareResult::DrawReuse
     }
 
     fn draw(
@@ -311,16 +306,14 @@ where
         _index: usize,
         _aux: &T,
     ) {
-        let vbuf = self.vertex.as_ref().unwrap();
         encoder.bind_graphics_descriptor_sets(
             layout,
             0,
             std::iter::once(&self.descriptor_set),
             std::iter::empty::<u32>(),
         );
-        encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
-        encoder.draw(0..3, 0..1);
-        encoder.draw(3..6, 0..1);
+        encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));
+        encoder.draw(0..6, 0..1);
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {}
@@ -411,7 +404,7 @@ fn main() {
             .into_pass(),
     );
 
-    graph_builder.add_node(PresentNode::builder(surface, color).with_dependency(pass));
+    graph_builder.add_node(PresentNode::builder(surface, factory.physical(), color).with_dependency(pass));
 
     let graph = graph_builder
         .build(&mut factory, &mut families, &mut ())
