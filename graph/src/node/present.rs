@@ -41,11 +41,42 @@ where
     B: gfx_hal::Backend,
 {
     /// Node builder.
-    pub fn builder(surface: Surface<B>, image: ImageId) -> PresentBuilder<B> {
+    /// By default attempts to use 3 images in the swapchain with present mode priority:
+    /// 
+    /// Mailbox > Fifo > Relaxed > Immediate.
+    /// 
+    /// You can query the real image count and present mode which will be used with
+    /// `PresentBuilder::image_count()` and `PresentBuilder::present_mode()`.
+    pub fn builder(
+        surface: Surface<B>,
+        physical_device: &B::PhysicalDevice,
+        image: ImageId
+    ) -> PresentBuilder<B> {
+        let (caps, _f, present_modes_caps, _a) = surface.compatibility(physical_device);
+
+        let img_count_caps = caps.image_count;
+        let image_count = 3
+            .min(img_count_caps.end)
+            .max(img_count_caps.start);
+        
+        let present_mode = *present_modes_caps
+            .iter()
+            .max_by_key(|mode| match mode {
+                gfx_hal::PresentMode::Mailbox => 3,
+                gfx_hal::PresentMode::Fifo => 2,
+                gfx_hal::PresentMode::Relaxed => 1,
+                gfx_hal::PresentMode::Immediate => 0,
+            })
+            .unwrap();
+
         PresentBuilder {
             surface,
             image,
             dependencies: Vec::new(),
+            image_count,
+            img_count_caps,
+            present_mode,
+            present_modes_caps,
         }
     }
 }
@@ -55,6 +86,10 @@ where
 pub struct PresentBuilder<B: gfx_hal::Backend> {
     surface: Surface<B>,
     image: ImageId,
+    image_count: u32,
+    img_count_caps: std::ops::Range<u32>,
+    present_modes_caps: Vec<gfx_hal::PresentMode>,
+    present_mode: gfx_hal::PresentMode,
     dependencies: Vec<NodeId>,
 }
 
@@ -74,6 +109,60 @@ where
     pub fn with_dependency(mut self, dependency: NodeId) -> Self {
         self.add_dependency(dependency);
         self
+    }
+
+    /// Request a number of images in the swapchain. This is not guaranteed
+    /// to be the final image count, but it will be if supported by the hardware.
+    /// 
+    /// Check `PresentBuilder::image_count()` after calling this function but before
+    /// building to see the final image count.
+    pub fn with_image_count(mut self, image_count: u32) -> Self {
+        let image_count = image_count
+            .min(self.img_count_caps.end)
+            .max(self.img_count_caps.start);
+        self.image_count = image_count;
+        self
+    }
+
+    /// Request a priority of present modes when creating the swapchain for the
+    /// PresentNode. Lower index means higher priority. 
+    /// 
+    /// Check `PresentBuilder::present_mode()` after calling this function but before
+    /// building to see the final present mode.
+    /// 
+    /// ## Parameters
+    /// - present_modes_priority: A function which takes a `gfx_hal::PresentMode` and returns
+    /// an `Option<usize>`. `None` indicates not to use this mode, and a higher number returned
+    /// indicates a higher prioirity for that mode.
+    /// 
+    /// ## Panics
+    /// - Panics if none of the provided `PresentMode`s are supported.
+    pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self 
+        where PF: Fn(gfx_hal::PresentMode) -> Option<usize>
+    {
+        if !self.present_modes_caps.iter().any(|m| {
+            match present_modes_priority(*m)  {
+                Some(_) => true,
+                None => false,
+            }
+        }) {
+            panic!(
+                "No desired PresentModes are supported. Supported: {:#?}",
+                self.present_modes_caps
+            );
+        }
+        self.present_mode = *self.present_modes_caps.iter()
+            .max_by_key(|&mode| present_modes_priority(*mode))
+            .unwrap();
+        self
+    }
+
+    pub fn image_count(&self) -> u32 {
+        self.image_count
+    }
+
+    pub fn present_mode(&self) -> gfx_hal::PresentMode {
+        self.present_mode
     }
 }
 
@@ -120,7 +209,12 @@ where
         assert_eq!(images.len(), 1);
 
         let ref input_image = images[0];
-        let target = factory.create_target(self.surface, 3, gfx_hal::image::Usage::TRANSFER_DST)?;
+        let target = factory.create_target(
+            self.surface,
+            self.image_count,
+            self.present_mode,
+            gfx_hal::image::Usage::TRANSFER_DST)?;
+
         let mut pool = factory.create_command_pool(family)?;
 
         let per_image = match target.backbuffer() {

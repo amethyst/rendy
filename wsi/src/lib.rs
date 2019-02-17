@@ -159,26 +159,38 @@ where
             .unwrap()
     }
 
+    /// Get surface compatibility
+    pub fn compatibility(
+        &self,
+        physical_device: &B::PhysicalDevice,
+    ) -> (
+        gfx_hal::window::SurfaceCapabilities,
+        Option<Vec<gfx_hal::format::Format>>,
+        Vec<gfx_hal::PresentMode>,
+        Vec<gfx_hal::CompositeAlpha>
+    ) {
+
+        gfx_hal::Surface::compatibility(&self.raw, physical_device)
+    }
+
     /// Cast surface into render target.
     pub unsafe fn into_target(
         mut self,
         physical_device: &B::PhysicalDevice,
         device: &impl gfx_hal::Device<B>,
         image_count: u32,
+        present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        let (capabilities, formats, present_modes, _alpha) =
-            gfx_hal::Surface::compatibility(&self.raw, physical_device);
+        let (capabilities, formats, present_modes, _alpha) = self.compatibility(physical_device);
 
-        let present_mode = *present_modes
-            .iter()
-            .max_by_key(|mode| match mode {
-                gfx_hal::PresentMode::Immediate => 0,
-                gfx_hal::PresentMode::Mailbox => 3,
-                gfx_hal::PresentMode::Fifo => 2,
-                gfx_hal::PresentMode::Relaxed => 1,
-            })
-            .unwrap();
+        if !present_modes.contains(&present_mode) {
+            panic!(
+                "Present mode is not supported. Supported: {:#?}, requested: {:#?}",
+                present_modes,
+                present_mode,
+            );
+        }
 
         log::info!(
             "Surface present modes: {:#?}. Pick {:#?}",
@@ -203,15 +215,20 @@ where
 
         log::info!("Surface formats: {:#?}. Pick {:#?}", formats, format);
 
-        let image_count = image_count
-            .min(capabilities.image_count.end)
-            .max(capabilities.image_count.start);
+        if image_count < capabilities.image_count.start || image_count > capabilities.image_count.end {
+            panic!(
+                "Image count not supported. Supported: {:#?}, requested: {:#?}",
+                capabilities.image_count,
+                image_count
+            );
+        }
 
         log::info!(
             "Surface capabilities: {:#?}. Pick {} images",
             capabilities.image_count,
             image_count
         );
+
         assert!(
             capabilities.usage.contains(usage),
             "Surface supports {:?}, but {:?} was requested"

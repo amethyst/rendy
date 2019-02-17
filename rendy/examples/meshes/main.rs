@@ -26,7 +26,7 @@ use genmesh::generators::{IndexedPolygon, SharedVertex};
 
 use rand::distributions::{Distribution, Uniform};
 
-use winit::{EventsLoop, WindowBuilder};
+use winit::{EventsLoop, WindowBuilder, Event, WindowEvent};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -85,27 +85,33 @@ struct Scene<B: gfx_hal::Backend> {
     lights: Vec<Light>,
 }
 
-const MAX_LIGHTS: usize = 32;
-const MAX_OBJECTS: usize = 1024;
+#[derive(Debug)]
+struct Aux<B: gfx_hal::Backend> {
+    frames: usize,
+    align: u64,
+    scene: Scene<B>,
+}
 
-const UBERALIGN: u64 = 256;
-const MAX_FRAMES: u64 = 5;
+const MAX_LIGHTS: usize = 32;
+const MAX_OBJECTS: usize = 10_000;
 const UNIFORM_SIZE: u64 = size_of::<UniformArgs>() as u64;
 const TRANSFORMS_SIZE: u64 = size_of::<Transform>() as u64 * MAX_OBJECTS as u64;
 const INDIRECT_SIZE: u64 = size_of::<DrawIndexedCommand>() as u64;
-const BUFFER_FRAME_SIZE: u64 =
-    ((UNIFORM_SIZE + TRANSFORMS_SIZE + INDIRECT_SIZE - 1) / UBERALIGN + 1) * UBERALIGN;
 
-const fn uniform_offset(index: usize) -> u64 {
-    BUFFER_FRAME_SIZE * index as u64
+const fn buffer_frame_size(align: u64) -> u64 {
+    ((UNIFORM_SIZE + TRANSFORMS_SIZE + INDIRECT_SIZE - 1) / align + 1) * align
 }
 
-const fn transforms_offset(index: usize) -> u64 {
-    uniform_offset(index) + UNIFORM_SIZE
+const fn uniform_offset(index: usize, align: u64) -> u64 {
+    buffer_frame_size(align) * index as u64
 }
 
-const fn indirect_offset(index: usize) -> u64 {
-    transforms_offset(index) + TRANSFORMS_SIZE
+const fn transforms_offset(index: usize, align: u64) -> u64 {
+    uniform_offset(index, align) + UNIFORM_SIZE
+}
+
+const fn indirect_offset(index: usize, align: u64) -> u64 {
+    transforms_offset(index, align) + TRANSFORMS_SIZE
 }
 
 #[derive(Debug, Default)]
@@ -115,10 +121,10 @@ struct MeshRenderPipelineDesc;
 struct MeshRenderPipeline<B: gfx_hal::Backend> {
     descriptor_pool: B::DescriptorPool,
     buffer: Buffer<B>,
-    sets: Vec<Option<B::DescriptorSet>>,
+    sets: Vec<B::DescriptorSet>,
 }
 
-impl<B> SimpleGraphicsPipelineDesc<B, Scene<B>> for MeshRenderPipelineDesc
+impl<B> SimpleGraphicsPipelineDesc<B, Aux<B>> for MeshRenderPipelineDesc
 where
     B: gfx_hal::Backend,
 {
@@ -156,7 +162,7 @@ where
         &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        _aux: &mut Scene<B>,
+        _aux: &mut Aux<B>,
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
@@ -187,7 +193,7 @@ where
         self,
         factory: &mut Factory<B>,
         _queue: QueueId,
-        _aux: &mut Scene<B>,
+        aux: &mut Aux<B>,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
@@ -196,12 +202,14 @@ where
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
 
-        let descriptor_pool = unsafe {
+        let (frames, align) = (aux.frames, aux.align);
+
+        let mut descriptor_pool = unsafe {
             factory.create_descriptor_pool(
-                5,
+                frames,
                 Some(gfx_hal::pso::DescriptorRangeDesc {
                     ty: gfx_hal::pso::DescriptorType::UniformBuffer,
-                    count: 5,
+                    count: frames,
                 }),
             )
         }
@@ -209,8 +217,8 @@ where
 
         let buffer = factory
             .create_buffer(
-                UBERALIGN,
-                BUFFER_FRAME_SIZE * MAX_FRAMES,
+                align,
+                buffer_frame_size(align) * frames as u64,
                 (
                     gfx_hal::buffer::Usage::UNIFORM
                         | gfx_hal::buffer::Usage::INDIRECT
@@ -220,15 +228,33 @@ where
             )
             .unwrap();
 
+        let mut sets = Vec::new();
+        for index in 0..frames {
+            unsafe {
+                let set = descriptor_pool.allocate_set(&set_layouts[0]).unwrap();
+                factory.write_descriptor_sets(Some(gfx_hal::pso::DescriptorSetWrite {
+                    set: &set,
+                    binding: 0,
+                    array_offset: 0,
+                    descriptors: Some(gfx_hal::pso::Descriptor::Buffer(
+                        buffer.raw(),
+                        Some(uniform_offset(index, align))..Some(uniform_offset(index, align) + UNIFORM_SIZE),
+                    )),
+                }));
+                sets.push(set);
+            }
+        }
+
+
         Ok(MeshRenderPipeline {
             descriptor_pool,
             buffer,
-            sets: vec![None, None, None, None, None],
+            sets,
         })
     }
 }
 
-impl<B> SimpleGraphicsPipeline<B, Scene<B>> for MeshRenderPipeline<B>
+impl<B> SimpleGraphicsPipeline<B, Aux<B>> for MeshRenderPipeline<B>
 where
     B: gfx_hal::Backend,
 {
@@ -238,15 +264,17 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        set_layouts: &[B::DescriptorSetLayout],
+        _set_layouts: &[B::DescriptorSetLayout],
         index: usize,
-        scene: &Scene<B>,
+        aux: &Aux<B>,
     ) -> PrepareResult {
+        let (scene, align) = (&aux.scene, aux.align);
+
         unsafe {
             factory
                 .upload_visible_buffer(
                     &mut self.buffer,
-                    uniform_offset(index),
+                    uniform_offset(index, align),
                     &[UniformArgs {
                         pad: [0, 0, 0],
                         proj: scene.camera.proj.to_homogeneous(),
@@ -271,7 +299,7 @@ where
             factory
                 .upload_visible_buffer(
                     &mut self.buffer,
-                    indirect_offset(index),
+                    indirect_offset(index, align),
                     &[DrawIndexedCommand {
                         index_count: scene.object_mesh.as_ref().unwrap().len(),
                         instance_count: scene.objects.len() as u32,
@@ -287,27 +315,11 @@ where
             factory
                 .upload_visible_buffer(
                     &mut self.buffer,
-                    transforms_offset(index),
+                    transforms_offset(index, align),
                     &scene.objects[..],
                 )
                 .unwrap()
         };
-
-        if self.sets[index].is_none() {
-            unsafe {
-                let set = self.descriptor_pool.allocate_set(&set_layouts[0]).unwrap();
-                factory.write_descriptor_sets(Some(gfx_hal::pso::DescriptorSetWrite {
-                    set: &set,
-                    binding: 0,
-                    array_offset: 0,
-                    descriptors: Some(gfx_hal::pso::Descriptor::Buffer(
-                        self.buffer.raw(),
-                        Some(uniform_offset(index))..Some(uniform_offset(index) + UNIFORM_SIZE),
-                    )),
-                }));
-                self.sets[index] = Some(set);
-            }
-        }
 
         PrepareResult::DrawReuse
     }
@@ -317,15 +329,15 @@ where
         layout: &B::PipelineLayout,
         mut encoder: RenderPassEncoder<'_, B>,
         index: usize,
-        scene: &Scene<B>,
+        aux: &Aux<B>,
     ) {
         encoder.bind_graphics_descriptor_sets(
             layout,
             0,
-            Some(self.sets[index].as_ref().unwrap()),
+            Some(&self.sets[index]),
             std::iter::empty(),
         );
-        assert!(scene
+        assert!(aux.scene
             .object_mesh
             .as_ref()
             .unwrap()
@@ -333,20 +345,20 @@ where
             .is_ok());
         encoder.bind_vertex_buffers(
             1,
-            std::iter::once((self.buffer.raw(), transforms_offset(index))),
+            std::iter::once((self.buffer.raw(), transforms_offset(index, aux.align))),
         );
         encoder.draw_indexed_indirect(
             self.buffer.raw(),
-            indirect_offset(index),
+            indirect_offset(index, aux.align),
             1,
             INDIRECT_SIZE as u32,
         );
     }
 
-    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut Scene<B>) {
+    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut Aux<B>) {
         unsafe {
             self.descriptor_pool
-                .free_sets(self.sets.into_iter().filter_map(|s| s));
+                .free_sets(self.sets.into_iter());
             factory.destroy_descriptor_pool(self.descriptor_pool);
         }
     }
@@ -373,39 +385,9 @@ fn main() {
     event_loop.poll_events(|_| ());
 
     let surface = factory.create_surface(window.into());
+    let aspect = surface.aspect();
 
-    let mut scene = Scene {
-        camera: Camera {
-            proj: nalgebra::Perspective3::new(surface.aspect(), 3.1415 / 4.0, 1.0, 200.0),
-            view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
-        },
-        object_mesh: None,
-        objects: vec![],
-        lights: vec![
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
-                intencity: 10.0,
-            },
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
-                intencity: 140.0,
-            },
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
-                intencity: 100.0,
-            },
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
-                intencity: 160.0,
-            },
-        ],
-    };
-
-    let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
+    let mut graph_builder = GraphBuilder::<Backend, Aux<Backend>>::new();
 
     let color = graph_builder.create_image(
         surface.kind(),
@@ -435,12 +417,55 @@ fn main() {
             .into_pass(),
     );
 
-    graph_builder.add_node(PresentNode::builder(surface, color).with_dependency(pass));
+    let present_builder = PresentNode::builder(surface, factory.physical(), color)
+        .with_dependency(pass);
 
-    log::info!("{:#?}", scene);
+    let frames = present_builder.image_count() as usize;
+
+    graph_builder.add_node(present_builder);
+
+    let scene = Scene {
+        camera: Camera {
+            proj: nalgebra::Perspective3::new(aspect, 3.1415 / 4.0, 1.0, 200.0),
+            view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
+        },
+        object_mesh: None,
+        objects: vec![],
+        lights: vec![
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
+                intencity: 10.0,
+            },
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
+                intencity: 140.0,
+            },
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
+                intencity: 100.0,
+            },
+            Light {
+                pad: 0.0,
+                pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
+                intencity: 160.0,
+            },
+        ],
+    };
+
+    let mut aux = Aux {
+        frames,
+        align: gfx_hal::adapter::PhysicalDevice::limits(factory.physical())
+            .min_uniform_buffer_offset_alignment,
+        scene
+    };
+
+    log::info!("{:#?}", aux.scene);
 
     let mut graph = graph_builder
-        .build(&mut factory, &mut families, &mut scene)
+        .build(&mut factory, &mut families, &mut aux)
         .unwrap();
 
     let icosphere = genmesh::generators::IcoSphere::subdivide(4);
@@ -462,7 +487,7 @@ fn main() {
         })
         .collect();
 
-    scene.object_mesh = Some(
+    aux.scene.object_mesh = Some(
         Mesh::<Backend>::builder()
             .with_indices(&indices[..])
             .with_vertices(&vertices[..])
@@ -479,19 +504,23 @@ fn main() {
 
     let mut fpss = Vec::new();
     let mut checkpoint = started;
+    let mut should_close = false;
 
-    while scene.objects.len() < MAX_OBJECTS {
+    while !should_close && aux.scene.objects.len() < MAX_OBJECTS {
         let start = frames.start;
-        let from = scene.objects.len();
+        let from = aux.scene.objects.len();
         for _ in &mut frames {
             factory.maintain(&mut families);
-            event_loop.poll_events(|_| ());
-            graph.run(&mut factory, &mut families, &mut scene);
+            event_loop.poll_events(|event| match event {
+                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => should_close = true,
+                _ => (),
+            });
+            graph.run(&mut factory, &mut families, &mut aux);
 
             let elapsed = checkpoint.elapsed();
 
-            if scene.objects.len() < MAX_OBJECTS {
-                scene.objects.push({
+            if aux.scene.objects.len() < MAX_OBJECTS {
+                aux.scene.objects.push({
                     let z = rz.sample(&mut rng);
                     nalgebra::Transform3::identity()
                         * nalgebra::Translation3::new(
@@ -502,10 +531,10 @@ fn main() {
                 })
             }
 
-            if elapsed > std::time::Duration::new(5, 0) || scene.objects.len() == MAX_OBJECTS {
+            if should_close || elapsed > std::time::Duration::new(5, 0) || aux.scene.objects.len() == MAX_OBJECTS {
                 let frames = frames.start - start;
                 let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                fpss.push((frames * 1_000_000_000 / nanos, from..scene.objects.len()));
+                fpss.push((frames * 1_000_000_000 / nanos, from..aux.scene.objects.len()));
                 checkpoint += elapsed;
                 break;
             }
@@ -514,7 +543,7 @@ fn main() {
 
     log::info!("FPS: {:#?}", fpss);
 
-    graph.dispose(&mut factory, &mut scene);
+    graph.dispose(&mut factory, &mut aux);
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

@@ -267,10 +267,14 @@ where
     }
 
     /// Create target out of rendering surface.
+    /// 
+    /// ## Panics
+    /// - Panics if `image_count` or `present_mode` are not supported.
     pub fn create_target(
         &self,
         surface: Surface<B>,
         image_count: u32,
+        present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
         unsafe {
@@ -278,6 +282,7 @@ where
                 &self.adapter.physical_device,
                 &self.device,
                 image_count,
+                present_mode,
                 usage,
             )
         }
@@ -299,7 +304,7 @@ where
     }
 
     /// Get physical device.
-    pub fn physical(&self) -> &impl PhysicalDevice<B> {
+    pub fn physical(&self) -> &B::PhysicalDevice {
         &self.adapter.physical_device
     }
 
