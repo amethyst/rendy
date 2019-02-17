@@ -418,6 +418,7 @@ fn main() {
     );
 
     let present_builder = PresentNode::builder(surface, factory.physical(), color)
+        .with_image_count(5)
         .with_dependency(pass);
 
     let frames = present_builder.image_count() as usize;
@@ -465,6 +466,7 @@ fn main() {
     log::info!("{:#?}", aux.scene);
 
     let mut graph = graph_builder
+        .with_frames_in_flight(frames)
         .build(&mut factory, &mut families, &mut aux)
         .unwrap();
 

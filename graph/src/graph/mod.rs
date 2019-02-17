@@ -173,7 +173,7 @@ pub struct GraphBuilder<B: Backend, T: ?Sized> {
         MemoryUsageValue,
         Option<gfx_hal::command::ClearValue>,
     )>,
-    target_count: usize,
+    frames_in_flight: usize,
 }
 
 impl<B, T> GraphBuilder<B, T>
@@ -187,7 +187,7 @@ where
             nodes: Vec::new(),
             buffers: Vec::new(),
             images: Vec::new(),
-            target_count: 0,
+            frames_in_flight: 3,
         }
     }
 
@@ -231,6 +231,12 @@ where
     pub fn add_node<N: NodeBuilder<B, T> + 'static>(&mut self, builder: N) -> NodeId {
         self.nodes.push(Box::new(builder));
         NodeId(self.nodes.len() - 1)
+    }
+
+    /// Choose number of frames in flight for the graph
+    pub fn with_frames_in_flight(mut self, frames_in_flight: usize) -> Self {
+        self.frames_in_flight = frames_in_flight;
+        self
     }
 
     /// Build `Graph`.
@@ -363,7 +369,7 @@ where
                 .filter_map(|x| x)
                 .map(|(image, _)| image)
                 .collect(),
-            inflight: 3,
+            inflight: self.frames_in_flight as _,
             frames: Frames::new(),
             fences: Vec::new(),
         })
