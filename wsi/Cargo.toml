@@ -15,6 +15,7 @@ empty = ["gfx-backend-empty"]
 dx12 = ["gfx-backend-dx12"]
 metal = ["gfx-backend-metal"]
 vulkan = ["gfx-backend-vulkan"]
+no-slow-safety-checks = []
 
 [dependencies]
 rendy-memory = { version = "0.1.0", path = "../memory" }

@@ -17,6 +17,7 @@ dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend
 metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal"]
 vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
 serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1"]
+no-slow-safety-checks = ["rendy-factory/no-slow-safety-checks", "rendy-wsi/no-slow-safety-checks"]
 
 command = ["rendy-command"]
 factory = ["rendy-factory", "command", "resource", "wsi"]
