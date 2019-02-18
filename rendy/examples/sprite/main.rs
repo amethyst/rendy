@@ -290,7 +290,7 @@ where
 
     fn prepare(
         &mut self,
-        factory: &Factory<B>,
+        _factory: &Factory<B>,
         _queue: QueueId,
         _set_layouts: &[B::DescriptorSetLayout],
         _index: usize,
