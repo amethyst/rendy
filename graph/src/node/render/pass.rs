@@ -644,13 +644,25 @@ where
         let submit = command_cirque.encode(frames.range(), command_pool, |mut cbuf| {
             let index = cbuf.index();
 
-            let force_record = subpasses.iter_mut().any(|subpass| {
-                subpass.groups.iter_mut().any(|group| {
-                    group
-                        .prepare(factory, queue.id(), index, aux)
-                        .force_record()
-                })
-            });
+            let force_record = subpasses
+                .iter_mut()
+                .enumerate()
+                .any(|(subpass_index, subpass)| {
+                    subpass.groups.iter_mut().any(|group| {
+                        group
+                            .prepare(
+                                factory,
+                                queue.id(),
+                                index,
+                                gfx_hal::pass::Subpass {
+                                    index: subpass_index,
+                                    main_pass: &render_pass,
+                                },
+                                aux,
+                            )
+                            .force_record()
+                    })
+                });
 
             if force_record {
                 cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
@@ -674,12 +686,22 @@ where
                 let mut pass_encoder =
                     { encoder.begin_render_pass_inline(&render_pass, &framebuffer, area, &clears) };
 
-                subpasses.iter_mut().for_each(|subpass| {
-                    subpass
-                        .groups
-                        .iter_mut()
-                        .for_each(|group| group.draw_inline(pass_encoder.reborrow(), index, aux))
-                });
+                subpasses
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(subpass_index, subpass)| {
+                        subpass.groups.iter_mut().for_each(|group| {
+                            group.draw_inline(
+                                pass_encoder.reborrow(),
+                                index,
+                                gfx_hal::pass::Subpass {
+                                    index: subpass_index,
+                                    main_pass: &render_pass,
+                                },
+                                aux,
+                            )
+                        })
+                    });
 
                 drop(pass_encoder);
 
