@@ -62,10 +62,17 @@ pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
         factory: &Factory<B>,
         queue: QueueId,
         index: usize,
+        subpass: gfx_hal::pass::Subpass<'_, B>,
         aux: &T,
     ) -> PrepareResult;
 
-    fn draw_inline(&mut self, encoder: RenderPassEncoder<'_, B>, index: usize, aux: &T);
+    fn draw_inline(
+        &mut self,
+        encoder: RenderPassEncoder<'_, B>,
+        index: usize,
+        subpass: gfx_hal::pass::Subpass<'_, B>,
+        aux: &T,
+    );
 
     fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T);
 }

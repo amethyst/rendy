@@ -331,13 +331,20 @@ where
         factory: &Factory<B>,
         queue: QueueId,
         index: usize,
+        _subpass: gfx_hal::pass::Subpass<'_, B>,
         aux: &T,
     ) -> PrepareResult {
         self.pipeline
             .prepare(factory, queue, &self.set_layouts, index, aux)
     }
 
-    fn draw_inline(&mut self, mut encoder: RenderPassEncoder<'_, B>, index: usize, aux: &T) {
+    fn draw_inline(
+        &mut self,
+        mut encoder: RenderPassEncoder<'_, B>,
+        index: usize,
+        _subpass: gfx_hal::pass::Subpass<'_, B>,
+        aux: &T,
+    ) {
         encoder.bind_graphics_pipeline(&self.graphics_pipeline);
         self.pipeline
             .draw(&self.pipeline_layout, encoder, index, aux);
