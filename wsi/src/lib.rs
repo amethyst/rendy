@@ -105,6 +105,8 @@ fn create_surface<B: gfx_hal::Backend>(
 pub struct Surface<B: gfx_hal::Backend> {
     window: std::sync::Arc<winit::Window>,
     raw: B::Surface,
+    #[cfg(not(feature = "no-slow-safety-checks"))]
+    factory_id: usize,
 }
 
 impl<B> std::fmt::Debug for Surface<B>
@@ -123,9 +125,24 @@ where
     B: gfx_hal::Backend,
 {
     /// Create surface for the window.
-    pub fn new(instance: &dyn std::any::Any, window: std::sync::Arc<winit::Window>) -> Self {
+    pub fn new(
+        instance: &dyn std::any::Any,
+        window: std::sync::Arc<winit::Window>,
+        _factory_id: usize,
+    ) -> Self {
         let raw = create_surface::<B>(instance, &window);
-        Surface { window, raw }
+        #[cfg(not(feature = "no-slow-safety-checks"))]
+        let s = Surface { window, raw, factory_id: _factory_id };
+        #[cfg(feature = "no-slow-safety-checks")]
+        let s = Surface { window, raw };
+
+        s
+    }
+
+    /// Get factory id that this surface was created from
+    #[cfg(not(feature = "no-slow-safety-checks"))]
+    pub fn factory_id(&self) -> usize {
+        self.factory_id
     }
 
     /// Get surface image kind.
@@ -160,7 +177,10 @@ where
     }
 
     /// Get surface compatibility
-    pub fn compatibility(
+    /// 
+    /// ## Safety
+    /// - `physical_device` must be created from same `Instance` as the `Surface`
+    pub unsafe fn compatibility(
         &self,
         physical_device: &B::PhysicalDevice,
     ) -> (
@@ -169,7 +189,6 @@ where
         Vec<gfx_hal::PresentMode>,
         Vec<gfx_hal::CompositeAlpha>
     ) {
-
         gfx_hal::Surface::compatibility(&self.raw, physical_device)
     }
 

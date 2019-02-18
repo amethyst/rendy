@@ -20,6 +20,7 @@ serde-1 = [
     "rendy-memory/serde-1",
     "gfx-hal/serde",
 ]
+no-slow-safety-checks = ["rendy-wsi/no-slow-safety-checks"]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }

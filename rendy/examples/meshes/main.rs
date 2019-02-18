@@ -417,8 +417,7 @@ fn main() {
             .into_pass(),
     );
 
-    let present_builder = PresentNode::builder(surface, factory.physical(), color)
-        .with_image_count(5)
+    let present_builder = PresentNode::builder(&factory, surface, color)
         .with_dependency(pass);
 
     let frames = present_builder.image_count() as usize;

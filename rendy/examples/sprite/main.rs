@@ -404,7 +404,7 @@ fn main() {
             .into_pass(),
     );
 
-    graph_builder.add_node(PresentNode::builder(surface, factory.physical(), color).with_dependency(pass));
+    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
     let graph = graph_builder
         .build(&mut factory, &mut families, &mut ())

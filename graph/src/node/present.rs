@@ -48,11 +48,11 @@ where
     /// You can query the real image count and present mode which will be used with
     /// `PresentBuilder::image_count()` and `PresentBuilder::present_mode()`.
     pub fn builder(
+        factory: &Factory<B>,
         surface: Surface<B>,
-        physical_device: &B::PhysicalDevice,
         image: ImageId
     ) -> PresentBuilder<B> {
-        let (caps, _f, present_modes_caps, _a) = surface.compatibility(physical_device);
+        let (caps, _f, present_modes_caps, _a) = factory.get_surface_compatibility(&surface);
 
         let img_count_caps = caps.image_count;
         let image_count = 3
@@ -140,12 +140,7 @@ where
     pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self 
         where PF: Fn(gfx_hal::PresentMode) -> Option<usize>
     {
-        if !self.present_modes_caps.iter().any(|m| {
-            match present_modes_priority(*m)  {
-                Some(_) => true,
-                None => false,
-            }
-        }) {
+        if !self.present_modes_caps.iter().any(|m| present_modes_priority(*m).is_some()) {
             panic!(
                 "No desired PresentModes are supported. Supported: {:#?}",
                 self.present_modes_caps

@@ -40,6 +40,7 @@ pub struct Factory<B: Backend> {
     adapter: Adapter<B>,
     #[derivative(Debug = "ignore")]
     instance: Box<dyn std::any::Any + Send + Sync>,
+    id: usize,
 }
 
 impl<B> Drop for Factory<B>
@@ -73,6 +74,11 @@ impl<B> Factory<B>
 where
     B: Backend,
 {
+    /// Get this factory's unique id
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
     /// Wait for whole device become idle.
     /// This function is very heavy and
     /// usually used only for teardown.
@@ -252,24 +258,57 @@ where
     }
 
     /// Create rendering surface from window.
-    pub fn create_surface(&self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
-        Surface::new(&*self.instance, window)
+    pub fn create_surface(&mut self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
+        Surface::new(&*self.instance, window, self.id)
+    }
+
+    /// Get compatibility of Surface
+    /// 
+    /// ## Panics
+    /// - Panics if `no-slow-safety-checks` feature is disabled and
+    /// `surface` was not created by this `Factory`
+    pub fn get_surface_compatibility(
+        &self,
+        surface: &Surface<B>
+    ) -> (
+        gfx_hal::window::SurfaceCapabilities,
+        Option<Vec<gfx_hal::format::Format>>,
+        Vec<gfx_hal::PresentMode>,
+        Vec<gfx_hal::CompositeAlpha>
+    ) {
+        #[cfg(not(feature = "no-slow-safety-checks"))]
+        assert!(surface.factory_id() == self.id);
+        unsafe { surface.compatibility(&self.adapter.physical_device) }
     }
 
     /// Get surface format.
+    /// 
+    /// ## Panics
+    /// - Panics if `no-slow-safety-checks` feature is disabled and
+    /// `surface` was not created by this `Factory`
     pub fn get_surface_format(&self, surface: &Surface<B>) -> format::Format {
+        #[cfg(not(feature = "no-slow-safety-checks"))]
+        assert!(surface.factory_id() == self.id);
         unsafe { surface.format(&self.adapter.physical_device) }
     }
 
     /// Destroy surface returning underlying window back to the caller.
-    pub unsafe fn destroy_surface(&self, surface: Surface<B>) {
+    /// 
+    /// ## Panics
+    /// - Panics if `no-slow-safety-checks` feature is disabled and
+    /// `surface` was not created by this `Factory`
+    pub unsafe fn destroy_surface(&mut self, surface: Surface<B>) {
+        #[cfg(not(feature = "no-slow-safety-checks"))]
+        assert!(surface.factory_id() == self.id);
         drop(surface);
     }
 
     /// Create target out of rendering surface.
     /// 
     /// ## Panics
-    /// - Panics if `image_count` or `present_mode` are not supported.
+    /// - Panics if `image_count` or `present_mode` are not supported,
+    /// or if `surface` was not created from this `Factory` and
+    /// `no-slow-safety-checks` feature is disabled.
     pub fn create_target(
         &self,
         surface: Surface<B>,
@@ -277,6 +316,8 @@ where
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
+        #[cfg(not(feature = "no-slow-safety-checks"))]
+        assert!(surface.factory_id() == self.id);
         unsafe {
             surface.into_target(
                 &self.adapter.physical_device,
@@ -619,7 +660,7 @@ where
         }
     );
 
-    let (device, families) = {
+    let (id, device, families) = {
         let families = config
             .queues
             .configure(&adapter.queue_families)
@@ -638,16 +679,18 @@ where
         log::info!("Queues: {:#?}", get_queues);
 
         let Gpu { device, mut queues } = unsafe { adapter.physical_device.open(&create_queues) }?;
+        
+        let id = FACTORY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         assert_eq!(
-            FACTORY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            id,
             0,
             "Only one Factory supported"
         );
 
         let families =
             unsafe { families_from_device(&mut queues, get_queues, &adapter.queue_families) };
-        (device, families)
+        (id, device, families)
     };
 
     let (types, heaps) = config
@@ -675,6 +718,7 @@ where
         device,
         adapter,
         instance: Box::new(instance),
+        id,
     };
 
     Ok((factory, families))
