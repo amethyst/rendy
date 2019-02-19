@@ -420,7 +420,7 @@ fn main() {
     let present_builder = PresentNode::builder(&factory, surface, color)
         .with_dependency(pass);
 
-    let frames = present_builder.image_count() as usize;
+    let frames = present_builder.image_count();
 
     graph_builder.add_node(present_builder);
 
@@ -456,7 +456,7 @@ fn main() {
     };
 
     let mut aux = Aux {
-        frames,
+        frames: frames as _,
         align: gfx_hal::adapter::PhysicalDevice::limits(factory.physical())
             .min_uniform_buffer_offset_alignment,
         scene
