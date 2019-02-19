@@ -31,7 +31,7 @@ pub struct Graph<B: Backend, T: ?Sized> {
     images: Vec<image::Image<B>>,
     frames: Frames<B>,
     fences: Vec<Fences<B>>,
-    inflight: u64,
+    inflight: u32,
 }
 
 impl<B, T> Graph<B, T>
@@ -58,8 +58,8 @@ where
     ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
     ///               So it's OK to start with empty `Vec`.
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
-        if self.frames.next().index() >= self.inflight {
-            let wait = self.frames.next().index() - self.inflight;
+        if self.frames.next().index() >= self.inflight as _ {
+            let wait = self.frames.next().index() - self.inflight as u64;
             let ref mut self_fences = self.fences;
             self.frames.wait_complete(wait, factory, |mut fences| {
                 factory.reset_fences(&mut fences).unwrap();
@@ -173,7 +173,7 @@ pub struct GraphBuilder<B: Backend, T: ?Sized> {
         MemoryUsageValue,
         Option<gfx_hal::command::ClearValue>,
     )>,
-    frames_in_flight: usize,
+    frames_in_flight: u32,
 }
 
 impl<B, T> GraphBuilder<B, T>
@@ -234,7 +234,7 @@ where
     }
 
     /// Choose number of frames in flight for the graph
-    pub fn with_frames_in_flight(mut self, frames_in_flight: usize) -> Self {
+    pub fn with_frames_in_flight(mut self, frames_in_flight: u32) -> Self {
         self.frames_in_flight = frames_in_flight;
         self
     }
@@ -369,7 +369,7 @@ where
                 .filter_map(|x| x)
                 .map(|(image, _)| image)
                 .collect(),
-            inflight: self.frames_in_flight as _,
+            inflight: self.frames_in_flight,
             frames: Frames::new(),
             fences: Vec::new(),
         })
