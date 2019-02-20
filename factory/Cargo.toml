@@ -20,13 +20,14 @@ serde-1 = [
     "rendy-memory/serde-1",
     "gfx-hal/serde",
 ]
-no-slow-safety-checks = ["rendy-wsi/no-slow-safety-checks"]
+no-slow-safety-checks = ["rendy-wsi/no-slow-safety-checks", "rendy-util/no-slow-safety-checks"]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }
 rendy-resource = { version = "0.1", path = "../resource" }
 rendy-command = { version = "0.1", path = "../command" }
 rendy-wsi = { version = "0.1", path = "../wsi" }
+rendy-util = { version = "0.1", path = "../util" }
 
 gfx-hal = "0.1"
 gfx-backend-empty = { version = "0.1.0", optional = true }

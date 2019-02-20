@@ -13,6 +13,14 @@
 )]
 use std::borrow::Cow;
 
+#[macro_export]
+macro_rules! rendy_slow_assert {
+    ($($arg:tt)*) => {
+        #[cfg(not(feature = "no-slow-safety-checks"))]
+        assert!($($arg)*);
+    }
+}
+
 /// Chech if slice o f ordered values is sorted.
 pub fn is_slice_sorted<T: Ord>(slice: &[T]) -> bool {
     is_slice_sorted_by_key(slice, |i| i)
