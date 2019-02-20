@@ -204,11 +204,12 @@ where
         let (capabilities, formats, present_modes, _alpha) = self.compatibility(physical_device);
 
         if !present_modes.contains(&present_mode) {
-            panic!(
+            log::warn!(
                 "Present mode is not supported. Supported: {:#?}, requested: {:#?}",
                 present_modes,
                 present_mode,
             );
+            failure::bail!("Present mode not supported.");
         }
 
         log::info!(
@@ -235,11 +236,12 @@ where
         log::info!("Surface formats: {:#?}. Pick {:#?}", formats, format);
 
         if image_count < capabilities.image_count.start || image_count > capabilities.image_count.end {
-            panic!(
+            log::warn!(
                 "Image count not supported. Supported: {:#?}, requested: {:#?}",
                 capabilities.image_count,
                 image_count
             );
+            failure::bail!("Image count not supported.")
         }
 
         log::info!(

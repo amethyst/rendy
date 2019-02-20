@@ -12,6 +12,7 @@ use {
             Epochs, Resources,
         },
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
+        util::rendy_slow_assert,
         wsi::{Surface, Target},
     },
     gfx_hal::{
@@ -276,8 +277,7 @@ where
         Vec<gfx_hal::PresentMode>,
         Vec<gfx_hal::CompositeAlpha>
     ) {
-        #[cfg(not(feature = "no-slow-safety-checks"))]
-        assert!(surface.factory_id() == self.id);
+        rendy_slow_assert!(surface.factory_id() == self.id);
         unsafe { surface.compatibility(&self.adapter.physical_device) }
     }
 
@@ -287,8 +287,7 @@ where
     /// - Panics if `no-slow-safety-checks` feature is disabled and
     /// `surface` was not created by this `Factory`
     pub fn get_surface_format(&self, surface: &Surface<B>) -> format::Format {
-        #[cfg(not(feature = "no-slow-safety-checks"))]
-        assert!(surface.factory_id() == self.id);
+        rendy_slow_assert!(surface.factory_id() == self.id);
         unsafe { surface.format(&self.adapter.physical_device) }
     }
 
@@ -298,17 +297,15 @@ where
     /// - Panics if `no-slow-safety-checks` feature is disabled and
     /// `surface` was not created by this `Factory`
     pub unsafe fn destroy_surface(&mut self, surface: Surface<B>) {
-        #[cfg(not(feature = "no-slow-safety-checks"))]
-        assert!(surface.factory_id() == self.id);
+        rendy_slow_assert!(surface.factory_id() == self.id);
         drop(surface);
     }
 
     /// Create target out of rendering surface.
     /// 
     /// ## Panics
-    /// - Panics if `image_count` or `present_mode` are not supported,
-    /// or if `surface` was not created from this `Factory` and
-    /// `no-slow-safety-checks` feature is disabled.
+    /// - Panics if `no-slow-safety-checks` feature is disabled and
+    /// `surface` was not created by this `Factory`
     pub fn create_target(
         &self,
         surface: Surface<B>,
@@ -316,8 +313,7 @@ where
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        #[cfg(not(feature = "no-slow-safety-checks"))]
-        assert!(surface.factory_id() == self.id);
+        rendy_slow_assert!(surface.factory_id() == self.id);
         unsafe {
             surface.into_target(
                 &self.adapter.physical_device,
@@ -624,6 +620,8 @@ pub fn init_with_instance<B>(
 where
     B: gfx_hal::Backend,
 {
+    #[cfg(not(feature = "no-slow-safety-checks"))]
+    log::warn!("Slow safety checks are enabled! Disable them in production by enabling the 'no-slow-safety-checks' feature!");
     let mut adapters = instance.enumerate_adapters();
 
     if adapters.is_empty() {
@@ -681,12 +679,6 @@ where
         let Gpu { device, mut queues } = unsafe { adapter.physical_device.open(&create_queues) }?;
         
         let id = FACTORY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-
-        assert_eq!(
-            id,
-            0,
-            "Only one Factory supported"
-        );
 
         let families =
             unsafe { families_from_device(&mut queues, get_queues, &adapter.queue_families) };
