@@ -31,7 +31,7 @@ struct ForImage<B: gfx_hal::Backend> {
 #[derive(Debug)]
 pub struct PresentNode<B: gfx_hal::Backend> {
     per_image: Vec<ForImage<B>>,
-    free: Option<B::Semaphore>,
+    free_acquire: B::Semaphore,
     target: Target<B>,
     pool: CommandPool<B, gfx_hal::QueueType>,
 }
@@ -280,7 +280,7 @@ where
         };
 
         Ok(Box::new(PresentNode {
-            free: Some(factory.create_semaphore().unwrap()),
+            free_acquire: factory.create_semaphore().unwrap(),
             target,
             pool,
             per_image,
@@ -303,11 +303,10 @@ where
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
-        let acquire = self.free.take().unwrap();
-        let next = self.target.next_image(&acquire).unwrap();
+        let next = self.target.next_image(&self.free_acquire).unwrap();
         log::trace!("Present: {:#?}", next);
         let ref mut for_image = self.per_image[next[0] as usize];
-        self.free = Some(std::mem::replace(&mut for_image.acquire, acquire));
+        core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
 
         queue.submit(
             Some(
@@ -335,7 +334,7 @@ where
                 .free_buffers(Some(for_image.buffer.mark_complete()));
         }
 
-        factory.destroy_semaphore(self.free.unwrap());
+        factory.destroy_semaphore(self.free_acquire);
         factory.destroy_command_pool(self.pool);
         factory.destroy_target(self.target);
     }
