@@ -32,7 +32,7 @@ impl From<gfx_hal::device::OutOfMemory> for HeapsError {
 
 /// Config for `Heaps` allocator.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HeapsConfig {
     /// Config for linear sub-allocator.
     pub linear: Option<LinearConfig>,

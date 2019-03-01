@@ -8,7 +8,7 @@ use crate::{
 /// Factory initialization config.
 #[derive(Clone, derivative::Derivative)]
 #[derivative(Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Config<D = BasicDevicesConfigure, H = BasicHeapsConfigure, Q = OneGraphicsQueue> {
     /// Config to choose adapter.
     pub devices: D,
@@ -35,7 +35,7 @@ pub unsafe trait QueuesConfigure {
 /// QueuePicker that picks first graphics queue family.
 /// If possible it checks that queues of the family are capabile of presenting.
 #[derive(Clone, Copy, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OneGraphicsQueue;
 
 unsafe impl QueuesConfigure for OneGraphicsQueue {
@@ -54,7 +54,8 @@ unsafe impl QueuesConfigure for OneGraphicsQueue {
 
 /// Saved config for queues.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// TODO: Enable serde when FamilyId will be serializable
+// #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedQueueConfig(Vec<(FamilyId, Vec<f32>)>);
 
 unsafe impl QueuesConfigure for SavedQueueConfig {
@@ -82,7 +83,7 @@ pub unsafe trait HeapsConfigure {
 
 /// Basic heaps config.
 #[derive(Clone, Copy, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicHeapsConfigure;
 
 unsafe impl HeapsConfigure for BasicHeapsConfigure {
@@ -136,7 +137,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
 
 /// Saved config for heaps.
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedHeapsConfig {
     types: Vec<(gfx_hal::memory::Properties, u32, HeapsConfig)>,
     heaps: Vec<u64>,
@@ -169,7 +170,7 @@ pub trait DevicesConfigure {
 
 /// Basics adapters config.
 #[derive(Clone, Copy, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicDevicesConfigure;
 
 impl DevicesConfigure for BasicDevicesConfigure {
