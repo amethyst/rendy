@@ -93,7 +93,7 @@ where
 
 /// Config for `DynamicAllocator`.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DynamicConfig {
     /// Number of blocks per chunk.
     /// It is advised to keep this equal to bits count in `usize`.

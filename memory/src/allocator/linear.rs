@@ -91,7 +91,7 @@ where
 
 /// Config for `DynamicAllocator`.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LinearConfig {
     /// Size of the linear chunk.
     /// Keep it big.
