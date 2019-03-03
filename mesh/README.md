@@ -1,5 +1,5 @@
 
-# `gfx-mesh`
+# `rendy-mesh`
 
 Helper crate for `gfx-hal` to create and use meshes with vertex semantics.
 
