@@ -36,9 +36,9 @@ Alternatively `Capability` type can be used instead of marker type, this way act
 
 ### Command buffer
 
-`rendy` provides handy wrapper named `CommandBuffer`. In contrast to raw counterpart this wrapper
+`rendy` provides handy wrapper named `CommandBuffer`. In contrast to its raw counterpart this wrapper
 encodes crutial information about its state directly into type level.
-This means user can't accidentially:
+This means user can't accidentally:
 * record command unsupported by queue family it belongs to.
 * record command when command buffer is not in recording state.
 * record render pass command outside renderpass.
@@ -55,8 +55,8 @@ This means user can't accidentially:
 
 ### Rendergraph
 
-`rendy`'s rendergraph allow writing rendering code in simple modular style.
-Making it much easier to composite complex frame from simple parts.
+`rendy`'s rendergraph allows writing rendering code in simple modular style.
+Making it much easier to compose a complex frame from simple parts.
 User defines nodes which declare buffers and images it reads and writes.
 Rendergraph takes responsibility for transient resource allocation and execution synchronization.
 User is responsible only for intra-node synchronization.
@@ -68,7 +68,7 @@ There will be more `Node`, `DynNode` and `RenderGroup` implementations to furthe
 ### Cirques
 
 This hybrid of circus and queue simplifies synchronizing host access to resources.
-`Cirque` allocates copies of the resource from resource spicific allocator
+`Cirque` allocates copies of the resource from resource specific allocator
 (e.g. `CommandPool` for `CommandBuffer`s, `Factory` for `Buffer`s)
 and gives access to the unused copy.
 
@@ -125,7 +125,7 @@ struct Example {
 
 Most of the features provided by rendy can be used independently from others.
 This helps to keep API clean and hopefuly sound.
-Top-level umbrela crate `rendy` has feature for each subcrates so that they could be enabled separately (subcrate will also enable its depenencies).
+Top-level umbrella crate `rendy` has feature for each subcrates so that they could be enabled separately (subcrate will also enable its depenencies).
 
 ## Who is using it?
 
