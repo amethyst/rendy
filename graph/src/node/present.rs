@@ -206,6 +206,7 @@ where
         let ref input_image = images[0];
         let target = factory.create_target(
             self.surface,
+            family.id(),
             self.image_count,
             self.present_mode,
             gfx_hal::image::Usage::TRANSFER_DST)?;
@@ -222,13 +223,30 @@ where
                         let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
                         let mut encoder = buf_recording.encoder();
                         {
-                            let (stages, barriers) = gfx_acquire_barriers(None, Some(input_image));
-                            log::info!("Acquire {:?} : {:#?}", stages, barriers);
-                            encoder.pipeline_barrier(
-                                stages,
-                                gfx_hal::memory::Dependencies::empty(),
-                                barriers,
+                            let (mut stages, mut barriers) = gfx_acquire_barriers(None, Some(input_image));
+                            stages.start |= gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+                            stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
+                            barriers.push(
+                                gfx_hal::memory::Barrier::Image {
+                                    states: (gfx_hal::image::Access::empty(), gfx_hal::image::Layout::Undefined)
+                                        ..(gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal),
+                                    families: None,
+                                    target: target_image.raw(),
+                                    range: gfx_hal::image::SubresourceRange {
+                                        aspects: gfx_hal::format::Aspects::COLOR,
+                                        levels: 0..1,
+                                        layers: 0..1,
+                                    }
+                                }
                             );
+                            if !barriers.is_empty() {
+                                log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                                encoder.pipeline_barrier(
+                                    stages,
+                                    gfx_hal::memory::Dependencies::empty(),
+                                    barriers,
+                                );
+                            }
                         }
                         encoder.copy_image(
                             input_image.image.raw(),
@@ -256,13 +274,31 @@ where
                             }),
                         );
                         {
-                            let (stages, barriers) = gfx_release_barriers(None, Some(input_image));
-                            log::info!("Release {:?} : {:#?}", stages, barriers);
-                            encoder.pipeline_barrier(
-                                stages,
-                                gfx_hal::memory::Dependencies::empty(),
-                                barriers,
+                            let (mut stages, mut barriers) = gfx_release_barriers(None, Some(input_image));
+                            stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
+                            stages.end |= gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+                            barriers.push(
+                                gfx_hal::memory::Barrier::Image {
+                                    states: (gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal)
+                                        ..(gfx_hal::image::Access::empty(), gfx_hal::image::Layout::Present),
+                                    families: None,
+                                    target: target_image.raw(),
+                                    range: gfx_hal::image::SubresourceRange {
+                                        aspects: gfx_hal::format::Aspects::COLOR,
+                                        levels: 0..1,
+                                        layers: 0..1,
+                                    }
+                                }
                             );
+
+                            if !barriers.is_empty() {
+                                log::info!("Release {:?} : {:#?}", stages, barriers);
+                                encoder.pipeline_barrier(
+                                    stages,
+                                    gfx_hal::memory::Dependencies::empty(),
+                                    barriers,
+                                );
+                            }
                         }
 
                         let (submit, buffer) = buf_recording.finish().submit();

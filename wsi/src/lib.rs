@@ -139,6 +139,11 @@ where
         s
     }
 
+    /// Get raw `B::Surface` reference
+    pub fn raw(&self) -> &B::Surface {
+        &self.raw
+    }
+
     /// Get factory id that this surface was created from
     #[cfg(not(feature = "no-slow-safety-checks"))]
     pub fn factory_id(&self) -> usize {
@@ -201,7 +206,7 @@ where
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        let (capabilities, formats, present_modes, _alpha) = self.compatibility(physical_device);
+        let (capabilities, formats, present_modes, alpha) = self.compatibility(physical_device);
 
         if !present_modes.contains(&present_mode) {
             log::warn!(
@@ -280,7 +285,14 @@ where
                 image_count,
                 image_layers: 1,
                 image_usage: usage,
-                composite_alpha: gfx_hal::window::CompositeAlpha::Inherit,
+                composite_alpha: alpha.into_iter().max_by_key(|alpha| {
+                    match alpha {
+                        gfx_hal::window::CompositeAlpha::Inherit => 3,
+                        gfx_hal::window::CompositeAlpha::Opaque => 2,
+                        gfx_hal::window::CompositeAlpha::PreMultiplied => 1,
+                        gfx_hal::window::CompositeAlpha::PostMultiplied => 0,
+                    }
+                }).expect("No CompositeAlpha modes supported"),
             },
             None,
         )?;

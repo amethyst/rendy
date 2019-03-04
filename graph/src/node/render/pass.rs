@@ -11,7 +11,7 @@ use {
             Frames,
         },
         node::{
-            gfx_acquire_barriers, gfx_release_barriers,
+            gfx_acquire_barriers, gfx_release_barriers, is_metal,
             render::group::{RenderGroup, RenderGroupBuilder},
             BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeImage,
         },
@@ -434,7 +434,13 @@ where
         let command_cirque = CommandCirque::new();
 
         let acquire = if !is_metal::<B>() {
-            let (stages, barriers) = gfx_acquire_barriers(&buffers, &images);
+            let (stages, barriers) = gfx_acquire_barriers(
+                &buffers,
+                images
+                    .iter()
+                    .chain(attachments
+                        .iter()
+                        .filter(|attachment| attachment.clear.is_none())));
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
@@ -458,7 +464,7 @@ where
         };
 
         let release = if !is_metal::<B>() {
-            let (stages, barriers) = gfx_release_barriers(&buffers, &images);
+            let (stages, barriers) = gfx_release_barriers(&buffers, images.iter().chain(attachments.iter()));
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
@@ -763,14 +769,4 @@ fn common_layout(acc: Layout, layout: Layout) -> Layout {
         }
         (_, _) => Layout::General,
     }
-}
-
-#[cfg(feature = "metal")]
-fn is_metal<B: gfx_hal::Backend>() -> bool {
-    std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
-}
-
-#[cfg(not(feature = "metal"))]
-fn is_metal<B: gfx_hal::Backend>() -> bool {
-    false
 }

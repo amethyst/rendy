@@ -665,6 +665,16 @@ pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
             }
         }))
         .collect();
-
+    
     (bstart | istart..bend | iend, barriers)
+}
+
+#[cfg(feature = "metal")]
+pub fn is_metal<B: gfx_hal::Backend>() -> bool {
+    std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
+}
+
+#[cfg(not(feature = "metal"))]
+pub fn is_metal<B: gfx_hal::Backend>() -> bool {
+    false
 }

@@ -184,7 +184,8 @@ impl<'a> MeshBuilder<'a> {
                                     vertices,
                                     None,
                                     BufferState::new(queue)
-                                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ),
+                                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
+                                        .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
                                 )?;
                             }
                             buffer
@@ -213,7 +214,8 @@ impl<'a> MeshBuilder<'a> {
                                     indices,
                                     None,
                                     BufferState::new(queue)
-                                        .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ),
+                                        .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
+                                        .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
                                 )?;
                             }
                             buffer

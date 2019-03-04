@@ -1,5 +1,4 @@
 use crate::{
-    command::QueueId,
     factory::{Factory, ImageState},
     pixel::AsPixel,
     resource::image::{Image, ImageView, Texture as TextureUsage},
@@ -119,11 +118,14 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// Build texture.
+    /// 
+    /// ## Parameters
+    /// * `next_state`: The next state that this texture will be used in.
+    ///     It will get transitioned to this state after uploading.
+    /// * `factory`: Factory to use to build the texture
     pub fn build<B>(
         &self,
-        queue: QueueId,
-        access: gfx_hal::image::Access,
-        layout: gfx_hal::image::Layout,
+        next_state: ImageState,
         factory: &'a mut Factory<B>,
     ) -> Result<Texture<B>, failure::Error>
     where
@@ -153,7 +155,7 @@ impl<'a> TextureBuilder<'a> {
                 self.kind.extent(),
                 &self.data,
                 gfx_hal::image::Layout::Undefined,
-                ImageState::new(queue, layout).with_access(access),
+                next_state
             )?;
         }
 
