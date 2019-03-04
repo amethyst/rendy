@@ -42,23 +42,17 @@ where
 {
     /// Node builder.
     /// By default attempts to use 3 images in the swapchain with present mode priority:
-    /// 
+    ///
     /// Mailbox > Fifo > Relaxed > Immediate.
-    /// 
+    ///
     /// You can query the real image count and present mode which will be used with
     /// `PresentBuilder::image_count()` and `PresentBuilder::present_mode()`.
-    pub fn builder(
-        factory: &Factory<B>,
-        surface: Surface<B>,
-        image: ImageId
-    ) -> PresentBuilder<B> {
+    pub fn builder(factory: &Factory<B>, surface: Surface<B>, image: ImageId) -> PresentBuilder<B> {
         let (caps, _f, present_modes_caps, _a) = factory.get_surface_compatibility(&surface);
 
         let img_count_caps = caps.image_count;
-        let image_count = 3
-            .min(img_count_caps.end)
-            .max(img_count_caps.start);
-        
+        let image_count = 3.min(img_count_caps.end).max(img_count_caps.start);
+
         let present_mode = *present_modes_caps
             .iter()
             .max_by_key(|mode| match mode {
@@ -113,7 +107,7 @@ where
 
     /// Request a number of images in the swapchain. This is not guaranteed
     /// to be the final image count, but it will be if supported by the hardware.
-    /// 
+    ///
     /// Check `PresentBuilder::image_count()` after calling this function but before
     /// building to see the final image count.
     pub fn with_image_count(mut self, image_count: u32) -> Self {
@@ -125,28 +119,35 @@ where
     }
 
     /// Request a priority of present modes when creating the swapchain for the
-    /// PresentNode. Lower index means higher priority. 
-    /// 
+    /// PresentNode. Lower index means higher priority.
+    ///
     /// Check `PresentBuilder::present_mode()` after calling this function but before
     /// building to see the final present mode.
-    /// 
+    ///
     /// ## Parameters
     /// - present_modes_priority: A function which takes a `gfx_hal::PresentMode` and returns
     /// an `Option<usize>`. `None` indicates not to use this mode, and a higher number returned
     /// indicates a higher prioirity for that mode.
-    /// 
+    ///
     /// ## Panics
     /// - Panics if none of the provided `PresentMode`s are supported.
-    pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self 
-        where PF: Fn(gfx_hal::PresentMode) -> Option<usize>
+    pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self
+    where
+        PF: Fn(gfx_hal::PresentMode) -> Option<usize>,
     {
-        if !self.present_modes_caps.iter().any(|m| present_modes_priority(*m).is_some()) {
+        if !self
+            .present_modes_caps
+            .iter()
+            .any(|m| present_modes_priority(*m).is_some())
+        {
             panic!(
                 "No desired PresentModes are supported. Supported: {:#?}",
                 self.present_modes_caps
             );
         }
-        self.present_mode = *self.present_modes_caps.iter()
+        self.present_mode = *self
+            .present_modes_caps
+            .iter()
             .max_by_key(|&mode| present_modes_priority(*mode))
             .unwrap();
         self
@@ -209,7 +210,8 @@ where
             family.id(),
             self.image_count,
             self.present_mode,
-            gfx_hal::image::Usage::TRANSFER_DST)?;
+            gfx_hal::image::Usage::TRANSFER_DST,
+        )?;
 
         let mut pool = factory.create_command_pool(family)?;
 
@@ -223,30 +225,33 @@ where
                         let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
                         let mut encoder = buf_recording.encoder();
                         {
-                            let (mut stages, mut barriers) = gfx_acquire_barriers(None, Some(input_image));
+                            let (mut stages, mut barriers) =
+                                gfx_acquire_barriers(None, Some(input_image));
                             stages.start |= gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
                             stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
-                            barriers.push(
-                                gfx_hal::memory::Barrier::Image {
-                                    states: (gfx_hal::image::Access::empty(), gfx_hal::image::Layout::Undefined)
-                                        ..(gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal),
-                                    families: None,
-                                    target: target_image.raw(),
-                                    range: gfx_hal::image::SubresourceRange {
-                                        aspects: gfx_hal::format::Aspects::COLOR,
-                                        levels: 0..1,
-                                        layers: 0..1,
-                                    }
-                                }
+                            barriers.push(gfx_hal::memory::Barrier::Image {
+                                states: (
+                                    gfx_hal::image::Access::empty(),
+                                    gfx_hal::image::Layout::Undefined,
+                                )
+                                    ..(
+                                        gfx_hal::image::Access::TRANSFER_WRITE,
+                                        gfx_hal::image::Layout::TransferDstOptimal,
+                                    ),
+                                families: None,
+                                target: target_image.raw(),
+                                range: gfx_hal::image::SubresourceRange {
+                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    levels: 0..1,
+                                    layers: 0..1,
+                                },
+                            });
+                            log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                            encoder.pipeline_barrier(
+                                stages,
+                                gfx_hal::memory::Dependencies::empty(),
+                                barriers,
                             );
-                            if !barriers.is_empty() {
-                                log::info!("Acquire {:?} : {:#?}", stages, barriers);
-                                encoder.pipeline_barrier(
-                                    stages,
-                                    gfx_hal::memory::Dependencies::empty(),
-                                    barriers,
-                                );
-                            }
                         }
                         encoder.copy_image(
                             input_image.image.raw(),
@@ -274,31 +279,34 @@ where
                             }),
                         );
                         {
-                            let (mut stages, mut barriers) = gfx_release_barriers(None, Some(input_image));
+                            let (mut stages, mut barriers) =
+                                gfx_release_barriers(None, Some(input_image));
                             stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
                             stages.end |= gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE;
-                            barriers.push(
-                                gfx_hal::memory::Barrier::Image {
-                                    states: (gfx_hal::image::Access::TRANSFER_WRITE, gfx_hal::image::Layout::TransferDstOptimal)
-                                        ..(gfx_hal::image::Access::empty(), gfx_hal::image::Layout::Present),
-                                    families: None,
-                                    target: target_image.raw(),
-                                    range: gfx_hal::image::SubresourceRange {
-                                        aspects: gfx_hal::format::Aspects::COLOR,
-                                        levels: 0..1,
-                                        layers: 0..1,
-                                    }
-                                }
-                            );
+                            barriers.push(gfx_hal::memory::Barrier::Image {
+                                states: (
+                                    gfx_hal::image::Access::TRANSFER_WRITE,
+                                    gfx_hal::image::Layout::TransferDstOptimal,
+                                )
+                                    ..(
+                                        gfx_hal::image::Access::empty(),
+                                        gfx_hal::image::Layout::Present,
+                                    ),
+                                families: None,
+                                target: target_image.raw(),
+                                range: gfx_hal::image::SubresourceRange {
+                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    levels: 0..1,
+                                    layers: 0..1,
+                                },
+                            });
 
-                            if !barriers.is_empty() {
-                                log::info!("Release {:?} : {:#?}", stages, barriers);
-                                encoder.pipeline_barrier(
-                                    stages,
-                                    gfx_hal::memory::Dependencies::empty(),
-                                    barriers,
-                                );
-                            }
+                            log::info!("Release {:?} : {:#?}", stages, barriers);
+                            encoder.pipeline_barrier(
+                                stages,
+                                gfx_hal::memory::Dependencies::empty(),
+                                barriers,
+                            );
                         }
 
                         let (submit, buffer) = buf_recording.finish().submit();

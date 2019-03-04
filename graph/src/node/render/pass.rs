@@ -271,7 +271,7 @@ where
         attachment_ids.sort();
         attachment_ids.dedup();
 
-        let (attachments, mut images): (Vec<_>, _) = images
+        let (mut attachments, mut images): (Vec<_>, _) = images
             .into_iter()
             .partition(|image| attachment_ids.binary_search(&image.id).is_ok());
 
@@ -438,9 +438,18 @@ where
                 &buffers,
                 images
                     .iter()
-                    .chain(attachments
-                        .iter()
-                        .filter(|attachment| attachment.clear.is_none())));
+                    .chain(attachments.iter_mut().map(|attachment| {
+                        if attachment.clear.is_some() {
+                            if let Some(ref mut acquire) = &mut attachment.acquire {
+                                acquire.states.start = (
+                                    gfx_hal::image::Access::empty(),
+                                    gfx_hal::image::Layout::Undefined,
+                                );
+                            }
+                        }
+                        &*attachment
+                    })),
+            );
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
@@ -464,7 +473,8 @@ where
         };
 
         let release = if !is_metal::<B>() {
-            let (stages, barriers) = gfx_release_barriers(&buffers, images.iter().chain(attachments.iter()));
+            let (stages, barriers) =
+                gfx_release_barriers(&buffers, images.iter().chain(attachments.iter()));
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
