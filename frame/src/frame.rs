@@ -7,13 +7,18 @@ pub type Fences<B> = smallvec::SmallVec<[Fence<B>; 8]>;
 
 /// Single frame rendering task.
 /// Command buffers can be submitted as part of the `Frame`.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[allow(missing_copy_implementations)]
 pub struct Frame {
     index: u64,
 }
 
 impl Frame {
+    /// Create frame with specific index.
+    pub fn with_index(index: u64) -> Self {
+        Frame { index }
+    }
+
     /// Get frame index.
     pub fn index(&self) -> u64 {
         self.index
@@ -34,11 +39,37 @@ impl CompleteFrame {
     }
 }
 
+pub struct FramesRange {
+    next: u64,
+    complete_upper_bound: u64,
+}
+
+impl FramesRange {
+    /// Check if given frame is.
+    pub fn is_complete(&self, frame: Frame) -> bool {
+        self.complete_upper_bound > frame.index
+    }
+
+    /// Check if given frame is.
+    pub fn complete(&self, frame: Frame) -> Option<CompleteFrame> {
+        if self.complete_upper_bound > frame.index {
+            Some(CompleteFrame { index: frame.index })
+        } else {
+            None
+        }
+    }
+
+    /// Get next frame
+    pub fn next(&self) -> Frame {
+        Frame { index: self.next }
+    }
+}
+
 /// Timeline of frames, complete, pending and next.
 #[derive(Debug)]
 pub struct Frames<B: gfx_hal::Backend> {
     pending: std::collections::VecDeque<Fences<B>>,
-    next: Frame,
+    next: u64,
 }
 
 impl<B> Frames<B>
@@ -49,32 +80,38 @@ where
     pub fn new() -> Self {
         Frames {
             pending: Default::default(),
-            next: Frame { index: 0 },
+            next: 0,
         }
     }
 
     /// Get next frame reference.
-    pub fn next(&self) -> &Frame {
-        &self.next
+    pub fn next(&self) -> Frame {
+        Frame { index: self.next }
     }
 
     /// Advance to the next frame.
     /// All fences of the next frame must be queued.
     pub unsafe fn advance(&mut self, fences: Fences<B>) {
         self.pending.push_back(fences);
-        self.next.index += 1;
+        self.next += 1;
     }
 
     /// Get upper bound of complete frames.
+    /// All frames with index less than result of this function are complete.
     pub fn complete_upper_bound(&self) -> u64 {
-        debug_assert!(self.pending.len() as u64 <= self.next.index);
-        self.next.index - self.pending.len() as u64
+        debug_assert!(self.pending.len() as u64 <= self.next);
+        self.next - self.pending.len() as u64
+    }
+
+    /// Check if given frame is.
+    pub fn is_complete(&self, frame: Frame) -> bool {
+        self.complete_upper_bound() > frame.index
     }
 
     /// Check if frame with specified index is complete.
-    pub fn complete(&self, index: u64) -> Option<CompleteFrame> {
-        if self.complete_upper_bound() > index {
-            Some(CompleteFrame { index })
+    pub fn complete(&self, frame: Frame) -> Option<CompleteFrame> {
+        if self.complete_upper_bound() > frame.index {
+            Some(CompleteFrame { index: frame.index })
         } else {
             None
         }
@@ -85,7 +122,7 @@ where
     ///
     /// # Parameters
     ///
-    /// `target` - last index of frame that must complete.
+    /// `target` - frame that must complete.
     /// `factory` - The factory.
     ///
     /// # Panics
@@ -93,18 +130,18 @@ where
     /// This function will panic if `target` is greater than or equal to next frame.
     pub fn wait_complete(
         &mut self,
-        target: u64,
+        target: Frame,
         factory: &Factory<B>,
         free: impl FnMut(Fences<B>),
     ) -> CompleteFrame {
-        assert!(target <= self.next.index());
+        assert!(target.index <= self.next);
         if let Some(complete) = self.complete(target) {
             complete
         } else {
             // n - p <= t
             // p - n + t + 1 >= 1
             // count >= 1
-            let count = self.pending.len() - (self.next.index() - target - 1) as usize;
+            let count = self.pending.len() - (self.next - target.index - 1) as usize;
             let ready = factory.wait_for_fences(
                 self.pending.iter_mut().take(count).flatten(),
                 gfx_hal::device::WaitFor::All,
@@ -112,7 +149,9 @@ where
             );
             assert_eq!(ready, Ok(true));
             self.pending.drain(..count).for_each(free);
-            CompleteFrame { index: target }
+            CompleteFrame {
+                index: target.index,
+            }
         }
     }
 
@@ -133,7 +172,10 @@ where
 
     /// Get range of frame indices in this form:
     /// `upper bound of finished frames .. next frame`.
-    pub fn range(&self) -> std::ops::Range<u64> {
-        self.complete_upper_bound()..self.next.index
+    pub fn range(&self) -> FramesRange {
+        FramesRange {
+            next: self.next,
+            complete_upper_bound: self.complete_upper_bound(),
+        }
     }
 }

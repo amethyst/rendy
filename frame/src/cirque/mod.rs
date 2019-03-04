@@ -3,7 +3,10 @@
 mod command;
 
 pub use self::command::*;
-use std::collections::VecDeque;
+use {
+    crate::frame::{Frame, Frames},
+    std::collections::VecDeque,
+};
 
 /// Reference to one of the values in the `Cirque`.
 /// It can be in either initial or ready state.
@@ -49,7 +52,7 @@ pub struct InitialRef<'a, T, I = T, P = T> {
     relevant: relevant::Relevant,
     cirque: &'a mut Cirque<T, I, P>,
     value: I,
-    frame: u64,
+    frame: Frame,
     index: usize,
 }
 
@@ -78,7 +81,7 @@ pub struct ReadyRef<'a, T, I = T, P = T> {
     relevant: relevant::Relevant,
     cirque: &'a mut Cirque<T, I, P>,
     value: T,
-    frame: u64,
+    frame: Frame,
     index: usize,
 }
 
@@ -114,7 +117,7 @@ impl<'a, T, I, P> ReadyRef<'a, T, I, P> {
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Default(bound = ""))]
 pub struct Cirque<T, I = T, P = T> {
-    pending: VecDeque<(P, usize, u64)>,
+    pending: VecDeque<(P, usize, Frame)>,
     ready: VecDeque<(T, usize)>,
     marker: std::marker::PhantomData<fn() -> I>,
     counter: usize,
@@ -138,25 +141,26 @@ impl<T, I, P> Cirque<T, I, P> {
 
     /// Get `CirqueRef` for specified frames range.
     /// Allocate new instance in initial state if no ready values exist.
-    pub fn get(
+    pub fn get<B: gfx_hal::Backend>(
         &mut self,
-        frames: std::ops::Range<u64>,
+        frames: &Frames<B>,
         alloc: impl FnOnce() -> I,
         complete: impl Fn(P) -> T,
     ) -> CirqueRef<'_, T, I, P> {
         while let Some((value, index, frame)) = self.pending.pop_front() {
-            if frame > frames.start {
+            if frames.is_complete(frame) {
+                self.ready.push_back((complete(value), index));
+            } else {
                 self.pending.push_back((value, index, frame));
                 break;
             }
-            self.ready.push_back((complete(value), index));
         }
         if let Some((value, index)) = self.ready.pop_front() {
             CirqueRef::Ready(ReadyRef {
                 relevant: relevant::Relevant,
                 cirque: self,
                 value,
-                frame: frames.end,
+                frame: frames.next(),
                 index,
             })
         } else {
@@ -168,7 +172,7 @@ impl<T, I, P> Cirque<T, I, P> {
                 index,
                 cirque: self,
                 value,
-                frame: frames.end,
+                frame: frames.next(),
             })
         }
     }

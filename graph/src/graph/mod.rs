@@ -3,7 +3,7 @@ use {
         chain,
         command::{Families, QueueId},
         factory::Factory,
-        frame::{Fences, Frames},
+        frame::{Fences, Frame, Frames},
         memory::MemoryUsageValue,
         node::{DynNode, NodeBuilder},
         resource::{buffer, image},
@@ -59,7 +59,7 @@ where
     ///               So it's OK to start with empty `Vec`.
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
         if self.frames.next().index() >= self.inflight as _ {
-            let wait = self.frames.next().index() - self.inflight as u64;
+            let wait = Frame::with_index(self.frames.next().index() - self.inflight as u64);
             let ref mut self_fences = self.fences;
             self.frames.wait_complete(wait, factory, |mut fences| {
                 factory.reset_fences(&mut fences).unwrap();

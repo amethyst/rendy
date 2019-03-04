@@ -48,7 +48,7 @@ where
     /// Encode and submit.
     pub fn encode<'a>(
         &'a mut self,
-        frames: std::ops::Range<u64>,
+        frames: &Frames<B>,
         pool: &mut CommandPool<B, C, IndividualReset>,
         encode: impl FnOnce(CommandCirqueRef<'a, B, C, P, L>) -> CommandReadyRef<'a, B, C, P, L>,
     ) -> Submit<B, NoSimultaneousUse, L, P> {

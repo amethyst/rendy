@@ -641,7 +641,7 @@ where
             ..
         } = self;
 
-        let submit = command_cirque.encode(frames.range(), command_pool, |mut cbuf| {
+        let submit = command_cirque.encode(frames, command_pool, |mut cbuf| {
             let index = cbuf.index();
 
             let force_record = subpasses
