@@ -227,7 +227,7 @@ where
                         {
                             let (mut stages, mut barriers) =
                                 gfx_acquire_barriers(None, Some(input_image));
-                            stages.start |= gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+                            stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
                             stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
                             barriers.push(gfx_hal::memory::Barrier::Image {
                                 states: (

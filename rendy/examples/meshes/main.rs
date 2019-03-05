@@ -357,8 +357,7 @@ where
 
     fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut Aux<B>) {
         unsafe {
-            self.descriptor_pool
-                .free_sets(self.sets.into_iter());
+            self.descriptor_pool.reset();
             factory.destroy_descriptor_pool(self.descriptor_pool);
         }
     }

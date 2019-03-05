@@ -757,6 +757,16 @@ where
                 },
             );
         });
+        if let Some(BarriersCommands { submit, buffer }) = self.acquire.take() {
+            drop(submit);
+            let executable = buffer.mark_complete();
+            pool.free_buffers(Some(executable));
+        }
+        if let Some(BarriersCommands { submit, buffer }) = self.release.take() {
+            drop(submit);
+            let executable = buffer.mark_complete();
+            pool.free_buffers(Some(executable));
+        }
         factory.destroy_command_pool(self.command_pool.with_queue_type());
 
         factory.device().destroy_framebuffer(self.framebuffer);
