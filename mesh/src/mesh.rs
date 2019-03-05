@@ -83,9 +83,25 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshBuilder<'a> {
-    vertices: smallvec::SmallVec<[(Cow<'a, [u8]>, VertexFormat<'static>); 16]>,
-    indices: Option<(Cow<'a, [u8]>, gfx_hal::IndexType)>,
+    vertices: smallvec::SmallVec<[RawVertices<'a>; 16]>,
+    indices: Option<RawIndices<'a>>,
     prim: gfx_hal::Primitive,
+}
+
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+struct RawVertices<'a> {
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    vertices: Cow<'a, [u8]>,
+    format: VertexFormat<'static>,
+}
+
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+struct RawIndices<'a> {
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    indices: Cow<'a, [u8]>,
+    index_type: gfx_hal::IndexType,
 }
 
 impl<'a> MeshBuilder<'a> {
@@ -114,8 +130,14 @@ impl<'a> MeshBuilder<'a> {
     {
         self.indices = match indices.into() {
             Indices::None => None,
-            Indices::U16(i) => Some((cast_cow(i), gfx_hal::IndexType::U16)),
-            Indices::U32(i) => Some((cast_cow(i), gfx_hal::IndexType::U32)),
+            Indices::U16(i) => Some(RawIndices {
+                indices: cast_cow(i),
+                index_type: gfx_hal::IndexType::U16,
+            }),
+            Indices::U32(i) => Some(RawIndices {
+                indices: cast_cow(i),
+                index_type: gfx_hal::IndexType::U32,
+            }),
         };
         self
     }
@@ -136,7 +158,10 @@ impl<'a> MeshBuilder<'a> {
         V: AsVertex + 'a,
         D: Into<Cow<'a, [V]>>,
     {
-        self.vertices.push((cast_cow(vertices.into()), V::VERTEX));
+        self.vertices.push(RawVertices {
+            vertices: cast_cow(vertices.into()),
+            format: V::VERTEX,
+        });
         self
     }
 
@@ -170,7 +195,7 @@ impl<'a> MeshBuilder<'a> {
             vbufs: self
                 .vertices
                 .iter()
-                .map(|(vertices, format)| {
+                .map(|RawVertices { vertices, format }| {
                     len = min(len, vertices.len() as u32 / format.stride);
                     Ok(VertexBuffer {
                         buffer: {
@@ -196,7 +221,10 @@ impl<'a> MeshBuilder<'a> {
                 .collect::<Result<_, failure::Error>>()?,
             ibuf: match self.indices {
                 None => None,
-                Some((ref indices, index_type)) => {
+                Some(RawIndices {
+                    ref indices,
+                    index_type,
+                }) => {
                     let stride = match index_type {
                         gfx_hal::IndexType::U16 => size_of::<u16>(),
                         gfx_hal::IndexType::U32 => size_of::<u32>(),
