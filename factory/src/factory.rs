@@ -301,7 +301,10 @@ where
         drop(surface);
     }
 
-    /// Create target out of rendering surface.
+    /// Create target out of rendering surface. The compatibility of
+    /// the surface with the queue family which will present to
+    /// this target must have *already* been checked using
+    /// `Factory::surface_support`.
     ///
     /// ## Panics
     /// - Panics if `no-slow-safety-checks` feature is disabled and
@@ -309,24 +312,19 @@ where
     pub fn create_target(
         &self,
         surface: Surface<B>,
-        family: FamilyId,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
         rendy_slow_assert!(surface.factory_id() == self.id);
-        if self.surface_support(family, surface.raw()) {
-            unsafe {
-                surface.into_target(
-                    &self.adapter.physical_device,
-                    &self.device,
-                    image_count,
-                    present_mode,
-                    usage,
-                )
-            }
-        } else {
-            failure::bail!("Family does not support presentation to this surface")
+        unsafe {
+            surface.into_target(
+                &self.adapter.physical_device,
+                &self.device,
+                image_count,
+                present_mode,
+                usage,
+            )
         }
     }
 

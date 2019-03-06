@@ -333,7 +333,7 @@ where
 
 /// Dynamic ode builder that emits `DynNode`.
 pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId>;
+    fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId>;
 
     /// Get buffer accessed by the node.
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)>;
@@ -524,7 +524,7 @@ where
     T: ?Sized,
     N: NodeDesc<B, T>,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, _factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
         families
             .iter()
             .find(|family| {

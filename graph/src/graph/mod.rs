@@ -261,7 +261,7 @@ where
             .nodes
             .iter()
             .enumerate()
-            .map(|(i, b)| make_chain_node(&**b, i, families))
+            .map(|(i, b)| make_chain_node(&**b, i, factory, families))
             .collect();
 
         let chains = chain::collect(chain_nodes, |id| families.family(id).as_slice().len());
@@ -379,6 +379,7 @@ where
 fn make_chain_node<B, T>(
     builder: &dyn NodeBuilder<B, T>,
     id: usize,
+    factory: &mut Factory<B>,
     families: &Families<B>,
 ) -> chain::Node
 where
@@ -389,7 +390,7 @@ where
     let images = builder.images();
     chain::Node {
         id,
-        family: builder.family(families.as_slice()).unwrap(),
+        family: builder.family(factory, families.as_slice()).unwrap(),
         dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
         buffers: buffers
             .into_iter()

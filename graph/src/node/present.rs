@@ -167,9 +167,9 @@ where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
         // Find correct queue family.
-        families.get(0).map(Family::id)
+        families.iter().find(|family| factory.surface_support(family.id(), self.surface.raw())).map(Family::id)
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
@@ -207,7 +207,6 @@ where
         let ref input_image = images[0];
         let target = factory.create_target(
             self.surface,
-            family.id(),
             self.image_count,
             self.present_mode,
             gfx_hal::image::Usage::TRANSFER_DST,

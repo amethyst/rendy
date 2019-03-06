@@ -138,7 +138,7 @@ where
     B: Backend,
     T: ?Sized + 'static,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, _factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
         families
             .iter()
             .find(|family| Supports::<Graphics>::supports(&family.capability()).is_some())
