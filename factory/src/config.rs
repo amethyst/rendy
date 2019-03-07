@@ -6,6 +6,20 @@ use crate::{
 };
 
 /// Factory initialization config.
+///
+/// `devices` - [`DeviceConfigure`] implementation instance to pick physical device.
+/// [`BasicDevicesConfigure`] can be used as sane default.
+/// `heaps` - [`HeapsConfigure`] implementation instance to cofigure memory allocators.
+/// [`BasicHeapsConfigure`] can be used as sane default.
+/// `queues` - [`QueuesConfigure`] implementation to configure device queues creation.
+/// [`OneGraphicsQueue`] can be used if only one graphics queue will satisfy requirements.
+///
+/// [`DeviceConfigure`]: trait.DevicesConfigure.html
+/// [`BasicDevicesConfigure`]: struct.BasicDevicesConfigure.html
+/// [`HeapsConfigure`]: trait.HeapsConfigure.html
+/// [`BasicHeapsConfigure`]: struct.BasicHeapsConfigure.html
+/// [`QueuesConfigure`]: trait.QueuesConfigure.html
+/// [`OneGraphicsQueue`]: struct.OneGraphicsQueue.html
 #[derive(Clone, derivative::Derivative)]
 #[derivative(Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -21,6 +35,11 @@ pub struct Config<D = BasicDevicesConfigure, H = BasicHeapsConfigure, Q = OneGra
 }
 
 /// Queues configuration.
+///
+/// Method [`configure`] receives collection of queue families and
+/// returns an iterator over family ids and number of queues.
+///
+/// [`configure`]: trait.QueuesConfigure.html#tymethod.configure
 pub unsafe trait QueuesConfigure {
     /// Slice of priorities.
     type Priorities: AsRef<[f32]>;
@@ -33,7 +52,14 @@ pub unsafe trait QueuesConfigure {
 }
 
 /// QueuePicker that picks first graphics queue family.
-/// If possible it checks that queues of the family are capabile of presenting.
+///
+/// TODO: Try to pick family that is capable of presenting
+/// This is possible in platform-dependent way for some platforms.
+///
+/// To pick multiple families with require number of queues
+/// a custom [`QueuesConfigure`] implementation can be used instead.
+///
+/// [`QueuesConfigure`]: trait.QueuesConfigure.html
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OneGraphicsQueue;
@@ -53,20 +79,31 @@ unsafe impl QueuesConfigure for OneGraphicsQueue {
 }
 
 /// Saved config for queues.
+/// This config can be loaded from config files
+/// in any format supported by serde ecosystem.
 #[derive(Clone, Debug)]
-// TODO: Enable serde when FamilyId will be serializable
-// #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SavedQueueConfig(Vec<(FamilyId, Vec<f32>)>);
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SavedQueueConfig(Vec<(usize, Vec<f32>)>);
 
 unsafe impl QueuesConfigure for SavedQueueConfig {
     type Priorities = Vec<f32>;
     type Families = Vec<(FamilyId, Vec<f32>)>;
     fn configure(self, _: &[impl gfx_hal::queue::QueueFamily]) -> Vec<(FamilyId, Vec<f32>)> {
+        // TODO: FamilyId should be stored directly once it become serializable.
         self.0
+            .into_iter()
+            .map(|(id, vec)| (gfx_hal::queue::QueueFamilyId(id), vec))
+            .collect()
     }
 }
 
 /// Heaps configuration.
+///
+/// Method [`configure`] receives memory properties and
+/// emits iterator memory types together with configurations for allocators and
+/// iterator over heaps sizes.
+///
+/// [`configure`]: trait.HeapsConfigure.html#tymethod.configure
 pub unsafe trait HeapsConfigure {
     /// Iterator over memory types.
     type Types: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>;
@@ -82,6 +119,13 @@ pub unsafe trait HeapsConfigure {
 }
 
 /// Basic heaps config.
+/// It uses some arbitrary values that can be considered sane default
+/// for today (year 2019) hardware and software.
+///
+/// If default allocators configuration is suboptimal for the particular use case
+/// a custom [`HeapsConfigure`] implementation can be used instead.
+///
+/// [`HeapsConfigure`]: trait.HeapsConfigure.html
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicHeapsConfigure;
@@ -94,6 +138,9 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
         self,
         properties: &gfx_hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps) {
+        let _32mb = 32 * 1024 * 1024;
+        let _256mb = 256 * 1024 * 1024;
+
         let types = properties
             .memory_types
             .iter()
@@ -105,7 +152,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                     {
                         Some(LinearConfig {
                             linear_size: min(
-                                256 * 1024 * 1024,
+                                _256mb,
                                 properties.memory_heaps[mt.heap_index as usize] / 8,
                             ),
                         })
@@ -114,7 +161,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                     },
                     dynamic: Some(DynamicConfig {
                         max_block_size: min(
-                            32 * 1024 * 1024,
+                            _32mb,
                             properties.memory_heaps[mt.heap_index as usize] / 8,
                         ),
                         block_size_granularity: min(
@@ -135,7 +182,9 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
     }
 }
 
-/// Saved config for heaps.
+/// Saved config for allocators.
+/// This config can be loaded from config files
+/// in any format supported by serde ecosystem.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedHeapsConfig {
@@ -156,6 +205,7 @@ unsafe impl HeapsConfigure for SavedHeapsConfig {
 }
 
 /// Devices configuration.
+/// Picks physical device to use.
 pub trait DevicesConfigure {
     /// Pick adapter from the slice.
     ///
@@ -169,6 +219,15 @@ pub trait DevicesConfigure {
 }
 
 /// Basics adapters config.
+///
+/// It picks first device with highest priority.
+/// From highest - discrete GPU, to lowest - CPU.
+///
+/// To pick among presented discret GPUs,
+/// or to intentionally pick integrated GPU when discrete GPU is available
+/// a custom [`DeviceConfigure`] implementationcan be used instead.
+///
+/// [`DeviceConfigure`]: trait.DevicesConfigure.html
 #[derive(Clone, Copy, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicDevicesConfigure;
