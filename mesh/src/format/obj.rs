@@ -9,8 +9,8 @@ use {
 };
 
 /// Load mesh data from obj.
-pub fn load_from_obj(bytes: Vec<u8>, _: ()) -> Result<MeshBuilder<'static>, failure::Error> {
-    let string = String::from_utf8(bytes)?;
+pub fn load_from_obj(bytes: &[u8], _: ()) -> Result<MeshBuilder<'static>, failure::Error> {
+    let string = std::str::from_utf8(bytes)?;
     let set = obj::parse(string).map_err(|e| {
         failure::format_err!(
             "Error during parsing obj-file at line '{}': {}",
