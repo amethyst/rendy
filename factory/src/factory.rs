@@ -264,25 +264,25 @@ where
     }
 
     /// Get compatibility of Surface
-    /// 
+    ///
     /// ## Panics
     /// - Panics if `no-slow-safety-checks` feature is disabled and
     /// `surface` was not created by this `Factory`
     pub fn get_surface_compatibility(
         &self,
-        surface: &Surface<B>
+        surface: &Surface<B>,
     ) -> (
         gfx_hal::window::SurfaceCapabilities,
         Option<Vec<gfx_hal::format::Format>>,
         Vec<gfx_hal::PresentMode>,
-        Vec<gfx_hal::CompositeAlpha>
+        Vec<gfx_hal::CompositeAlpha>,
     ) {
         rendy_slow_assert!(surface.factory_id() == self.id);
         unsafe { surface.compatibility(&self.adapter.physical_device) }
     }
 
     /// Get surface format.
-    /// 
+    ///
     /// ## Panics
     /// - Panics if `no-slow-safety-checks` feature is disabled and
     /// `surface` was not created by this `Factory`
@@ -292,7 +292,7 @@ where
     }
 
     /// Destroy surface returning underlying window back to the caller.
-    /// 
+    ///
     /// ## Panics
     /// - Panics if `no-slow-safety-checks` feature is disabled and
     /// `surface` was not created by this `Factory`
@@ -301,8 +301,11 @@ where
         drop(surface);
     }
 
-    /// Create target out of rendering surface.
-    /// 
+    /// Create target out of rendering surface. The compatibility of
+    /// the surface with the queue family which will present to
+    /// this target must have *already* been checked using
+    /// `Factory::surface_support`.
+    ///
     /// ## Panics
     /// - Panics if `no-slow-safety-checks` feature is disabled and
     /// `surface` was not created by this `Factory`
@@ -677,7 +680,7 @@ where
         log::info!("Queues: {:#?}", get_queues);
 
         let Gpu { device, mut queues } = unsafe { adapter.physical_device.open(&create_queues) }?;
-        
+
         let id = FACTORY_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         let families =

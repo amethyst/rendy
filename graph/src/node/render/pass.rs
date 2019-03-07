@@ -11,7 +11,7 @@ use {
             Frames,
         },
         node::{
-            gfx_acquire_barriers, gfx_release_barriers,
+            gfx_acquire_barriers, gfx_release_barriers, is_metal,
             render::group::{RenderGroup, RenderGroupBuilder},
             BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeImage,
         },
@@ -138,7 +138,7 @@ where
     B: Backend,
     T: ?Sized + 'static,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, _factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
         families
             .iter()
             .find(|family| Supports::<Graphics>::supports(&family.capability()).is_some())
@@ -271,7 +271,7 @@ where
         attachment_ids.sort();
         attachment_ids.dedup();
 
-        let (attachments, mut images): (Vec<_>, _) = images
+        let (mut attachments, mut images): (Vec<_>, _) = images
             .into_iter()
             .partition(|image| attachment_ids.binary_search(&image.id).is_ok());
 
@@ -434,7 +434,22 @@ where
         let command_cirque = CommandCirque::new();
 
         let acquire = if !is_metal::<B>() {
-            let (stages, barriers) = gfx_acquire_barriers(&buffers, &images);
+            let (stages, barriers) = gfx_acquire_barriers(
+                &buffers,
+                images
+                    .iter()
+                    .chain(attachments.iter_mut().map(|attachment| {
+                        if attachment.clear.is_some() {
+                            if let Some(ref mut acquire) = &mut attachment.acquire {
+                                acquire.states.start = (
+                                    gfx_hal::image::Access::empty(),
+                                    gfx_hal::image::Layout::Undefined,
+                                );
+                            }
+                        }
+                        &*attachment
+                    })),
+            );
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
@@ -458,7 +473,8 @@ where
         };
 
         let release = if !is_metal::<B>() {
-            let (stages, barriers) = gfx_release_barriers(&buffers, &images);
+            let (stages, barriers) =
+                gfx_release_barriers(&buffers, images.iter().chain(attachments.iter()));
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
@@ -741,6 +757,16 @@ where
                 },
             );
         });
+        if let Some(BarriersCommands { submit, buffer }) = self.acquire.take() {
+            drop(submit);
+            let executable = buffer.mark_complete();
+            pool.free_buffers(Some(executable));
+        }
+        if let Some(BarriersCommands { submit, buffer }) = self.release.take() {
+            drop(submit);
+            let executable = buffer.mark_complete();
+            pool.free_buffers(Some(executable));
+        }
         factory.destroy_command_pool(self.command_pool.with_queue_type());
 
         factory.device().destroy_framebuffer(self.framebuffer);
@@ -763,14 +789,4 @@ fn common_layout(acc: Layout, layout: Layout) -> Layout {
         }
         (_, _) => Layout::General,
     }
-}
-
-#[cfg(feature = "metal")]
-fn is_metal<B: gfx_hal::Backend>() -> bool {
-    std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
-}
-
-#[cfg(not(feature = "metal"))]
-fn is_metal<B: gfx_hal::Backend>() -> bool {
-    false
 }

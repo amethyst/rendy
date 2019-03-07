@@ -13,8 +13,8 @@
 use rendy_command as command;
 use rendy_memory as memory;
 use rendy_resource as resource;
-use rendy_wsi as wsi;
 use rendy_util as util;
+use rendy_wsi as wsi;
 
 mod config;
 mod factory;

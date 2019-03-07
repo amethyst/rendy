@@ -195,7 +195,7 @@ where
             .create_buffer(
                 512,
                 std::mem::size_of::<Color>() as u64 * 6,
-                (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic),
+                (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
             )
             .unwrap();
 
@@ -351,7 +351,12 @@ where
         );
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {}
+    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut T) {
+        unsafe {
+            self.descriptor_pool.reset();
+            factory.destroy_descriptor_pool(self.descriptor_pool);
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -400,7 +405,7 @@ where
         self.command_pool
             .free_buffers(Some(self.command_buffer.mark_complete()));
         factory.destroy_command_pool(self.command_pool);
-        self.descriptor_pool.free_sets(Some(self.descriptor_set));
+        self.descriptor_pool.reset();
         factory.destroy_descriptor_pool(self.descriptor_pool);
         factory.destroy_compute_pipeline(self.pipeline);
         factory.destroy_pipeline_layout(self.pipeline_layout);
@@ -481,6 +486,8 @@ where
                 None,
             )
         }?;
+
+        unsafe { factory.destroy_shader_module(module) };
 
         let (descriptor_pool, descriptor_set /*, buffer_view*/) = unsafe {
             let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(

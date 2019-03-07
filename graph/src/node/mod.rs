@@ -333,7 +333,7 @@ where
 
 /// Dynamic ode builder that emits `DynNode`.
 pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId>;
+    fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId>;
 
     /// Get buffer accessed by the node.
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)>;
@@ -524,7 +524,7 @@ where
     T: ?Sized,
     N: NodeDesc<B, T>,
 {
-    fn family(&self, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, _factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
         families
             .iter()
             .find(|family| {
@@ -665,6 +665,16 @@ pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
             }
         }))
         .collect();
-
+    
     (bstart | istart..bend | iend, barriers)
+}
+
+#[cfg(feature = "metal")]
+pub fn is_metal<B: gfx_hal::Backend>() -> bool {
+    std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
+}
+
+#[cfg(not(feature = "metal"))]
+pub fn is_metal<B: gfx_hal::Backend>() -> bool {
+    false
 }

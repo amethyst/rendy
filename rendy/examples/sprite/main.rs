@@ -10,7 +10,7 @@
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
-    factory::{Config, Factory},
+    factory::{Config, Factory, ImageState},
     graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
@@ -174,9 +174,12 @@ where
 
         let texture = texture_builder
             .build(
-                queue,
-                gfx_hal::image::Access::TRANSFER_WRITE,
-                gfx_hal::image::Layout::TransferDstOptimal,
+                ImageState {
+                    queue,
+                    stage: gfx_hal::pso::PipelineStage::FRAGMENT_SHADER,
+                    access: gfx_hal::image::Access::SHADER_READ,
+                    layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
+                },
                 factory,
             )
             .unwrap();

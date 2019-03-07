@@ -311,6 +311,10 @@ where
             .inner
             .build(factory, queue, aux, buffers, images, &set_layouts)?;
 
+        for module in shaders.into_iter() {
+            unsafe { factory.destroy_shader_module(module) };
+        }
+
         Ok(Box::new(SimpleRenderGroup::<B, _> {
             set_layouts,
             pipeline_layout,

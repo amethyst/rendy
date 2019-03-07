@@ -151,7 +151,7 @@ impl<T, I, P> Cirque<T, I, P> {
             if frames.is_complete(frame) {
                 self.ready.push_back((complete(value), index));
             } else {
-                self.pending.push_back((value, index, frame));
+                self.pending.push_front((value, index, frame));
                 break;
             }
         }
