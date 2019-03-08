@@ -9,7 +9,7 @@ use {
 };
 
 /// Load mesh data from obj.
-pub fn load_from_obj(bytes: &[u8], _: ()) -> Result<MeshBuilder<'static>, failure::Error> {
+pub fn load_from_obj(bytes: &[u8]) -> Result<MeshBuilder<'static>, failure::Error> {
     let string = std::str::from_utf8(bytes)?;
     let set = obj::parse(string).map_err(|e| {
         failure::format_err!(

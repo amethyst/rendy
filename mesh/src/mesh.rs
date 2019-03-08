@@ -114,6 +114,26 @@ impl<'a> MeshBuilder<'a> {
         }
     }
 
+    /// Convert builder into fully owned type. This forces internal vertex and index buffers
+    /// to be cloned, which allows borrowed source buffers to be released.
+    pub fn into_owned(self) -> MeshBuilder<'static> {
+        MeshBuilder {
+            vertices: self
+                .vertices
+                .into_iter()
+                .map(|v| RawVertices {
+                    vertices: Cow::Owned(v.vertices.into_owned()),
+                    format: v.format,
+                })
+                .collect(),
+            indices: self.indices.map(|i| RawIndices {
+                indices: Cow::Owned(i.indices.into_owned()),
+                index_type: i.index_type,
+            }),
+            prim: self.prim,
+        }
+    }
+
     /// Set indices buffer to the `MeshBuilder`
     pub fn with_indices<I>(mut self, indices: I) -> Self
     where
