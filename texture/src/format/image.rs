@@ -233,6 +233,7 @@ pub fn load_from_image(
     bytes: &[u8],
     config: ImageTextureConfig,
 ) -> Result<TextureBuilder<'static>, failure::Error> {
+    use gfx_hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
 
     let image_format = config
@@ -243,17 +244,42 @@ pub fn load_from_image(
     let (w, h) = image.dimensions();
     let (kind, layout) = config.kind.layout_and_kind(w, h);
 
-    let (vec, format) = match image {
-        DynamicImage::ImageLuma8(img) => (img.into_vec(), dyn_format!(R, _8, config.repr)),
-        DynamicImage::ImageLumaA8(img) => (img.into_vec(), dyn_format!(Rg, _8, config.repr)),
-        DynamicImage::ImageRgb8(img) => (img.into_vec(), dyn_format!(Rgb, _8, config.repr)),
-        DynamicImage::ImageRgba8(img) => (img.into_vec(), dyn_format!(Rgba, _8, config.repr)),
-        DynamicImage::ImageBgr8(img) => (img.into_vec(), dyn_format!(Bgr, _8, config.repr)),
-        DynamicImage::ImageBgra8(img) => (img.into_vec(), dyn_format!(Bgra, _8, config.repr)),
+    let (vec, format, swizzle) = match image {
+        DynamicImage::ImageLuma8(img) => (
+            img.into_vec(),
+            dyn_format!(R, _8, config.repr),
+            Swizzle(Component::R, Component::R, Component::R, Component::One),
+        ),
+        DynamicImage::ImageLumaA8(img) => (
+            img.into_vec(),
+            dyn_format!(Rg, _8, config.repr),
+            Swizzle(Component::R, Component::R, Component::R, Component::G),
+        ),
+        DynamicImage::ImageRgb8(img) => (
+            img.into_vec(),
+            dyn_format!(Rgb, _8, config.repr),
+            Swizzle::NO,
+        ),
+        DynamicImage::ImageRgba8(img) => (
+            img.into_vec(),
+            dyn_format!(Rgba, _8, config.repr),
+            Swizzle::NO,
+        ),
+        DynamicImage::ImageBgr8(img) => (
+            img.into_vec(),
+            dyn_format!(Bgr, _8, config.repr),
+            Swizzle::NO,
+        ),
+        DynamicImage::ImageBgra8(img) => (
+            img.into_vec(),
+            dyn_format!(Bgra, _8, config.repr),
+            Swizzle::NO,
+        ),
     };
 
     Ok(TextureBuilder::new()
         .with_raw_data(vec, format)
+        .with_swizzle(swizzle)
         .with_data_width(layout.line_stride)
         .with_data_height(layout.layer_stride)
         .with_kind(kind)

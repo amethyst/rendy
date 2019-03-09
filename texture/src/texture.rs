@@ -25,6 +25,7 @@ pub struct TextureBuilder<'a> {
     data_width: u32,
     data_height: u32,
     filter: gfx_hal::image::Filter,
+    swizzle: gfx_hal::format::Swizzle,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -38,6 +39,7 @@ impl<'a> TextureBuilder<'a> {
             data_width: 0,
             data_height: 0,
             filter: gfx_hal::image::Filter::Linear,
+            swizzle: gfx_hal::format::Swizzle::NO,
         }
     }
 
@@ -126,7 +128,7 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
-    /// With image filer.
+    /// With image filter.
     pub fn with_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
         self.set_filter(filter);
         self
@@ -135,6 +137,18 @@ impl<'a> TextureBuilder<'a> {
     /// Set image filter.
     pub fn set_filter(&mut self, filter: gfx_hal::image::Filter) -> &mut Self {
         self.filter = filter;
+        self
+    }
+
+    /// With swizzle.
+    pub fn with_swizzle(mut self, swizzle: gfx_hal::format::Swizzle) -> Self {
+        self.set_swizzle(swizzle);
+        self
+    }
+
+    /// Set swizzle.
+    pub fn set_swizzle(&mut self, swizzle: gfx_hal::format::Swizzle) -> &mut Self {
+        self.swizzle = swizzle;
         self
     }
 
@@ -184,7 +198,7 @@ impl<'a> TextureBuilder<'a> {
             &image,
             self.view_kind,
             self.format,
-            gfx_hal::format::Swizzle::NO,
+            self.swizzle,
             gfx_hal::image::SubresourceRange {
                 aspects: self.format.surface_desc().aspects,
                 levels: 0..1,
