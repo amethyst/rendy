@@ -118,7 +118,7 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// Build texture.
-    /// 
+    ///
     /// ## Parameters
     /// * `next_state`: The next state that this texture will be used in.
     ///     It will get transitioned to this state after uploading.
@@ -149,13 +149,13 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::SubresourceLayers {
                     aspects: self.format.surface_desc().aspects,
                     level: 0,
-                    layers: 0..1,
+                    layers: 0..self.kind.num_layers(),
                 },
                 gfx_hal::image::Offset::ZERO,
                 self.kind.extent(),
                 &self.data,
                 gfx_hal::image::Layout::Undefined,
-                next_state
+                next_state,
             )?;
         }
 
@@ -167,7 +167,7 @@ impl<'a> TextureBuilder<'a> {
             gfx_hal::image::SubresourceRange {
                 aspects: self.format.surface_desc().aspects,
                 levels: 0..1,
-                layers: 0..1,
+                layers: 0..self.kind.num_layers(),
             },
         )?;
 

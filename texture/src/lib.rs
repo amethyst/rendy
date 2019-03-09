@@ -19,5 +19,6 @@ use rendy_util as util;
 
 pub mod pixel;
 mod texture;
+mod format;
 
-pub use crate::{pixel::Rgba8Unorm, texture::*};
+pub use crate::{pixel::Rgba8Unorm, texture::*, format::*};

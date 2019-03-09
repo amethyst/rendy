@@ -36,6 +36,7 @@ base = ["shader-compiler", "command", "factory", "frame", "graph", "memory", "me
 default = ["base"]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]
+texture-image = ["mesh", "rendy-texture/image"]
 
 full = ["base", "mesh-obj"]
 
@@ -64,7 +65,6 @@ nalgebra = "0.16"
 env_logger = "0.5"
 failure = "0.1"
 lazy_static = "1.0"
-image = "0.20.1"
 log = "0.4"
 winit = "0.18"
 palette = "0.4"
