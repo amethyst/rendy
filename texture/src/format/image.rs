@@ -129,18 +129,19 @@ pub struct ImageTextureConfig {
     filter: gfx_hal::image::Filter,
 }
 
-macro_rules! set_data {
-    ($builder:expr, $repr:expr, $img:expr) => {
+macro_rules! dyn_format {
+    ($channel:ty, $size:ty, $repr:expr) => {{
+        use pixel::{AsPixel, Pixel};
         match $repr {
-            Repr::Unorm => $builder.set_data(img_into_vec::<pixel::Unorm, _>($img)),
-            Repr::Inorm => $builder.set_data(img_into_vec::<pixel::Inorm, _>($img)),
-            Repr::Uscaled => $builder.set_data(img_into_vec::<pixel::Uscaled, _>($img)),
-            Repr::Iscaled => $builder.set_data(img_into_vec::<pixel::Iscaled, _>($img)),
-            Repr::Uint => $builder.set_data(img_into_vec::<pixel::Uint, _>($img)),
-            Repr::Int => $builder.set_data(img_into_vec::<pixel::Int, _>($img)),
-            Repr::Srgb => $builder.set_data(img_into_vec::<pixel::Srgb, _>($img)),
+            Repr::Unorm => <Pixel<$channel, $size, pixel::Unorm> as AsPixel>::FORMAT,
+            Repr::Inorm => <Pixel<$channel, $size, pixel::Inorm> as AsPixel>::FORMAT,
+            Repr::Uscaled => <Pixel<$channel, $size, pixel::Uscaled> as AsPixel>::FORMAT,
+            Repr::Iscaled => <Pixel<$channel, $size, pixel::Iscaled> as AsPixel>::FORMAT,
+            Repr::Uint => <Pixel<$channel, $size, pixel::Uint> as AsPixel>::FORMAT,
+            Repr::Int => <Pixel<$channel, $size, pixel::Int> as AsPixel>::FORMAT,
+            Repr::Srgb => <Pixel<$channel, $size, pixel::Srgb> as AsPixel>::FORMAT,
         }
-    };
+    }};
 }
 
 pub fn load_from_image(
@@ -149,10 +150,10 @@ pub fn load_from_image(
 ) -> Result<TextureBuilder<'static>, failure::Error> {
     use image::{DynamicImage, GenericImageView};
 
-    let format = config
+    let image_format = config
         .format
         .map_or_else(|| image::guess_format(bytes), |f| Ok(f))?;
-    let image = image::load_from_memory_with_format(bytes, format)?;
+    let image = image::load_from_memory_with_format(bytes, image_format)?;
 
     let mut builder = TextureBuilder::new();
 
@@ -163,121 +164,27 @@ pub fn load_from_image(
     builder.set_view_kind(config.kind.view_kind());
     builder.set_filter(config.filter);
 
+    use pixel::{Bgr, Bgra, Rg, Rgb, Rgba, R, _8};
     match image {
-        DynamicImage::ImageLuma8(img) => set_data!(builder, config.repr, img),
-        DynamicImage::ImageLumaA8(img) => set_data!(builder, config.repr, img),
-        DynamicImage::ImageRgb8(img) => set_data!(builder, config.repr, img),
-        DynamicImage::ImageRgba8(img) => set_data!(builder, config.repr, img),
-        DynamicImage::ImageBgr8(img) => set_data!(builder, config.repr, img),
-        DynamicImage::ImageBgra8(img) => set_data!(builder, config.repr, img),
+        DynamicImage::ImageLuma8(img) => {
+            builder.set_raw_data(img.into_vec(), dyn_format!(R, _8, config.repr))
+        }
+        DynamicImage::ImageLumaA8(img) => {
+            builder.set_raw_data(img.into_vec(), dyn_format!(Rg, _8, config.repr))
+        }
+        DynamicImage::ImageRgb8(img) => {
+            builder.set_raw_data(img.into_vec(), dyn_format!(Rgb, _8, config.repr))
+        }
+        DynamicImage::ImageRgba8(img) => {
+            builder.set_raw_data(img.into_vec(), dyn_format!(Rgba, _8, config.repr))
+        }
+        DynamicImage::ImageBgr8(img) => {
+            builder.set_raw_data(img.into_vec(), dyn_format!(Bgr, _8, config.repr))
+        }
+        DynamicImage::ImageBgra8(img) => {
+            builder.set_raw_data(img.into_vec(), dyn_format!(Bgra, _8, config.repr))
+        }
     };
 
     Ok(builder)
-}
-
-// Types that are representing identical memory layout
-trait CastPixel<R>: image::Pixel + 'static {
-    type Into: pixel::AsPixel;
-}
-
-trait IntoChannels<S, T>
-where
-    S: pixel::ChannelSize,
-    T: pixel::ChannelRepr<S>,
-{
-    type Channels: pixel::PixelRepr<S, T>;
-}
-
-macro_rules! map_channels {
-    {$($colors:ident => $channels:ident),*,} => {
-        $(
-            impl<S, T> IntoChannels<S::Size, T> for image::$colors<S>
-            where
-                S: IntoChannelSize + image::Primitive,
-                T: pixel::ChannelRepr<S::Size>,
-            {
-                type Channels = pixel::$channels;
-            }
-        )*
-    }
-}
-
-map_channels! {
-    Rgba => Rgba,
-    Bgra => Bgra,
-    Rgb => Rgb,
-    Bgr => Bgr,
-    Luma => R,
-    LumaA => Rg,
-}
-
-impl<T, R> CastPixel<R> for T
-where
-    R: pixel::ChannelRepr<<<T as image::Pixel>::Subpixel as IntoChannelSize>::Size> + 'static,
-    T: IntoChannels<<<T as image::Pixel>::Subpixel as IntoChannelSize>::Size, R>
-        + image::Pixel
-        + 'static,
-    T::Subpixel: IntoChannelSize,
-    pixel::Pixel<
-        <T as IntoChannels<<<T as image::Pixel>::Subpixel as IntoChannelSize>::Size, R>>::Channels,
-        <<T as image::Pixel>::Subpixel as IntoChannelSize>::Size,
-        R,
-    >: pixel::AsPixel,
-{
-    type Into = pixel::Pixel<
-        <T as IntoChannels<<<T as image::Pixel>::Subpixel as IntoChannelSize>::Size, R>>::Channels,
-        <<T as image::Pixel>::Subpixel as IntoChannelSize>::Size,
-        R,
-    >;
-}
-
-trait IntoChannelSize {
-    type Size: pixel::ChannelSize;
-}
-
-impl IntoChannelSize for u8 {
-    type Size = pixel::_8;
-}
-impl IntoChannelSize for u16 {
-    type Size = pixel::_16;
-}
-impl IntoChannelSize for u32 {
-    type Size = pixel::_32;
-}
-impl IntoChannelSize for u64 {
-    type Size = pixel::_64;
-}
-
-fn img_into_vec<
-    R: pixel::ChannelRepr<<<P as image::Pixel>::Subpixel as IntoChannelSize>::Size>,
-    P: CastPixel<R>,
->(
-    img: image::ImageBuffer<P, Vec<<P as image::Pixel>::Subpixel>>,
-) -> Vec<P::Into>
-where
-    <P as image::Pixel>::Subpixel: IntoChannelSize,
-{
-    let len = (img.width() * img.height()) as usize;
-    let mut raw = img.into_raw();
-    let ptr = raw.as_mut_ptr() as *mut P::Into;
-
-    let pixel_size = std::mem::size_of::<P::Into>();
-
-    // When original vector's capacity is not divisible by new type size,
-    // a reallocation is necessary. Otherwise vector cast can be done
-    // and ownership can be transferred without copying.
-    if (raw.capacity() % pixel_size) == 0 {
-        let capacity = raw.capacity() / pixel_size;
-        debug_assert!(capacity >= len);
-        unsafe {
-            let new_vec = Vec::from_raw_parts(ptr, len, capacity);
-            std::mem::forget(raw);
-            new_vec
-        }
-    } else {
-        unsafe {
-            let slice = std::slice::from_raw_parts(ptr, len);
-            slice.to_owned()
-        }
-    }
 }

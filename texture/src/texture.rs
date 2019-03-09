@@ -57,6 +57,27 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    /// Set pixel data with manual format definition.
+    pub fn with_raw_data(
+        mut self,
+        data: impl Into<std::borrow::Cow<'a, [u8]>>,
+        format: gfx_hal::format::Format,
+    ) -> Self {
+        self.set_raw_data(data, format);
+        self
+    }
+
+    /// Set pixel data with manual format definition.
+    pub fn set_raw_data(
+        &mut self,
+        data: impl Into<std::borrow::Cow<'a, [u8]>>,
+        format: gfx_hal::format::Format,
+    ) -> &mut Self {
+        self.data = cast_cow(data.into());
+        self.format = format;
+        self
+    }
+
     /// Set pixel data width.
     pub fn with_data_width(mut self, data_width: u32) -> Self {
         self.set_data_width(data_width);
