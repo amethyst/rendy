@@ -1,9 +1,9 @@
 use crate::{pixel, TextureBuilder};
 use derivative::Derivative;
-pub use image::ImageFormat;
 
 #[derive(Derivative)]
 #[derivative(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Repr {
     Unorm,
     Inorm,
@@ -16,29 +16,51 @@ pub enum Repr {
 }
 
 /// Determines the way layers are being stored in source image.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LayerLayout {
     Row,
     Column,
 }
 
+struct DataLayout {
+    /// distance between lines in texels
+    pub line_stride: u32,
+    /// distance between layers/planes in texels
+    pub layer_stride: u32,
+}
+
 impl LayerLayout {
-    pub fn layer_width(&self, image_width: u32, layers: u32) -> u32 {
+    fn layer_width(&self, image_width: u32, layers: u32) -> u32 {
         match self {
             LayerLayout::Row => image_width / layers,
             LayerLayout::Column => image_width,
         }
     }
 
-    pub fn layer_height(&self, image_height: u32, layers: u32) -> u32 {
+    fn layer_height(&self, image_height: u32, layers: u32) -> u32 {
         match self {
             LayerLayout::Row => image_height,
             LayerLayout::Column => image_height / layers,
+        }
+    }
+
+    fn data_layout(&self, image_width: u32, image_height: u32, layers: u32) -> DataLayout {
+        match self {
+            LayerLayout::Row => DataLayout {
+                line_stride: image_width * layers,
+                layer_stride: image_width,
+            },
+            LayerLayout::Column => DataLayout {
+                line_stride: image_width,
+                layer_stride: image_width * image_height,
+            },
         }
     }
 }
 
 #[derive(Derivative)]
 #[derivative(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TextureKind {
     D1,
     D1Array,
@@ -66,38 +88,59 @@ pub enum TextureKind {
 }
 
 impl TextureKind {
-    fn img_kind(&self, width: u32, height: u32) -> gfx_hal::image::Kind {
+    fn layout_and_kind(&self, width: u32, height: u32) -> (gfx_hal::image::Kind, DataLayout) {
         use gfx_hal::image::Kind::*;
         match self {
-            TextureKind::D1 => D1(width * height, 1),
-            TextureKind::D1Array => D1(width, height as u16),
-            TextureKind::D2 { samples } => D2(width, height, 1, *samples),
+            TextureKind::D1 => (
+                D1(width * height, 1),
+                LayerLayout::Column.data_layout(width * height, 1, 1),
+            ),
+            TextureKind::D1Array => (
+                D1(width, height as u16),
+                LayerLayout::Column.data_layout(width, 1, height),
+            ),
+            TextureKind::D2 { samples } => (
+                D2(width, height, 1, *samples),
+                LayerLayout::Column.data_layout(width, height, 1),
+            ),
             TextureKind::D2Array {
                 samples,
                 layers,
                 layout,
-            } => D2(
-                layout.layer_width(width, *layers as u32),
-                layout.layer_height(height, *layers as u32),
-                *layers,
-                *samples,
+            } => (
+                D2(
+                    layout.layer_width(width, *layers as u32),
+                    layout.layer_height(height, *layers as u32),
+                    *layers,
+                    *samples,
+                ),
+                layout.data_layout(width, height, *layers as u32),
             ),
-            TextureKind::D3 { depth, layout } => D3(
-                layout.layer_width(width, *depth),
-                layout.layer_height(height, *depth),
-                *depth,
+            TextureKind::D3 { depth, layout } => (
+                D3(
+                    layout.layer_width(width, *depth),
+                    layout.layer_height(height, *depth),
+                    *depth,
+                ),
+                layout.data_layout(width, height, *depth),
             ),
-            TextureKind::Cube { layout } => D2(
-                layout.layer_width(width, 6),
-                layout.layer_height(height, 6),
-                6,
-                1,
+            TextureKind::Cube { layout } => (
+                D2(
+                    layout.layer_width(width, 6),
+                    layout.layer_height(height, 6),
+                    6,
+                    1,
+                ),
+                layout.data_layout(width, height, 6),
             ),
-            TextureKind::CubeArray { layers, layout } => D2(
-                layout.layer_width(width, *layers as u32 * 6),
-                layout.layer_height(height, *layers as u32 * 6),
-                layers * 6,
-                1,
+            TextureKind::CubeArray { layers, layout } => (
+                D2(
+                    layout.layer_width(width, *layers as u32 * 6),
+                    layout.layer_height(height, *layers as u32 * 6),
+                    layers * 6,
+                    1,
+                ),
+                layout.data_layout(width, height, *layers as u32 * 6),
             ),
         }
     }
@@ -118,28 +161,70 @@ impl TextureKind {
 
 #[derive(Derivative)]
 #[derivative(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ImageTextureConfig {
     /// Interpret the image as given format.
     /// When `None`, format is determined automatically based on magic bytes.
     /// Automatic method doesn't support TGA format.
-    format: Option<ImageFormat>,
+    #[cfg_attr(feature = "serde", serde(with = "serde_image_format"))]
+    format: Option<image::ImageFormat>,
     repr: Repr,
     kind: TextureKind,
     #[derivative(Default(value = "gfx_hal::image::Filter::Linear"))]
     filter: gfx_hal::image::Filter,
 }
 
+#[cfg(feature = "serde")]
+mod serde_image_format {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(remote = "image::ImageFormat")]
+    enum SerdeImageFormat {
+        PNG,
+        JPEG,
+        GIF,
+        WEBP,
+        PNM,
+        TIFF,
+        TGA,
+        BMP,
+        ICO,
+        HDR,
+    }
+
+    pub fn serialize<S: Serializer>(
+        value: &Option<image::ImageFormat>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Helper<'a>(#[serde(with = "SerdeImageFormat")] &'a image::ImageFormat);
+        value.as_ref().map(Helper).serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<image::ImageFormat>, D::Error> {
+        #[derive(Deserialize)]
+        struct Helper(#[serde(with = "SerdeImageFormat")] image::ImageFormat);
+        let helper = Option::deserialize(deserializer)?;
+        Ok(helper.map(|Helper(external)| external))
+    }
+}
+
 macro_rules! dyn_format {
-    ($channel:ty, $size:ty, $repr:expr) => {{
-        use pixel::{AsPixel, Pixel};
+    ($channel:ident, $size:ident, $repr:ident) => {
+        <pixel::Pixel<pixel::$channel, pixel::$size, pixel::$repr> as pixel::AsPixel>::FORMAT
+    };
+    ($channel:ident, $size:ident, $repr:expr) => {{
         match $repr {
-            Repr::Unorm => <Pixel<$channel, $size, pixel::Unorm> as AsPixel>::FORMAT,
-            Repr::Inorm => <Pixel<$channel, $size, pixel::Inorm> as AsPixel>::FORMAT,
-            Repr::Uscaled => <Pixel<$channel, $size, pixel::Uscaled> as AsPixel>::FORMAT,
-            Repr::Iscaled => <Pixel<$channel, $size, pixel::Iscaled> as AsPixel>::FORMAT,
-            Repr::Uint => <Pixel<$channel, $size, pixel::Uint> as AsPixel>::FORMAT,
-            Repr::Int => <Pixel<$channel, $size, pixel::Int> as AsPixel>::FORMAT,
-            Repr::Srgb => <Pixel<$channel, $size, pixel::Srgb> as AsPixel>::FORMAT,
+            Repr::Unorm => dyn_format!($channel, $size, Unorm),
+            Repr::Inorm => dyn_format!($channel, $size, Inorm),
+            Repr::Uscaled => dyn_format!($channel, $size, Uscaled),
+            Repr::Iscaled => dyn_format!($channel, $size, Iscaled),
+            Repr::Uint => dyn_format!($channel, $size, Uint),
+            Repr::Int => dyn_format!($channel, $size, Int),
+            Repr::Srgb => dyn_format!($channel, $size, Srgb),
         }
     }};
 }
@@ -155,36 +240,23 @@ pub fn load_from_image(
         .map_or_else(|| image::guess_format(bytes), |f| Ok(f))?;
     let image = image::load_from_memory_with_format(bytes, image_format)?;
 
-    let mut builder = TextureBuilder::new();
-
     let (w, h) = image.dimensions();
-    builder.set_data_width(w);
-    builder.set_data_height(h);
-    builder.set_kind(config.kind.img_kind(w, h));
-    builder.set_view_kind(config.kind.view_kind());
-    builder.set_filter(config.filter);
+    let (kind, layout) = config.kind.layout_and_kind(w, h);
 
-    use pixel::{Bgr, Bgra, Rg, Rgb, Rgba, R, _8};
-    match image {
-        DynamicImage::ImageLuma8(img) => {
-            builder.set_raw_data(img.into_vec(), dyn_format!(R, _8, config.repr))
-        }
-        DynamicImage::ImageLumaA8(img) => {
-            builder.set_raw_data(img.into_vec(), dyn_format!(Rg, _8, config.repr))
-        }
-        DynamicImage::ImageRgb8(img) => {
-            builder.set_raw_data(img.into_vec(), dyn_format!(Rgb, _8, config.repr))
-        }
-        DynamicImage::ImageRgba8(img) => {
-            builder.set_raw_data(img.into_vec(), dyn_format!(Rgba, _8, config.repr))
-        }
-        DynamicImage::ImageBgr8(img) => {
-            builder.set_raw_data(img.into_vec(), dyn_format!(Bgr, _8, config.repr))
-        }
-        DynamicImage::ImageBgra8(img) => {
-            builder.set_raw_data(img.into_vec(), dyn_format!(Bgra, _8, config.repr))
-        }
+    let (vec, format) = match image {
+        DynamicImage::ImageLuma8(img) => (img.into_vec(), dyn_format!(R, _8, config.repr)),
+        DynamicImage::ImageLumaA8(img) => (img.into_vec(), dyn_format!(Rg, _8, config.repr)),
+        DynamicImage::ImageRgb8(img) => (img.into_vec(), dyn_format!(Rgb, _8, config.repr)),
+        DynamicImage::ImageRgba8(img) => (img.into_vec(), dyn_format!(Rgba, _8, config.repr)),
+        DynamicImage::ImageBgr8(img) => (img.into_vec(), dyn_format!(Bgr, _8, config.repr)),
+        DynamicImage::ImageBgra8(img) => (img.into_vec(), dyn_format!(Bgra, _8, config.repr)),
     };
 
-    Ok(builder)
+    Ok(TextureBuilder::new()
+        .with_raw_data(vec, format)
+        .with_data_width(layout.line_stride)
+        .with_data_height(layout.layer_stride)
+        .with_kind(kind)
+        .with_view_kind(config.kind.view_kind())
+        .with_filter(config.filter))
 }
