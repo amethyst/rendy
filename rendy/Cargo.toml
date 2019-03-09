@@ -36,9 +36,9 @@ base = ["shader-compiler", "command", "factory", "frame", "graph", "memory", "me
 default = ["base"]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]
-texture-image = ["mesh", "rendy-texture/image"]
+texture-image = ["texture", "rendy-texture/image"]
 
-full = ["base", "mesh-obj"]
+full = ["base", "mesh-obj", "texture-image"]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }
