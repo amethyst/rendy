@@ -193,22 +193,20 @@ mod serde_image_format {
         HDR,
     }
 
+    #[derive(Serialize, Deserialize)]
+    struct Helper(#[serde(with = "SerdeImageFormat")] image::ImageFormat);
+
     pub fn serialize<S: Serializer>(
         value: &Option<image::ImageFormat>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        #[derive(Serialize)]
-        struct Helper<'a>(#[serde(with = "SerdeImageFormat")] &'a image::ImageFormat);
-        value.as_ref().map(Helper).serialize(serializer)
+        value.map(Helper).serialize(serializer)
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Option<image::ImageFormat>, D::Error> {
-        #[derive(Deserialize)]
-        struct Helper(#[serde(with = "SerdeImageFormat")] image::ImageFormat);
-        let helper = Option::deserialize(deserializer)?;
-        Ok(helper.map(|Helper(external)| external))
+        Ok(Option::deserialize(deserializer)?.map(|Helper(format)| format))
     }
 }
 
