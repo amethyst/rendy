@@ -1,9 +1,9 @@
 use crate::{pixel, TextureBuilder};
 use derivative::Derivative;
 
-#[derive(Derivative)]
-#[derivative(Default)]
+#[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derivative(Default)]
 pub enum Repr {
     Unorm,
     Inorm,
@@ -16,12 +16,14 @@ pub enum Repr {
 }
 
 /// Determines the way layers are being stored in source image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LayerLayout {
     Row,
     Column,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct DataLayout {
     /// distance between lines in texels
     pub line_stride: u32,
@@ -58,9 +60,9 @@ impl LayerLayout {
     }
 }
 
-#[derive(Derivative)]
-#[derivative(Default)]
+#[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derivative(Default)]
 pub enum TextureKind {
     D1,
     D1Array,
@@ -159,9 +161,9 @@ impl TextureKind {
     }
 }
 
-#[derive(Derivative)]
-#[derivative(Default)]
+#[derive(Derivative, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derivative(Default)]
 pub struct ImageTextureConfig {
     /// Interpret the image as given format.
     /// When `None`, format is determined automatically based on magic bytes.
