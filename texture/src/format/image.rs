@@ -23,7 +23,6 @@ pub enum LayerLayout {
     Column,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct DataLayout {
     /// distance between lines in texels
     pub line_stride: u32,
@@ -49,12 +48,12 @@ impl LayerLayout {
     fn data_layout(&self, image_width: u32, image_height: u32, layers: u32) -> DataLayout {
         match self {
             LayerLayout::Row => DataLayout {
-                line_stride: image_width * layers,
-                layer_stride: image_width,
+                line_stride: image_width,
+                layer_stride: image_width / layers,
             },
             LayerLayout::Column => DataLayout {
                 line_stride: image_width,
-                layer_stride: image_width * image_height,
+                layer_stride: image_width * image_height / layers,
             },
         }
     }

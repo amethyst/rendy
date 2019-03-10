@@ -75,7 +75,7 @@ impl<'a> TextureBuilder<'a> {
         data: impl Into<std::borrow::Cow<'a, [u8]>>,
         format: gfx_hal::format::Format,
     ) -> &mut Self {
-        self.data = cast_cow(data.into());
+        self.data = data.into();
         self.format = format;
         self
     }
