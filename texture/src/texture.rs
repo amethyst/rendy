@@ -25,6 +25,7 @@ pub struct TextureBuilder<'a> {
     data_width: u32,
     data_height: u32,
     filter: gfx_hal::image::Filter,
+    swizzle: gfx_hal::format::Swizzle,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -38,6 +39,7 @@ impl<'a> TextureBuilder<'a> {
             data_width: 0,
             data_height: 0,
             filter: gfx_hal::image::Filter::Linear,
+            swizzle: gfx_hal::format::Swizzle::NO,
         }
     }
 
@@ -54,6 +56,27 @@ impl<'a> TextureBuilder<'a> {
     ) -> &mut Self {
         self.data = cast_cow(data.into());
         self.format = P::FORMAT;
+        self
+    }
+
+    /// Set pixel data with manual format definition.
+    pub fn with_raw_data(
+        mut self,
+        data: impl Into<std::borrow::Cow<'a, [u8]>>,
+        format: gfx_hal::format::Format,
+    ) -> Self {
+        self.set_raw_data(data, format);
+        self
+    }
+
+    /// Set pixel data with manual format definition.
+    pub fn set_raw_data(
+        &mut self,
+        data: impl Into<std::borrow::Cow<'a, [u8]>>,
+        format: gfx_hal::format::Format,
+    ) -> &mut Self {
+        self.data = data.into();
+        self.format = format;
         self
     }
 
@@ -105,7 +128,7 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
-    /// With image filer.
+    /// With image filter.
     pub fn with_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
         self.set_filter(filter);
         self
@@ -117,8 +140,20 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    /// With swizzle.
+    pub fn with_swizzle(mut self, swizzle: gfx_hal::format::Swizzle) -> Self {
+        self.set_swizzle(swizzle);
+        self
+    }
+
+    /// Set swizzle.
+    pub fn set_swizzle(&mut self, swizzle: gfx_hal::format::Swizzle) -> &mut Self {
+        self.swizzle = swizzle;
+        self
+    }
+
     /// Build texture.
-    /// 
+    ///
     /// ## Parameters
     /// * `next_state`: The next state that this texture will be used in.
     ///     It will get transitioned to this state after uploading.
@@ -149,13 +184,13 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::SubresourceLayers {
                     aspects: self.format.surface_desc().aspects,
                     level: 0,
-                    layers: 0..1,
+                    layers: 0..self.kind.num_layers(),
                 },
                 gfx_hal::image::Offset::ZERO,
                 self.kind.extent(),
                 &self.data,
                 gfx_hal::image::Layout::Undefined,
-                next_state
+                next_state,
             )?;
         }
 
@@ -163,11 +198,11 @@ impl<'a> TextureBuilder<'a> {
             &image,
             self.view_kind,
             self.format,
-            gfx_hal::format::Swizzle::NO,
+            self.swizzle,
             gfx_hal::image::SubresourceRange {
                 aspects: self.format.surface_desc().aspects,
                 levels: 0..1,
-                layers: 0..1,
+                layers: 0..self.kind.num_layers(),
             },
         )?;
 

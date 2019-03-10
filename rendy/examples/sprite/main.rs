@@ -16,7 +16,7 @@ use rendy::{
     mesh::{AsVertex, PosTex},
     resource::buffer::Buffer,
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
-    texture::{pixel::Rgba8Srgb, Texture, TextureBuilder},
+    texture::{Texture},
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -151,26 +151,8 @@ where
             env!("CARGO_MANIFEST_DIR"),
             "/examples/sprite/logo.png"
         ));
-        let image = image::load_from_memory(&image_bytes[..]).unwrap().to_rgba();
 
-        let (width, height) = image.dimensions();
-
-        let mut image_data = Vec::<Rgba8Srgb>::new();
-
-        for y in 0..height {
-            for x in 0..width {
-                image_data.push(Rgba8Srgb {
-                    repr: image.get_pixel(x, y).data,
-                });
-            }
-        }
-
-        let texture_builder = TextureBuilder::new()
-            .with_kind(gfx_hal::image::Kind::D2(width, height, 1, 1))
-            .with_view_kind(gfx_hal::image::ViewKind::D2)
-            .with_data_width(width)
-            .with_data_height(height)
-            .with_data(&image_data);
+        let texture_builder = rendy::texture::image::load_from_image(image_bytes, Default::default())?;
 
         let texture = texture_builder
             .build(
@@ -366,7 +348,7 @@ fn run(
     Ok(())
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
+#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), feature = "texture-image"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
@@ -416,7 +398,12 @@ fn main() {
     run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
 }
 
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
+#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan", feature = "texture-image")))]
 fn main() {
     panic!("Specify feature: { dx12, metal, vulkan }");
+}
+
+#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), not(feature = "texture-image")))]
+fn main() {
+    panic!("This example require feature \"texture-image\"");
 }
