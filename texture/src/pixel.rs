@@ -331,3 +331,51 @@ impl_pixel! {
     Rgba64Int = Rgba _64 Int;
     Rgba64Float = Rgba _64 Float;
 }
+
+#[cfg(feature = "palette")]
+mod palette_pixel {
+    use super::*;
+
+    macro_rules! impl_from_palette {
+        (@impl R, $palette:expr) => {{
+            let (r,) = $palette.into_components();
+            [r.convert()]
+        }};
+        (@impl Rg, $palette:expr) => {{
+            let (r, g) = $palette.into_components();
+            [r.convert(), g.convert()]
+        }};
+        (@impl Rgb, $palette:expr) => {{
+            let (r, g, b) = $palette.into_components();
+            [r.convert(), g.convert(), b.convert()]
+        }};
+        (@impl Rgba, $palette:expr) => {{
+            let (r, g, b, a) = $palette.into_components();
+            [r.convert(), g.convert(), b.convert(), a.convert()]
+        }};
+        ($($palette:ident => $channels:ident $repr:ident;)*) => {$(
+            impl<S, T> From<palette::$palette<T>> for Pixel<$channels, S, $repr>
+            where
+                S: ChannelSize,
+                $repr: ChannelRepr<S>,
+                T: palette::Component,
+                <$repr as ChannelRepr<S>>::Repr: palette::Component,
+            {
+                fn from(palette: palette::$palette<T>) -> Self {
+                    Self {
+                        repr: impl_from_palette!(@impl $channels, palette),
+                    }
+                }
+            }
+        )*};
+    }
+
+    impl_from_palette! {
+        Srgb => Rgb Srgb;
+        Srgba => Rgba Srgb;
+        LinSrgb => Rgb Unorm;
+        LinSrgba => Rgba Unorm;
+        SrgbLuma => R Srgb;
+        SrgbLumaa => Rg Srgb;
+    }
+}
