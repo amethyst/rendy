@@ -57,6 +57,7 @@ struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
     descriptor_set: B::DescriptorSet,
 }
 
+#[cfg(feature = "texture-image")]
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for SpriteGraphicsPipelineDesc
 where
     B: gfx_hal::Backend,
@@ -266,6 +267,7 @@ where
     }
 }
 
+#[cfg(feature = "texture-image")]
 impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
 where
     B: gfx_hal::Backend,
