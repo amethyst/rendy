@@ -1,4 +1,5 @@
 use {
+    std::borrow::Borrow,
     super::{
         level::{Level, PrimaryLevel, SecondaryLevel},
         state::RecordingState,
@@ -325,6 +326,17 @@ where
                 draw_count,
                 stride,
             )
+        }
+    }
+
+    /// Set scissors
+    pub fn set_scissors<T>(&mut self, first_scissor: u32, rects: T)
+    where
+        T: IntoIterator,
+        T::Item: Borrow<gfx_hal::pso::Rect>,
+    {
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::set_scissors(self.inner.raw, first_scissor, rects)
         }
     }
 
