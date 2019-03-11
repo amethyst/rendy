@@ -13,6 +13,7 @@ pub enum Repr {
     Int,
     #[derivative(Default)]
     Srgb,
+    Float,
 }
 
 /// Determines the way layers are being stored in source image.
@@ -168,11 +169,11 @@ pub struct ImageTextureConfig {
     /// When `None`, format is determined automatically based on magic bytes.
     /// Automatic method doesn't support TGA format.
     #[cfg_attr(feature = "serde", serde(with = "serde_image_format"))]
-    format: Option<image::ImageFormat>,
-    repr: Repr,
-    kind: TextureKind,
+    pub format: Option<image::ImageFormat>,
+    pub repr: Repr,
+    pub kind: TextureKind,
     #[derivative(Default(value = "gfx_hal::image::Filter::Linear"))]
-    filter: gfx_hal::image::Filter,
+    pub filter: gfx_hal::image::Filter,
 }
 
 #[cfg(feature = "serde")]
@@ -224,6 +225,7 @@ macro_rules! dyn_format {
             Repr::Uint => dyn_format!($channel, $size, Uint),
             Repr::Int => dyn_format!($channel, $size, Int),
             Repr::Srgb => dyn_format!($channel, $size, Srgb),
+            Repr::Float => unreachable!(),
         }
     }};
 }
@@ -238,43 +240,65 @@ pub fn load_from_image(
     let image_format = config
         .format
         .map_or_else(|| image::guess_format(bytes), |f| Ok(f))?;
-    let image = image::load_from_memory_with_format(bytes, image_format)?;
 
-    let (w, h) = image.dimensions();
-    let (kind, layout) = config.kind.layout_and_kind(w, h);
+    let (w, h, vec, format, swizzle) = match (image_format, config.repr) {
+        (image::ImageFormat::HDR, Repr::Float) => {
+            let r = std::io::BufReader::new(bytes);
+            let decoder = image::hdr::HDRDecoder::new(r)?;
+            let metadata = decoder.metadata();
+            let (w, h) = (metadata.width, metadata.height);
 
-    let (vec, format, swizzle) = match image {
-        DynamicImage::ImageLuma8(img) => (
-            img.into_vec(),
-            dyn_format!(R, _8, config.repr),
-            Swizzle(Component::R, Component::R, Component::R, Component::One),
-        ),
-        DynamicImage::ImageLumaA8(img) => (
-            img.into_vec(),
-            dyn_format!(Rg, _8, config.repr),
-            Swizzle(Component::R, Component::R, Component::R, Component::G),
-        ),
-        DynamicImage::ImageRgb8(img) => (
-            img.into_vec(),
-            dyn_format!(Rgb, _8, config.repr),
-            Swizzle::NO,
-        ),
-        DynamicImage::ImageRgba8(img) => (
-            img.into_vec(),
-            dyn_format!(Rgba, _8, config.repr),
-            Swizzle::NO,
-        ),
-        DynamicImage::ImageBgr8(img) => (
-            img.into_vec(),
-            dyn_format!(Bgr, _8, config.repr),
-            Swizzle::NO,
-        ),
-        DynamicImage::ImageBgra8(img) => (
-            img.into_vec(),
-            dyn_format!(Bgra, _8, config.repr),
-            Swizzle::NO,
-        ),
+            let vec = crate::util::cast_vec(decoder.read_image_hdr()?);
+
+            let format = dyn_format!(Rgb, _32, Float);
+            let swizzle = Swizzle::NO;
+            (w, h, vec, format, swizzle)
+        },
+        (_, Repr::Float) => {
+            failure::bail!("Attempting to load non-HDR format with Float repr")
+        }
+        _ => {
+            let image = image::load_from_memory_with_format(bytes, image_format)?;
+
+            let (w, h) = image.dimensions();
+
+            let (vec, format, swizzle) = match image {
+                DynamicImage::ImageLuma8(img) => (
+                    img.into_vec(),
+                    dyn_format!(R, _8, config.repr),
+                    Swizzle(Component::R, Component::R, Component::R, Component::One),
+                ),
+                DynamicImage::ImageLumaA8(img) => (
+                    img.into_vec(),
+                    dyn_format!(Rg, _8, config.repr),
+                    Swizzle(Component::R, Component::R, Component::R, Component::G),
+                ),
+                DynamicImage::ImageRgb8(img) => (
+                    img.into_vec(),
+                    dyn_format!(Rgb, _8, config.repr),
+                    Swizzle::NO,
+                ),
+                DynamicImage::ImageRgba8(img) => (
+                    img.into_vec(),
+                    dyn_format!(Rgba, _8, config.repr),
+                    Swizzle::NO,
+                ),
+                DynamicImage::ImageBgr8(img) => (
+                    img.into_vec(),
+                    dyn_format!(Bgr, _8, config.repr),
+                    Swizzle::NO,
+                ),
+                DynamicImage::ImageBgra8(img) => (
+                    img.into_vec(),
+                    dyn_format!(Bgra, _8, config.repr),
+                    Swizzle::NO,
+                ),
+            };
+            (w, h, vec, format, swizzle)
+        }
     };
+
+    let (kind, layout) = config.kind.layout_and_kind(w, h);
 
     Ok(TextureBuilder::new()
         .with_raw_data(vec, format)

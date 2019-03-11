@@ -42,6 +42,10 @@ pub fn is_slice_sorted_by_key<'a, T, K: Ord>(slice: &'a [T], f: impl Fn(&'a T) -
 }
 
 /// Cast vec of some arbitrary type into vec of bytes.
+/// 
+/// This is technically Undefined Behavior but on the default
+/// system allocators for all major OS's and WASM at this time
+/// it doesn't actually cause problems for any T with align <= 8
 pub fn cast_vec<T: Copy>(mut vec: Vec<T>) -> Vec<u8> {
     let len = std::mem::size_of::<T>() * vec.len();
     let cap = std::mem::size_of::<T>() * vec.capacity();
@@ -58,6 +62,10 @@ pub fn cast_slice<T>(slice: &[T]) -> &[u8] {
 }
 
 /// Cast `cow` of some arbitrary type into `cow` of bytes.
+/// 
+/// This is technically Undefined Behavior but on the default
+/// system allocators for all major OS's and WASM at this time
+/// it doesn't actually cause problems for any T with align <= 8
 pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
     match cow {
         Cow::Borrowed(slice) => Cow::Borrowed(cast_slice(slice)),
