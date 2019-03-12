@@ -170,7 +170,9 @@ pub struct ImageTextureConfig {
     /// Automatic method doesn't support TGA format.
     #[cfg_attr(feature = "serde", serde(with = "serde_image_format"))]
     pub format: Option<image::ImageFormat>,
-    pub repr: Repr,
+    /// The representation that will be used for the image on the GPU.
+    /// When `None`, a default is chosen based on the image format.
+    pub repr: Option<Repr>,
     pub kind: TextureKind,
     #[derivative(Default(value = "gfx_hal::image::Filter::Linear"))]
     pub filter: gfx_hal::image::Filter,
@@ -216,35 +218,44 @@ macro_rules! dyn_format {
     ($channel:ident, $size:ident, $repr:ident) => {
         <pixel::Pixel<pixel::$channel, pixel::$size, pixel::$repr> as pixel::AsPixel>::FORMAT
     };
-    ($channel:ident, $size:ident, $repr:expr) => {{
+    ($channel:ident, $repr:expr) => {{
         match $repr {
-            Repr::Unorm => dyn_format!($channel, $size, Unorm),
-            Repr::Inorm => dyn_format!($channel, $size, Inorm),
-            Repr::Uscaled => dyn_format!($channel, $size, Uscaled),
-            Repr::Iscaled => dyn_format!($channel, $size, Iscaled),
-            Repr::Uint => dyn_format!($channel, $size, Uint),
-            Repr::Int => dyn_format!($channel, $size, Int),
-            Repr::Srgb => dyn_format!($channel, $size, Srgb),
+            Repr::Unorm => dyn_format!($channel, _8, Unorm),
+            Repr::Inorm => dyn_format!($channel, _8, Inorm),
+            Repr::Uscaled => dyn_format!($channel, _8, Uscaled),
+            Repr::Iscaled => dyn_format!($channel, _8, Iscaled),
+            Repr::Uint => dyn_format!($channel, _8, Uint),
+            Repr::Int => dyn_format!($channel, _8, Int),
+            Repr::Srgb => dyn_format!($channel, _8, Srgb),
             Repr::Float => unreachable!(),
         }
     }};
 }
 
-pub fn load_from_image(
-    bytes: &[u8],
+pub fn load_from_image<R> (
+    mut reader: R,
     config: ImageTextureConfig,
-) -> Result<TextureBuilder<'static>, failure::Error> {
+) -> Result<TextureBuilder<'static>, failure::Error>
+where
+    R: std::io::BufRead + std::io::Seek
+{
     use gfx_hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
 
-    let image_format = config
-        .format
-        .map_or_else(|| image::guess_format(bytes), |f| Ok(f))?;
+    let image_format = if let Some(f) = config.format {
+        f
+    } else {
+        // max length of image crate supported magic bytes
+        let mut format_buf = [0u8; 10]; 
+        reader.read_exact(&mut format_buf)?;
+        let format = image::guess_format(&format_buf);
+        reader.seek(std::io::SeekFrom::Current(-10))?;
+        format?
+    };
 
     let (w, h, vec, format, swizzle) = match (image_format, config.repr) {
-        (image::ImageFormat::HDR, Repr::Float) => {
-            let r = std::io::BufReader::new(bytes);
-            let decoder = image::hdr::HDRDecoder::new(r)?;
+        (image::ImageFormat::HDR, None) | (image::ImageFormat::HDR, Some(Repr::Float)) => {
+            let decoder = image::hdr::HDRDecoder::new(reader)?;
             let metadata = decoder.metadata();
             let (w, h) = (metadata.width, metadata.height);
 
@@ -254,43 +265,43 @@ pub fn load_from_image(
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)
         },
-        (_, Repr::Float) => {
+        (_, Some(Repr::Float)) => {
             failure::bail!("Attempting to load non-HDR format with Float repr")
         }
         _ => {
-            let image = image::load_from_memory_with_format(bytes, image_format)?;
+            let image = image::load(reader, image_format)?;
 
             let (w, h) = image.dimensions();
 
             let (vec, format, swizzle) = match image {
                 DynamicImage::ImageLuma8(img) => (
                     img.into_vec(),
-                    dyn_format!(R, _8, config.repr),
+                    dyn_format!(R, config.repr.unwrap_or_default()),
                     Swizzle(Component::R, Component::R, Component::R, Component::One),
                 ),
                 DynamicImage::ImageLumaA8(img) => (
                     img.into_vec(),
-                    dyn_format!(Rg, _8, config.repr),
+                    dyn_format!(Rg, config.repr.unwrap_or_default()),
                     Swizzle(Component::R, Component::R, Component::R, Component::G),
                 ),
                 DynamicImage::ImageRgb8(img) => (
                     img.into_vec(),
-                    dyn_format!(Rgb, _8, config.repr),
+                    dyn_format!(Rgb, config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
                 DynamicImage::ImageRgba8(img) => (
                     img.into_vec(),
-                    dyn_format!(Rgba, _8, config.repr),
+                    dyn_format!(Rgba, config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
                 DynamicImage::ImageBgr8(img) => (
                     img.into_vec(),
-                    dyn_format!(Bgr, _8, config.repr),
+                    dyn_format!(Bgr, config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
                 DynamicImage::ImageBgra8(img) => (
                     img.into_vec(),
-                    dyn_format!(Bgra, _8, config.repr),
+                    dyn_format!(Bgra, config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
             };

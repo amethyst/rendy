@@ -148,12 +148,15 @@ where
         assert_eq!(set_layouts.len(), 1);
 
         // This is how we can load an image and create a new texture.
-        let image_bytes = include_bytes!(concat!(
+        let image_file = std::fs::File::open(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/examples/sprite/logo.png"
-        ));
+        ))?;
 
-        let texture_builder = rendy::texture::image::load_from_image(image_bytes, Default::default())?;
+        let texture_builder = rendy::texture::image::load_from_image(
+            std::io::BufReader::new(image_file),
+            Default::default()
+        )?;
 
         let texture = texture_builder
             .build(
@@ -303,7 +306,10 @@ where
         encoder.draw(0..6, 0..1);
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {}
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
+        self.descriptor_pool.reset();
+        factory.destroy_descriptor_pool(self.descriptor_pool);
+    }
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
