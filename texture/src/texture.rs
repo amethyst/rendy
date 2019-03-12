@@ -80,6 +80,24 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
+    /// Set pixel format
+    pub fn set_raw_format(
+        &mut self,
+        format: gfx_hal::format::Format,
+    ) -> &mut Self {
+        self.format = format;
+        self
+    }
+
+    /// Set pixel format
+    pub fn with_raw_format(
+        mut self,
+        format: gfx_hal::format::Format,
+    ) -> Self {
+        self.set_raw_format(format);
+        self
+    }
+
     /// Set pixel data width.
     pub fn with_data_width(mut self, data_width: u32) -> Self {
         self.set_data_width(data_width);
@@ -172,7 +190,10 @@ impl<'a> TextureBuilder<'a> {
             1,
             self.format,
             gfx_hal::image::Tiling::Optimal,
-            gfx_hal::image::ViewCapabilities::empty(),
+            match self.view_kind {
+                gfx_hal::image::ViewKind::Cube => gfx_hal::image::ViewCapabilities::KIND_CUBE,
+                _ => gfx_hal::image::ViewCapabilities::empty(),
+            },
             TextureUsage,
         )?;
 

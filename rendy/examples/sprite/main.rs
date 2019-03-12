@@ -19,6 +19,8 @@ use rendy::{
     texture::{Texture},
 };
 
+use gfx_hal::{Device, DescriptorPool};
+
 use winit::{EventsLoop, WindowBuilder};
 
 #[cfg(feature = "dx12")]
@@ -306,9 +308,11 @@ where
         encoder.draw(0..6, 0..1);
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {
-        self.descriptor_pool.reset();
-        factory.destroy_descriptor_pool(self.descriptor_pool);
+    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut T) {
+        unsafe {
+            self.descriptor_pool.reset();
+            factory.destroy_descriptor_pool(self.descriptor_pool);
+        }
     }
 }
 
