@@ -278,6 +278,15 @@ impl<'a> MeshBuilder<'a> {
     }
 }
 
+impl<'a, V> From<Vec<V>> for MeshBuilder<'a>
+where
+    V: AsVertex + 'a,
+{
+    fn from(vertices: Vec<V>) -> Self {
+        MeshBuilder::new().with_vertices(vertices)
+    }
+}
+
 /// Single mesh is a collection of buffers that provides available attributes.
 /// Exactly one mesh is used per drawing call in common.
 #[derive(Debug)]
