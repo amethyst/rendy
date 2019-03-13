@@ -14,7 +14,7 @@ use rendy::{
     graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
-    resource::buffer::Buffer,
+    resource::{buffer::Buffer, image::TextureUsage},
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
     texture::{Texture},
 };
@@ -157,7 +157,9 @@ where
 
         let texture_builder = rendy::texture::image::load_from_image(
             std::io::BufReader::new(image_file),
-            Default::default()
+            Default::default(),
+            TextureUsage,
+            factory.physical(),
         )?;
 
         let texture = texture_builder
@@ -169,6 +171,7 @@ where
                     layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
                 },
                 factory,
+                TextureUsage,
             )
             .unwrap();
 

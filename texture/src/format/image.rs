@@ -215,29 +215,33 @@ mod serde_image_format {
 }
 
 macro_rules! dyn_format {
+    ($channel:ident, $size:ident, dyn $repr:expr) => {{
+        match $repr {
+            Repr::Float => unreachable!(),
+            Repr::Unorm => dyn_format!($channel, $size, Unorm),
+            Repr::Inorm => dyn_format!($channel, $size, Inorm),
+            Repr::Uscaled => dyn_format!($channel, $size, Uscaled),
+            Repr::Iscaled => dyn_format!($channel, $size, Iscaled),
+            Repr::Uint => dyn_format!($channel, $size, Uint),
+            Repr::Int => dyn_format!($channel, $size, Int),
+            Repr::Srgb => dyn_format!($channel, $size, Srgb),
+        }
+    }};
     ($channel:ident, $size:ident, $repr:ident) => {
         <pixel::Pixel<pixel::$channel, pixel::$size, pixel::$repr> as pixel::AsPixel>::FORMAT
     };
-    ($channel:ident, $repr:expr) => {{
-        match $repr {
-            Repr::Unorm => dyn_format!($channel, _8, Unorm),
-            Repr::Inorm => dyn_format!($channel, _8, Inorm),
-            Repr::Uscaled => dyn_format!($channel, _8, Uscaled),
-            Repr::Iscaled => dyn_format!($channel, _8, Iscaled),
-            Repr::Uint => dyn_format!($channel, _8, Uint),
-            Repr::Int => dyn_format!($channel, _8, Int),
-            Repr::Srgb => dyn_format!($channel, _8, Srgb),
-            Repr::Float => unreachable!(),
-        }
-    }};
 }
 
-pub fn load_from_image<R> (
+pub fn load_from_image<R, B, U> (
     mut reader: R,
     config: ImageTextureConfig,
+    usage: U,
+    physical: &dyn gfx_hal::PhysicalDevice<B>,
 ) -> Result<TextureBuilder<'static>, failure::Error>
 where
-    R: std::io::BufRead + std::io::Seek
+    R: std::io::BufRead + std::io::Seek,
+    B: gfx_hal::Backend,
+    U: crate::resource::image::Usage
 {
     use gfx_hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
@@ -259,9 +263,28 @@ where
             let metadata = decoder.metadata();
             let (w, h) = (metadata.width, metadata.height);
 
-            let vec = crate::util::cast_vec(decoder.read_image_hdr()?);
+            let vec = decoder.read_image_hdr()?;
 
             let format = dyn_format!(Rgb, _32, Float);
+            let properties = physical.format_properties(Some(format));
+            let (vec, format) = if properties.optimal_tiling.contains(usage.features()) {
+                (crate::util::cast_vec(vec), format)
+            } else {
+                let format = dyn_format!(Rgba, _32, Float);
+                let properties = physical.format_properties(Some(format));
+                if !properties.optimal_tiling.contains(usage.features()) {
+                    failure::bail!("Physical device does not support required usage for image's format")
+                }
+                let vec = vec
+                    .into_iter()
+                    .map(|rgb| {
+                        image::Rgba {
+                            data: [rgb.data[0], rgb.data[1], rgb.data[2], 0.0]
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                (crate::util::cast_vec(vec), format)
+            };
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)
         },
@@ -276,32 +299,32 @@ where
             let (vec, format, swizzle) = match image {
                 DynamicImage::ImageLuma8(img) => (
                     img.into_vec(),
-                    dyn_format!(R, config.repr.unwrap_or_default()),
+                    dyn_format!(R, _8, dyn config.repr.unwrap_or_default()),
                     Swizzle(Component::R, Component::R, Component::R, Component::One),
                 ),
                 DynamicImage::ImageLumaA8(img) => (
                     img.into_vec(),
-                    dyn_format!(Rg, config.repr.unwrap_or_default()),
+                    dyn_format!(Rg, _8, dyn config.repr.unwrap_or_default()),
                     Swizzle(Component::R, Component::R, Component::R, Component::G),
                 ),
                 DynamicImage::ImageRgb8(img) => (
                     img.into_vec(),
-                    dyn_format!(Rgb, config.repr.unwrap_or_default()),
+                    dyn_format!(Rgb, _8, dyn config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
                 DynamicImage::ImageRgba8(img) => (
                     img.into_vec(),
-                    dyn_format!(Rgba, config.repr.unwrap_or_default()),
+                    dyn_format!(Rgba, _8, dyn config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
                 DynamicImage::ImageBgr8(img) => (
                     img.into_vec(),
-                    dyn_format!(Bgr, config.repr.unwrap_or_default()),
+                    dyn_format!(Bgr, _8, dyn config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
                 DynamicImage::ImageBgra8(img) => (
                     img.into_vec(),
-                    dyn_format!(Bgra, config.repr.unwrap_or_default()),
+                    dyn_format!(Bgra, _8, dyn config.repr.unwrap_or_default()),
                     Swizzle::NO,
                 ),
             };

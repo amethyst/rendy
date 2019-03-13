@@ -12,6 +12,7 @@ description = "Rendy's texture"
 
 [features]
 serde-1 = ["serde", "gfx-hal/serde", "rendy-factory/serde"]
+default = ["image"]
 
 [dependencies]
 rendy-memory = { version = "0.1.0", path = "../memory" }

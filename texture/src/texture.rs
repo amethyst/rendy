@@ -1,7 +1,7 @@
 use crate::{
     factory::{Factory, ImageState},
     pixel::AsPixel,
-    resource::image::{Image, ImageView, Texture as TextureUsage},
+    resource::image::{Image, ImageView},
     resource::sampler::Sampler,
     util::cast_cow,
 };
@@ -26,6 +26,7 @@ pub struct TextureBuilder<'a> {
     data_height: u32,
     filter: gfx_hal::image::Filter,
     swizzle: gfx_hal::format::Swizzle,
+    mip_levels: gfx_hal::image::Level,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -40,6 +41,7 @@ impl<'a> TextureBuilder<'a> {
             data_height: 0,
             filter: gfx_hal::image::Filter::Linear,
             swizzle: gfx_hal::format::Swizzle::NO,
+            mip_levels: 1,
         }
     }
 
@@ -95,6 +97,28 @@ impl<'a> TextureBuilder<'a> {
         format: gfx_hal::format::Format,
     ) -> Self {
         self.set_raw_format(format);
+        self
+    }
+
+    /// Set number of mip levels
+    /// 
+    /// These mips are not automatically generated for you (yet)
+    pub fn set_mip_levels(
+        &mut self,
+        levels: gfx_hal::image::Level,
+    ) -> &mut Self {
+        self.mip_levels = levels;
+        self
+    }
+
+    /// Set number of mip levels
+    /// 
+    /// These mips are not automatically generated for you (yet)
+    pub fn with_mip_levels(
+        &mut self,
+        levels: gfx_hal::image::Level,
+    ) -> &mut Self {
+        self.set_mip_levels(levels);
         self
     }
 
@@ -176,13 +200,15 @@ impl<'a> TextureBuilder<'a> {
     /// * `next_state`: The next state that this texture will be used in.
     ///     It will get transitioned to this state after uploading.
     /// * `factory`: Factory to use to build the texture
-    pub fn build<B>(
+    pub fn build<B, U>(
         &self,
         next_state: ImageState,
         factory: &'a mut Factory<B>,
+        usage: U
     ) -> Result<Texture<B>, failure::Error>
     where
         B: gfx_hal::Backend,
+        U: crate::resource::image::Usage,
     {
         let mut image = factory.create_image(
             256,
@@ -194,7 +220,7 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::ViewKind::Cube => gfx_hal::image::ViewCapabilities::KIND_CUBE,
                 _ => gfx_hal::image::ViewCapabilities::empty(),
             },
-            TextureUsage,
+            usage,
         )?;
 
         unsafe {
