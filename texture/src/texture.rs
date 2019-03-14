@@ -223,23 +223,43 @@ impl<'a> TextureBuilder<'a> {
             usage,
         )?;
 
-        unsafe {
-            factory.upload_image(
-                &mut image,
-                self.data_width,
-                self.data_height,
-                gfx_hal::image::SubresourceLayers {
-                    aspects: self.format.surface_desc().aspects,
-                    level: 0,
-                    layers: 0..self.kind.num_layers(),
-                },
-                gfx_hal::image::Offset::ZERO,
-                self.kind.extent(),
-                &self.data,
-                gfx_hal::image::Layout::Undefined,
-                next_state,
-            )?;
+        match (self.data_width, self.data_height) {
+            (0, 0) => {
+                unsafe {
+                    factory.transition_image(
+                        &mut image,
+                        gfx_hal::image::SubresourceRange {
+                            aspects: self.format.surface_desc().aspects,
+                            levels: 0..self.mip_levels,
+                            layers: 0..self.kind.num_layers(),
+                        },
+                        gfx_hal::image::Layout::Undefined,
+                        next_state,
+                    )?;
+                }
+            },
+            (0, _) | (_, 0) => failure::bail!("Cannot have 0 data size in only one dimension"),
+            _ => {
+                unsafe {
+                    factory.upload_image(
+                        &mut image,
+                        self.data_width,
+                        self.data_height,
+                        gfx_hal::image::SubresourceLayers {
+                            aspects: self.format.surface_desc().aspects,
+                            level: 0,
+                            layers: 0..self.kind.num_layers(),
+                        },
+                        gfx_hal::image::Offset::ZERO,
+                        self.kind.extent(),
+                        &self.data,
+                        gfx_hal::image::Layout::Undefined,
+                        next_state,
+                    )?;
+                }
+            }
         }
+
 
         let image_view = factory.create_image_view(
             &image,

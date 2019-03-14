@@ -220,6 +220,66 @@ where
     /// # Safety
     ///
     /// `device` must be the same that was used to create this `Uploader`.
+    /// `image` must belong to the `device`.
+    ///
+    pub(crate) unsafe fn transition_image(
+        &self,
+        device: &B::Device,
+        image: &mut Image<B>,
+        range: gfx_hal::image::SubresourceRange,
+        last: ImageStateOrLayout,
+        next: ImageState,
+    ) -> Result<(), failure::Error> {
+        let mut family_uploads = self.family_uploads[next.queue.family().0]
+            .as_ref()
+            .unwrap()
+            .lock();
+        let next_upload = family_uploads.next_upload(device, next.queue.index())?;
+
+        let mut encoder = next_upload.command_buffer.encoder();
+
+        match last.into() {
+            ImageStateOrLayout::State(last) => {
+                if last.queue != next.queue {
+                    unimplemented!("Can't sync resources across queues");
+                }
+
+                encoder.pipeline_barrier(
+                    last.stage..next.stage,
+                    gfx_hal::memory::Dependencies::empty(),
+                    Some(gfx_hal::memory::Barrier::Image {
+                        states: (last.access, last.layout)
+                            ..(next.access, next.layout),
+                        target: image.raw(),
+                        families: None,
+                        range: range.clone(),
+                    }),
+                );
+            }
+            ImageStateOrLayout::Layout(last_layout) => {
+                if last_layout != next.layout {
+                    encoder.pipeline_barrier(
+                        gfx_hal::pso::PipelineStage::TOP_OF_PIPE
+                            ..next.stage,
+                        gfx_hal::memory::Dependencies::empty(),
+                        Some(gfx_hal::memory::Barrier::Image {
+                            states: (gfx_hal::image::Access::empty(), last_layout)
+                                ..(next.access, next.layout),
+                            target: image.raw(),
+                            families: None,
+                            range: range.clone(),
+                        }),
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// # Safety
+    ///
+    /// `device` must be the same that was used to create this `Uploader`.
     /// `image` and `staging` must belong to the `device`.
     ///
     pub(crate) unsafe fn upload_image(

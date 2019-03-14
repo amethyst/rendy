@@ -205,6 +205,22 @@ where
             .upload_buffer(&self.device, buffer, offset, staging, last, next)
     }
 
+    pub unsafe fn transition_image(
+        &self,
+        image: &mut Image<B>,
+        range: gfx_hal::image::SubresourceRange,
+        last: impl Into<ImageStateOrLayout>,
+        next: ImageState,
+    ) -> Result<(), failure::Error> {
+        self.uploader.transition_image(
+            &self.device,
+            image,
+            range,
+            last.into(),
+            next,
+        )
+    }
+
     /// Upload image.
     ///
     /// # Safety
