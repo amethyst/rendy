@@ -238,6 +238,8 @@ where
 
         let mut encoder = next_upload.command_buffer.encoder();
 
+        log::trace!("Transition image: {:?} \n    Range: {:?}\n    Last: {:?}\n    Next: {:?}", image, range, last, next);
+
         match last.into() {
             ImageStateOrLayout::State(last) => {
                 if last.queue != next.queue {

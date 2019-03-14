@@ -377,8 +377,9 @@ fn match_kind(
             gfx_hal::image::ViewKind::D1 | gfx_hal::image::ViewKind::D1Array => true,
             _ => false,
         },
-        gfx_hal::image::Kind::D2(..) => match view_kind {
-            gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array => true,
+        gfx_hal::image::Kind::D2(..) => match (view_kind, view_caps) {
+            (gfx_hal::image::ViewKind::Cube, caps) if caps.contains(gfx_hal::image::ViewCapabilities::KIND_CUBE) => true,
+            (gfx_hal::image::ViewKind::D2, _) | (gfx_hal::image::ViewKind::D2Array, _) => true,
             _ => false,
         },
         gfx_hal::image::Kind::D3(..) => {
