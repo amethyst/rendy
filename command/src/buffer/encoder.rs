@@ -221,6 +221,18 @@ where
         }
     }
 
+    /// Set scissors
+    pub fn set_scissors<'b>(
+        &mut self,
+        first_scissor: u32,
+        rects: impl IntoIterator<Item = &'b gfx_hal::pso::Rect>,
+    ) where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        unsafe { gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects) }
+    }
+
     /// Reborrow encoder.
     pub fn reborrow<K>(&mut self) -> EncoderCommon<'_, B, K>
     where
