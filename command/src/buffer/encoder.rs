@@ -226,10 +226,11 @@ where
         &mut self,
         first_scissor: u32,
         rects: impl IntoIterator<Item = &'b gfx_hal::pso::Rect>,
-    ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects)
-        }
+    ) where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        unsafe { gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects) }
     }
 
     /// Reborrow encoder.
