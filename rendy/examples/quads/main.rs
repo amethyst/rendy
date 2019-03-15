@@ -8,6 +8,9 @@
     allow(unused)
 )]
 
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::graph::render::SetLayout; // This is required to fix a build issue with the feature gating
+
 use rendy::{
     command::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
@@ -19,7 +22,7 @@ use rendy::{
         gfx_acquire_barriers, gfx_release_barriers,
         present::PresentNode,
         render::{
-            Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline,
+            Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
         BufferAccess, Graph, GraphBuilder, Node, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
@@ -137,6 +140,7 @@ where
         }]
     }
 
+    #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
@@ -150,6 +154,13 @@ where
             }],
             push_constants: Vec::new(),
         }
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn layout(&self) -> Layout {
+        log::trace!("Using: {:?}", RENDER_VERTEX.reflect().unwrap().layout());
+        use rendy::graph::reflect::ShaderReflectBuilder;
+        RENDER_VERTEX.reflect().unwrap().layout()
     }
 
     fn build<'a>(

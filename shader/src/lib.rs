@@ -6,6 +6,12 @@ mod shaderc;
 #[cfg(feature = "shader-compiler")]
 pub use self::shaderc::*;
 
+#[cfg(feature = "spirv-reflection")]
+pub mod reflect;
+
+#[cfg(feature = "spirv-reflection")]
+pub use self::reflect::*;
+
 #[warn(
     missing_debug_implementations,
     missing_copy_implementations,
@@ -23,6 +29,13 @@ pub use self::shaderc::*;
 pub trait Shader {
     /// Get spirv bytecode.
     fn spirv(&self) -> Result<std::borrow::Cow<'_, [u8]>, failure::Error>;
+
+    #[cfg(feature = "spirv-reflection")]
+    /// Uses spirv-reflect to generate a [SpirvShaderDescription] reflection representation, which is
+    /// an intermediate to gfx_hal daa representations.
+    fn reflect(&self) -> Result<SpirvShaderDescription, failure::Error> {
+        Err(failure::format_err!("Reflection unimplemented for shader type"))
+    }
 
     /// Create shader module.
     fn module<B>(

@@ -34,3 +34,6 @@ mod graph;
 mod node;
 
 pub use self::{graph::*, node::*};
+
+#[cfg(feature = "spirv-reflection")]
+pub mod reflect;

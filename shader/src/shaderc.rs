@@ -2,6 +2,9 @@
 use super::Shader;
 pub use shaderc::{self, ShaderKind, SourceLanguage};
 
+#[cfg(feature = "spirv-reflection")]
+use crate::reflect;
+
 macro_rules! vk_make_version {
     ($major: expr, $minor: expr, $patch: expr) => {
         (($major as u32) << 22) | (($minor as u32) << 12) | $patch as u32
@@ -17,7 +20,11 @@ pub struct SourceShaderInfo<P, E> {
     entry: E,
 }
 
-impl<P, E> SourceShaderInfo<P, E> {
+impl<P, E> SourceShaderInfo<P, E>
+    where
+        P: AsRef<std::path::Path> + std::fmt::Debug,
+        E: AsRef<str>,
+{
     /// New shader.
     pub fn new(path: P, kind: ShaderKind, lang: SourceLanguage, entry: E) -> Self {
         SourceShaderInfo {
@@ -27,14 +34,8 @@ impl<P, E> SourceShaderInfo<P, E> {
             entry,
         }
     }
-}
 
-impl<P, E> Shader for SourceShaderInfo<P, E>
-where
-    P: AsRef<std::path::Path> + std::fmt::Debug,
-    E: AsRef<str>,
-{
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u8]>, failure::Error> {
+    fn compile(&self, debug: bool) -> Result<std::borrow::Cow<'static, [u8]>, failure::Error> {
         let code = std::fs::read_to_string(&self.path)?;
 
         let artifact = shaderc::Compiler::new()
@@ -51,13 +52,34 @@ where
                         .ok_or_else(|| failure::format_err!("Failed to init Shaderc"))?;
                     ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                     ops.set_source_language(self.lang);
-                    ops.set_optimization_level(shaderc::OptimizationLevel::Performance);
+
+                    if debug {
+                        ops.set_optimization_level(shaderc::OptimizationLevel::Zero);
+                        ops.set_generate_debug_info();
+                    } else {
+                        ops.set_optimization_level(shaderc::OptimizationLevel::Performance);
+                    }
                     ops
                 })
-                .as_ref(),
+                    .as_ref(),
             )?;
 
         Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
+    }
+}
+
+impl<P, E> Shader for SourceShaderInfo<P, E>
+where
+    P: AsRef<std::path::Path> + std::fmt::Debug,
+    E: AsRef<str>,
+{
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u8]>, failure::Error> {
+        self.compile(false)
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn reflect(&self) -> Result<reflect::SpirvShaderDescription, failure::Error> {
+        Ok(reflect::SpirvShaderDescription::from_bytes(&*(self.compile(true)?), true)?)
     }
 }
 
