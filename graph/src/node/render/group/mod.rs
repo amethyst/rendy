@@ -145,7 +145,7 @@ where
     }
 
     fn dependencies(&self) -> Vec<NodeId> {
-        self.dependencies.iter().cloned().collect()
+        self.dependencies.clone()
     }
 
     fn build<'a>(
