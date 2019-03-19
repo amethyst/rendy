@@ -34,7 +34,9 @@ pub trait Shader {
     /// Uses spirv-reflect to generate a [SpirvShaderDescription] reflection representation, which is
     /// an intermediate to gfx_hal data representations.
     fn reflect(&self) -> Result<SpirvShaderDescription, failure::Error> {
-        Err(failure::format_err!("Reflection unimplemented for shader type"))
+        Err(failure::format_err!(
+            "Reflection unimplemented for shader type"
+        ))
     }
 
     /// Create shader module.

@@ -64,7 +64,9 @@ where
     }
 
     fn reflect(&self) -> Result<reflect::SpirvShaderDescription, failure::Error> {
-        Ok(reflect::SpirvShaderDescription::from_bytes(&*(self.spirv()?))?)
+        Ok(reflect::SpirvShaderDescription::from_bytes(
+            &*(self.spirv()?),
+        )?)
     }
 }
 
