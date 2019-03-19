@@ -10,9 +10,12 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's queues and commands tools"
 
+[features]
+relevant-backtrace = ["relevant/backtrace"]
+
 [dependencies]
 gfx-hal = "0.1"
 derivative = "1.0"
 failure = "0.1"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 smallvec = "0.6"

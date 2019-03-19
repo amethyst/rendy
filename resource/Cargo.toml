@@ -10,12 +10,15 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's resource manager"
 
+[features]
+relevant-backtrace = ["relevant/backtrace"]
+
 [dependencies]
 gfx-hal = "0.1"
 crossbeam-channel = "0.2"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 rendy-memory = { version = "0.1.0", path = "../memory" }
 smallvec = "0.6"

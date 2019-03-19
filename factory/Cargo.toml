@@ -21,6 +21,7 @@ serde-1 = [
     "gfx-hal/serde",
 ]
 no-slow-safety-checks = ["rendy-wsi/no-slow-safety-checks", "rendy-util/no-slow-safety-checks"]
+relevant-backtrace = ["rendy-command/relevant-backtrace", "rendy-memory/relevant-backtrace", "rendy-wsi/relevant-backtrace", "rendy-resource/relevant-backtrace", "relevant/backtrace"]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }
@@ -40,7 +41,7 @@ either = "1.0"
 failure = "0.1"
 log = "0.4"
 parking_lot = "0.7"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 winit = "0.18"

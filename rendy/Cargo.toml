@@ -32,6 +32,8 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
+relevant-backtrace = ["rendy-factory/relevant-backtrace", "rendy-graph/relevant-backtrace", "rendy-wsi/relevant-backtrace", "rendy-memory/relevant-backtrace", "rendy-resource/relevant-backtrace", "rendy-command/relevant-backtrace", "rendy-frame/relevant-backtrace"]
+
 base = ["shader-compiler", "command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
 default = ["base"]
 

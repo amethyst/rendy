@@ -12,6 +12,7 @@ description = "Rendy's memory manager"
 
 [features]
 serde-1 = ["serde"]
+relevant-backtrace = ["relevant/backtrace"]
 
 [dependencies]
 gfx-hal = "0.1"
