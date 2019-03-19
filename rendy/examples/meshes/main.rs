@@ -162,7 +162,7 @@ where
         &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        _aux: &mut Aux<B>,
+        _aux: &Aux<B>,
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
@@ -193,7 +193,7 @@ where
         self,
         factory: &mut Factory<B>,
         _queue: QueueId,
-        aux: &mut Aux<B>,
+        aux: &Aux<B>,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
@@ -355,7 +355,7 @@ where
         );
     }
 
-    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut Aux<B>) {
+    fn dispose(mut self, factory: &mut Factory<B>, _aux: &Aux<B>) {
         unsafe {
             self.descriptor_pool.reset();
             factory.destroy_descriptor_pool(self.descriptor_pool);
@@ -465,7 +465,7 @@ fn main() {
 
     let mut graph = graph_builder
         .with_frames_in_flight(frames)
-        .build(&mut factory, &mut families, &mut aux)
+        .build(&mut factory, &mut families, &aux)
         .unwrap();
 
     let icosphere = genmesh::generators::IcoSphere::subdivide(4);
@@ -515,7 +515,7 @@ fn main() {
                 Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => should_close = true,
                 _ => (),
             });
-            graph.run(&mut factory, &mut families, &mut aux);
+            graph.run(&mut factory, &mut families, &aux);
 
             let elapsed = checkpoint.elapsed();
 
@@ -543,7 +543,7 @@ fn main() {
 
     log::info!("FPS: {:#?}", fpss);
 
-    graph.dispose(&mut factory, &mut aux);
+    graph.dispose(&mut factory, &aux);
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

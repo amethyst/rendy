@@ -102,7 +102,7 @@ where
         &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        _aux: &mut T,
+        _aux: &T,
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
@@ -156,7 +156,7 @@ where
         self,
         factory: &mut Factory<B>,
         _queue: QueueId,
-        _aux: &mut T,
+        _aux: &T,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
@@ -351,7 +351,7 @@ where
         );
     }
 
-    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut T) {
+    fn dispose(mut self, factory: &mut Factory<B>, _aux: &T) {
         unsafe {
             self.descriptor_pool.reset();
             factory.destroy_descriptor_pool(self.descriptor_pool);
@@ -400,7 +400,7 @@ where
         std::slice::from_ref(&self.submit)
     }
 
-    unsafe fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut T) {
+    unsafe fn dispose(mut self, factory: &mut Factory<B>, _aux: &T) {
         drop(self.submit);
         self.command_pool
             .free_buffers(Some(self.command_buffer.mark_complete()));
@@ -436,7 +436,7 @@ where
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,
-        _aux: &mut T,
+        _aux: &T,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Self::Node, failure::Error> {

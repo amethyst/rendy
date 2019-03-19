@@ -146,7 +146,7 @@ where
     }
 
     /// Dispose of the `Graph`.
-    pub fn dispose(self, factory: &mut Factory<B>, data: &mut T) {
+    pub fn dispose(self, factory: &mut Factory<B>, data: &T) {
         assert!(factory.wait_idle().is_ok());
         self.frames.dispose(factory);
 
@@ -254,7 +254,7 @@ where
         self,
         factory: &mut Factory<B>,
         families: &mut Families<B>,
-        aux: &mut T,
+        aux: &T,
     ) -> Result<Graph<B, T>, failure::Error> {
         log::trace!("Schedule nodes execution");
         let chain_nodes: Vec<chain::Node> = self
@@ -382,7 +382,7 @@ fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
     factory: &mut Factory<B>,
     family: &mut rendy_command::Family<B>,
     queue: usize,
-    aux: &mut T,
+    aux: &T,
     buffers: &'a mut [Option<buffer::Buffer<B>>],
     images: &'a mut [Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>],
     chains: &chain::Chains,

@@ -222,7 +222,7 @@ pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
     /// # Safety
     ///
     /// Must be called after waiting for device idle.
-    unsafe fn dispose(self, factory: &mut Factory<B>, aux: &mut T);
+    unsafe fn dispose(self, factory: &mut Factory<B>, aux: &T);
 }
 
 /// Description of the node.
@@ -268,7 +268,7 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
-        aux: &mut T,
+        aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Self::Node, failure::Error>;
@@ -294,7 +294,7 @@ pub trait DynNode<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sync + Send
     /// # Safety
     ///
     /// Must be called after waiting for device idle.
-    unsafe fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T);
+    unsafe fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &T);
 }
 
 impl<B, T, N> DynNode<B, T> for (N,)
@@ -325,7 +325,7 @@ where
         )
     }
 
-    unsafe fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T) {
+    unsafe fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &T) {
         N::dispose(self.0, factory, aux);
     }
 }
@@ -349,7 +349,7 @@ pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
-        aux: &mut T,
+        aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error>;
@@ -453,7 +453,7 @@ where
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
-        aux: &mut T,
+        aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
