@@ -211,7 +211,8 @@ fn convert_stage(stage: variable::ReflectShaderStageFlags) -> gfx_hal::pso::Shad
 }
 
 /// Implementation of shader reflection for SPIRV
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpirvShaderDescription {
     /// Hashmap of output variables with names.
     pub output_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
@@ -258,22 +259,5 @@ impl SpirvShaderDescription {
                 Err(failure::format_err!("Failed to load module data"))
             }
         }
-    }
-}
-
-impl std::fmt::Debug for SpirvShaderDescription {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for input in &self.input_attributes {
-            write!(f, "input: {:?}\n", input)?;
-        }
-
-        for output in &self.output_attributes {
-            write!(f, "output: {:?}\n", output)?;
-        }
-
-        for output in &self.descriptor_sets {
-            write!(f, "descriptors: {:?}\n", output)?;
-        }
-        Ok(())
     }
 }
