@@ -2,9 +2,6 @@
 //!
 
 use log::{trace};
-
-use std::fs::File;
-use std::io::prelude::*;
 use std::collections::HashMap;
 
 use spirv_reflect::{
@@ -217,62 +214,44 @@ fn convert_stage(stage: variable::ReflectShaderStageFlags) -> gfx_hal::pso::Shad
 #[derive(Clone)]
 pub struct SpirvShaderDescription {
     /// Hashmap of output variables with names.
-    pub output_variables: HashMap<String, gfx_hal::pso::AttributeDesc>,
+    pub output_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
     /// Hashmap of output variables with names.
-    pub input_variables: HashMap<String, gfx_hal::pso::AttributeDesc>,
+    pub input_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
     /// Hashmap of output variables with names.
     pub descriptor_sets: Vec<HashMap<String, gfx_hal::pso::DescriptorSetLayoutBinding>>,
 }
 
 impl SpirvShaderDescription {
     ///
-    pub fn from_bytes(data: &[u8], strict: bool) -> Result<Self, failure::Error> {
+    pub fn from_bytes(data: &[u8]) -> Result<Self, failure::Error> {
         trace!("Shader reflecting into SpirvShaderDescription");
+
         match ShaderModule::load_u8_data(data) {
             Ok(module) => {
+
+                let input_attributes: Result<HashMap<_, _>, _> = module.enumerate_input_variables(None).map_err(|_| failure::format_err!("Cant get input variables") )?.iter()
+                    .map(ReflectInto::<(String, gfx_hal::pso::AttributeDesc)>::reflect_into)
+                    .collect();
+
+                let output_attributes: Result<HashMap<_, _>, _>  = module.enumerate_output_variables(None).map_err(|_| failure::format_err!("Cant get output variables") )?.iter()
+                    .map(ReflectInto::<(String, gfx_hal::pso::AttributeDesc)>::reflect_into)
+                    .collect();
+
+                let descriptor_sets: Result<Vec<_>, _> = module.enumerate_descriptor_sets(None).map_err(|_| failure::format_err!("Cant get descriptor sets") )?.iter()
+                    .map(ReflectInto::<HashMap<String, gfx_hal::pso::DescriptorSetLayoutBinding>>::reflect_into)
+                    .collect();
+
+                // This is a fixup-step required because of our implementation. Because we dont pass the module around
+                // to the all the reflect_into API's, we need to fix up the shader stage here at the end. Kinda a hack
+                let mut descriptor_sets_final = descriptor_sets.map_err(|_| failure::format_err!("Error parsing descriptor sets"))?;
+                descriptor_sets_final.iter_mut().for_each(|v| {
+                    v.iter_mut().for_each(|(_, mut set)| set.stage_flags = convert_stage(module.get_shader_stage()) );
+                });
+
                 Ok(Self{
-                    // TODO: change these unwraps back to actual error checking
-                    // TODO: strict isnt really strict
-                    input_variables: module.enumerate_input_variables(None).map_err(|_| failure::format_err!("Cant get input variables") )?.iter()
-                        .filter(|v| {
-                            let r = v.reflect_into();
-                            match strict {
-                                true => { r.is_ok() && !r.as_ref().unwrap().0.is_empty() },
-                                false => r.is_ok(),
-                            }
-                        })
-                        .map(|v| {
-                            v.reflect_into().unwrap()
-                        })
-                        .collect(),
-                    output_variables: module.enumerate_output_variables(None).map_err(|_| failure::format_err!("Cant get output variables") )?.iter()
-                        .filter(|v| {
-                            let r = v.reflect_into();
-                            match strict {
-                                true => { r.is_ok() && !r.as_ref().unwrap().0.is_empty() },
-                                false => r.is_ok(),
-                            }
-                        })
-                        .map(|v| {
-                            v.reflect_into().unwrap()
-                        }).
-                        collect(),
-                    descriptor_sets: module.enumerate_descriptor_sets(None).map_err(|_| failure::format_err!("Cant get descriptor sets") )?.iter()
-                        .filter(|v| {
-                            match strict {
-                                true => { v.reflect_into().unwrap(); true },
-                                false => v.reflect_into().is_ok(),
-                            }
-                        })
-                        .map(|v| {
-                            let mut values = v.reflect_into().unwrap();
-                            // Fix shader stages
-                            values.iter_mut().for_each(|(_, set)| {
-                                set.stage_flags = convert_stage(module.get_shader_stage());
-                            });
-                            values
-                        })
-                        .collect(),
+                    input_attributes: input_attributes.map_err(|_| failure::format_err!("Error parsing input attributes"))?,
+                    output_attributes: output_attributes.map_err(|_| failure::format_err!("Error parsing output attributes"))?,
+                    descriptor_sets: descriptor_sets_final,
                 })
             },
             Err(_) => {
@@ -280,27 +259,15 @@ impl SpirvShaderDescription {
             }
         }
     }
-
-    ///
-    pub fn from_file<P>(path: P, strict: bool) -> Result<Self, failure::Error>
-        where
-            P: AsRef<std::path::Path> + std::fmt::Debug,
-    {
-        let mut file = File::open(path)?;
-        let mut contents: Vec<u8> = Vec::with_capacity(file.metadata()?.len() as usize);
-        file.read_to_end(&mut contents)?;
-
-        Self::from_bytes(contents.as_slice(), strict)
-    }
 }
 
 impl std::fmt::Debug for SpirvShaderDescription {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for input in &self.input_variables {
+        for input in &self.input_attributes {
             write!(f, "input: {:?}\n", input)?;
         }
 
-        for output in &self.output_variables {
+        for output in &self.output_attributes {
             write!(f, "output: {:?}\n", output)?;
         }
 

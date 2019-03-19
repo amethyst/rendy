@@ -4,7 +4,7 @@ use rendy_shader::reflect::SpirvShaderDescription;
 use crate::node::render::{Layout, SetLayout};
 
 /// Extension for SpirvShaderReflection providing graph render type conversion
-pub trait ShaderReflectBuilder {
+pub trait ShaderLayoutGenerator {
     /// Convert reflected descriptor sets to a Layout structure
     fn layout(&self) -> Layout;
 
@@ -12,7 +12,7 @@ pub trait ShaderReflectBuilder {
     fn attributes(&self) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride);
 }
 
-impl ShaderReflectBuilder for SpirvShaderDescription {
+impl ShaderLayoutGenerator for SpirvShaderDescription {
     fn layout(&self) -> Layout {
         use rendy_shader::reflect::AsVector;
 
@@ -25,16 +25,33 @@ impl ShaderReflectBuilder for SpirvShaderDescription {
     fn attributes(&self) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride)
     {
         let stride: u32 = 0;
-        let elements: Vec<gfx_hal::pso::Element<gfx_hal::format::Format>> = self.input_variables.iter()
-            .filter(|(k, _)|{
-                if k.contains("gl_") || k.is_empty() {
-                    return false
-                }
-                true
-            })
-            .map(|(_, v)| {
-                v.element
-            } ).collect();
+        let elements: Vec<gfx_hal::pso::Element<gfx_hal::format::Format>> = self.input_attributes.iter()
+            .filter(|(k, _)|{ !k.is_empty() })
+            .map(|(_, v)| { v.element } ).collect();
+
+        (elements, stride)
+    }
+}
+
+impl ShaderLayoutGenerator for (SpirvShaderDescription, SpirvShaderDescription) {
+    fn layout(&self) -> Layout {
+        use rendy_shader::reflect::AsVector;
+
+        let mut sets = self.0.descriptor_sets.iter().map(|set| SetLayout { bindings: set.as_vector() }).collect::<Vec<_>>();
+        sets.append(&mut self.1.descriptor_sets.iter().map(|set| SetLayout { bindings: set.as_vector() }).collect::<Vec<_>>());
+
+        Layout {
+            sets,
+            push_constants: Vec::new(),
+        }
+    }
+
+    fn attributes(&self) -> (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, gfx_hal::pso::ElemStride)
+    {
+        let stride: u32 = 0;
+        let elements: Vec<gfx_hal::pso::Element<gfx_hal::format::Format>> = self.0.input_attributes.iter()
+            .filter(|(k, _)|{ !k.is_empty() })
+            .map(|(_, v)| { v.element } ).collect();
 
         (elements, stride)
     }

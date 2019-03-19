@@ -16,8 +16,8 @@ failure = "0.1"
 gfx-hal = "0.1"
 rendy-factory = { version = "0.1", path = "../factory" }
 shaderc = { version = "0.3", optional = true }
-spirv-reflect = { version = "0.1.9", optional = true }
-
+#spirv-reflect = { version = "0.1.9", optional = true }
+spirv-reflect = { path = "../../spirv-reflect-rs", optional = true }
 [features]
 shader-compiler = ["shaderc"]
 spirv-reflection = [ "spirv-reflect" ]
