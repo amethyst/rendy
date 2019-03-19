@@ -5,7 +5,7 @@ use {
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::MemoryUsageValue,
-        node::{DynNode, NodeBuilder},
+        node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
         resource::{buffer, image},
         BufferId, ImageId, NodeId,
     },
@@ -331,7 +331,8 @@ where
                     log::trace!("For submission {:#?}", submission.id());
                     let builder = node_descs[submission.node()].take().unwrap();
                     log::trace!("Build node {:#?}", builder);
-                    let node = builder.build_impl(
+                    let node = build_node(
+                        builder,
                         factory,
                         families.family_mut(family.id()),
                         queue.id().index(),
@@ -374,6 +375,106 @@ where
             fences: Vec::new(),
         })
     }
+}
+
+fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
+    builder: Box<dyn NodeBuilder<B, T>>,
+    factory: &mut Factory<B>,
+    family: &mut rendy_command::Family<B>,
+    queue: usize,
+    aux: &mut T,
+    buffers: &'a mut [Option<buffer::Buffer<B>>],
+    images: &'a mut [Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>],
+    chains: &chain::Chains,
+    submission: &chain::Submission<chain::SyncData<usize, usize>>,
+) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
+    let mut buffer_ids: Vec<_> = builder.buffers().into_iter().map(|(id, _)| id).collect();
+    buffer_ids.sort();
+    buffer_ids.dedup();
+
+    let buffers: Vec<_> = buffer_ids
+        .into_iter()
+        .map(|id| {
+            let chain_id = chain::Id(id.0);
+            let sync = submission.sync();
+            let buffer = buffers
+                .get_mut(id.0)
+                .and_then(Option::as_mut)
+                .expect("Buffer referenced from at least one node must be instantiated");
+            NodeBuffer {
+                id,
+                range: 0..buffer.size(),
+                acquire: sync.acquire.buffers.get(&chain_id).map(
+                    |chain::Barrier { states, families }| BufferBarrier {
+                        states: states.start.0..states.end.0,
+                        stages: states.start.2..states.end.2,
+                        families: families.clone(),
+                    },
+                ),
+                release: sync.release.buffers.get(&chain_id).map(
+                    |chain::Barrier { states, families }| BufferBarrier {
+                        states: states.start.0..states.end.0,
+                        stages: states.start.2..states.end.2,
+                        families: families.clone(),
+                    },
+                ),
+                buffer: unsafe {
+                    // ids are unique.
+                    // Hence mutable references to different buffers will be acquired.
+                    std::mem::transmute::<_, &'a mut buffer::Buffer<B>>(buffer)
+                },
+            }
+        })
+        .collect();
+
+    let mut image_ids: Vec<_> = builder.images().into_iter().map(|(id, _)| id).collect();
+    image_ids.sort();
+    image_ids.dedup();
+
+    let images: Vec<_> = image_ids
+        .into_iter()
+        .map(|id| {
+            let chain_id = chain::Id(id.0);
+            let sync = submission.sync();
+            let link = submission.image_link_index(chain_id);
+            let (image, clear) = images
+                .get_mut(id.0)
+                .and_then(Option::as_mut)
+                .expect("Image referenced from at least one node must be instantiated");
+            NodeImage {
+                id,
+                range: gfx_hal::image::SubresourceRange {
+                    aspects: image.format().surface_desc().aspects,
+                    levels: 0..image.levels(),
+                    layers: 0..image.layers(),
+                },
+                layout: chains.images[&chain_id].links()[link]
+                    .submission_state(submission.id())
+                    .layout,
+                clear: if link == 0 { *clear } else { None },
+                acquire: sync.acquire.images.get(&chain_id).map(
+                    |chain::Barrier { states, families }| ImageBarrier {
+                        states: (states.start.0, states.start.1)..(states.end.0, states.end.1),
+                        stages: states.start.2..states.end.2,
+                        families: families.clone(),
+                    },
+                ),
+                release: sync.release.images.get(&chain_id).map(
+                    |chain::Barrier { states, families }| ImageBarrier {
+                        states: (states.start.0, states.start.1)..(states.end.0, states.end.1),
+                        stages: states.start.2..states.end.2,
+                        families: families.clone(),
+                    },
+                ),
+                image: unsafe {
+                    // ids are unique.
+                    // Hence mutable references to different images will be acquired.
+                    std::mem::transmute::<_, &'a mut image::Image<B>>(image)
+                },
+            }
+        })
+        .collect();
+    builder.build(factory, family, queue, aux, buffers, images)
 }
 
 fn make_chain_node<B, T>(
