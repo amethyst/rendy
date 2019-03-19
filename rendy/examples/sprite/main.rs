@@ -348,7 +348,7 @@ fn run(
     Ok(())
 }
 
-#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), feature = "texture-image"))]
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
@@ -398,12 +398,7 @@ fn main() {
     run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
 }
 
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan", feature = "texture-image")))]
+#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
 fn main() {
     panic!("Specify feature: { dx12, metal, vulkan }");
-}
-
-#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), not(feature = "texture-image")))]
-fn main() {
-    panic!("This example require feature \"texture-image\"");
 }
