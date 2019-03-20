@@ -11,6 +11,7 @@
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
+    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
@@ -113,7 +114,7 @@ where
         _aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[B::DescriptorSetLayout],
+        set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<TriangleRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -134,7 +135,7 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[B::DescriptorSetLayout],
+        _set_layouts: &[DescriptorSetLayout<B>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {

@@ -19,6 +19,7 @@ vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/g
 [dependencies]
 rendy-chain = { version = "0.1.0", path = "../chain" }
 rendy-command = { version = "0.1.0", path = "../command" }
+rendy-descriptor = { version = "0.1.0", path = "../descriptor" }
 rendy-factory = { version = "0.1.0", path = "../factory" }
 rendy-frame = { version = "0.1.0", path = "../frame" }
 rendy-memory = { version = "0.1.0", path = "../memory" }

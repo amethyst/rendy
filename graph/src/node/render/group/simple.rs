@@ -2,6 +2,7 @@ use {
     super::{RenderGroup, RenderGroupDesc},
     crate::{
         command::{QueueId, RenderPassEncoder},
+        descriptor::DescriptorSetLayout,
         factory::Factory,
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
@@ -138,7 +139,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[B::DescriptorSetLayout],
+        set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<Self::Pipeline, failure::Error>;
 }
 
@@ -166,7 +167,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[B::DescriptorSetLayout],
+        _set_layouts: &[DescriptorSetLayout<B>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -187,7 +188,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
 
 #[derive(Debug)]
 pub struct SimpleRenderGroup<B: Backend, P> {
-    set_layouts: Vec<B::DescriptorSetLayout>,
+    set_layouts: Vec<DescriptorSetLayout<B>>,
     pipeline_layout: B::PipelineLayout,
     graphics_pipeline: B::GraphicsPipeline,
     pipeline: P,
@@ -242,17 +243,14 @@ where
             .layout
             .sets
             .into_iter()
-            .map(|set| unsafe {
-                factory
-                    .device()
-                    .create_descriptor_set_layout(set.bindings, std::iter::empty::<B::Sampler>())
-            })
+            .map(|set| factory.create_descriptor_set_layout(set.bindings))
             .collect::<Result<Vec<_>, _>>()?;
 
         let pipeline_layout = unsafe {
-            factory
-                .device()
-                .create_pipeline_layout(&set_layouts, pipeline.layout.push_constants)
+            factory.device().create_pipeline_layout(
+                set_layouts.iter().map(|l| l.raw()),
+                pipeline.layout.push_constants,
+            )
         }?;
 
         assert_eq!(pipeline.colors.len(), self.inner.colors().len());
@@ -365,7 +363,7 @@ where
                 .device()
                 .destroy_pipeline_layout(self.pipeline_layout);
             for set_layout in self.set_layouts.into_iter() {
-                factory.device().destroy_descriptor_set_layout(set_layout);
+                factory.destroy_descriptor_set_layout(set_layout);
             }
         }
     }

@@ -15,6 +15,10 @@
 #[doc(inline)]
 pub use rendy_command as command;
 
+#[cfg(feature = "descriptor")]
+#[doc(inline)]
+pub use rendy_descriptor as descriptor;
+
 #[cfg(feature = "factory")]
 #[doc(inline)]
 pub use rendy_factory as factory;

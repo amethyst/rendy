@@ -2,6 +2,7 @@
 
 members = [
     "command",
+    "descriptor",
     "factory",
     "frame",
     "memory",
