@@ -27,8 +27,11 @@ pub struct Graph<B: Backend, T: ?Sized> {
     nodes: Vec<GraphNode<B, T>>,
     schedule: chain::Schedule<chain::SyncData<usize, usize>>,
     semaphores: Vec<B::Semaphore>,
-    buffers: Vec<buffer::Buffer<B>>,
-    images: Vec<image::Image<B>>,
+    // Images and buffers are kept with some extra data to avoid
+    // moving them from original allocations. This is required
+    // so nodes can hold the references to them internally.
+    buffers: Vec<Option<buffer::Buffer<B>>>,
+    images: Vec<Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>>,
     frames: Frames<B>,
     fences: Vec<Fences<B>>,
     inflight: u32,
@@ -364,12 +367,8 @@ where
                 .collect(),
             schedule,
             semaphores,
-            buffers: buffers.into_iter().filter_map(|x| x).collect(),
-            images: images
-                .into_iter()
-                .filter_map(|x| x)
-                .map(|(image, _)| image)
-                .collect(),
+            buffers,
+            images,
             inflight: self.frames_in_flight,
             frames: Frames::new(),
             fences: Vec::new(),

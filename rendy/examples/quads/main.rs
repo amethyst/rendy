@@ -29,7 +29,7 @@ use rendy::{
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo, SpirvShaderInfo},
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -43,27 +43,51 @@ type Backend = rendy::metal::Backend;
 #[cfg(feature = "vulkan")]
 type Backend = rendy::vulkan::Backend;
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct PosVel {
+    pos: [f32; 2],
+    vel: [f32; 2],
+}
+
 lazy_static::lazy_static! {
-    static ref RENDER_VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_VERTEX: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref RENDER_FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_FRAGMENT: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref BOUNCE_COMPUTE: StaticShaderInfo = StaticShaderInfo::new(
+    static ref BOUNCE_COMPUTE: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
+
+    static ref POSVEL_DATA: Vec<PosVel> = {
+        let mut rng = rand::thread_rng();
+        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+        (0..QUADS)
+            .map(|_index| PosVel {
+                pos: [
+                    rand::Rng::sample(&mut rng, uniform),
+                    rand::Rng::sample(&mut rng, uniform),
+                ],
+                vel: [
+                    rand::Rng::sample(&mut rng, uniform),
+                    rand::Rng::sample(&mut rng, uniform),
+                ],
+            })
+            .collect()
+    };
 }
 
 const QUADS: u32 = 2_000_000;
@@ -106,10 +130,10 @@ where
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *RENDER_VERTEX);
+        log::trace!("Load shader module RENDER_VERTEX");
         storage.push(RENDER_VERTEX.module(factory).unwrap());
 
-        log::trace!("Load shader module '{:#?}'", *RENDER_FRAGMENT);
+        log::trace!("Load shader module RENDER_FRAGMENT");
         storage.push(RENDER_FRAGMENT.module(factory).unwrap());
 
         gfx_hal::pso::GraphicsShaderSet {
@@ -239,31 +263,11 @@ where
                 )
                 .unwrap();
 
-            let mut rng = rand::thread_rng();
-            let uniform = rand::distributions::Uniform::new(0.0, 1.0);
-
-            #[repr(C)]
-            #[derive(Copy, Clone)]
-            struct PosVel {
-                pos: [f32; 2],
-                vel: [f32; 2],
-            }
             factory
                 .upload_visible_buffer(
                     posvelbuff,
                     0,
-                    &(0..QUADS)
-                        .map(|_index| PosVel {
-                            pos: [
-                                rand::Rng::sample(&mut rng, uniform),
-                                rand::Rng::sample(&mut rng, uniform),
-                            ],
-                            vel: [
-                                rand::Rng::sample(&mut rng, uniform),
-                                rand::Rng::sample(&mut rng, uniform),
-                            ],
-                        })
-                        .collect::<Vec<PosVel>>(),
+                    &POSVEL_DATA,
                 )
                 .unwrap();
         }
@@ -424,7 +428,7 @@ where
 
         let ref mut posvelbuff = buffers[0].buffer;
 
-        log::trace!("Load shader module '{:#?}'", *BOUNCE_COMPUTE);
+        log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = BOUNCE_COMPUTE.module(factory)?;
 
         let set_layout = factory.create_descriptor_set_layout(vec![
@@ -529,9 +533,14 @@ fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    mut graph: Graph<Backend, ()>,
+    window: std::sync::Arc<winit::Window>,
 ) -> Result<(), failure::Error> {
+    let mut graph = build_graph(factory, families, window.clone());
+
     let started = std::time::Instant::now();
+
+    let mut last_window_size = window.get_inner_size();
+    let mut need_rebuild = false;
 
     let mut frames = 0u64..;
     let mut elapsed = started.elapsed();
@@ -539,12 +548,28 @@ fn run(
     for _ in &mut frames {
         factory.maintain(families);
         event_loop.poll_events(|_| ());
-        graph.run(factory, families, &mut ());
+        let new_window_size = window.get_inner_size();
+
+        if last_window_size != new_window_size {
+            need_rebuild = true;
+        }
+
+        if need_rebuild && last_window_size == new_window_size {
+            need_rebuild = false;
+            let started = std::time::Instant::now();
+            graph.dispose(factory, &());
+            println!("Graph disposed in: {:?}", started.elapsed());
+            graph = build_graph(factory, families, window.clone());
+        }
+
+        last_window_size = new_window_size;
+
+        graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
-            break;
-        }
+        // if elapsed >= std::time::Duration::new(50, 0) {
+        //     break;
+        // }
     }
 
     let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
@@ -576,11 +601,20 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
-        .unwrap();
+        .unwrap()
+        .into();
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
+    run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+}
+
+fn build_graph(
+    factory: &mut Factory<Backend>,
+    families: &mut Families<Backend>,
+    window: std::sync::Arc<winit::Window>
+) -> Graph<Backend, ()> {
+    let surface = factory.create_surface(window.clone());
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
@@ -622,12 +656,11 @@ fn main() {
     );
 
     graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
-
-    let graph = graph_builder
-        .build(&mut factory, &mut families, &mut ())
-        .unwrap();
-
-    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
+    
+    let started = std::time::Instant::now();
+    let graph = graph_builder.build(factory, families, &()).unwrap();
+    println!("Graph built in: {:?}", started.elapsed());
+    graph
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

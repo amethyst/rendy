@@ -480,34 +480,30 @@ pub fn gfx_acquire_barriers<'a, B: gfx_hal::Backend>(
     let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers
         .into_iter()
         .filter_map(|buffer| {
-            if let Some(acquire) = &buffer.acquire {
+            buffer.acquire.as_ref().map(|acquire| {
                 bstart |= acquire.stages.start;
                 bend |= acquire.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Buffer {
+                gfx_hal::memory::Barrier::Buffer {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
                     target: buffer.buffer.raw(),
                     range: Some(buffer.range.start)..Some(buffer.range.end),
-                })
-            } else {
-                None
-            }
+                }
+            })
         })
         .chain(images.into_iter().filter_map(|image| {
-            if let Some(acquire) = &image.acquire {
+            image.acquire.as_ref().map(|acquire| {
                 istart |= acquire.stages.start;
                 iend |= acquire.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Image {
+                gfx_hal::memory::Barrier::Image {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
                     target: image.image.raw(),
                     range: image.range.clone(),
-                })
-            } else {
-                None
-            }
+                }
+            })
         }))
         .collect();
 
@@ -531,34 +527,30 @@ pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
     let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers
         .into_iter()
         .filter_map(|buffer| {
-            if let Some(release) = &buffer.release {
+            buffer.release.as_ref().map(|release| {
                 bstart |= release.stages.start;
                 bend |= release.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Buffer {
+                gfx_hal::memory::Barrier::Buffer {
                     states: release.states.clone(),
                     families: release.families.clone(),
                     target: buffer.buffer.raw(),
                     range: Some(buffer.range.start)..Some(buffer.range.end),
-                })
-            } else {
-                None
-            }
+                }
+            })
         })
         .chain(images.into_iter().filter_map(|image| {
-            if let Some(release) = &image.release {
+            image.release.as_ref().map(|release| {
                 istart |= release.stages.start;
                 iend |= release.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Image {
+                gfx_hal::memory::Barrier::Image {
                     states: release.states.clone(),
                     families: release.families.clone(),
                     target: image.image.raw(),
                     range: image.range.clone(),
-                })
-            } else {
-                None
-            }
+                }
+            })
         }))
         .collect();
 

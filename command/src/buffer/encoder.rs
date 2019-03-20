@@ -677,6 +677,33 @@ where
         }
     }
 
+    /// Blit image regions, potentially using specified filter when resize is necessary.
+    pub fn blit_image(
+        &mut self,
+        src: &B::Image,
+        src_layout: gfx_hal::image::Layout,
+        dst: &B::Image,
+        dst_layout: gfx_hal::image::Layout,
+        filter: gfx_hal::image::Filter,
+        regions: impl IntoIterator<Item = gfx_hal::command::ImageBlit>,
+    ) where
+        C: Supports<Transfer>,
+    {
+        self.capability.assert();
+
+        unsafe {
+            gfx_hal::command::RawCommandBuffer::blit_image(
+                self.inner.raw,
+                src,
+                src_layout,
+                dst,
+                dst_layout,
+                filter,
+                regions,
+            )
+        }
+    }
+
     /// Dispatch compute.
     pub fn dispatch(&mut self, x: u32, y: u32, z: u32)
     where
