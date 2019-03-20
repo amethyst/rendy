@@ -47,7 +47,7 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         self,
         factory: &mut Factory<B>,
         queue: QueueId,
-        aux: &mut T,
+        aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
@@ -74,7 +74,7 @@ pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
         aux: &T,
     );
 
-    fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T);
+    fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &T);
 }
 
 pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
@@ -105,7 +105,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
         self: Box<Self>,
         factory: &mut Factory<B>,
         queue: QueueId,
-        aux: &mut T,
+        aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
@@ -152,7 +152,7 @@ where
         self: Box<Self>,
         factory: &mut Factory<B>,
         queue: QueueId,
-        aux: &mut T,
+        aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
