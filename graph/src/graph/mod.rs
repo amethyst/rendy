@@ -27,14 +27,99 @@ pub struct Graph<B: Backend, T: ?Sized> {
     nodes: Vec<GraphNode<B, T>>,
     schedule: chain::Schedule<chain::SyncData<usize, usize>>,
     semaphores: Vec<B::Semaphore>,
-    // Images and buffers are kept with some extra data to avoid
-    // moving them from original allocations. This is required
-    // so nodes can hold the references to them internally.
-    buffers: Vec<Option<buffer::Buffer<B>>>,
-    images: Vec<Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>>,
     frames: Frames<B>,
     fences: Vec<Fences<B>>,
     inflight: u32,
+    ctx: GraphContext<B>,
+}
+
+#[derive(Debug)]
+pub struct GraphContext<B: Backend> {
+    buffers: Vec<Option<buffer::Buffer<B>>>,
+    images: Vec<Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>>,
+}
+
+impl<B: Backend> GraphContext<B> {
+    fn alloc(
+        factory: &Factory<B>,
+        chains: &chain::Chains,
+        buffers: &Vec<(buffer::Info, MemoryUsageValue)>,
+        images: &Vec<(
+            image::Info,
+            MemoryUsageValue,
+            Option<gfx_hal::command::ClearValue>,
+        )>,
+    ) -> Result<Self, failure::Error> {
+        log::trace!("Allocate buffers");
+        let buffers: Vec<Option<buffer::Buffer<B>>> = buffers
+            .iter()
+            .enumerate()
+            .map(|(index, &(ref info, memory))| {
+                chains
+                    .buffers
+                    .get(&chain::Id(index))
+                    .map(|buffer| {
+                        factory
+                            .create_buffer(UNIVERSAL_ALIGNMENT, info.size, (buffer.usage(), memory))
+                            .map(|buffer| Some(buffer))
+                    })
+                    .unwrap_or(Ok(None))
+            })
+            .collect::<Result<_, _>>()?;
+
+        log::trace!("Allocate images");
+        let images: Vec<Option<(image::Image<B>, _)>> = images
+            .iter()
+            .enumerate()
+            .map(|(index, (info, memory, clear))| {
+                chains
+                    .images
+                    .get(&chain::Id(index))
+                    .map(|image| {
+                        factory
+                            .create_image(
+                                UNIVERSAL_ALIGNMENT,
+                                info.kind,
+                                info.levels,
+                                info.format,
+                                info.tiling,
+                                info.view_caps,
+                                (image.usage(), *memory),
+                            )
+                            .map(|image| Some((image, *clear)))
+                    })
+                    .unwrap_or(Ok(None))
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self { buffers, images })
+    }
+
+    pub fn get_image(&self, id: ImageId) -> Option<&image::Image<B>> {
+        self.get_image_with_clear(id).map(|(i, _)| i)
+    }
+
+    pub fn get_image_with_clear(
+        &self,
+        id: ImageId,
+    ) -> Option<&(image::Image<B>, Option<gfx_hal::command::ClearValue>)> {
+        self.images.get(id.0).and_then(|x| x.as_ref())
+    }
+
+    pub fn get_buffer(&self, id: BufferId) -> Option<&buffer::Buffer<B>> {
+        self.buffers.get(id.0).and_then(|x| x.as_ref())
+    }
+
+    pub fn get_image_mut(&mut self, id: ImageId) -> Option<&mut image::Image<B>> {
+        self.images
+            .get_mut(id.0)
+            .and_then(|x| x.as_mut())
+            .map(|(i, _)| i)
+    }
+
+    pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut buffer::Buffer<B>> {
+        self.buffers.get_mut(id.0).and_then(|x| x.as_mut())
+    }
 }
 
 impl<B, T> Graph<B, T>
@@ -102,6 +187,7 @@ where
 
             unsafe {
                 node.run(
+                    &self.ctx,
                     factory,
                     families.family_mut(queue.family()).queue_mut(queue.index()),
                     aux,
@@ -270,49 +356,7 @@ where
         let chains = chain::collect(chain_nodes, |id| families.family(id).as_slice().len());
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
-        log::trace!("Allocate buffers");
-        let mut buffers: Vec<Option<buffer::Buffer<B>>> = self
-            .buffers
-            .iter()
-            .enumerate()
-            .map(|(index, &(ref info, memory))| {
-                chains
-                    .buffers
-                    .get(&chain::Id(index))
-                    .map(|buffer| {
-                        factory
-                            .create_buffer(UNIVERSAL_ALIGNMENT, info.size, (buffer.usage(), memory))
-                            .map(|buffer| Some(buffer))
-                    })
-                    .unwrap_or(Ok(None))
-            })
-            .collect::<Result<_, _>>()?;
-
-        log::trace!("Allocate images");
-        let mut images: Vec<Option<(image::Image<B>, _)>> = self
-            .images
-            .iter()
-            .enumerate()
-            .map(|(index, (info, memory, clear))| {
-                chains
-                    .images
-                    .get(&chain::Id(index))
-                    .map(|image| {
-                        factory
-                            .create_image(
-                                UNIVERSAL_ALIGNMENT,
-                                info.kind,
-                                info.levels,
-                                info.format,
-                                info.tiling,
-                                info.view_caps,
-                                (image.usage(), *memory),
-                            )
-                            .map(|image| Some((image, *clear)))
-                    })
-                    .unwrap_or(Ok(None))
-            })
-            .collect::<Result<_, _>>()?;
+        let mut ctx = GraphContext::alloc(factory, &chains, &self.buffers, &self.images)?;
 
         log::trace!("Synchronize");
         let mut semaphores = 0..;
@@ -335,13 +379,12 @@ where
                     let builder = node_descs[submission.node()].take().unwrap();
                     log::trace!("Build node {:#?}", builder);
                     let node = build_node(
+                        &mut ctx,
                         builder,
                         factory,
                         families.family_mut(family.id()),
                         queue.id().index(),
                         aux,
-                        &mut buffers,
-                        &mut images,
                         &chains,
                         &submission,
                     )?;
@@ -357,6 +400,7 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Graph {
+            ctx,
             nodes: built_nodes
                 .into_iter()
                 .map(Option::unwrap)
@@ -367,8 +411,6 @@ where
                 .collect(),
             schedule,
             semaphores,
-            buffers,
-            images,
             inflight: self.frames_in_flight,
             frames: Frames::new(),
             fences: Vec::new(),
@@ -377,13 +419,12 @@ where
 }
 
 fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
+    ctx: &mut GraphContext<B>,
     builder: Box<dyn NodeBuilder<B, T>>,
     factory: &mut Factory<B>,
     family: &mut rendy_command::Family<B>,
     queue: usize,
     aux: &T,
-    buffers: &'a mut [Option<buffer::Buffer<B>>],
-    images: &'a mut [Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>],
     chains: &chain::Chains,
     submission: &chain::Submission<chain::SyncData<usize, usize>>,
 ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
@@ -396,9 +437,8 @@ fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
         .map(|id| {
             let chain_id = chain::Id(id.0);
             let sync = submission.sync();
-            let buffer = buffers
-                .get_mut(id.0)
-                .and_then(Option::as_mut)
+            let buffer = ctx
+                .get_buffer(id)
                 .expect("Buffer referenced from at least one node must be instantiated");
             NodeBuffer {
                 id,
@@ -417,11 +457,6 @@ fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
                         families: families.clone(),
                     },
                 ),
-                buffer: unsafe {
-                    // ids are unique.
-                    // Hence mutable references to different buffers will be acquired.
-                    std::mem::transmute::<_, &'a mut buffer::Buffer<B>>(buffer)
-                },
             }
         })
         .collect();
@@ -436,9 +471,8 @@ fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
             let chain_id = chain::Id(id.0);
             let sync = submission.sync();
             let link = submission.image_link_index(chain_id);
-            let (image, clear) = images
-                .get_mut(id.0)
-                .and_then(Option::as_mut)
+            let (image, clear) = ctx
+                .get_image_with_clear(id)
                 .expect("Image referenced from at least one node must be instantiated");
             NodeImage {
                 id,
@@ -465,15 +499,10 @@ fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
                         families: families.clone(),
                     },
                 ),
-                image: unsafe {
-                    // ids are unique.
-                    // Hence mutable references to different images will be acquired.
-                    std::mem::transmute::<_, &'a mut image::Image<B>>(image)
-                },
             }
         })
         .collect();
-    builder.build(factory, family, queue, aux, buffers, images)
+    builder.build(ctx, factory, family, queue, aux, buffers, images)
 }
 
 fn make_chain_node<B, T>(

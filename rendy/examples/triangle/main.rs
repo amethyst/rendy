@@ -13,7 +13,9 @@ use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
-    graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
+    graph::{
+        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+    },
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     resource::buffer::Buffer,
@@ -109,11 +111,12 @@ where
 
     fn build<'a>(
         self,
+        _ctx: &mut GraphContext<B>,
         _factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
         set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<TriangleRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());

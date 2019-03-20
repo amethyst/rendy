@@ -17,8 +17,8 @@ use rendy_factory as factory;
 use rendy_resource as resource;
 use rendy_util as util;
 
+mod format;
 pub mod pixel;
 mod texture;
-mod format;
 
-pub use crate::{pixel::Rgba8Unorm, texture::*, format::*};
+pub use crate::{format::*, pixel::Rgba8Unorm, texture::*};

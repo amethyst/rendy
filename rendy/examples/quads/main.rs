@@ -23,13 +23,14 @@ use rendy::{
             Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
-        BufferAccess, Graph, GraphBuilder, Node, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
+        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
+        NodeSubmittable,
     },
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo, SpirvShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -178,17 +179,18 @@ where
 
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
         set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
-        let ref mut posvelbuff = buffers[0].buffer;
+        let ref mut posvelbuff = ctx.get_buffer_mut(buffers[0].id).unwrap();
 
         let mut indirect = factory
             .create_buffer(
@@ -264,11 +266,7 @@ where
                 .unwrap();
 
             factory
-                .upload_visible_buffer(
-                    posvelbuff,
-                    0,
-                    &POSVEL_DATA,
-                )
+                .upload_visible_buffer(posvelbuff, 0, &POSVEL_DATA)
                 .unwrap();
         }
 
@@ -377,6 +375,7 @@ where
 
     fn run<'a>(
         &'a mut self,
+        _ctx: &GraphContext<B>,
         _factory: &Factory<B>,
         _aux: &T,
         _frames: &'a Frames<B>,
@@ -416,17 +415,18 @@ where
 
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,
         _aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Self::Node, failure::Error> {
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
 
-        let ref mut posvelbuff = buffers[0].buffer;
+        let ref mut posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = BOUNCE_COMPUTE.module(factory)?;
@@ -501,14 +501,14 @@ where
         );
 
         {
-            let (stages, barriers) = gfx_acquire_barriers(&*buffers, None);
+            let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
             log::info!("Acquire {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
         }
         encoder.dispatch(QUADS, 1, 1);
 
         {
-            let (stages, barriers) = gfx_release_barriers(&*buffers, None);
+            let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
             log::info!("Release {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
         }
@@ -567,9 +567,9 @@ fn run(
         graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        // if elapsed >= std::time::Duration::new(50, 0) {
-        //     break;
-        // }
+        if elapsed >= std::time::Duration::new(50, 0) {
+            break;
+        }
     }
 
     let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
@@ -612,7 +612,7 @@ fn main() {
 fn build_graph(
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    window: std::sync::Arc<winit::Window>
+    window: std::sync::Arc<winit::Window>,
 ) -> Graph<Backend, ()> {
     let surface = factory.create_surface(window.clone());
 
@@ -656,7 +656,7 @@ fn build_graph(
     );
 
     graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
-    
+
     let started = std::time::Instant::now();
     let graph = graph_builder.build(factory, families, &()).unwrap();
     println!("Graph built in: {:?}", started.elapsed());

@@ -6,6 +6,7 @@ use {
     crate::{
         command::{QueueId, RenderPassEncoder},
         factory::Factory,
+        graph::GraphContext,
         node::{
             render::{pass::SubpassBuilder, PrepareResult},
             BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
@@ -45,14 +46,15 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Build render group.
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error>;
 }
 
@@ -103,14 +105,15 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
 
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error>;
 }
 
@@ -150,16 +153,18 @@ where
 
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
         self.desc.build(
+            ctx,
             factory,
             queue,
             aux,

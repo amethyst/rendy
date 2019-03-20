@@ -7,6 +7,7 @@ use crate::{
     },
     factory::Factory,
     frame::Frames,
+    graph::GraphContext,
     node::{
         gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
         NodeBuilder, NodeImage,
@@ -43,11 +44,7 @@ pub struct PresentNode<B: gfx_hal::Backend> {
     free_acquire: B::Semaphore,
     target: Target<B>,
     pool: CommandPool<B, gfx_hal::QueueType>,
-    // This node isn't really 'static, but it is
-    // guaranteed to live during PresentNode operation.
-    // Order of Drop or dispose isn't defined,
-    // so do not use it's image in dispose or Drop impl.
-    input_image: NodeImage<'static, B>,
+    input_image: NodeImage,
     blit_filter: gfx_hal::image::Filter,
 }
 
@@ -96,13 +93,15 @@ where
 }
 
 fn create_per_image_data<B: gfx_hal::Backend>(
-    input_image: &NodeImage<'_, B>,
+    ctx: &GraphContext<B>,
+    input_image: &NodeImage,
     pool: &mut CommandPool<B, gfx_hal::QueueType>,
     factory: &Factory<B>,
     target: &Target<B>,
     blit_filter: gfx_hal::image::Filter,
 ) -> Result<Vec<ForImage<B>>, failure::Error> {
-    let input_extend = input_image.image.kind().extent();
+    let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
+    let input_extend = input_image_res.kind().extent();
 
     let per_image = match target.backbuffer() {
         Backbuffer::Images(target_images) => {
@@ -113,7 +112,8 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 .map(|(target_image, buf_initial)| {
                     let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
                     let mut encoder = buf_recording.encoder();
-                    let (mut stages, mut barriers) = gfx_acquire_barriers(None, Some(input_image));
+                    let (mut stages, mut barriers) =
+                        gfx_acquire_barriers(ctx, None, Some(input_image));
                     stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
                     stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
                     barriers.push(gfx_hal::memory::Barrier::Image {
@@ -142,7 +142,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
 
                     if target_image.kind().extent() != input_extend {
                         encoder.blit_image(
-                            input_image.image.raw(),
+                            input_image_res.raw(),
                             input_image.layout,
                             target_image.raw(),
                             gfx_hal::image::Layout::TransferDstOptimal,
@@ -165,7 +165,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                         );
                     } else {
                         encoder.copy_image(
-                            input_image.image.raw(),
+                            input_image_res.raw(),
                             input_image.layout,
                             target_image.raw(),
                             gfx_hal::image::Layout::TransferDstOptimal,
@@ -193,7 +193,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
 
                     {
                         let (mut stages, mut barriers) =
-                            gfx_release_barriers(None, Some(input_image));
+                            gfx_release_barriers(ctx, None, Some(input_image));
                         stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
                         stages.end |= gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE;
                         barriers.push(gfx_hal::memory::Barrier::Image {
@@ -370,12 +370,13 @@ where
 
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,
         _aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
         assert_eq!(buffers.len(), 0);
         assert_eq!(images.len(), 1);
@@ -391,20 +392,21 @@ where
 
         let mut pool = factory.create_command_pool(family)?;
 
-        let per_image =
-            create_per_image_data(&input_image, &mut pool, factory, &target, self.blit_filter)?;
+        let per_image = create_per_image_data(
+            ctx,
+            &input_image,
+            &mut pool,
+            factory,
+            &target,
+            self.blit_filter,
+        )?;
 
         Ok(Box::new(PresentNode {
             free_acquire: factory.create_semaphore().unwrap(),
             pool,
             target,
             per_image,
-            input_image: unsafe {
-                // We know that images are having the same lifetime as nodes in graph,
-                // thus we can transmute out the lifetime to 'static.
-                // See comment on PresentNode definition.
-                std::mem::transmute(input_image)
-            },
+            input_image,
             blit_filter: self.blit_filter,
         }))
     }
@@ -417,6 +419,7 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
+        ctx: &GraphContext<B>,
         factory: &Factory<B>,
         queue: &mut Queue<B>,
         _aux: &T,
@@ -475,6 +478,7 @@ where
             }
 
             self.per_image = create_per_image_data(
+                ctx,
                 &self.input_image,
                 &mut self.pool,
                 factory,
