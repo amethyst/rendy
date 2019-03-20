@@ -15,6 +15,9 @@ failure = "0.1"
 gfx-hal = "0.1"
 rendy-factory = { version = "0.1", path = "../factory" }
 shaderc = { version = "0.3", optional = true }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+serde_bytes = { version = "0.10.5", optional = true }
 
 [features]
 shader-compiler = ["shaderc"]
+serde-1 = ["serde", "serde_bytes"]

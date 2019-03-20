@@ -251,7 +251,7 @@ where
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
-        aux: &mut T,
+        aux: &T,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
@@ -739,7 +739,7 @@ where
         )
     }
 
-    unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, aux: &mut T) {
+    unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, aux: &T) {
         self.relevant.dispose();
         for subpass in self.subpasses {
             for group in subpass.groups {

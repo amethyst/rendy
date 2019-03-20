@@ -127,7 +127,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        aux: &mut T,
+        aux: &T,
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B>;
 
     /// Build pass instance.
@@ -135,7 +135,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         self,
         factory: &mut Factory<B>,
         queue: QueueId,
-        aux: &mut T,
+        aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
         set_layouts: &[B::DescriptorSetLayout],
@@ -182,7 +182,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
         aux: &T,
     );
 
-    fn dispose(self, factory: &mut Factory<B>, aux: &mut T);
+    fn dispose(self, factory: &mut Factory<B>, aux: &T);
 }
 
 #[derive(Debug)]
@@ -224,7 +224,7 @@ where
         self,
         factory: &mut Factory<B>,
         queue: QueueId,
-        aux: &mut T,
+        aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
@@ -354,7 +354,7 @@ where
             .draw(&self.pipeline_layout, encoder, index, aux);
     }
 
-    fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &mut T) {
+    fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &T) {
         self.pipeline.dispose(factory, aux);
 
         unsafe {

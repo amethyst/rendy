@@ -16,7 +16,7 @@ empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-bac
 dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend-dx12"]
 metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal"]
 vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan"]
-serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1"]
+serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1"]
 no-slow-safety-checks = ["rendy-factory/no-slow-safety-checks", "rendy-wsi/no-slow-safety-checks", "rendy-util/no-slow-safety-checks"]
 shader-compiler = ["rendy-shader/shader-compiler"]
 
@@ -70,3 +70,7 @@ log = "0.4"
 winit = "0.18"
 palette = "0.4"
 rand = "0.6"
+
+[[example]]
+name = "sprite"
+required-features = ["texture-image"]

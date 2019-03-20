@@ -82,7 +82,7 @@ where
         &self,
         storage: &'b mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        _aux: &mut T,
+        _aux: &T,
     ) -> gfx_hal::pso::GraphicsShaderSet<'b, B> {
         storage.clear();
 
@@ -137,7 +137,7 @@ where
         self,
         factory: &mut Factory<B>,
         queue: QueueId,
-        _aux: &mut T,
+        _aux: &T,
         buffers: Vec<NodeBuffer<'b, B>>,
         images: Vec<NodeImage<'b, B>>,
         set_layouts: &[B::DescriptorSetLayout],
@@ -301,7 +301,7 @@ where
         encoder.draw(0..6, 0..1);
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {}
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
@@ -348,7 +348,7 @@ fn run(
     Ok(())
 }
 
-#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), feature = "texture-image"))]
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
@@ -398,12 +398,7 @@ fn main() {
     run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
 }
 
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan", feature = "texture-image")))]
+#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
 fn main() {
     panic!("Specify feature: { dx12, metal, vulkan }");
-}
-
-#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), not(feature = "texture-image")))]
-fn main() {
-    panic!("This example require feature \"texture-image\"");
 }
