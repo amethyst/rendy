@@ -15,7 +15,7 @@ empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-factory/gfx-
 dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-factory/gfx-backend-dx12"]
 metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-factory/gfx-backend-metal"]
 vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/gfx-backend-vulkan"]
-relevant-backtrace = ["rendy-factory/relevant-backtrace", "rendy-command/relevant-backtrace", "rendy-wsi/relevant-backtrace", "rendy-frame/relevant-backtrace", "rendy-memory/relevant-backtrace", "rendy-resource/relevant-backtrace", "relevant/backtrace"]
+relevant-backtrace = ["relevant/backtrace"]
 
 [dependencies]
 rendy-chain = { version = "0.1.0", path = "../chain" }

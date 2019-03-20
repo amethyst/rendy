@@ -11,7 +11,7 @@ categories = ["rendering"]
 description = "Rendy's frame synchronization tool"
 
 [features]
-relevant-backtrace = ["rendy-command/relevant-backtrace", "rendy-memory/relevant-backtrace", "rendy-factory/relevant-backtrace", "rendy-resource/relevant-backtrace", "relevant/backtrace"]
+relevant-backtrace = ["relevant/backtrace"]
 
 [dependencies]
 derivative = "1.0"

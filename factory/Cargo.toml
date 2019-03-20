@@ -21,7 +21,7 @@ serde-1 = [
     "gfx-hal/serde",
 ]
 no-slow-safety-checks = ["rendy-wsi/no-slow-safety-checks", "rendy-util/no-slow-safety-checks"]
-relevant-backtrace = ["rendy-command/relevant-backtrace", "rendy-memory/relevant-backtrace", "rendy-wsi/relevant-backtrace", "rendy-resource/relevant-backtrace", "relevant/backtrace"]
+relevant-backtrace = ["relevant/backtrace"]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }
