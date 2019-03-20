@@ -10,13 +10,14 @@
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
+    descriptor::{DescriptorSet, DescriptorSetLayout},
     factory::{Config, Factory, ImageState},
     graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
     resource::buffer::Buffer,
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
-    texture::{Texture},
+    texture::Texture,
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -53,8 +54,7 @@ struct SpriteGraphicsPipelineDesc;
 struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
     texture: Texture<B>,
     vbuf: Buffer<B>,
-    descriptor_pool: B::DescriptorPool,
-    descriptor_set: B::DescriptorSet,
+    descriptor_set: DescriptorSet<B>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for SpriteGraphicsPipelineDesc
@@ -140,7 +140,7 @@ where
         _aux: &mut T,
         buffers: Vec<NodeBuffer<'b, B>>,
         images: Vec<NodeImage<'b, B>>,
-        set_layouts: &[B::DescriptorSetLayout],
+        set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<SpriteGraphicsPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -152,7 +152,8 @@ where
             "/examples/sprite/logo.png"
         ));
 
-        let texture_builder = rendy::texture::image::load_from_image(image_bytes, Default::default())?;
+        let texture_builder =
+            rendy::texture::image::load_from_image(image_bytes, Default::default())?;
 
         let texture = texture_builder
             .build(
@@ -166,35 +167,14 @@ where
             )
             .unwrap();
 
-        let mut descriptor_pool = unsafe {
-            gfx_hal::Device::create_descriptor_pool(
-                factory.device(),
-                1,
-                &[
-                    gfx_hal::pso::DescriptorRangeDesc {
-                        ty: gfx_hal::pso::DescriptorType::SampledImage,
-                        count: 1,
-                    },
-                    gfx_hal::pso::DescriptorRangeDesc {
-                        ty: gfx_hal::pso::DescriptorType::Sampler,
-                        count: 1,
-                    },
-                ],
-            )
-        }
-        .unwrap();
-
-        let descriptor_set = unsafe {
-            gfx_hal::pso::DescriptorPool::allocate_set(&mut descriptor_pool, &set_layouts[0])
-        }
-        .unwrap();
+        let descriptor_set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
 
         unsafe {
             gfx_hal::Device::write_descriptor_sets(
                 factory.device(),
                 vec![
                     gfx_hal::pso::DescriptorSetWrite {
-                        set: &descriptor_set,
+                        set: descriptor_set.raw(),
                         binding: 0,
                         array_offset: 0,
                         descriptors: vec![gfx_hal::pso::Descriptor::Image(
@@ -203,7 +183,7 @@ where
                         )],
                     },
                     gfx_hal::pso::DescriptorSetWrite {
-                        set: &descriptor_set,
+                        set: descriptor_set.raw(),
                         binding: 1,
                         array_offset: 0,
                         descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler.raw())],
@@ -256,11 +236,9 @@ where
                 .unwrap();
         }
 
-
         Ok(SpriteGraphicsPipeline {
             texture,
             vbuf,
-            descriptor_pool,
             descriptor_set,
         })
     }
@@ -277,7 +255,7 @@ where
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[B::DescriptorSetLayout],
+        _set_layouts: &[DescriptorSetLayout<B>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -294,7 +272,7 @@ where
         encoder.bind_graphics_descriptor_sets(
             layout,
             0,
-            std::iter::once(&self.descriptor_set),
+            std::iter::once(self.descriptor_set.raw()),
             std::iter::empty::<u32>(),
         );
         encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));
@@ -348,7 +326,10 @@ fn run(
     Ok(())
 }
 
-#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), feature = "texture-image"))]
+#[cfg(all(
+    any(feature = "dx12", feature = "metal", feature = "vulkan"),
+    feature = "texture-image"
+))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
@@ -398,12 +379,20 @@ fn main() {
     run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
 }
 
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan", feature = "texture-image")))]
+#[cfg(not(any(
+    feature = "dx12",
+    feature = "metal",
+    feature = "vulkan",
+    feature = "texture-image"
+)))]
 fn main() {
     panic!("Specify feature: { dx12, metal, vulkan }");
 }
 
-#[cfg(all(any(feature = "dx12", feature = "metal", feature = "vulkan"), not(feature = "texture-image")))]
+#[cfg(all(
+    any(feature = "dx12", feature = "metal", feature = "vulkan"),
+    not(feature = "texture-image")
+))]
 fn main() {
     panic!("This example require feature \"texture-image\"");
 }

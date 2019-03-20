@@ -4,6 +4,7 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
+        descriptor::{DescriptorAllocator, DescriptorSet, DescriptorSetLayout},
         memory::{Heaps, Write},
         resource::{
             buffer::{self, Buffer},
@@ -16,8 +17,8 @@ use {
         wsi::{Surface, Target},
     },
     gfx_hal::{
-        device::*, error::HostExecutionError, format, Adapter, Backend, Device, Features, Gpu,
-        Instance, Limits, PhysicalDevice, Surface as GfxSurface,
+        device::*, error::HostExecutionError, format, pso::DescriptorSetLayoutBinding, Adapter,
+        Backend, Device, Features, Gpu, Instance, Limits, PhysicalDevice, Surface as GfxSurface,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -30,6 +31,7 @@ static FACTORY_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsi
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Factory<B: Backend> {
+    descriptor_allocator: ManuallyDrop<parking_lot::Mutex<DescriptorAllocator<B>>>,
     heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
     resources: ManuallyDrop<parking_lot::RwLock<Resources<B>>>,
     epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
@@ -63,6 +65,12 @@ where
 
         unsafe {
             std::ptr::read(&mut *self.heaps)
+                .into_inner()
+                .dispose(&self.device);
+        }
+
+        unsafe {
+            std::ptr::read(&mut *self.descriptor_allocator)
                 .into_inner()
                 .dispose(&self.device);
         }
@@ -327,7 +335,7 @@ where
             )
         }
     }
-
+    
     /// Destroy target returning underlying window back to the caller.
     pub unsafe fn destroy_target(&self, target: Target<B>) {
         target.dispose(&self.device);
@@ -531,6 +539,8 @@ where
             self.resources
                 .get_mut()
                 .cleanup(&self.device, self.heaps.get_mut(), next, complete);
+
+            self.descriptor_allocator.get_mut().cleanup(&self.device);
         }
     }
 
@@ -543,6 +553,75 @@ where
     pub fn maintain(&mut self, families: &mut Families<B>) {
         self.flush_uploads(families);
         self.cleanup(families);
+    }
+
+    /// Create descriptor set layout with specified bindings.
+    pub fn create_descriptor_set_layout(
+        &self,
+        bindings: Vec<DescriptorSetLayoutBinding>,
+    ) -> Result<DescriptorSetLayout<B>, OutOfMemory> {
+        DescriptorSetLayout::create(&self.device, bindings)
+    }
+
+    /// Destroy descriptor set layout with specified bindings.
+    pub fn destroy_descriptor_set_layout(&self, layout: DescriptorSetLayout<B>) {
+        unsafe {
+            layout.dispose(&self.device);
+        }
+    }
+
+    /// Create descriptor sets with specified layout.
+    ///
+    /// # Safety
+    ///
+    /// `layout` must be created by this `Factory`.
+    ///
+    pub fn create_descriptor_set(
+        &self,
+        layout: &DescriptorSetLayout<B>,
+    ) -> Result<DescriptorSet<B>, OutOfMemory> {
+        let mut result = SmallVec::<[_; 1]>::new();
+        unsafe {
+            self.descriptor_allocator
+                .lock()
+                .allocate(&self.device, layout, 1, &mut result)?;
+        }
+        Ok(result.remove(0))
+    }
+
+    /// Create descriptor sets with specified layout.
+    ///
+    /// # Safety
+    ///
+    /// `layout` must be created by this `Factory`.
+    ///
+    pub fn create_descriptor_sets<E>(
+        &self,
+        layout: &DescriptorSetLayout<B>,
+        count: u32,
+    ) -> Result<E, OutOfMemory>
+    where
+        E: Default + Extend<DescriptorSet<B>>,
+    {
+        let mut result = E::default();
+        unsafe {
+            self.descriptor_allocator
+                .lock()
+                .allocate(&self.device, layout, count, &mut result)?;
+        }
+        Ok(result)
+    }
+
+    /// Destroy descriptor sets.
+    ///
+    /// # Safety
+    ///
+    /// `sets` must be created by this `Factory`.
+    ///
+    pub fn destroy_descriptor_sets(&self, sets: impl IntoIterator<Item = DescriptorSet<B>>) {
+        unsafe {
+            self.descriptor_allocator.lock().free(sets);
+        }
     }
 }
 
@@ -705,6 +784,9 @@ where
         .collect();
 
     let factory = Factory {
+        descriptor_allocator: ManuallyDrop::new(
+            parking_lot::Mutex::new(DescriptorAllocator::new()),
+        ),
         heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
         resources: ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
         uploader: unsafe { Uploader::new(&device, &families) }?,

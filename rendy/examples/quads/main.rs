@@ -13,6 +13,7 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
+    descriptor::{DescriptorSet, DescriptorSetLayout},
     factory::{Config, Factory},
     frame::Frames,
     graph::{
@@ -24,7 +25,7 @@ use rendy::{
         },
         BufferAccess, Graph, GraphBuilder, Node, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
     },
-    hal::{pso::DescriptorPool, Device},
+    hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     resource::buffer::Buffer,
@@ -77,8 +78,7 @@ struct QuadsRenderPipeline<B: gfx_hal::Backend> {
     indirect: Buffer<B>,
     vertices: Buffer<B>,
 
-    descriptor_pool: B::DescriptorPool,
-    descriptor_set: B::DescriptorSet,
+    descriptor_set: DescriptorSet<B>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for QuadsRenderPipelineDesc
@@ -159,7 +159,7 @@ where
         _aux: &mut T,
         mut buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[B::DescriptorSetLayout],
+        set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
@@ -270,28 +270,13 @@ where
 
         assert_eq!(set_layouts.len(), 1);
 
-        let mut descriptor_pool = unsafe {
-            gfx_hal::Device::create_descriptor_pool(
-                factory.device(),
-                1,
-                std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
-                    ty: gfx_hal::pso::DescriptorType::StorageBuffer,
-                    count: 1,
-                }),
-            )
-        }
-        .unwrap();
-
-        let descriptor_set = unsafe {
-            gfx_hal::pso::DescriptorPool::allocate_set(&mut descriptor_pool, &set_layouts[0])
-        }
-        .unwrap();
+        let descriptor_set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
 
         unsafe {
             gfx_hal::Device::write_descriptor_sets(
                 factory.device(),
                 std::iter::once(gfx_hal::pso::DescriptorSetWrite {
-                    set: &descriptor_set,
+                    set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
                     descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(
@@ -305,7 +290,6 @@ where
         Ok(QuadsRenderPipeline {
             indirect,
             vertices,
-            descriptor_pool,
             descriptor_set,
         })
     }
@@ -322,7 +306,7 @@ where
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _sets: &[B::DescriptorSetLayout],
+        _sets: &[DescriptorSetLayout<B>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -339,7 +323,7 @@ where
         encoder.bind_graphics_descriptor_sets(
             layout,
             0,
-            std::iter::once(&self.descriptor_set),
+            std::iter::once(self.descriptor_set.raw()),
             std::iter::empty::<u32>(),
         );
         encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
@@ -351,22 +335,18 @@ where
         );
     }
 
-    fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut T) {
-        unsafe {
-            self.descriptor_pool.reset();
-            factory.destroy_descriptor_pool(self.descriptor_pool);
-        }
+    fn dispose(self, factory: &mut Factory<B>, _aux: &mut T) {
+        factory.destroy_descriptor_sets(Some(self.descriptor_set));
     }
 }
 
 #[derive(Debug)]
 struct GravBounce<B: gfx_hal::Backend> {
-    set_layout: B::DescriptorSetLayout,
+    set_layout: DescriptorSetLayout<B>,
     pipeline_layout: B::PipelineLayout,
     pipeline: B::ComputePipeline,
 
-    descriptor_pool: B::DescriptorPool,
-    descriptor_set: B::DescriptorSet,
+    descriptor_set: DescriptorSet<B>,
 
     command_pool: CommandPool<B, Compute>,
     command_buffer:
@@ -405,10 +385,9 @@ where
         self.command_pool
             .free_buffers(Some(self.command_buffer.mark_complete()));
         factory.destroy_command_pool(self.command_pool);
-        self.descriptor_pool.reset();
-        factory.destroy_descriptor_pool(self.descriptor_pool);
         factory.destroy_compute_pipeline(self.pipeline);
         factory.destroy_pipeline_layout(self.pipeline_layout);
+        factory.destroy_descriptor_sets(Some(self.descriptor_set));
         factory.destroy_descriptor_set_layout(self.set_layout);
     }
 }
@@ -448,24 +427,20 @@ where
         log::trace!("Load shader module '{:#?}'", *BOUNCE_COMPUTE);
         let module = BOUNCE_COMPUTE.module(factory)?;
 
-        let set_layout = unsafe {
-            gfx_hal::Device::create_descriptor_set_layout(
-                factory.device(),
-                std::iter::once(gfx_hal::pso::DescriptorSetLayoutBinding {
-                    binding: 0,
-                    ty: gfx_hal::pso::DescriptorType::StorageBuffer,
-                    count: 1,
-                    stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
-                    immutable_samplers: false,
-                }),
-                std::iter::empty::<B::Sampler>(),
-            )
-        }?;
+        let set_layout = factory.create_descriptor_set_layout(vec![
+            gfx_hal::pso::DescriptorSetLayoutBinding {
+                binding: 0,
+                ty: gfx_hal::pso::DescriptorType::StorageBuffer,
+                count: 1,
+                stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
+                immutable_samplers: false,
+            },
+        ])?;
 
         let pipeline_layout = unsafe {
             gfx_hal::Device::create_pipeline_layout(
                 factory.device(),
-                std::iter::once(&set_layout),
+                std::iter::once(set_layout.raw()),
                 std::iter::empty::<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
             )
         }?;
@@ -489,30 +464,13 @@ where
 
         unsafe { factory.destroy_shader_module(module) };
 
-        let (descriptor_pool, descriptor_set /*, buffer_view*/) = unsafe {
-            let mut descriptor_pool = gfx_hal::Device::create_descriptor_pool(
-                factory.device(),
-                1,
-                std::iter::once(gfx_hal::pso::DescriptorRangeDesc {
-                    ty: gfx_hal::pso::DescriptorType::StorageBuffer,
-                    count: 1,
-                }),
-            )?;
+        let descriptor_set = factory.create_descriptor_set(&set_layout)?;
 
-            let descriptor_set =
-                gfx_hal::pso::DescriptorPool::allocate_set(&mut descriptor_pool, &set_layout)?;
-
-            // let buffer_view = gfx_hal::Device::create_buffer_view(
-            //     factory.device(),
-            //     posvelbuff.raw(),
-            //     Some(gfx_hal::format::Format::Rgba32Float),
-            //     0 .. posvelbuff.size(),
-            // )?;
-
+        unsafe {
             gfx_hal::Device::write_descriptor_sets(
                 factory.device(),
                 std::iter::once(gfx_hal::pso::DescriptorSetWrite {
-                    set: &descriptor_set,
+                    set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
                     descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(
@@ -521,9 +479,7 @@ where
                     )),
                 }),
             );
-
-            (descriptor_pool, descriptor_set /*, buffer_view*/)
-        };
+        }
 
         let mut command_pool = factory
             .create_command_pool(family)?
@@ -536,7 +492,7 @@ where
         encoder.bind_compute_descriptor_sets(
             &pipeline_layout,
             0,
-            std::iter::once(&descriptor_set),
+            std::iter::once(descriptor_set.raw()),
             std::iter::empty::<u32>(),
         );
 
@@ -559,7 +515,6 @@ where
             set_layout,
             pipeline_layout,
             pipeline,
-            descriptor_pool,
             descriptor_set,
             // buffer_view,
             command_pool,

@@ -11,9 +11,10 @@
 
 use rendy::{
     command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
+    descriptor::{DescriptorSet, DescriptorSetLayout},
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, GraphBuilder, NodeBuffer, NodeImage},
-    hal::{pso::DescriptorPool, Device},
+    hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Mesh, PosColorNorm, Transform},
     resource::buffer::Buffer,
@@ -26,7 +27,7 @@ use genmesh::generators::{IndexedPolygon, SharedVertex};
 
 use rand::distributions::{Distribution, Uniform};
 
-use winit::{EventsLoop, WindowBuilder, Event, WindowEvent};
+use winit::{Event, EventsLoop, WindowBuilder, WindowEvent};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -119,9 +120,8 @@ struct MeshRenderPipelineDesc;
 
 #[derive(Debug)]
 struct MeshRenderPipeline<B: gfx_hal::Backend> {
-    descriptor_pool: B::DescriptorPool,
     buffer: Buffer<B>,
-    sets: Vec<B::DescriptorSet>,
+    sets: Vec<DescriptorSet<B>>,
 }
 
 impl<B> SimpleGraphicsPipelineDesc<B, Aux<B>> for MeshRenderPipelineDesc
@@ -196,24 +196,13 @@ where
         aux: &mut Aux<B>,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[B::DescriptorSetLayout],
+        set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<MeshRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
 
         let (frames, align) = (aux.frames, aux.align);
-
-        let mut descriptor_pool = unsafe {
-            factory.create_descriptor_pool(
-                frames,
-                Some(gfx_hal::pso::DescriptorRangeDesc {
-                    ty: gfx_hal::pso::DescriptorType::UniformBuffer,
-                    count: frames,
-                }),
-            )
-        }
-        .unwrap();
 
         let buffer = factory
             .create_buffer(
@@ -231,26 +220,22 @@ where
         let mut sets = Vec::new();
         for index in 0..frames {
             unsafe {
-                let set = descriptor_pool.allocate_set(&set_layouts[0]).unwrap();
+                let set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
                 factory.write_descriptor_sets(Some(gfx_hal::pso::DescriptorSetWrite {
-                    set: &set,
+                    set: set.raw(),
                     binding: 0,
                     array_offset: 0,
                     descriptors: Some(gfx_hal::pso::Descriptor::Buffer(
                         buffer.raw(),
-                        Some(uniform_offset(index, align))..Some(uniform_offset(index, align) + UNIFORM_SIZE),
+                        Some(uniform_offset(index, align))
+                            ..Some(uniform_offset(index, align) + UNIFORM_SIZE),
                     )),
                 }));
                 sets.push(set);
             }
         }
 
-
-        Ok(MeshRenderPipeline {
-            descriptor_pool,
-            buffer,
-            sets,
-        })
+        Ok(MeshRenderPipeline { buffer, sets })
     }
 }
 
@@ -264,7 +249,7 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[B::DescriptorSetLayout],
+        _set_layouts: &[DescriptorSetLayout<B>],
         index: usize,
         aux: &Aux<B>,
     ) -> PrepareResult {
@@ -334,10 +319,11 @@ where
         encoder.bind_graphics_descriptor_sets(
             layout,
             0,
-            Some(&self.sets[index]),
+            Some(self.sets[index].raw()),
             std::iter::empty(),
         );
-        assert!(aux.scene
+        assert!(aux
+            .scene
             .object_mesh
             .as_ref()
             .unwrap()
@@ -356,10 +342,7 @@ where
     }
 
     fn dispose(mut self, factory: &mut Factory<B>, _aux: &mut Aux<B>) {
-        unsafe {
-            self.descriptor_pool.reset();
-            factory.destroy_descriptor_pool(self.descriptor_pool);
-        }
+        factory.destroy_descriptor_sets(self.sets.drain(..));
     }
 }
 
@@ -416,8 +399,7 @@ fn main() {
             .into_pass(),
     );
 
-    let present_builder = PresentNode::builder(&factory, surface, color)
-        .with_dependency(pass);
+    let present_builder = PresentNode::builder(&factory, surface, color).with_dependency(pass);
 
     let frames = present_builder.image_count();
 
@@ -458,7 +440,7 @@ fn main() {
         frames: frames as _,
         align: gfx_hal::adapter::PhysicalDevice::limits(factory.physical())
             .min_uniform_buffer_offset_alignment,
-        scene
+        scene,
     };
 
     log::info!("{:#?}", aux.scene);
@@ -512,7 +494,10 @@ fn main() {
         for _ in &mut frames {
             factory.maintain(&mut families);
             event_loop.poll_events(|event| match event {
-                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => should_close = true,
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    ..
+                } => should_close = true,
                 _ => (),
             });
             graph.run(&mut factory, &mut families, &mut aux);
@@ -531,10 +516,16 @@ fn main() {
                 })
             }
 
-            if should_close || elapsed > std::time::Duration::new(5, 0) || aux.scene.objects.len() == MAX_OBJECTS {
+            if should_close
+                || elapsed > std::time::Duration::new(5, 0)
+                || aux.scene.objects.len() == MAX_OBJECTS
+            {
                 let frames = frames.start - start;
                 let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                fpss.push((frames * 1_000_000_000 / nanos, from..aux.scene.objects.len()));
+                fpss.push((
+                    frames * 1_000_000_000 / nanos,
+                    from..aux.scene.objects.len(),
+                ));
                 checkpoint += elapsed;
                 break;
             }
