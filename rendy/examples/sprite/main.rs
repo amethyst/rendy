@@ -68,6 +68,7 @@ where
         None
     }
 
+    #[cfg(not(feature = "spirv-reflection"))]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -76,6 +77,18 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    )> {
+        use rendy::graph::reflect::ShaderLayoutGenerator;
+        vec![VERTEX.attributes(.., 0).unwrap()]
     }
 
     fn load_shader_set<'b>(
@@ -109,6 +122,7 @@ where
         }
     }
 
+    #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
@@ -131,6 +145,12 @@ where
             }],
             push_constants: Vec::new(),
         }
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn layout(&self) -> Layout {
+        use rendy::graph::reflect::SpirvLayoutMerger;
+        vec![*VERTEX, *FRAGMENT].merge().unwrap()
     }
 
     fn build<'b>(
@@ -331,6 +351,7 @@ fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
         .filter_module("sprite", log::LevelFilter::Trace)
+        .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();

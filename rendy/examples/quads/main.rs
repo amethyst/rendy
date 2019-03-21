@@ -27,7 +27,7 @@ use rendy::{
     },
     hal::Device,
     memory::MemoryUsageValue,
-    mesh::{AsVertex, Color},
+    mesh::{Color},
     resource::buffer::Buffer,
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
 };
@@ -88,6 +88,7 @@ where
 {
     type Pipeline = QuadsRenderPipeline<B>;
 
+    #[cfg(not(feature = "spirv-reflection"))]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -96,6 +97,18 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         vec![Color::VERTEX.gfx_vertex_input_desc(0)]
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    )> {
+        use rendy::graph::reflect::ShaderLayoutGenerator;
+        vec![RENDER_VERTEX.attributes(.., 0).unwrap()]
     }
 
     fn load_shader_set<'a>(
@@ -157,9 +170,8 @@ where
 
     #[cfg(feature = "spirv-reflection")]
     fn layout(&self) -> Layout {
-        log::trace!("Using: {:?}", RENDER_VERTEX.reflect().unwrap().layout());
-        use rendy::graph::reflect::ShaderLayoutGenerator;
-        (RENDER_VERTEX.reflect().unwrap(), RENDER_FRAGMENT.reflect().unwrap()).layout()
+        use rendy::graph::reflect::SpirvLayoutMerger;
+        vec![*RENDER_VERTEX, *RENDER_FRAGMENT].merge().unwrap()
     }
 
     fn build<'a>(
@@ -575,6 +587,7 @@ fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
         .filter_module("quads", log::LevelFilter::Trace)
+        .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();

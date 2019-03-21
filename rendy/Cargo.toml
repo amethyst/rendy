@@ -34,7 +34,7 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-base = ["shader-compiler", "spirv-reflection", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+base = [ "vulkan", "texture-image", "shader-compiler", "spirv-reflection", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
 default = ["base"]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]

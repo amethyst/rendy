@@ -1,11 +1,7 @@
 //! Using spirv-reflect-rs for reflection.
 //!
 
-use log::trace;
-use std::collections::HashMap;
-
 use spirv_reflect::{types::*, ShaderModule};
-
 use gfx_hal::format::Format;
 
 /// Workaround extension trait copy of std::convert::From, for simple conversion from spirv-reflect types to gfx_hal types
@@ -13,23 +9,6 @@ pub trait ReflectInto<T>: Sized {
     /// Attempts to perform a conversion from the provided type into this type
     fn reflect_into(&self) -> Result<T, failure::Error> {
         Err(failure::format_err!("Unsupported conversion type"))
-    }
-}
-
-/// Harness type for easier conversions of named return collections.
-pub trait AsVector<V> {
-    /// Implemented to return a straight vector from a hashmap, so the user doesnt have to map.collect for all its uses
-    /// This function clones all values in the hashmap so beware.
-    fn as_vector(&self) -> Vec<V>;
-}
-
-impl<K, V> AsVector<V> for HashMap<K, V>
-where
-    K: Eq + std::hash::Hash,
-    V: Sized + Clone,
-{
-    fn as_vector(&self) -> Vec<V> {
-        self.into_iter().map(|(_, i)| (*i).clone()).collect()
     }
 }
 
@@ -147,18 +126,18 @@ impl ReflectInto<gfx_hal::pso::Element<gfx_hal::format::Format>>
     fn reflect_into(
         &self,
     ) -> Result<gfx_hal::pso::Element<gfx_hal::format::Format>, failure::Error> {
+        let format = type_element_format(self.type_flags, &self.traits)?;
         Ok(gfx_hal::pso::Element {
-            format: type_element_format(self.type_flags, &self.traits)?,
+            format: format,
             offset: 0,
         })
     }
 }
 
-impl ReflectInto<(String, gfx_hal::pso::AttributeDesc)> for variable::ReflectInterfaceVariable {
-    fn reflect_into(&self) -> Result<(String, gfx_hal::pso::AttributeDesc), failure::Error> {
+impl ReflectInto<gfx_hal::pso::AttributeDesc> for variable::ReflectInterfaceVariable {
+    fn reflect_into(&self) -> Result<gfx_hal::pso::AttributeDesc, failure::Error> {
         // An attribute is not an image format
-        Ok((
-            self.name.clone(),
+        Ok(
             gfx_hal::pso::AttributeDesc {
                 location: self.location,
                 binding: self.location,
@@ -168,7 +147,7 @@ impl ReflectInto<(String, gfx_hal::pso::AttributeDesc)> for variable::ReflectInt
                     .ok_or_else(|| failure::format_err!("Unable to reflect vertex element"))?
                     .reflect_into()?,
             },
-        ))
+        )
     }
 }
 
@@ -219,17 +198,16 @@ impl ReflectInto<gfx_hal::pso::DescriptorType> for descriptor::ReflectDescriptor
     }
 }
 
-impl ReflectInto<HashMap<String, gfx_hal::pso::DescriptorSetLayoutBinding>>
+impl ReflectInto<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>
     for descriptor::ReflectDescriptorSet
 {
     fn reflect_into(
         &self,
-    ) -> Result<HashMap<String, gfx_hal::pso::DescriptorSetLayoutBinding>, failure::Error> {
-        let mut output = HashMap::<String, gfx_hal::pso::DescriptorSetLayoutBinding>::new();
+    ) -> Result<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>, failure::Error> {
+        let mut output = Vec::<gfx_hal::pso::DescriptorSetLayoutBinding>::new();
 
         for descriptor in self.bindings.iter() {
-            assert!(!output.contains_key(&descriptor.name));
-            output.insert(descriptor.name.clone(), descriptor.reflect_into()?);
+            output.push(descriptor.reflect_into()?);
         }
 
         Ok(output)
@@ -279,57 +257,81 @@ fn convert_stage(stage: variable::ReflectShaderStageFlags) -> gfx_hal::pso::Shad
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpirvShaderDescription {
     /// Hashmap of output variables with names.
-    pub output_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
+    pub output_attributes: Vec<gfx_hal::pso::AttributeDesc>,
     /// Hashmap of output variables with names.
-    pub input_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
+    pub input_attributes: Vec<gfx_hal::pso::AttributeDesc>,
     /// Hashmap of output variables with names.
-    pub descriptor_sets: Vec<HashMap<String, gfx_hal::pso::DescriptorSetLayoutBinding>>,
+    pub descriptor_sets: Vec<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>,
+    /// Stage flag of this shader
+    pub stage_flag: gfx_hal::pso::ShaderStageFlags,
+}
+
+pub fn generate_attributes(attributes: Vec<variable::ReflectInterfaceVariable>) -> Result<Vec<gfx_hal::pso::AttributeDesc>, failure::Error> {
+    let mut out_attributes = Vec::new();
+
+    for attribute in &attributes {
+        println!("Attribute={:?}", attribute);
+        let reflected: gfx_hal::pso::AttributeDesc = attribute.reflect_into()?;
+        if attribute.array.dims.is_empty() {
+            out_attributes.push(reflected);
+        } else {
+            for n in 0..attribute.array.dims[0] {
+                let mut clone = reflected.clone();
+                clone.location += n;
+                println!("Out array: {:?}", clone);
+                out_attributes.push(clone);
+            }
+        }
+    }
+
+    Ok(out_attributes)
 }
 
 impl SpirvShaderDescription {
     ///
     pub fn from_bytes(data: &[u8]) -> Result<Self, failure::Error> {
-        trace!("Shader reflecting into SpirvShaderDescription");
+        log::trace!("Shader reflecting into SpirvShaderDescription");
 
         match ShaderModule::load_u8_data(data) {
             Ok(module) => {
-                let input_attributes: Result<HashMap<_, _>, _> = module
-                    .enumerate_input_variables(None)
-                    .map_err(|_| failure::format_err!("Cant get input variables"))?
-                    .iter()
-                    .map(ReflectInto::<(String, gfx_hal::pso::AttributeDesc)>::reflect_into)
-                    .collect();
+                let stage_flag = convert_stage(module.get_shader_stage());
 
-                let output_attributes: Result<HashMap<_, _>, _> = module
+                let input_attributes = generate_attributes(module
+                                                            .enumerate_input_variables(None)
+                                                            .map_err(|e| failure::format_err!("Failed to get input attributes from spirv-reflect: {}", e))?);
+
+                let output_attributes: Result<Vec<_>, _> = module
                     .enumerate_output_variables(None)
-                    .map_err(|_| failure::format_err!("Cant get output variables"))?
+                    .map_err(|e| failure::format_err!("Failed to get output attributes from spirv-reflect: {}", e))?
                     .iter()
-                    .map(ReflectInto::<(String, gfx_hal::pso::AttributeDesc)>::reflect_into)
+                    .map(ReflectInto::<gfx_hal::pso::AttributeDesc>::reflect_into)
                     .collect();
 
-                let descriptor_sets: Result<Vec<_>, _> = module.enumerate_descriptor_sets(None).map_err(|_| failure::format_err!("Cant get descriptor sets") )?.iter()
-                    .map(ReflectInto::<HashMap<String, gfx_hal::pso::DescriptorSetLayoutBinding>>::reflect_into)
+                let descriptor_sets: Result<Vec<_>, _> = module.enumerate_descriptor_sets(None)
+                    .map_err(|e| failure::format_err!("Failed to get descriptor sets from spirv-reflect: {}", e) )?.iter()
+                    .map(ReflectInto::<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>::reflect_into)
                     .collect();
 
                 // This is a fixup-step required because of our implementation. Because we dont pass the module around
                 // to the all the reflect_into API's, we need to fix up the shader stage here at the end. Kinda a hack
                 let mut descriptor_sets_final = descriptor_sets
-                    .map_err(|_| failure::format_err!("Error parsing descriptor sets"))?;
+                    .map_err(|e| failure::format_err!("Failed to parse descriptor sets:: {}", e))?;
                 descriptor_sets_final.iter_mut().for_each(|v| {
-                    v.iter_mut().for_each(|(_, mut set)| {
-                        set.stage_flags = convert_stage(module.get_shader_stage())
+                    v.iter_mut().for_each(|mut set| {
+                        set.stage_flags = stage_flag
                     });
                 });
 
                 Ok(Self {
                     input_attributes: input_attributes
-                        .map_err(|_| failure::format_err!("Error parsing input attributes"))?,
+                        .map_err(|e| failure::format_err!("Error parsing input attributes: {}", e))?,
                     output_attributes: output_attributes
-                        .map_err(|_| failure::format_err!("Error parsing output attributes"))?,
+                        .map_err(|e| failure::format_err!("Error parsing output attributes: {}", e))?,
                     descriptor_sets: descriptor_sets_final,
+                    stage_flag,
                 })
             }
-            Err(_) => Err(failure::format_err!("Failed to load module data")),
+            Err(e) => Err(failure::format_err!("Failed to reflect data: {}", e)),
         }
     }
 }

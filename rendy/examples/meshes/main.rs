@@ -130,6 +130,7 @@ where
 {
     type Pipeline = MeshRenderPipeline<B>;
 
+    #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
@@ -145,6 +146,29 @@ where
         }
     }
 
+    #[cfg(feature = "spirv-reflection")]
+    fn layout(&self) -> Layout {
+        use rendy::graph::reflect::SpirvLayoutMerger;
+        vec![*VERTEX, *FRAGMENT].merge().unwrap()
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    )> {
+        use rendy::graph::reflect::ShaderLayoutGenerator;
+
+        vec![
+            VERTEX.attributes(0..3, 0).unwrap(),
+            VERTEX.attributes(3..7, 1).unwrap(),
+        ]
+    }
+
+    #[cfg(not(feature = "spirv-reflection"))]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -351,6 +375,7 @@ fn main() {
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Warn)
         .filter_module("meshes", log::LevelFilter::Trace)
+        .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();

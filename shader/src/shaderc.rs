@@ -2,9 +2,6 @@
 use super::Shader;
 pub use shaderc::{self, ShaderKind, SourceLanguage};
 
-#[cfg(feature = "spirv-reflection")]
-use crate::reflect;
-
 macro_rules! vk_make_version {
     ($major: expr, $minor: expr, $patch: expr) => {
         (($major as u32) << 22) | (($minor as u32) << 12) | $patch as u32
@@ -54,19 +51,15 @@ where
                         .ok_or_else(|| failure::format_err!("Failed to init Shaderc"))?;
                     ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                     ops.set_source_language(self.lang);
-                    ops.set_optimization_level(shaderc::OptimizationLevel::Performance);
+                    ops.set_generate_debug_info();
+                    //ops.set_optimization_level(shaderc::OptimizationLevel::None);
+                    ops.set_optimization_level(shaderc::OptimizationLevel::Performance);;
                     ops
                 })
                 .as_ref(),
             )?;
 
         Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
-    }
-
-    fn reflect(&self) -> Result<reflect::SpirvShaderDescription, failure::Error> {
-        Ok(reflect::SpirvShaderDescription::from_bytes(
-            &*(self.spirv()?),
-        )?)
     }
 }
 
