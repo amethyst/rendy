@@ -6,13 +6,11 @@ use {
         Backend, Device,
     },
     smallvec::{smallvec, SmallVec},
-    std::{
-        cmp::{max, min},
-        collections::{HashMap, VecDeque},
-    },
+    std::collections::{HashMap, VecDeque},
 };
 
 const MIN_SETS: u32 = 64;
+const MAX_SETS: u32 = 512;
 
 /// Descriptor set
 #[derive(Debug)]
@@ -57,7 +55,18 @@ unsafe fn allocate_from_pool<B: Backend>(
             AllocationError::OutOfHostMemory => OutOfMemory::OutOfHostMemory,
             AllocationError::OutOfDeviceMemory => OutOfMemory::OutOfDeviceMemory,
             err => {
-                panic!("Unexpected error: {}", err);
+                // We check pool for free descriptors and sets before calling this function,
+                // so it can't be exhausted.
+                // And it can't be fragmented either according to spec
+                //
+                // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VkDescriptorPoolCreateInfo
+                //
+                // """
+                // Additionally, if all sets allocated from the pool since it was created or most recently reset
+                // use the same number of descriptors (of each type) and the requested allocation also
+                // uses that same number of descriptors (of each type), then fragmentation must not cause an allocation failure
+                // """
+                panic!("Unexpected error: {:?}", err);
             }
         })?;
     assert_eq!(allocation.len(), sets_were + count as usize);
@@ -81,6 +90,18 @@ where
             pools: VecDeque::new(),
             total: 0,
         }
+    }
+
+    fn new_pool_size(&self, count: u32) -> u32 {
+        MIN_SETS // at least MIN_SETS
+            .max(count) // at least enough for allocation
+            .max(if self.total < MAX_SETS as u64 {
+                self.total as u32 // at least as much as was allocated so far
+            } else {
+                MAX_SETS
+            })
+            .next_power_of_two() // rounded up to 2^N
+            .min(MAX_SETS) // capped to MAX_SETS
     }
 
     unsafe fn dispose(mut self, device: &impl Device<B>) {
@@ -116,7 +137,7 @@ where
                 continue;
             }
 
-            let allocate = min(pool.free, count);
+            let allocate = pool.free.min(count);
             log::trace!("Allocate {} from exising pool", allocate);
             allocate_from_pool::<B>(&mut pool.raw, layout.raw(), allocate, &mut allocation.sets)?;
             allocation.pools.extend(
@@ -131,25 +152,28 @@ where
             }
         }
 
-        if count > 0 {
-            let size = max(MIN_SETS, (count - 1).next_power_of_two() * 2);
+        while count > 0 {
+            let size = self.new_pool_size(count);
             let pool_ranges = layout.ranges() * size;
             log::trace!(
-                "Create new pool with {} sets and {:?} descriptors. And allocate {} sets from it",
+                "Create new pool with {} sets and {:?} descriptors",
                 size,
                 pool_ranges,
-                count
             );
             let mut raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
-            allocate_from_pool::<B>(&mut raw, layout.raw(), count, &mut allocation.sets)?;
+
+            let allocate = size.min(count);
+
+            allocate_from_pool::<B>(&mut raw, layout.raw(), allocate, &mut allocation.sets)?;
             allocation.pools.extend(
                 std::iter::repeat(self.pools.len() as u64 + self.pools_offset).take(count as usize),
             );
             self.pools.push_back(DescriptorPool {
                 raw,
                 size,
-                free: size - count,
+                free: size - allocate,
             });
+            count -= allocate;
             self.total += count as u64;
         }
 
