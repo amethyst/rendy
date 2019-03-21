@@ -158,9 +158,9 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                             blit_filter,
                             Some(gfx_hal::command::ImageBlit {
                                 src_subresource: gfx_hal::image::SubresourceLayers {
-                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    aspects: input_image.range.aspects,
                                     level: 0,
-                                    layers: 0..1,
+                                    layers: input_image.range.layers.start..input_image.range.layers.start + 1,
                                 },
                                 src_bounds: gfx_hal::image::Offset::ZERO
                                     .into_bounds(&input_image_res.kind().extent()),
@@ -183,9 +183,9 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                             gfx_hal::image::Layout::TransferDstOptimal,
                             Some(gfx_hal::command::ImageCopy {
                                 src_subresource: gfx_hal::image::SubresourceLayers {
-                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    aspects: input_image.range.aspects,
                                     level: 0,
-                                    layers: 0..1,
+                                    layers: input_image.range.layers.start..input_image.range.layers.start + 1,
                                 },
                                 src_offset: gfx_hal::image::Offset::ZERO,
                                 dst_subresource: gfx_hal::image::SubresourceLayers {
