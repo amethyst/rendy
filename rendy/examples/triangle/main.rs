@@ -11,6 +11,7 @@
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
+    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
     memory::MemoryUsageValue,
@@ -79,7 +80,7 @@ where
         &self,
         storage: &'a mut Vec<B::ShaderModule>,
         factory: &mut Factory<B>,
-        _aux: &mut T,
+        _aux: &T,
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
@@ -110,10 +111,10 @@ where
         self,
         _factory: &mut Factory<B>,
         _queue: QueueId,
-        _aux: &mut T,
+        _aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[B::DescriptorSetLayout],
+        set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<TriangleRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -134,7 +135,7 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[B::DescriptorSetLayout],
+        _set_layouts: &[DescriptorSetLayout<B>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -189,7 +190,7 @@ where
         encoder.draw(0..3, 0..1);
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &mut T) {}
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]

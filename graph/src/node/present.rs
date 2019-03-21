@@ -169,7 +169,10 @@ where
 {
     fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
         // Find correct queue family.
-        families.iter().find(|family| factory.surface_support(family.id(), self.surface.raw())).map(Family::id)
+        families
+            .iter()
+            .find(|family| factory.surface_support(family.id(), self.surface.raw()))
+            .map(Family::id)
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
@@ -197,7 +200,7 @@ where
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,
-        _aux: &mut T,
+        _aux: &T,
         buffers: Vec<NodeBuffer<'a, B>>,
         images: Vec<NodeImage<'a, B>>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
@@ -368,7 +371,7 @@ where
             .expect("Fix swapchain error");
     }
 
-    unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &mut T) {
+    unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &T) {
         for for_image in self.per_image {
             drop(for_image.submit);
             factory.destroy_semaphore(for_image.acquire);

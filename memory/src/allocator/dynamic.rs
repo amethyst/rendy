@@ -166,9 +166,9 @@ where
         self.max_block_size()
     }
 
-    /// Create new `LinearAllocator`
+    /// Create new `DynamicAllocator`
     /// for `memory_type` with `memory_properties` specified,
-    /// with `LinearConfig` provided.
+    /// with `DynamicConfig` provided.
     pub fn new(
         memory_type: gfx_hal::MemoryTypeId,
         memory_properties: gfx_hal::memory::Properties,

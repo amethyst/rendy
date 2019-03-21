@@ -17,9 +17,10 @@ gfx-hal = "0.1"
 rendy-factory = { version = "0.1", path = "../factory" }
 shaderc = { version = "0.3", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
+serde_bytes = { version = "0.10.5", optional = true }
 spirv-reflect = { git = "https://github.com/jaynus/spirv-reflect-rs.git", optional = true }
 
 [features]
 shader-compiler = ["shaderc"]
 spirv-reflection = [ "spirv-reflect" ]
-serde-1 = ["serde", "gfx-hal/serde" ]
+serde-1 = ["serde", "serde_bytes", "gfx-hal/serde" ]

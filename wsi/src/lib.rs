@@ -132,7 +132,11 @@ where
     ) -> Self {
         let raw = create_surface::<B>(instance, &window);
         #[cfg(not(feature = "no-slow-safety-checks"))]
-        let s = Surface { window, raw, factory_id: _factory_id };
+        let s = Surface {
+            window,
+            raw,
+            factory_id: _factory_id,
+        };
         #[cfg(feature = "no-slow-safety-checks")]
         let s = Surface { window, raw };
 
@@ -182,7 +186,7 @@ where
     }
 
     /// Get surface compatibility
-    /// 
+    ///
     /// ## Safety
     /// - `physical_device` must be created from same `Instance` as the `Surface`
     pub unsafe fn compatibility(
@@ -192,7 +196,7 @@ where
         gfx_hal::window::SurfaceCapabilities,
         Option<Vec<gfx_hal::format::Format>>,
         Vec<gfx_hal::PresentMode>,
-        Vec<gfx_hal::CompositeAlpha>
+        Vec<gfx_hal::CompositeAlpha>,
     ) {
         gfx_hal::Surface::compatibility(&self.raw, physical_device)
     }
@@ -240,7 +244,9 @@ where
 
         log::info!("Surface formats: {:#?}. Pick {:#?}", formats, format);
 
-        if image_count < capabilities.image_count.start || image_count > capabilities.image_count.end {
+        if image_count < capabilities.image_count.start
+            || image_count > capabilities.image_count.end
+        {
             log::warn!(
                 "Image count not supported. Supported: {:#?}, requested: {:#?}",
                 capabilities.image_count,
@@ -285,14 +291,15 @@ where
                 image_count,
                 image_layers: 1,
                 image_usage: usage,
-                composite_alpha: alpha.into_iter().max_by_key(|alpha| {
-                    match alpha {
+                composite_alpha: alpha
+                    .into_iter()
+                    .max_by_key(|alpha| match alpha {
                         gfx_hal::window::CompositeAlpha::Inherit => 3,
                         gfx_hal::window::CompositeAlpha::Opaque => 2,
                         gfx_hal::window::CompositeAlpha::PreMultiplied => 1,
                         gfx_hal::window::CompositeAlpha::PostMultiplied => 0,
-                    }
-                }).expect("No CompositeAlpha modes supported"),
+                    })
+                    .expect("No CompositeAlpha modes supported"),
             },
             None,
         )?;

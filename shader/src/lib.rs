@@ -52,7 +52,10 @@ pub trait Shader {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpirvShaderInfo {
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
     spirv: Vec<u8>,
 }
 

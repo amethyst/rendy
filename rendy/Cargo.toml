@@ -22,7 +22,8 @@ shader-compiler = ["rendy-shader/shader-compiler"]
 spirv-reflection = ["rendy-shader/spirv-reflection", "rendy-graph/spirv-reflection" ]
 
 command = ["rendy-command"]
-factory = ["rendy-factory", "command", "resource", "wsi"]
+descriptor = ["rendy-descriptor"]
+factory = ["rendy-factory", "command", "descriptor", "resource", "wsi"]
 frame = ["rendy-frame", "factory"]
 graph = ["rendy-graph", "frame"]
 memory = ["rendy-memory"]
@@ -33,7 +34,7 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-base = ["shader-compiler", "spirv-reflection", "command", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+base = ["shader-compiler", "spirv-reflection", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
 default = ["base"]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]
@@ -44,6 +45,7 @@ full = ["base", "mesh-obj", "texture-image", "texture-palette"]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }
+rendy-descriptor = { version = "0.1.0", path = "../descriptor", optional = true }
 rendy-factory = { version = "0.1.0", path = "../factory", optional = true }
 rendy-frame = { version = "0.1.0", path = "../frame", optional = true }
 rendy-graph = { version = "0.1.0", path = "../graph", optional = true }
@@ -71,3 +73,7 @@ log = "0.4"
 winit = "0.18"
 palette = "0.4"
 rand = "0.6"
+
+[[example]]
+name = "sprite"
+required-features = ["texture-image"]
