@@ -464,7 +464,8 @@ where
                         Ok(()) => break,
                         Err(e) => {
                             log::error!("Swapchain present error after next_image is acquired: {}", e);
-                            // recreate swapchain and try again.
+                            // recreate swapchain on next frame.
+                            break;
                         }
                     }
                 }
