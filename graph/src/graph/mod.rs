@@ -40,19 +40,21 @@ pub struct GraphContext<B: Backend> {
 }
 
 impl<B: Backend> GraphContext<B> {
-    fn alloc(
+    fn alloc<'a>(
         factory: &Factory<B>,
         chains: &chain::Chains,
-        buffers: &Vec<(buffer::Info, MemoryUsageValue)>,
-        images: &Vec<(
-            image::Info,
-            MemoryUsageValue,
-            Option<gfx_hal::command::ClearValue>,
-        )>,
+        buffers: impl IntoIterator<Item = &'a (buffer::Info, MemoryUsageValue)>,
+        images: impl IntoIterator<
+            Item = &'a (
+                image::Info,
+                MemoryUsageValue,
+                Option<gfx_hal::command::ClearValue>,
+            ),
+        >,
     ) -> Result<Self, failure::Error> {
         log::trace!("Allocate buffers");
         let buffers: Vec<Option<buffer::Buffer<B>>> = buffers
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(index, &(ref info, memory))| {
                 chains
@@ -69,7 +71,7 @@ impl<B: Backend> GraphContext<B> {
 
         log::trace!("Allocate images");
         let images: Vec<Option<(image::Image<B>, _)>> = images
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(index, (info, memory, clear))| {
                 chains

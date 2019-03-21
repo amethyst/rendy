@@ -232,32 +232,32 @@ where
                     0,
                     &[
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(0.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(240.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(90.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(330.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(60.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(0.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(240.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(60.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(270.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(150.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
@@ -626,7 +626,7 @@ fn build_graph(
     let color = graph_builder.create_image(
         surface.kind(),
         1,
-        gfx_hal::format::Format::Rgba8Unorm,
+        factory.get_surface_format(&surface),
         MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),

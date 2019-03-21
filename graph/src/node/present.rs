@@ -101,7 +101,6 @@ fn create_per_image_data<B: gfx_hal::Backend>(
     blit_filter: gfx_hal::image::Filter,
 ) -> Result<Vec<ForImage<B>>, failure::Error> {
     let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
-    let input_extend = input_image_res.kind().extent();
 
     let per_image = match target.backbuffer() {
         Backbuffer::Images(target_images) => {
@@ -140,7 +139,17 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                         barriers,
                     );
 
-                    if target_image.kind().extent() != input_extend {
+                    let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
+                    let formats_differ = target_image.format() != input_image_res.format();
+
+                    if extents_differ || formats_differ
+                    {
+                        if formats_differ {
+                            log::debug!("Present node is blitting because target format {:?} doesnt match image format {:?}", target_image.format(), input_image_res.format());
+                        }
+                        if extents_differ {
+                            log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
+                        }
                         encoder.blit_image(
                             input_image_res.raw(),
                             input_image.layout,
@@ -153,7 +162,8 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                                     level: 0,
                                     layers: 0..1,
                                 },
-                                src_bounds: gfx_hal::image::Offset::ZERO.into_bounds(&input_extend),
+                                src_bounds: gfx_hal::image::Offset::ZERO
+                                    .into_bounds(&input_image_res.kind().extent()),
                                 dst_subresource: gfx_hal::image::SubresourceLayers {
                                     aspects: gfx_hal::format::Aspects::COLOR,
                                     level: 0,
@@ -163,7 +173,9 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                                     .into_bounds(&target_image.kind().extent()),
                             }),
                         );
+                        
                     } else {
+                        log::debug!("Present node is copying");
                         encoder.copy_image(
                             input_image_res.raw(),
                             input_image.layout,
@@ -449,12 +461,10 @@ where
                     );
 
                     match next.present(queue.raw(), Some(&for_image.release)) {
+                        Ok(()) => break,
                         Err(e) => {
-                            log::error!("Fix swapchain error: {}", e);
+                            log::error!("Swapchain present error after next_image is acquired: {}", e);
                             // recreate swapchain and try again.
-                        }
-                        _ => {
-                            break;
                         }
                     }
                 }
@@ -468,7 +478,10 @@ where
             }
             // Recreate swapchain when OutOfDate
             // The code has to execute after match due to mutable aliasing issues.
+            
+            // TODO: use retired swapchains once available in hal and remove that wait
             factory.wait_idle().unwrap();
+
             self.target
                 .recreate(factory.physical(), factory.device())
                 .expect("Failed recreating swapchain");

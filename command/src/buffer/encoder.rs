@@ -687,7 +687,7 @@ where
         filter: gfx_hal::image::Filter,
         regions: impl IntoIterator<Item = gfx_hal::command::ImageBlit>,
     ) where
-        C: Supports<Transfer>,
+        C: Supports<Graphics>,
     {
         self.capability.assert();
 
