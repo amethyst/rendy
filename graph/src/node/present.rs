@@ -463,7 +463,7 @@ where
                     match next.present(queue.raw(), Some(&for_image.release)) {
                         Ok(()) => break,
                         Err(e) => {
-                            log::error!("Swapchain present error after next_image is acquired: {}", e);
+                            log::debug!("Swapchain present error after next_image is acquired: {}", e);
                             // recreate swapchain on next frame.
                             break;
                         }
