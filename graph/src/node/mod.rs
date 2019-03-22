@@ -8,7 +8,7 @@ use crate::{
     command::{Capability, Family, FamilyId, Fence, Queue, Submission, Submittable, Supports},
     factory::Factory,
     frame::Frames,
-    resource::{Buffer, Image},
+    graph::GraphContext,
     BufferId, ImageId, NodeId,
 };
 
@@ -45,13 +45,10 @@ pub struct BufferBarrier {
 ///
 /// If Node doesn't actually use the buffer it can merge acquire and release barriers into one.
 /// TODO: Make merge function.
-#[derive(Debug)]
-pub struct NodeBuffer<'a, B: gfx_hal::Backend> {
+#[derive(Clone, Debug)]
+pub struct NodeBuffer {
     /// Id of the buffer.
     pub id: BufferId,
-
-    /// Buffer reference.
-    pub buffer: &'a mut Buffer<B>,
 
     /// Region of the buffer that is the transient resource.
     pub range: std::ops::Range<u64>,
@@ -65,21 +62,6 @@ pub struct NodeBuffer<'a, B: gfx_hal::Backend> {
     /// Node implementation must insert it after last command that uses the buffer.
     /// Barrier must be inserted even if this node doesn't use the buffer.
     pub release: Option<BufferBarrier>,
-}
-
-impl<'a, B> NodeBuffer<'a, B>
-where
-    B: gfx_hal::Backend,
-{
-    fn reborrow(&mut self) -> NodeBuffer<'_, B> {
-        NodeBuffer {
-            id: self.id,
-            buffer: &mut self.buffer,
-            range: self.range.clone(),
-            acquire: self.acquire.clone(),
-            release: self.release.clone(),
-        }
-    }
 }
 
 /// Image access node wants to perform.
@@ -118,13 +100,10 @@ pub struct ImageBarrier {
 }
 
 /// Image shared between nodes.
-#[derive(Debug)]
-pub struct NodeImage<'a, B: gfx_hal::Backend> {
+#[derive(Clone, Debug)]
+pub struct NodeImage {
     /// Id of the image.
     pub id: ImageId,
-
-    /// Image reference.
-    pub image: &'a mut Image<B>,
 
     /// Region of the image that is the transient resource.
     pub range: gfx_hal::image::SubresourceRange,
@@ -144,23 +123,6 @@ pub struct NodeImage<'a, B: gfx_hal::Backend> {
     /// Node implementation must insert it after last command that uses the image.
     /// Barrier must be inserted even if this node doesn't use the image.
     pub release: Option<ImageBarrier>,
-}
-
-impl<'a, B> NodeImage<'a, B>
-where
-    B: gfx_hal::Backend,
-{
-    fn reborrow(&mut self) -> NodeImage<'_, B> {
-        NodeImage {
-            id: self.id,
-            image: &mut self.image,
-            range: self.range.clone(),
-            layout: self.layout,
-            clear: self.clear,
-            acquire: self.acquire.clone(),
-            release: self.release.clone(),
-        }
-    }
 }
 
 /// NodeSubmittable
@@ -212,6 +174,7 @@ pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
     /// Returned submits are guaranteed to be submitted within specified frame.
     fn run<'a>(
         &'a mut self,
+        ctx: &GraphContext<B>,
         factory: &Factory<B>,
         aux: &T,
         frames: &'a Frames<B>,
@@ -265,12 +228,13 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
     ///
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
         aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Self::Node, failure::Error>;
 }
 
@@ -280,6 +244,7 @@ pub trait DynNode<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sync + Send
     /// Recorded buffers go into `submits`.
     unsafe fn run<'a>(
         &mut self,
+        ctx: &GraphContext<B>,
         factory: &Factory<B>,
         queue: &mut Queue<B>,
         aux: &T,
@@ -305,6 +270,7 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
+        ctx: &GraphContext<B>,
         factory: &Factory<B>,
         queue: &mut Queue<B>,
         aux: &T,
@@ -313,7 +279,7 @@ where
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
-        let submittables = Node::run(&mut self.0, factory, aux, frames);
+        let submittables = Node::run(&mut self.0, ctx, factory, aux, frames);
         queue.submit(
             Some(
                 Submission::new()
@@ -346,12 +312,13 @@ pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
     /// Build node.
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
         aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error>;
 }
 
@@ -450,23 +417,25 @@ where
 
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
         aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
-        Ok(Box::new((self
-            .desc
-            .build(factory, family, queue, aux, buffers, images)?,)))
+        Ok(Box::new((self.desc.build(
+            ctx, factory, family, queue, aux, buffers, images,
+        )?,)))
     }
 }
 
 /// Convert graph barriers into gfx barriers.
-pub fn gfx_acquire_barriers<'a, B: gfx_hal::Backend>(
-    buffers: impl IntoIterator<Item = &'a NodeBuffer<'a, B>>,
-    images: impl IntoIterator<Item = &'a NodeImage<'a, B>>,
+pub fn gfx_acquire_barriers<'a, 'b, B: gfx_hal::Backend>(
+    ctx: &'a GraphContext<B>,
+    buffers: impl IntoIterator<Item = &'b NodeBuffer>,
+    images: impl IntoIterator<Item = &'b NodeImage>,
 ) -> (
     std::ops::Range<gfx_hal::pso::PipelineStage>,
     Vec<gfx_hal::memory::Barrier<'a, B>>,
@@ -480,34 +449,33 @@ pub fn gfx_acquire_barriers<'a, B: gfx_hal::Backend>(
     let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers
         .into_iter()
         .filter_map(|buffer| {
-            if let Some(acquire) = &buffer.acquire {
+            buffer.acquire.as_ref().map(|acquire| {
                 bstart |= acquire.stages.start;
                 bend |= acquire.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Buffer {
+                gfx_hal::memory::Barrier::Buffer {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
-                    target: buffer.buffer.raw(),
+                    target: ctx
+                        .get_buffer(buffer.id)
+                        .expect("Buffer does not exist")
+                        .raw(),
                     range: Some(buffer.range.start)..Some(buffer.range.end),
-                })
-            } else {
-                None
-            }
+                }
+            })
         })
         .chain(images.into_iter().filter_map(|image| {
-            if let Some(acquire) = &image.acquire {
+            image.acquire.as_ref().map(|acquire| {
                 istart |= acquire.stages.start;
                 iend |= acquire.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Image {
+                gfx_hal::memory::Barrier::Image {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
-                    target: image.image.raw(),
+                    target: ctx.get_image(image.id).expect("Image does not exist").raw(),
                     range: image.range.clone(),
-                })
-            } else {
-                None
-            }
+                }
+            })
         }))
         .collect();
 
@@ -516,8 +484,9 @@ pub fn gfx_acquire_barriers<'a, B: gfx_hal::Backend>(
 
 /// Convert graph barriers into gfx barriers.
 pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
-    buffers: impl IntoIterator<Item = &'a NodeBuffer<'a, B>>,
-    images: impl IntoIterator<Item = &'a NodeImage<'a, B>>,
+    ctx: &'a GraphContext<B>,
+    buffers: impl IntoIterator<Item = &'a NodeBuffer>,
+    images: impl IntoIterator<Item = &'a NodeImage>,
 ) -> (
     std::ops::Range<gfx_hal::pso::PipelineStage>,
     Vec<gfx_hal::memory::Barrier<'a, B>>,
@@ -531,34 +500,33 @@ pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
     let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers
         .into_iter()
         .filter_map(|buffer| {
-            if let Some(release) = &buffer.release {
+            buffer.release.as_ref().map(|release| {
                 bstart |= release.stages.start;
                 bend |= release.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Buffer {
+                gfx_hal::memory::Barrier::Buffer {
                     states: release.states.clone(),
                     families: release.families.clone(),
-                    target: buffer.buffer.raw(),
+                    target: ctx
+                        .get_buffer(buffer.id)
+                        .expect("Buffer does not exist")
+                        .raw(),
                     range: Some(buffer.range.start)..Some(buffer.range.end),
-                })
-            } else {
-                None
-            }
+                }
+            })
         })
         .chain(images.into_iter().filter_map(|image| {
-            if let Some(release) = &image.release {
+            image.release.as_ref().map(|release| {
                 istart |= release.stages.start;
                 iend |= release.stages.end;
 
-                Some(gfx_hal::memory::Barrier::Image {
+                gfx_hal::memory::Barrier::Image {
                     states: release.states.clone(),
                     families: release.families.clone(),
-                    target: image.image.raw(),
+                    target: ctx.get_image(image.id).expect("Image does not exist").raw(),
                     range: image.range.clone(),
-                })
-            } else {
-                None
-            }
+                }
+            })
         }))
         .collect();
 

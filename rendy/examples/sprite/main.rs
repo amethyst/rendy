@@ -12,7 +12,9 @@ use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     descriptor::{DescriptorSet, DescriptorSetLayout},
     factory::{Config, Factory, ImageState},
-    graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
+    graph::{
+        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+    },
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosTex},
     resource::buffer::Buffer,
@@ -135,11 +137,12 @@ where
 
     fn build<'b>(
         self,
+        _ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         _aux: &T,
-        buffers: Vec<NodeBuffer<'b, B>>,
-        images: Vec<NodeImage<'b, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
         set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<SpriteGraphicsPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
@@ -353,7 +356,7 @@ fn main() {
     let color = graph_builder.create_image(
         surface.kind(),
         1,
-        gfx_hal::format::Format::Rgba8Unorm,
+        factory.get_surface_format(&surface),
         MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),

@@ -1,5 +1,6 @@
 // This module is gated under "shader-compiler" feature
 use super::Shader;
+use crate::SpirvShaderInfo;
 pub use shaderc::{self, ShaderKind, SourceLanguage};
 
 macro_rules! vk_make_version {
@@ -26,6 +27,15 @@ impl<P, E> SourceShaderInfo<P, E> {
             lang,
             entry,
         }
+    }
+}
+
+impl<P, E> SourceShaderInfo<P, E> {
+    pub fn precompile(&self) -> Result<SpirvShaderInfo, failure::Error>
+    where
+        Self: Shader,
+    {
+        Ok(SpirvShaderInfo::new(self.spirv()?.into_owned()))
     }
 }
 

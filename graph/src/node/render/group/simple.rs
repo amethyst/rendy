@@ -4,6 +4,7 @@ use {
         command::{QueueId, RenderPassEncoder},
         descriptor::DescriptorSetLayout,
         factory::Factory,
+        graph::GraphContext,
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
         },
@@ -134,11 +135,12 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Build pass instance.
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
         set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<Self::Pipeline, failure::Error>;
 }
@@ -223,14 +225,15 @@ where
 
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
         let mut shaders = Vec::new();
 
@@ -307,7 +310,7 @@ where
 
         let pipeline = self
             .inner
-            .build(factory, queue, aux, buffers, images, &set_layouts)?;
+            .build(ctx, factory, queue, aux, buffers, images, &set_layouts)?;
 
         for module in shaders.into_iter() {
             unsafe { factory.destroy_shader_module(module) };

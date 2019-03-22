@@ -13,12 +13,12 @@ use rendy::{
     command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
     descriptor::{DescriptorSet, DescriptorSetLayout},
     factory::{Config, Factory},
-    graph::{present::PresentNode, render::*, GraphBuilder, NodeBuffer, NodeImage},
+    graph::{present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Mesh, PosColorNorm, Transform},
     resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
 use std::{cmp::min, mem::size_of, time};
@@ -39,19 +39,19 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+    static ref VERTEX: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+    static ref FRAGMENT: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -166,10 +166,10 @@ where
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *VERTEX);
+        log::trace!("Load shader module VERTEX");
         storage.push(VERTEX.module(factory).unwrap());
 
-        log::trace!("Load shader module '{:#?}'", *FRAGMENT);
+        log::trace!("Load shader module FRAGMENT");
         storage.push(FRAGMENT.module(factory).unwrap());
 
         gfx_hal::pso::GraphicsShaderSet {
@@ -191,11 +191,12 @@ where
 
     fn build<'a>(
         self,
+        _ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         aux: &Aux<B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
         set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<MeshRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());

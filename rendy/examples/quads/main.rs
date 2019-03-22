@@ -23,13 +23,14 @@ use rendy::{
             Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
-        BufferAccess, Graph, GraphBuilder, Node, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
+        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
+        NodeSubmittable,
     },
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
     resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -43,27 +44,51 @@ type Backend = rendy::metal::Backend;
 #[cfg(feature = "vulkan")]
 type Backend = rendy::vulkan::Backend;
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct PosVel {
+    pos: [f32; 2],
+    vel: [f32; 2],
+}
+
 lazy_static::lazy_static! {
-    static ref RENDER_VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_VERTEX: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref RENDER_FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_FRAGMENT: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref BOUNCE_COMPUTE: StaticShaderInfo = StaticShaderInfo::new(
+    static ref BOUNCE_COMPUTE: SpirvShaderInfo = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
+
+    static ref POSVEL_DATA: Vec<PosVel> = {
+        let mut rng = rand::thread_rng();
+        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+        (0..QUADS)
+            .map(|_index| PosVel {
+                pos: [
+                    rand::Rng::sample(&mut rng, uniform),
+                    rand::Rng::sample(&mut rng, uniform),
+                ],
+                vel: [
+                    rand::Rng::sample(&mut rng, uniform),
+                    rand::Rng::sample(&mut rng, uniform),
+                ],
+            })
+            .collect()
+    };
 }
 
 const QUADS: u32 = 2_000_000;
@@ -106,10 +131,10 @@ where
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *RENDER_VERTEX);
+        log::trace!("Load shader module RENDER_VERTEX");
         storage.push(RENDER_VERTEX.module(factory).unwrap());
 
-        log::trace!("Load shader module '{:#?}'", *RENDER_FRAGMENT);
+        log::trace!("Load shader module RENDER_FRAGMENT");
         storage.push(RENDER_FRAGMENT.module(factory).unwrap());
 
         gfx_hal::pso::GraphicsShaderSet {
@@ -154,17 +179,18 @@ where
 
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
         set_layouts: &[DescriptorSetLayout<B>],
     ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
-        let ref mut posvelbuff = buffers[0].buffer;
+        let ref mut posvelbuff = ctx.get_buffer_mut(buffers[0].id).unwrap();
 
         let mut indirect = factory
             .create_buffer(
@@ -206,32 +232,32 @@ where
                     0,
                     &[
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(0.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(240.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(90.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(330.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(60.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(0.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(240.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(60.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(270.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(150.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
@@ -239,32 +265,8 @@ where
                 )
                 .unwrap();
 
-            let mut rng = rand::thread_rng();
-            let uniform = rand::distributions::Uniform::new(0.0, 1.0);
-
-            #[repr(C)]
-            #[derive(Copy, Clone)]
-            struct PosVel {
-                pos: [f32; 2],
-                vel: [f32; 2],
-            }
             factory
-                .upload_visible_buffer(
-                    posvelbuff,
-                    0,
-                    &(0..QUADS)
-                        .map(|_index| PosVel {
-                            pos: [
-                                rand::Rng::sample(&mut rng, uniform),
-                                rand::Rng::sample(&mut rng, uniform),
-                            ],
-                            vel: [
-                                rand::Rng::sample(&mut rng, uniform),
-                                rand::Rng::sample(&mut rng, uniform),
-                            ],
-                        })
-                        .collect::<Vec<PosVel>>(),
-                )
+                .upload_visible_buffer(posvelbuff, 0, &POSVEL_DATA)
                 .unwrap();
         }
 
@@ -373,6 +375,7 @@ where
 
     fn run<'a>(
         &'a mut self,
+        _ctx: &GraphContext<B>,
         _factory: &Factory<B>,
         _aux: &T,
         _frames: &'a Frames<B>,
@@ -412,19 +415,20 @@ where
 
     fn build<'a>(
         self,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,
         _aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Self::Node, failure::Error> {
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
 
-        let ref mut posvelbuff = buffers[0].buffer;
+        let ref mut posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
-        log::trace!("Load shader module '{:#?}'", *BOUNCE_COMPUTE);
+        log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = BOUNCE_COMPUTE.module(factory)?;
 
         let set_layout = factory.create_descriptor_set_layout(vec![
@@ -497,14 +501,14 @@ where
         );
 
         {
-            let (stages, barriers) = gfx_acquire_barriers(&*buffers, None);
+            let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
             log::info!("Acquire {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
         }
         encoder.dispatch(QUADS, 1, 1);
 
         {
-            let (stages, barriers) = gfx_release_barriers(&*buffers, None);
+            let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
             log::info!("Release {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
         }
@@ -529,9 +533,14 @@ fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    mut graph: Graph<Backend, ()>,
+    window: std::sync::Arc<winit::Window>,
 ) -> Result<(), failure::Error> {
+    let mut graph = build_graph(factory, families, window.clone());
+
     let started = std::time::Instant::now();
+
+    let mut last_window_size = window.get_inner_size();
+    let mut need_rebuild = false;
 
     let mut frames = 0u64..;
     let mut elapsed = started.elapsed();
@@ -539,10 +548,26 @@ fn run(
     for _ in &mut frames {
         factory.maintain(families);
         event_loop.poll_events(|_| ());
-        graph.run(factory, families, &mut ());
+        let new_window_size = window.get_inner_size();
+
+        if last_window_size != new_window_size {
+            need_rebuild = true;
+        }
+
+        if need_rebuild && last_window_size == new_window_size {
+            need_rebuild = false;
+            let started = std::time::Instant::now();
+            graph.dispose(factory, &());
+            println!("Graph disposed in: {:?}", started.elapsed());
+            graph = build_graph(factory, families, window.clone());
+        }
+
+        last_window_size = new_window_size;
+
+        graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
+        if elapsed >= std::time::Duration::new(50, 0) {
             break;
         }
     }
@@ -576,11 +601,20 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
-        .unwrap();
+        .unwrap()
+        .into();
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
+    run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+}
+
+fn build_graph(
+    factory: &mut Factory<Backend>,
+    families: &mut Families<Backend>,
+    window: std::sync::Arc<winit::Window>,
+) -> Graph<Backend, ()> {
+    let surface = factory.create_surface(window.clone());
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
@@ -592,7 +626,7 @@ fn main() {
     let color = graph_builder.create_image(
         surface.kind(),
         1,
-        gfx_hal::format::Format::Rgba8Unorm,
+        factory.get_surface_format(&surface),
         MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
@@ -623,11 +657,10 @@ fn main() {
 
     graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
-    let graph = graph_builder
-        .build(&mut factory, &mut families, &mut ())
-        .unwrap();
-
-    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
+    let started = std::time::Instant::now();
+    let graph = graph_builder.build(factory, families, &()).unwrap();
+    println!("Graph built in: {:?}", started.elapsed());
+    graph
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

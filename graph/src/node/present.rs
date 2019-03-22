@@ -7,6 +7,7 @@ use crate::{
     },
     factory::Factory,
     frame::Frames,
+    graph::GraphContext,
     node::{
         gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
         NodeBuilder, NodeImage,
@@ -27,6 +28,15 @@ struct ForImage<B: gfx_hal::Backend> {
     >,
 }
 
+impl<B: gfx_hal::Backend> ForImage<B> {
+    unsafe fn dispose(self, factory: &Factory<B>, pool: &mut CommandPool<B, gfx_hal::QueueType>) {
+        drop(self.submit);
+        factory.destroy_semaphore(self.acquire);
+        factory.destroy_semaphore(self.release);
+        pool.free_buffers(Some(self.buffer.mark_complete()));
+    }
+}
+
 /// Node that presents images to the surface.
 #[derive(Debug)]
 pub struct PresentNode<B: gfx_hal::Backend> {
@@ -34,7 +44,13 @@ pub struct PresentNode<B: gfx_hal::Backend> {
     free_acquire: B::Semaphore,
     target: Target<B>,
     pool: CommandPool<B, gfx_hal::QueueType>,
+    input_image: NodeImage,
+    blit_filter: gfx_hal::image::Filter,
 }
+
+// Raw pointer destroys Send/Sync autoimpl, but it's always from the same graph.
+unsafe impl<B: gfx_hal::Backend> Sync for PresentNode<B> {}
+unsafe impl<B: gfx_hal::Backend> Send for PresentNode<B> {}
 
 impl<B> PresentNode<B>
 where
@@ -71,8 +87,168 @@ where
             img_count_caps,
             present_mode,
             present_modes_caps,
+            blit_filter: gfx_hal::image::Filter::Nearest,
         }
     }
+}
+
+fn create_per_image_data<B: gfx_hal::Backend>(
+    ctx: &GraphContext<B>,
+    input_image: &NodeImage,
+    pool: &mut CommandPool<B, gfx_hal::QueueType>,
+    factory: &Factory<B>,
+    target: &Target<B>,
+    blit_filter: gfx_hal::image::Filter,
+) -> Result<Vec<ForImage<B>>, failure::Error> {
+    let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
+
+    let per_image = match target.backbuffer() {
+        Backbuffer::Images(target_images) => {
+            let buffers = pool.allocate_buffers(target_images.len());
+            target_images
+                .iter()
+                .zip(buffers)
+                .map(|(target_image, buf_initial)| {
+                    let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
+                    let mut encoder = buf_recording.encoder();
+                    let (mut stages, mut barriers) =
+                        gfx_acquire_barriers(ctx, None, Some(input_image));
+                    stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
+                    stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
+                    barriers.push(gfx_hal::memory::Barrier::Image {
+                        states: (
+                            gfx_hal::image::Access::empty(),
+                            gfx_hal::image::Layout::Undefined,
+                        )
+                            ..(
+                                gfx_hal::image::Access::TRANSFER_WRITE,
+                                gfx_hal::image::Layout::TransferDstOptimal,
+                            ),
+                        families: None,
+                        target: target_image.raw(),
+                        range: gfx_hal::image::SubresourceRange {
+                            aspects: gfx_hal::format::Aspects::COLOR,
+                            levels: 0..1,
+                            layers: 0..1,
+                        },
+                    });
+                    log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                    encoder.pipeline_barrier(
+                        stages,
+                        gfx_hal::memory::Dependencies::empty(),
+                        barriers,
+                    );
+
+                    let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
+                    let formats_differ = target_image.format() != input_image_res.format();
+
+                    if extents_differ || formats_differ
+                    {
+                        if formats_differ {
+                            log::debug!("Present node is blitting because target format {:?} doesnt match image format {:?}", target_image.format(), input_image_res.format());
+                        }
+                        if extents_differ {
+                            log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
+                        }
+                        encoder.blit_image(
+                            input_image_res.raw(),
+                            input_image.layout,
+                            target_image.raw(),
+                            gfx_hal::image::Layout::TransferDstOptimal,
+                            blit_filter,
+                            Some(gfx_hal::command::ImageBlit {
+                                src_subresource: gfx_hal::image::SubresourceLayers {
+                                    aspects: input_image.range.aspects,
+                                    level: 0,
+                                    layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                                },
+                                src_bounds: gfx_hal::image::Offset::ZERO
+                                    .into_bounds(&input_image_res.kind().extent()),
+                                dst_subresource: gfx_hal::image::SubresourceLayers {
+                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    level: 0,
+                                    layers: 0..1,
+                                },
+                                dst_bounds: gfx_hal::image::Offset::ZERO
+                                    .into_bounds(&target_image.kind().extent()),
+                            }),
+                        );
+                        
+                    } else {
+                        log::debug!("Present node is copying");
+                        encoder.copy_image(
+                            input_image_res.raw(),
+                            input_image.layout,
+                            target_image.raw(),
+                            gfx_hal::image::Layout::TransferDstOptimal,
+                            Some(gfx_hal::command::ImageCopy {
+                                src_subresource: gfx_hal::image::SubresourceLayers {
+                                    aspects: input_image.range.aspects,
+                                    level: 0,
+                                    layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                                },
+                                src_offset: gfx_hal::image::Offset::ZERO,
+                                dst_subresource: gfx_hal::image::SubresourceLayers {
+                                    aspects: gfx_hal::format::Aspects::COLOR,
+                                    level: 0,
+                                    layers: 0..1,
+                                },
+                                dst_offset: gfx_hal::image::Offset::ZERO,
+                                extent: gfx_hal::image::Extent {
+                                    width: target_image.kind().extent().width,
+                                    height: target_image.kind().extent().height,
+                                    depth: 1,
+                                },
+                            }),
+                        );
+                    }
+
+                    {
+                        let (mut stages, mut barriers) =
+                            gfx_release_barriers(ctx, None, Some(input_image));
+                        stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
+                        stages.end |= gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+                        barriers.push(gfx_hal::memory::Barrier::Image {
+                            states: (
+                                gfx_hal::image::Access::TRANSFER_WRITE,
+                                gfx_hal::image::Layout::TransferDstOptimal,
+                            )
+                                ..(
+                                    gfx_hal::image::Access::empty(),
+                                    gfx_hal::image::Layout::Present,
+                                ),
+                            families: None,
+                            target: target_image.raw(),
+                            range: gfx_hal::image::SubresourceRange {
+                                aspects: gfx_hal::format::Aspects::COLOR,
+                                levels: 0..1,
+                                layers: 0..1,
+                            },
+                        });
+
+                        log::info!("Release {:?} : {:#?}", stages, barriers);
+                        encoder.pipeline_barrier(
+                            stages,
+                            gfx_hal::memory::Dependencies::empty(),
+                            barriers,
+                        );
+                    }
+
+                    let (submit, buffer) = buf_recording.finish().submit();
+
+                    ForImage {
+                        submit,
+                        buffer,
+                        acquire: factory.create_semaphore().unwrap(),
+                        release: factory.create_semaphore().unwrap(),
+                    }
+                })
+                .collect()
+        }
+        _ => unimplemented!(),
+    };
+
+    Ok(per_image)
 }
 
 /// Presentation node description.
@@ -85,6 +261,7 @@ pub struct PresentBuilder<B: gfx_hal::Backend> {
     present_modes_caps: Vec<gfx_hal::PresentMode>,
     present_mode: gfx_hal::PresentMode,
     dependencies: Vec<NodeId>,
+    blit_filter: gfx_hal::image::Filter,
 }
 
 impl<B> PresentBuilder<B>
@@ -115,6 +292,14 @@ where
             .min(self.img_count_caps.end)
             .max(self.img_count_caps.start);
         self.image_count = image_count;
+        self
+    }
+
+    /// Set up filter used for resizing when backbuffer size does not match source image size.
+    ///
+    /// Default is `Nearest`.
+    pub fn with_blit_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
+        self.blit_filter = filter;
         self
     }
 
@@ -197,17 +382,19 @@ where
 
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         _queue: usize,
         _aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
         assert_eq!(buffers.len(), 0);
         assert_eq!(images.len(), 1);
 
-        let ref input_image = images[0];
+        let input_image = images.into_iter().next().unwrap();
+
         let target = factory.create_target(
             self.surface,
             self.image_count,
@@ -217,119 +404,22 @@ where
 
         let mut pool = factory.create_command_pool(family)?;
 
-        let per_image = match target.backbuffer() {
-            Backbuffer::Images(target_images) => {
-                let buffers = pool.allocate_buffers(target_images.len());
-                target_images
-                    .iter()
-                    .zip(buffers)
-                    .map(|(target_image, buf_initial)| {
-                        let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
-                        let mut encoder = buf_recording.encoder();
-                        {
-                            let (mut stages, mut barriers) =
-                                gfx_acquire_barriers(None, Some(input_image));
-                            stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
-                            stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
-                            barriers.push(gfx_hal::memory::Barrier::Image {
-                                states: (
-                                    gfx_hal::image::Access::empty(),
-                                    gfx_hal::image::Layout::Undefined,
-                                )
-                                    ..(
-                                        gfx_hal::image::Access::TRANSFER_WRITE,
-                                        gfx_hal::image::Layout::TransferDstOptimal,
-                                    ),
-                                families: None,
-                                target: target_image.raw(),
-                                range: gfx_hal::image::SubresourceRange {
-                                    aspects: gfx_hal::format::Aspects::COLOR,
-                                    levels: 0..1,
-                                    layers: 0..1,
-                                },
-                            });
-                            log::info!("Acquire {:?} : {:#?}", stages, barriers);
-                            encoder.pipeline_barrier(
-                                stages,
-                                gfx_hal::memory::Dependencies::empty(),
-                                barriers,
-                            );
-                        }
-                        encoder.copy_image(
-                            input_image.image.raw(),
-                            input_image.layout,
-                            target_image.raw(),
-                            gfx_hal::image::Layout::TransferDstOptimal,
-                            Some(gfx_hal::command::ImageCopy {
-                                src_subresource: gfx_hal::image::SubresourceLayers {
-                                    aspects: gfx_hal::format::Aspects::COLOR,
-                                    level: 0,
-                                    layers: 0..1,
-                                },
-                                src_offset: gfx_hal::image::Offset::ZERO,
-                                dst_subresource: gfx_hal::image::SubresourceLayers {
-                                    aspects: gfx_hal::format::Aspects::COLOR,
-                                    level: 0,
-                                    layers: 0..1,
-                                },
-                                dst_offset: gfx_hal::image::Offset::ZERO,
-                                extent: gfx_hal::image::Extent {
-                                    width: target_image.kind().extent().width,
-                                    height: target_image.kind().extent().height,
-                                    depth: 1,
-                                },
-                            }),
-                        );
-                        {
-                            let (mut stages, mut barriers) =
-                                gfx_release_barriers(None, Some(input_image));
-                            stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
-                            stages.end |= gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE;
-                            barriers.push(gfx_hal::memory::Barrier::Image {
-                                states: (
-                                    gfx_hal::image::Access::TRANSFER_WRITE,
-                                    gfx_hal::image::Layout::TransferDstOptimal,
-                                )
-                                    ..(
-                                        gfx_hal::image::Access::empty(),
-                                        gfx_hal::image::Layout::Present,
-                                    ),
-                                families: None,
-                                target: target_image.raw(),
-                                range: gfx_hal::image::SubresourceRange {
-                                    aspects: gfx_hal::format::Aspects::COLOR,
-                                    levels: 0..1,
-                                    layers: 0..1,
-                                },
-                            });
-
-                            log::info!("Release {:?} : {:#?}", stages, barriers);
-                            encoder.pipeline_barrier(
-                                stages,
-                                gfx_hal::memory::Dependencies::empty(),
-                                barriers,
-                            );
-                        }
-
-                        let (submit, buffer) = buf_recording.finish().submit();
-
-                        ForImage {
-                            submit,
-                            buffer,
-                            acquire: factory.create_semaphore().unwrap(),
-                            release: factory.create_semaphore().unwrap(),
-                        }
-                    })
-                    .collect()
-            }
-            _ => unimplemented!(),
-        };
+        let per_image = create_per_image_data(
+            ctx,
+            &input_image,
+            &mut pool,
+            factory,
+            &target,
+            self.blit_filter,
+        )?;
 
         Ok(Box::new(PresentNode {
             free_acquire: factory.create_semaphore().unwrap(),
-            target,
             pool,
+            target,
             per_image,
+            input_image,
+            blit_filter: self.blit_filter,
         }))
     }
 }
@@ -341,43 +431,81 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
-        _factory: &Factory<B>,
+        ctx: &GraphContext<B>,
+        factory: &Factory<B>,
         queue: &mut Queue<B>,
         _aux: &T,
         _frames: &Frames<B>,
         waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
-        fence: Option<&mut Fence<B>>,
+        mut fence: Option<&mut Fence<B>>,
     ) {
-        let next = self.target.next_image(&self.free_acquire).unwrap();
-        log::trace!("Present: {:#?}", next);
-        let ref mut for_image = self.per_image[next[0] as usize];
-        core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
+        loop {
+            match self.target.next_image(&self.free_acquire) {
+                Ok(next) => {
+                    log::trace!("Present: {:#?}", next);
+                    let ref mut for_image = self.per_image[next[0] as usize];
+                    core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
 
-        queue.submit(
-            Some(
-                Submission::new()
-                    .submits(Some(&for_image.submit))
-                    .wait(waits.iter().cloned().chain(Some((
-                        &for_image.acquire,
-                        gfx_hal::pso::PipelineStage::TRANSFER,
-                    ))))
-                    .signal(signals.iter().cloned().chain(Some(&for_image.release))),
-            ),
-            fence,
-        );
+                    queue.submit(
+                        Some(
+                            Submission::new()
+                                .submits(Some(&for_image.submit))
+                                .wait(waits.iter().cloned().chain(Some((
+                                    &for_image.acquire,
+                                    gfx_hal::pso::PipelineStage::TRANSFER,
+                                ))))
+                                .signal(signals.iter().cloned().chain(Some(&for_image.release))),
+                        ),
+                        fence.take(),
+                    );
 
-        next.present(queue.raw(), Some(&for_image.release))
-            .expect("Fix swapchain error");
+                    match next.present(queue.raw(), Some(&for_image.release)) {
+                        Ok(()) => break,
+                        Err(e) => {
+                            log::debug!("Swapchain present error after next_image is acquired: {}", e);
+                            // recreate swapchain on next frame.
+                            break;
+                        }
+                    }
+                }
+                Err(gfx_hal::window::AcquireError::OutOfDate) => {
+                    // recreate swapchain and try again.
+                }
+                e => {
+                    e.unwrap();
+                    break;
+                }
+            }
+            // Recreate swapchain when OutOfDate
+            // The code has to execute after match due to mutable aliasing issues.
+            
+            // TODO: use retired swapchains once available in hal and remove that wait
+            factory.wait_idle().unwrap();
+
+            self.target
+                .recreate(factory.physical(), factory.device())
+                .expect("Failed recreating swapchain");
+
+            for data in self.per_image.drain(..) {
+                data.dispose(factory, &mut self.pool);
+            }
+
+            self.per_image = create_per_image_data(
+                ctx,
+                &self.input_image,
+                &mut self.pool,
+                factory,
+                &self.target,
+                self.blit_filter,
+            )
+            .expect("Failed recreating swapchain data");
+        }
     }
 
     unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &T) {
-        for for_image in self.per_image {
-            drop(for_image.submit);
-            factory.destroy_semaphore(for_image.acquire);
-            factory.destroy_semaphore(for_image.release);
-            self.pool
-                .free_buffers(Some(for_image.buffer.mark_complete()));
+        for data in self.per_image {
+            data.dispose(factory, &mut self.pool);
         }
 
         factory.destroy_semaphore(self.free_acquire);

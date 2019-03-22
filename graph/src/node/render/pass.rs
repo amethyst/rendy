@@ -10,6 +10,7 @@ use {
             cirque::{CirqueRef, CommandCirque},
             Frames,
         },
+        graph::GraphContext,
         node::{
             gfx_acquire_barriers, gfx_release_barriers, is_metal,
             render::group::{RenderGroup, RenderGroupBuilder},
@@ -248,12 +249,13 @@ where
 
     fn build<'a>(
         self: Box<Self>,
+        ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
         aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
         let mut attachment_ids: Vec<ImageId> = self
             .subpasses
@@ -271,7 +273,7 @@ where
         attachment_ids.sort();
         attachment_ids.dedup();
 
-        let (mut attachments, mut images): (Vec<_>, _) = images
+        let (mut attachments, images): (Vec<_>, _) = images
             .into_iter()
             .partition(|image| attachment_ids.binary_search(&image.id).is_ok());
 
@@ -290,7 +292,8 @@ where
             .iter()
             .map(|&id| unsafe {
                 let attachment = find_attachment(id);
-                let extent = attachment.image.kind().extent();
+                let image = ctx.get_image(attachment.id).expect("Image does not exist");
+                let extent = image.kind().extent();
                 framebuffer_width = min(framebuffer_width, extent.width);
                 framebuffer_height = min(framebuffer_height, extent.height);
                 framebuffer_layers = min(
@@ -300,9 +303,9 @@ where
                 factory
                     .device()
                     .create_image_view(
-                        attachment.image.raw(),
+                        image.raw(),
                         gfx_hal::image::ViewKind::D2,
-                        attachment.image.format(),
+                        image.format(),
                         gfx_hal::format::Swizzle::NO,
                         attachment.range.clone(),
                     )
@@ -315,8 +318,9 @@ where
                 .iter()
                 .map(|&id| {
                     let attachment = find_attachment(id);
+                    let image = ctx.get_image(attachment.id).expect("Image does not exist");
                     gfx_hal::pass::Attachment {
-                        format: Some(attachment.image.format()),
+                        format: Some(image.format()),
                         ops: gfx_hal::pass::AttachmentOps {
                             load: if attachment.clear.is_some() {
                                 gfx_hal::pass::AttachmentLoadOp::Clear
@@ -435,6 +439,7 @@ where
 
         let acquire = if !is_metal::<B>() {
             let (stages, barriers) = gfx_acquire_barriers(
+                ctx,
                 &buffers,
                 images
                     .iter()
@@ -474,7 +479,7 @@ where
 
         let release = if !is_metal::<B>() {
             let (stages, barriers) =
-                gfx_release_barriers(&buffers, images.iter().chain(attachments.iter()));
+                gfx_release_barriers(ctx, &buffers, images.iter().chain(attachments.iter()));
 
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
@@ -512,8 +517,8 @@ where
                         assert_eq!(group.colors(), subpass_colors);
                         assert_eq!(group.depth(), subpass_depth);
 
-                        let mut buffers = buffers.iter_mut();
-                        let mut images = images.iter_mut();
+                        let mut buffers = buffers.iter();
+                        let mut images = images.iter();
 
                         let buffers: Vec<_> = group
                             .buffers()
@@ -522,7 +527,7 @@ where
                                 buffers
                                     .find(|b| b.id == id)
                                     .expect("Transient buffer wasn't provided")
-                                    .reborrow()
+                                    .clone()
                             })
                             .collect();
                         let images: Vec<_> = group
@@ -532,11 +537,12 @@ where
                                 images
                                     .find(|i| i.id == id)
                                     .expect("Transient image wasn't provided")
-                                    .reborrow()
+                                    .clone()
                             })
                             .collect();
 
                         group.build(
+                            ctx,
                             factory,
                             QueueId(family.id(), queue),
                             aux,
@@ -631,6 +637,7 @@ where
 {
     unsafe fn run<'a>(
         &mut self,
+        _ctx: &GraphContext<B>,
         factory: &Factory<B>,
         queue: &mut Queue<B>,
         aux: &T,
