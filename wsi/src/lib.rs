@@ -20,8 +20,8 @@ use rendy_memory::MemoryBlock;
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
     pub(super) fn create_surface(
-        instance: &gfx_backend_empty::Instance,
-        window: &winit::Window,
+        _instance: &gfx_backend_empty::Instance,
+        _window: &winit::Window,
     ) -> gfx_backend_empty::Surface {
         unimplemented!()
     }

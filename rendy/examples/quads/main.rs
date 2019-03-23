@@ -13,7 +13,6 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     frame::Frames,
     graph::{
@@ -29,7 +28,10 @@ use rendy::{
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
-    resource::{buffer::Buffer, set::DescriptorSet},
+    resource::{
+        buffer::Buffer,
+        set::{DescriptorSet, DescriptorSetLayout},
+    },
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 

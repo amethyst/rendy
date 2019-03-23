@@ -11,13 +11,15 @@
 
 use rendy::{
     command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
-    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Mesh, PosColorNorm, Transform},
-    resource::{buffer::Buffer, set::DescriptorSet},
+    resource::{
+        buffer::Buffer,
+        set::{DescriptorSet, DescriptorSetLayout},
+    },
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 

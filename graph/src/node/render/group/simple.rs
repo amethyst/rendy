@@ -2,12 +2,12 @@ use {
     super::{RenderGroup, RenderGroupDesc},
     crate::{
         command::{QueueId, RenderPassEncoder},
-        descriptor::DescriptorSetLayout,
         factory::Factory,
         graph::GraphContext,
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
         },
+        resource::set::DescriptorSetLayout,
     },
     gfx_hal::{Backend, Device},
 };

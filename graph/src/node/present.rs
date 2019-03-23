@@ -173,7 +173,6 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                                     .into_bounds(&target_image.kind().extent()),
                             }),
                         );
-                        
                     } else {
                         log::debug!("Present node is copying");
                         encoder.copy_image(
@@ -463,7 +462,10 @@ where
                     match next.present(queue.raw(), Some(&for_image.release)) {
                         Ok(()) => break,
                         Err(e) => {
-                            log::debug!("Swapchain present error after next_image is acquired: {}", e);
+                            log::debug!(
+                                "Swapchain present error after next_image is acquired: {}",
+                                e
+                            );
                             // recreate swapchain on next frame.
                             break;
                         }
@@ -479,7 +481,7 @@ where
             }
             // Recreate swapchain when OutOfDate
             // The code has to execute after match due to mutable aliasing issues.
-            
+
             // TODO: use retired swapchains once available in hal and remove that wait
             factory.wait_idle().unwrap();
 

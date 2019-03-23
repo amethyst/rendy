@@ -4,13 +4,13 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
-        descriptor::{DescriptorAllocator, DescriptorSetLayout},
+        descriptor::DescriptorAllocator,
         memory::{Heaps, Write},
         resource::{
             buffer::{self, Buffer},
             image::{self, Image, ImageView},
             sampler::Sampler,
-            set::DescriptorSet,
+            set::{DescriptorSet, DescriptorSetLayout},
             Epochs, Resources,
         },
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
@@ -567,7 +567,9 @@ where
         &self,
         bindings: Vec<DescriptorSetLayoutBinding>,
     ) -> Result<DescriptorSetLayout<B>, OutOfMemory> {
-        DescriptorSetLayout::create(&self.device, bindings)
+        self.resources
+            .read()
+            .create_descriptor_set_layout(&self.device, bindings)
     }
 
     // /// Destroy descriptor set layout with specified bindings.
