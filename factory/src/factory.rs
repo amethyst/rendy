@@ -4,12 +4,13 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
-        descriptor::{DescriptorAllocator, DescriptorSet, DescriptorSetLayout},
+        descriptor::{DescriptorAllocator, DescriptorSetLayout},
         memory::{Heaps, Write},
         resource::{
             buffer::{self, Buffer},
             image::{self, Image, ImageView},
             sampler::Sampler,
+            set::DescriptorSet,
             Epochs, Resources,
         },
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
@@ -58,9 +59,11 @@ where
             // Device is idle.
             self.uploader.dispose(&self.device);
             log::trace!("Uploader disposed");
-            std::ptr::read(&mut *self.resources)
-                .into_inner()
-                .dispose(&self.device, self.heaps.get_mut());
+            std::ptr::read(&mut *self.resources).into_inner().dispose(
+                &self.device,
+                self.heaps.get_mut(),
+                self.descriptor_allocator.get_mut(),
+            );
         }
 
         unsafe {
@@ -335,7 +338,7 @@ where
             )
         }
     }
-    
+
     /// Destroy target returning underlying window back to the caller.
     pub unsafe fn destroy_target(&self, target: Target<B>) {
         target.dispose(&self.device);
@@ -536,9 +539,13 @@ where
         let complete = self.complete_epochs();
         unsafe {
             self.uploader.cleanup(&self.device);
-            self.resources
-                .get_mut()
-                .cleanup(&self.device, self.heaps.get_mut(), next, complete);
+            self.resources.get_mut().cleanup(
+                &self.device,
+                self.heaps.get_mut(),
+                self.descriptor_allocator.get_mut(),
+                next,
+                complete,
+            );
 
             self.descriptor_allocator.get_mut().cleanup(&self.device);
         }
@@ -563,12 +570,12 @@ where
         DescriptorSetLayout::create(&self.device, bindings)
     }
 
-    /// Destroy descriptor set layout with specified bindings.
-    pub fn destroy_descriptor_set_layout(&self, layout: DescriptorSetLayout<B>) {
-        unsafe {
-            layout.dispose(&self.device);
-        }
-    }
+    // /// Destroy descriptor set layout with specified bindings.
+    // pub fn destroy_descriptor_set_layout(&self, layout: DescriptorSetLayout<B>) {
+    //     unsafe {
+    //         layout.dispose(&self.device);
+    //     }
+    // }
 
     /// Create descriptor sets with specified layout.
     ///
@@ -580,13 +587,9 @@ where
         &self,
         layout: &DescriptorSetLayout<B>,
     ) -> Result<DescriptorSet<B>, OutOfMemory> {
-        let mut result = SmallVec::<[_; 1]>::new();
-        unsafe {
-            self.descriptor_allocator
-                .lock()
-                .allocate(&self.device, layout, 1, &mut result)?;
-        }
-        Ok(result.remove(0))
+        Ok(self
+            .create_descriptor_sets::<SmallVec<[_; 1]>>(layout, 1)?
+            .swap_remove(0))
     }
 
     /// Create descriptor sets with specified layout.
@@ -603,25 +606,12 @@ where
     where
         E: Default + Extend<DescriptorSet<B>>,
     {
-        let mut result = E::default();
-        unsafe {
-            self.descriptor_allocator
-                .lock()
-                .allocate(&self.device, layout, count, &mut result)?;
-        }
-        Ok(result)
-    }
-
-    /// Destroy descriptor sets.
-    ///
-    /// # Safety
-    ///
-    /// `sets` must be created by this `Factory`.
-    ///
-    pub fn destroy_descriptor_sets(&self, sets: impl IntoIterator<Item = DescriptorSet<B>>) {
-        unsafe {
-            self.descriptor_allocator.lock().free(sets);
-        }
+        self.resources.read().create_descriptor_sets(
+            &self.device,
+            &mut self.descriptor_allocator.lock(),
+            layout,
+            count,
+        )
     }
 }
 

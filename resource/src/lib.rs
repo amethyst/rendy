@@ -15,6 +15,7 @@
 extern crate derivative;
 #[macro_use]
 extern crate log;
+use rendy_descriptor as descriptor;
 use rendy_memory as memory;
 
 #[doc(hidden)]
@@ -24,8 +25,11 @@ mod resources;
 pub mod buffer;
 pub mod image;
 pub mod sampler;
+pub mod set;
 
-pub use crate::{buffer::Buffer, escape::KeepAlive, image::Image, resources::Resources};
+pub use crate::{
+    buffer::Buffer, escape::KeepAlive, image::Image, resources::Resources, set::DescriptorSet,
+};
 
 #[doc(hidden)]
 pub use crate::resources::Epochs;

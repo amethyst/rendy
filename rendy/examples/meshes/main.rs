@@ -11,13 +11,13 @@
 
 use rendy::{
     command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
-    descriptor::{DescriptorSet, DescriptorSetLayout},
+    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Mesh, PosColorNorm, Transform},
-    resource::buffer::Buffer,
+    resource::{buffer::Buffer, set::DescriptorSet},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
@@ -342,9 +342,7 @@ where
         );
     }
 
-    fn dispose(mut self, factory: &mut Factory<B>, _aux: &Aux<B>) {
-        factory.destroy_descriptor_sets(self.sets.drain(..));
-    }
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &Aux<B>) {}
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]

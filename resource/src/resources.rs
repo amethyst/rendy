@@ -1,10 +1,12 @@
 use {
     crate::{
         buffer,
+        descriptor::{self, DescriptorAllocator, DescriptorSetLayout},
         escape::{KeepAlive, Terminal},
         image,
         memory::{Block, Heaps, MemoryBlock},
         sampler::{Sampler, SamplerCache},
+        set::DescriptorSet,
     },
     smallvec::SmallVec,
     std::{cmp::max, collections::VecDeque},
@@ -34,11 +36,13 @@ pub struct Resources<B: gfx_hal::Backend> {
     buffers: Terminal<(B::Buffer, MemoryBlock<B>)>,
     images: Terminal<(B::Image, Option<MemoryBlock<B>>)>,
     image_views: Terminal<(B::ImageView, KeepAlive)>,
+    descriptor_sets: Terminal<descriptor::DescriptorSet<B>>,
     sampler_cache: SamplerCache<B>,
 
     dropped_buffers: VecDeque<(Epochs, B::Buffer, MemoryBlock<B>)>,
     dropped_images: VecDeque<(Epochs, B::Image, Option<MemoryBlock<B>>)>,
     dropped_image_views: VecDeque<(Epochs, B::ImageView, KeepAlive)>,
+    dropped_descriptor_sets: VecDeque<(Epochs, descriptor::DescriptorSet<B>)>,
 }
 
 impl<B> Resources<B>
@@ -252,35 +256,48 @@ where
         Ok(self.sampler_cache.get(device, filter, wrap_mode))
     }
 
-    // /// Destroy image.
-    // /// Image can be dropped but this method reduces overhead.
-    // pub fn destroy_image(
-    //     &mut self,
-    //     image: image::Image<B>,
-    // ) {
-    //     image.unescape()
-    //         .map(|inner| self.dropped_images.push(inner));
-    // }
+    /// Wrap a descriptor_set.
+    pub fn create_descriptor_sets<E>(
+        &self,
+        device: &impl gfx_hal::Device<B>,
+        allocator: &mut DescriptorAllocator<B>,
+        layout: &DescriptorSetLayout<B>,
+        count: u32,
+    ) -> Result<E, gfx_hal::device::OutOfMemory>
+    where
+        E: Default + Extend<DescriptorSet<B>>,
+    {
+        let mut sets = SmallVec::<[_; 32]>::new();
+        unsafe { allocator.allocate(device, layout, count, &mut sets) }?;
+        let mut result = E::default();
 
-    // /// Destroy image_view.
-    // /// Image_view can be dropped but this method reduces overhead.
-    // pub fn destroy_image_view(
-    //     &mut self,
-    //     image_view: image::ImageView<B>,
-    // ) {
-    //     image_view.unescape()
-    //         .map(|inner| self.dropped_image_views.push(inner));
-    // }
+        result.extend(
+            sets.into_iter()
+                .map(|set| unsafe { DescriptorSet::new(set, &self.descriptor_sets) }),
+        );
+
+        Ok(result)
+    }
 
     /// Recycle dropped resources.
     pub unsafe fn cleanup(
         &mut self,
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
+        descriptor_allocator: &mut DescriptorAllocator<B>,
         complete: Epochs,
         next: Epochs,
     ) {
         log::trace!("Cleanup resources");
+
+        while let Some((epoch, set)) = self.dropped_descriptor_sets.pop_front() {
+            if Epochs::is_before(&epoch, &complete) {
+                self.dropped_descriptor_sets.push_front((epoch, set));
+                break;
+            }
+
+            descriptor_allocator.free(Some(set));
+        }
 
         while let Some((epoch, raw, block)) = self.dropped_buffers.pop_front() {
             if Epochs::is_before(&epoch, &complete) {
@@ -331,7 +348,12 @@ where
     /// # Safety
     ///
     /// Device must be idle.
-    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+    pub unsafe fn dispose(
+        mut self,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
+        descriptor_allocator: &mut DescriptorAllocator<B>,
+    ) {
         log::trace!("Dispose of all resources");
         for (raw, block) in self
             .dropped_buffers
@@ -361,6 +383,15 @@ where
         {
             device.destroy_image(raw);
             block.map(|block| heaps.free(device, block));
+        }
+
+        for set in self
+            .dropped_descriptor_sets
+            .drain(..)
+            .map(|(_, set)| (set))
+            .chain(self.descriptor_sets.drain())
+        {
+            descriptor_allocator.free(Some(set));
         }
 
         self.sampler_cache.destroy(device);

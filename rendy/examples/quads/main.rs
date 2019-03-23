@@ -13,7 +13,7 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    descriptor::{DescriptorSet, DescriptorSetLayout},
+    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     frame::Frames,
     graph::{
@@ -29,7 +29,7 @@ use rendy::{
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
-    resource::buffer::Buffer,
+    resource::{buffer::Buffer, set::DescriptorSet},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
@@ -337,9 +337,7 @@ where
         );
     }
 
-    fn dispose(self, factory: &mut Factory<B>, _aux: &T) {
-        factory.destroy_descriptor_sets(Some(self.descriptor_set));
-    }
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
 #[derive(Debug)]
@@ -390,8 +388,8 @@ where
         factory.destroy_command_pool(self.command_pool);
         factory.destroy_compute_pipeline(self.pipeline);
         factory.destroy_pipeline_layout(self.pipeline_layout);
-        factory.destroy_descriptor_sets(Some(self.descriptor_set));
-        factory.destroy_descriptor_set_layout(self.set_layout);
+
+        std::mem::forget(self.set_layout); // remove this line when set layout start escaping.
     }
 }
 
