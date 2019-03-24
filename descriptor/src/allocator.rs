@@ -171,22 +171,19 @@ where
             self.pools.push_back(DescriptorPool {
                 raw,
                 size,
-                free: size - allocate,
+                free: size,
                 freed: 0,
             });
+            let index = self.pools.len() - 1;
+            let pool = self.pools.back_mut().unwrap();
 
-            allocate_from_pool::<B>(
-                &mut self.pools.back_mut().unwrap().raw,
-                layout.raw(),
-                allocate,
-                &mut allocation.sets,
-            )?;
+            allocate_from_pool::<B>(&mut pool.raw, layout.raw(), allocate, &mut allocation.sets)?;
             allocation.pools.extend(
-                std::iter::repeat(self.pools.len() as u64 + self.pools_offset - 1)
-                    .take(allocate as usize),
+                std::iter::repeat(index as u64 + self.pools_offset).take(allocate as usize),
             );
 
             count -= allocate;
+            pool.free -= allocate;
             self.total += allocate as u64;
         }
 
@@ -309,34 +306,41 @@ where
         }
     }
 
-    pub unsafe fn free(&mut self, sets: impl IntoIterator<Item = DescriptorSet<B>>) {
+    pub unsafe fn free(&mut self, all_sets: impl IntoIterator<Item = DescriptorSet<B>>) {
         let mut free: Option<(DescriptorRanges, u64, SmallVec<[B::DescriptorSet; 32]>)> = None;
 
         // Collect contig
-        for set in sets {
+        for set in all_sets {
             match &mut free {
                 slot @ None => {
                     slot.replace((set.ranges, set.pool, smallvec![set.raw]));
                 }
-                Some((ranges, pool, sets)) if *ranges == set.ranges && *pool == set.pool => {
-                    sets.push(set.raw);
+                Some((ranges, pool, raw_sets)) if *ranges == set.ranges && *pool == set.pool => {
+                    raw_sets.push(set.raw);
                 }
-                Some((ranges, pool, sets)) => {
-                    self.buckets
+                Some((ranges, pool, raw_sets)) => {
+                    let bucket = self
+                        .buckets
                         .get_mut(ranges)
-                        .expect("Set should be allocated from this allocator")
-                        .free(sets.drain(), *pool);
+                        .expect("Set should be allocated from this allocator");
+                    debug_assert!(bucket.total >= raw_sets.len() as u64);
+
+                    bucket.free(raw_sets.drain(), *pool);
                     *pool = set.pool;
-                    sets.push(set.raw);
+                    *ranges = set.ranges;
+                    raw_sets.push(set.raw);
                 }
             }
         }
 
-        if let Some((ranges, pool, sets)) = free {
-            self.buckets
+        if let Some((ranges, pool, raw_sets)) = free {
+            let bucket = self
+                .buckets
                 .get_mut(&ranges)
-                .expect("Set should be allocated from this allocator")
-                .free(sets, pool);
+                .expect("Set should be allocated from this allocator");
+            debug_assert!(bucket.total >= raw_sets.len() as u64);
+
+            bucket.free(raw_sets, pool);
         }
     }
 

@@ -306,18 +306,22 @@ where
     ) {
         log::trace!("Cleanup resources");
 
-        while let Some((epoch, set, kp)) = self.dropped_descriptor_sets.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
-                self.dropped_descriptor_sets.push_front((epoch, set, kp));
-                break;
-            }
+        let descriptor_sets_to_free = self
+            .dropped_descriptor_sets
+            .iter()
+            .take_while(|(epoch, _, _)| !Epochs::is_before(&complete, &epoch))
+            .count();
 
-            descriptor_allocator.free(Some(set));
-            drop(kp);
+        if descriptor_sets_to_free > 0 {
+            descriptor_allocator.free(
+                self.dropped_descriptor_sets
+                    .drain(..descriptor_sets_to_free)
+                    .map(|(_, set, _)| set),
+            );
         }
 
         while let Some((epoch, layout)) = self.dropped_descriptor_set_layouts.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_descriptor_set_layouts
                     .push_front((epoch, layout));
                 break;
@@ -326,7 +330,7 @@ where
         }
 
         while let Some((epoch, raw, block)) = self.dropped_buffers.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_buffers.push_front((epoch, raw, block));
                 break;
             }
@@ -336,7 +340,7 @@ where
         }
 
         while let Some((epoch, raw, kp)) = self.dropped_image_views.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_image_views.push_front((epoch, raw, kp));
                 break;
             }
@@ -346,7 +350,7 @@ where
         }
 
         while let Some((epoch, raw, block)) = self.dropped_images.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_images.push_front((epoch, raw, block));
                 break;
             }
@@ -421,15 +425,11 @@ where
             block.map(|block| heaps.free(device, block));
         }
 
-        for (set, kp) in self
-            .dropped_descriptor_sets
-            .drain(..)
-            .map(|(_, set, kp)| (set, kp))
-            .chain(self.descriptor_sets.drain())
-        {
-            descriptor_allocator.free(Some(set));
-            drop(kp);
-        }
+        descriptor_allocator.free(
+            self.dropped_descriptor_sets
+                .drain(..)
+                .map(|(_, set, _)| set),
+        );
 
         for layout in self
             .dropped_descriptor_set_layouts
