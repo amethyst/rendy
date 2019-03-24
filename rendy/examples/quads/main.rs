@@ -390,8 +390,6 @@ where
         factory.destroy_command_pool(self.command_pool);
         factory.destroy_compute_pipeline(self.pipeline);
         factory.destroy_pipeline_layout(self.pipeline_layout);
-
-        std::mem::forget(self.set_layout); // remove this line when set layout start escaping.
     }
 }
 
@@ -588,7 +586,7 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Trace)
         .filter_module("quads", log::LevelFilter::Trace)
         .init();
 

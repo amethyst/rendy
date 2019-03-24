@@ -274,7 +274,7 @@ impl<T> Drop for Terminal<T> {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.sender);
-            match self.receiver.recv() {
+            match self.receiver.try_recv() {
                 None => {}
                 Some(_) => {
                     error!("Terminal must be dropped after all `Escape`s");

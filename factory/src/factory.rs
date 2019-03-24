@@ -64,18 +64,22 @@ where
                 self.heaps.get_mut(),
                 self.descriptor_allocator.get_mut(),
             );
+
+            log::trace!("Resources disposed");
         }
 
         unsafe {
             std::ptr::read(&mut *self.heaps)
                 .into_inner()
                 .dispose(&self.device);
+            log::trace!("Heaps disposed");
         }
 
         unsafe {
             std::ptr::read(&mut *self.descriptor_allocator)
                 .into_inner()
                 .dispose(&self.device);
+            log::trace!("Descriptor allocator disposed");
         }
 
         log::trace!("Factory dropped");

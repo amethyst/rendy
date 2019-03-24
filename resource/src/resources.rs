@@ -395,6 +395,8 @@ where
         descriptor_allocator: &mut DescriptorAllocator<B>,
     ) {
         log::trace!("Dispose of all resources");
+
+        log::trace!("Dispose buffers");
         for (raw, block) in self
             .dropped_buffers
             .drain(..)
@@ -405,6 +407,7 @@ where
             heaps.free(device, block);
         }
 
+        log::trace!("Dispose image views");
         for (raw, kp) in self
             .dropped_image_views
             .drain(..)
@@ -415,6 +418,7 @@ where
             drop(kp);
         }
 
+        log::trace!("Dispose images");
         for (raw, block) in self
             .dropped_images
             .drain(..)
@@ -425,6 +429,7 @@ where
             block.map(|block| heaps.free(device, block));
         }
 
+        log::trace!("Dispose descriptor sets");
         descriptor_allocator.free(
             self.dropped_descriptor_sets
                 .drain(..)
@@ -432,6 +437,7 @@ where
                 .chain(self.descriptor_sets.drain().map(|(set, _)| set)),
         );
 
+        log::trace!("Dispose descriptor set layouts");
         for layout in self
             .dropped_descriptor_set_layouts
             .drain(..)
@@ -441,7 +447,9 @@ where
             layout.dispose(device);
         }
 
+        log::trace!("Dispose sampler cache");
         self.sampler_cache.destroy(device);
+        log::trace!("All resources disposed");
     }
 }
 
