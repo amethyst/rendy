@@ -56,7 +56,7 @@ where
         range: Range<u64>,
     ) -> Result<Self, gfx_hal::mapping::Error> {
         assert!(
-            range.start <= range.end,
+            range.start < range.end,
             "Memory mapping region must have valid size"
         );
         assert!(
@@ -82,6 +82,10 @@ where
     ///
     /// `memory` `range` must be mapped to host memory region pointer by `ptr`.
     pub unsafe fn from_raw(memory: &'a Memory<B>, ptr: NonNull<u8>, range: Range<u64>) -> Self {
+        assert!(
+            range.start < range.end,
+            "Memory mapping region must have valid size"
+        );
         MappedRange {
             ptr,
             range,

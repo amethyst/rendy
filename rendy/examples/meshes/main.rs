@@ -299,15 +299,17 @@ where
                 .unwrap()
         };
 
-        unsafe {
-            factory
-                .upload_visible_buffer(
-                    &mut self.buffer,
-                    transforms_offset(index, align),
-                    &scene.objects[..],
-                )
-                .unwrap()
-        };
+        if !scene.objects.is_empty() {
+            unsafe {
+                factory
+                    .upload_visible_buffer(
+                        &mut self.buffer,
+                        transforms_offset(index, align),
+                        &scene.objects[..],
+                    )
+                    .unwrap()
+            };
+        }
 
         PrepareResult::DrawReuse
     }
