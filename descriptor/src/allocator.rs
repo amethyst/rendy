@@ -166,19 +166,24 @@ where
                 pool_ranges,
             );
             let raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
+            let allocate = size.min(count);
 
             self.pools.push_back(DescriptorPool {
                 raw,
                 size,
-                free: size,
+                free: size - allocate,
                 freed: 0,
             });
 
-            let allocate = size.min(count);
-
-            allocate_from_pool::<B>(&mut self.pools.back_mut().unwrap().raw, layout.raw(), allocate, &mut allocation.sets)?;
+            allocate_from_pool::<B>(
+                &mut self.pools.back_mut().unwrap().raw,
+                layout.raw(),
+                allocate,
+                &mut allocation.sets,
+            )?;
             allocation.pools.extend(
-                std::iter::repeat(self.pools.len() as u64 + self.pools_offset - 1).take(allocate as usize),
+                std::iter::repeat(self.pools.len() as u64 + self.pools_offset - 1)
+                    .take(allocate as usize),
             );
 
             count -= allocate;
@@ -202,6 +207,7 @@ where
                 self.pools.push_front(pool);
                 break;
             }
+            log::trace!("Destroying used up descriptor pool");
             device.destroy_descriptor_pool(pool.raw);
             self.pools_offset += 1;
         }
