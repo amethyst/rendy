@@ -95,6 +95,7 @@ where
     /// This function is very heavy and
     /// usually used only for teardown.
     pub fn wait_idle(&self) -> Result<(), HostExecutionError> {
+        log::debug!("Wait device idle");
         self.device.wait_idle()?;
         log::trace!("Device idle");
         Ok(())

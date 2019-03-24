@@ -40,8 +40,12 @@ struct Allocation<B: Backend> {
 struct DescriptorPool<B: Backend> {
     raw: B::DescriptorPool,
     size: u32,
+
+    // Number of free sets left.
     free: u32,
-    reuse: Vec<B::DescriptorSet>,
+
+    // Number of sets freed (they can't be reused until gfx-hal 0.2)
+    freed: u32,
 }
 
 unsafe fn allocate_from_pool<B: Backend>(
@@ -134,30 +138,6 @@ where
         }
 
         for (index, pool) in self.pools.iter_mut().enumerate().rev() {
-            if pool.reuse.len() == 0 {
-                continue;
-            }
-
-            let reuse = (pool.reuse.len() as u32).min(count);
-            log::trace!("Reusing {} from exising pool", reuse);
-
-            allocation
-                .sets
-                .extend(pool.reuse.drain(pool.reuse.len() - reuse as usize..));
-            allocation
-                .pools
-                .extend(std::iter::repeat(index as u64 + self.pools_offset).take(reuse as usize));
-
-            count -= reuse;
-            pool.free -= reuse;
-            self.total += reuse as u64;
-
-            if count == 0 {
-                return Ok(());
-            }
-        }
-
-        for (index, pool) in self.pools.iter_mut().enumerate().rev() {
             if pool.free == 0 {
                 continue;
             }
@@ -185,22 +165,24 @@ where
                 size,
                 pool_ranges,
             );
-            let mut raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
+            let raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
 
-            let allocate = size.min(count);
-
-            allocate_from_pool::<B>(&mut raw, layout.raw(), allocate, &mut allocation.sets)?;
-            allocation.pools.extend(
-                std::iter::repeat(self.pools.len() as u64 + self.pools_offset).take(count as usize),
-            );
             self.pools.push_back(DescriptorPool {
                 raw,
                 size,
-                free: size - allocate,
-                reuse: Vec::with_capacity(size as usize),
+                free: size,
+                freed: 0,
             });
+
+            let allocate = size.min(count);
+
+            allocate_from_pool::<B>(&mut self.pools.back_mut().unwrap().raw, layout.raw(), allocate, &mut allocation.sets)?;
+            allocation.pools.extend(
+                std::iter::repeat(self.pools.len() as u64 + self.pools_offset - 1).take(allocate as usize),
+            );
+
             count -= allocate;
-            self.total += count as u64;
+            self.total += allocate as u64;
         }
 
         Ok(())
@@ -208,16 +190,15 @@ where
 
     unsafe fn free(&mut self, sets: impl IntoIterator<Item = B::DescriptorSet>, pool: u64) {
         let pool = &mut self.pools[(pool - self.pools_offset) as usize];
-        let mut freed = 0;
-        pool.reuse.extend(sets.into_iter().inspect(|_| freed += 1));
-        pool.free += freed;
+        let freed = sets.into_iter().count() as u32;
+        pool.freed += freed;
         self.total -= freed as u64;
         log::trace!("Freed {} from descriptor bucket", freed);
     }
 
     unsafe fn cleanup(&mut self, device: &impl Device<B>) {
         while let Some(pool) = self.pools.pop_front() {
-            if pool.free < pool.size {
+            if pool.freed < pool.size {
                 self.pools.push_front(pool);
                 break;
             }

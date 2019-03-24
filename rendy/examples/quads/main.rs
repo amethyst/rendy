@@ -567,7 +567,7 @@ fn run(
         graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(50, 0) {
+        if elapsed >= std::time::Duration::new(1, 0) {
             break;
         }
     }
@@ -588,7 +588,7 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Debug)
         .filter_module("quads", log::LevelFilter::Trace)
         .init();
 
@@ -607,6 +607,13 @@ fn main() {
     event_loop.poll_events(|_| ());
 
     run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+    log::debug!("Done");
+
+    log::debug!("Drop families");
+    drop(families);
+
+    log::debug!("Drop factory");
+    drop(factory);
 }
 
 fn build_graph(

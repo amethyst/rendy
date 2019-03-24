@@ -72,8 +72,8 @@ where
         let present_mode = *present_modes_caps
             .iter()
             .max_by_key(|mode| match mode {
-                gfx_hal::PresentMode::Mailbox => 3,
-                gfx_hal::PresentMode::Fifo => 2,
+                gfx_hal::PresentMode::Fifo => 3,
+                gfx_hal::PresentMode::Mailbox => 2,
                 gfx_hal::PresentMode::Relaxed => 1,
                 gfx_hal::PresentMode::Immediate => 0,
             })
