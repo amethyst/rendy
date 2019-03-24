@@ -428,7 +428,8 @@ where
         descriptor_allocator.free(
             self.dropped_descriptor_sets
                 .drain(..)
-                .map(|(_, set, _)| set),
+                .map(|(_, set, _)| set)
+                .chain(self.descriptor_sets.drain().map(|(set, _)| set)),
         );
 
         for layout in self
