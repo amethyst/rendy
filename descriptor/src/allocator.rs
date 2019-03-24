@@ -36,8 +36,10 @@ struct Allocation<B: Backend> {
     pools: Vec<u64>,
 }
 
-#[derive(Debug)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 struct DescriptorPool<B: Backend> {
+    #[derivative(Debug = "ignore")]
     raw: B::DescriptorPool,
     size: u32,
 
@@ -114,11 +116,18 @@ where
             log::error!("Not all descriptor sets were deallocated");
         }
 
-        if !self.pools.is_empty() {
-            log::error!(
-                "Descriptor pools are still in use during allocator disposal. {:?}",
-                self.pools
-            );
+        while let Some(pool) = self.pools.pop_front() {
+            assert!(pool.freed + pool.free <= pool.size);
+            if pool.freed + pool.free < pool.size {
+                log::error!(
+                    "Descriptor pools are still in use during allocator disposal. {:?}",
+                    self.pools
+                );
+            } else {
+                log::trace!("Destroying used up descriptor pool");
+                device.destroy_descriptor_pool(pool.raw);
+                self.pools_offset += 1;
+            }
         }
 
         self.pools
@@ -236,7 +245,6 @@ where
     }
 
     pub unsafe fn dispose(mut self, device: &impl Device<B>) {
-        self.cleanup(device);
         self.buckets
             .drain()
             .for_each(|(_, bucket)| bucket.dispose(device));

@@ -365,7 +365,7 @@ where
             factory
                 .device()
                 .destroy_pipeline_layout(self.pipeline_layout);
-            std::mem::forget(self.set_layouts); // remove this line when set layout start escaping.
+            drop(self.set_layouts);
         }
     }
 }
