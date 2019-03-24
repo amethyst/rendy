@@ -301,8 +301,8 @@ where
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
         descriptor_allocator: &mut DescriptorAllocator<B>,
-        complete: Epochs,
         next: Epochs,
+        complete: Epochs,
     ) {
         log::trace!("Cleanup resources");
 
@@ -355,6 +355,16 @@ where
             block.map(|block| heaps.free(device, block));
         }
 
+        self.dropped_descriptor_sets.extend(
+            self.descriptor_sets
+                .drain()
+                .map(|(desc, kp)| (next.clone(), desc, kp)),
+        );
+        self.dropped_descriptor_set_layouts.extend(
+            self.descriptor_set_layouts
+                .drain()
+                .map(|layout| (next.clone(), layout)),
+        );
         self.dropped_buffers.extend(
             self.buffers
                 .drain()
