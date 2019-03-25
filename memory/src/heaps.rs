@@ -398,11 +398,15 @@ where
     }
 
     fn dispose(self, device: &impl gfx_hal::Device<B>) {
+        log::trace!("Dispose memory allocators");
+
         if let Some(linear) = self.linear {
             linear.dispose(device);
+            log::trace!("Linear allocator disposed");
         }
         if let Some(dynamic) = self.dynamic {
             dynamic.dispose();
+            log::trace!("Dynamic allocator disposed");
         }
     }
 }

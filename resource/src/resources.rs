@@ -1,10 +1,12 @@
 use {
     crate::{
         buffer,
+        descriptor::{self, DescriptorAllocator},
         escape::{KeepAlive, Terminal},
         image,
         memory::{Block, Heaps, MemoryBlock},
         sampler::{Sampler, SamplerCache},
+        set::{DescriptorSet, DescriptorSetLayout},
     },
     smallvec::SmallVec,
     std::{cmp::max, collections::VecDeque},
@@ -34,11 +36,15 @@ pub struct Resources<B: gfx_hal::Backend> {
     buffers: Terminal<(B::Buffer, MemoryBlock<B>)>,
     images: Terminal<(B::Image, Option<MemoryBlock<B>>)>,
     image_views: Terminal<(B::ImageView, KeepAlive)>,
+    descriptor_sets: Terminal<(descriptor::DescriptorSet<B>, KeepAlive)>,
+    descriptor_set_layouts: Terminal<descriptor::DescriptorSetLayout<B>>,
     sampler_cache: SamplerCache<B>,
 
     dropped_buffers: VecDeque<(Epochs, B::Buffer, MemoryBlock<B>)>,
     dropped_images: VecDeque<(Epochs, B::Image, Option<MemoryBlock<B>>)>,
     dropped_image_views: VecDeque<(Epochs, B::ImageView, KeepAlive)>,
+    dropped_descriptor_sets: VecDeque<(Epochs, descriptor::DescriptorSet<B>, KeepAlive)>,
+    dropped_descriptor_set_layouts: VecDeque<(Epochs, descriptor::DescriptorSetLayout<B>)>,
 }
 
 impl<B> Resources<B>
@@ -252,38 +258,79 @@ where
         Ok(self.sampler_cache.get(device, filter, wrap_mode))
     }
 
-    // /// Destroy image.
-    // /// Image can be dropped but this method reduces overhead.
-    // pub fn destroy_image(
-    //     &mut self,
-    //     image: image::Image<B>,
-    // ) {
-    //     image.unescape()
-    //         .map(|inner| self.dropped_images.push(inner));
-    // }
+    /// Wrap a descriptor_set.
+    pub fn create_descriptor_sets<E>(
+        &self,
+        device: &impl gfx_hal::Device<B>,
+        allocator: &mut DescriptorAllocator<B>,
+        layout: &DescriptorSetLayout<B>,
+        count: u32,
+    ) -> Result<E, gfx_hal::device::OutOfMemory>
+    where
+        E: Default + Extend<DescriptorSet<B>>,
+    {
+        let mut sets = SmallVec::<[_; 32]>::new();
+        unsafe { allocator.allocate(device, layout, count, &mut sets) }?;
+        let mut result = E::default();
 
-    // /// Destroy image_view.
-    // /// Image_view can be dropped but this method reduces overhead.
-    // pub fn destroy_image_view(
-    //     &mut self,
-    //     image_view: image::ImageView<B>,
-    // ) {
-    //     image_view.unescape()
-    //         .map(|inner| self.dropped_image_views.push(inner));
-    // }
+        result.extend(
+            sets.into_iter()
+                .map(|set| unsafe { DescriptorSet::new(set, layout, &self.descriptor_sets) }),
+        );
+
+        Ok(result)
+    }
+
+    // Wrap a descriptor_set_layout
+    pub fn create_descriptor_set_layout(
+        &self,
+        device: &impl gfx_hal::Device<B>,
+        bindings: Vec<gfx_hal::pso::DescriptorSetLayoutBinding>,
+    ) -> Result<DescriptorSetLayout<B>, gfx_hal::device::OutOfMemory> {
+        Ok(unsafe {
+            DescriptorSetLayout::new(
+                descriptor::DescriptorSetLayout::create(device, bindings)?,
+                &self.descriptor_set_layouts,
+            )
+        })
+    }
 
     /// Recycle dropped resources.
     pub unsafe fn cleanup(
         &mut self,
         device: &impl gfx_hal::Device<B>,
         heaps: &mut Heaps<B>,
-        complete: Epochs,
+        descriptor_allocator: &mut DescriptorAllocator<B>,
         next: Epochs,
+        complete: Epochs,
     ) {
         log::trace!("Cleanup resources");
 
+        let descriptor_sets_to_free = self
+            .dropped_descriptor_sets
+            .iter()
+            .take_while(|(epoch, _, _)| !Epochs::is_before(&complete, &epoch))
+            .count();
+
+        if descriptor_sets_to_free > 0 {
+            descriptor_allocator.free(
+                self.dropped_descriptor_sets
+                    .drain(..descriptor_sets_to_free)
+                    .map(|(_, set, _)| set),
+            );
+        }
+
+        while let Some((epoch, layout)) = self.dropped_descriptor_set_layouts.pop_front() {
+            if Epochs::is_before(&complete, &epoch) {
+                self.dropped_descriptor_set_layouts
+                    .push_front((epoch, layout));
+                break;
+            }
+            layout.dispose(device);
+        }
+
         while let Some((epoch, raw, block)) = self.dropped_buffers.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_buffers.push_front((epoch, raw, block));
                 break;
             }
@@ -293,7 +340,7 @@ where
         }
 
         while let Some((epoch, raw, kp)) = self.dropped_image_views.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_image_views.push_front((epoch, raw, kp));
                 break;
             }
@@ -303,7 +350,7 @@ where
         }
 
         while let Some((epoch, raw, block)) = self.dropped_images.pop_front() {
-            if Epochs::is_before(&epoch, &complete) {
+            if Epochs::is_before(&complete, &epoch) {
                 self.dropped_images.push_front((epoch, raw, block));
                 break;
             }
@@ -312,6 +359,16 @@ where
             block.map(|block| heaps.free(device, block));
         }
 
+        self.dropped_descriptor_sets.extend(
+            self.descriptor_sets
+                .drain()
+                .map(|(desc, kp)| (next.clone(), desc, kp)),
+        );
+        self.dropped_descriptor_set_layouts.extend(
+            self.descriptor_set_layouts
+                .drain()
+                .map(|layout| (next.clone(), layout)),
+        );
         self.dropped_buffers.extend(
             self.buffers
                 .drain()
@@ -331,8 +388,15 @@ where
     /// # Safety
     ///
     /// Device must be idle.
-    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>, heaps: &mut Heaps<B>) {
+    pub unsafe fn dispose(
+        mut self,
+        device: &impl gfx_hal::Device<B>,
+        heaps: &mut Heaps<B>,
+        descriptor_allocator: &mut DescriptorAllocator<B>,
+    ) {
         log::trace!("Dispose of all resources");
+
+        log::trace!("Dispose buffers");
         for (raw, block) in self
             .dropped_buffers
             .drain(..)
@@ -343,6 +407,7 @@ where
             heaps.free(device, block);
         }
 
+        log::trace!("Dispose image views");
         for (raw, kp) in self
             .dropped_image_views
             .drain(..)
@@ -353,6 +418,7 @@ where
             drop(kp);
         }
 
+        log::trace!("Dispose images");
         for (raw, block) in self
             .dropped_images
             .drain(..)
@@ -363,7 +429,27 @@ where
             block.map(|block| heaps.free(device, block));
         }
 
+        log::trace!("Dispose descriptor sets");
+        descriptor_allocator.free(
+            self.dropped_descriptor_sets
+                .drain(..)
+                .map(|(_, set, _)| set)
+                .chain(self.descriptor_sets.drain().map(|(set, _)| set)),
+        );
+
+        log::trace!("Dispose descriptor set layouts");
+        for layout in self
+            .dropped_descriptor_set_layouts
+            .drain(..)
+            .map(|(_, layout)| layout)
+            .chain(self.descriptor_set_layouts.drain())
+        {
+            layout.dispose(device);
+        }
+
+        log::trace!("Dispose sampler cache");
         self.sampler_cache.destroy(device);
+        log::trace!("All resources disposed");
     }
 }
 

@@ -2,12 +2,12 @@ use {
     super::{RenderGroup, RenderGroupDesc},
     crate::{
         command::{QueueId, RenderPassEncoder},
-        descriptor::DescriptorSetLayout,
         factory::Factory,
         graph::GraphContext,
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
         },
+        resource::set::DescriptorSetLayout,
     },
     gfx_hal::{Backend, Device},
 };
@@ -365,9 +365,7 @@ where
             factory
                 .device()
                 .destroy_pipeline_layout(self.pipeline_layout);
-            for set_layout in self.set_layouts.into_iter() {
-                factory.destroy_descriptor_set_layout(set_layout);
-            }
+            drop(self.set_layouts);
         }
     }
 }

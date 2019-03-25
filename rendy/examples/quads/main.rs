@@ -13,7 +13,6 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    descriptor::{DescriptorSet, DescriptorSetLayout},
     factory::{Config, Factory},
     frame::Frames,
     graph::{
@@ -29,7 +28,10 @@ use rendy::{
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{AsVertex, Color},
-    resource::buffer::Buffer,
+    resource::{
+        buffer::Buffer,
+        set::{DescriptorSet, DescriptorSetLayout},
+    },
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
@@ -337,9 +339,7 @@ where
         );
     }
 
-    fn dispose(self, factory: &mut Factory<B>, _aux: &T) {
-        factory.destroy_descriptor_sets(Some(self.descriptor_set));
-    }
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
 #[derive(Debug)]
@@ -390,8 +390,6 @@ where
         factory.destroy_command_pool(self.command_pool);
         factory.destroy_compute_pipeline(self.pipeline);
         factory.destroy_pipeline_layout(self.pipeline_layout);
-        factory.destroy_descriptor_sets(Some(self.descriptor_set));
-        factory.destroy_descriptor_set_layout(self.set_layout);
     }
 }
 
@@ -567,7 +565,7 @@ fn run(
         graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(50, 0) {
+        if elapsed >= std::time::Duration::new(1, 0) {
             break;
         }
     }
@@ -588,7 +586,7 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Trace)
         .filter_module("quads", log::LevelFilter::Trace)
         .init();
 
@@ -607,6 +605,13 @@ fn main() {
     event_loop.poll_events(|_| ());
 
     run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+    log::debug!("Done");
+
+    log::debug!("Drop families");
+    drop(families);
+
+    log::debug!("Drop factory");
+    drop(factory);
 }
 
 fn build_graph(

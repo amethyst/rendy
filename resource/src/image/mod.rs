@@ -87,7 +87,7 @@ where
     ///
     /// # Safety
     ///
-    /// Raw image handler should not be usage to violate this object valid usage.
+    /// Raw image handler should not be used to violate this object valid usage.
     pub fn raw(&self) -> &B::Image {
         &self.escape.0
     }
@@ -180,7 +180,7 @@ where
     ///
     /// # Safety
     ///
-    /// Raw image handler should not be usage to violate this object valid usage.
+    /// Raw image handler should not be used to violate this object valid usage.
     pub fn raw(&self) -> &B::ImageView {
         &self.escape.0
     }

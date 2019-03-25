@@ -96,7 +96,7 @@ where
     ///
     /// # Safety
     ///
-    /// Raw buffer handler should not be usage to violate this object valid usage.
+    /// Raw buffer handler should not be used to violate this object valid usage.
     pub fn raw(&self) -> &B::Buffer {
         &self.escape.0
     }

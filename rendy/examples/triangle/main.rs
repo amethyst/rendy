@@ -11,7 +11,6 @@
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
-    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
     graph::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
@@ -19,6 +18,7 @@ use rendy::{
     memory::MemoryUsageValue,
     mesh::{AsVertex, PosColor},
     resource::buffer::Buffer,
+    resource::set::DescriptorSetLayout,
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
 };
 

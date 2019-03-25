@@ -13,14 +13,14 @@ pub(crate) fn mapped_fitting_range(
     fitting: Range<u64>,
 ) -> Option<NonNull<u8>> {
     assert!(
-        range.start <= range.end,
+        range.start < range.end,
         "Memory mapping region must have valid size"
     );
     assert!(
-        fitting.start <= fitting.end,
+        fitting.start < fitting.end,
         "Memory mapping region must have valid size"
     );
-    debug_assert!(range.start <= range.end);
+    debug_assert!(range.start < range.end);
 
     if fitting.start < range.start || fitting.end > range.end {
         None

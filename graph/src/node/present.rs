@@ -72,8 +72,8 @@ where
         let present_mode = *present_modes_caps
             .iter()
             .max_by_key(|mode| match mode {
-                gfx_hal::PresentMode::Mailbox => 3,
-                gfx_hal::PresentMode::Fifo => 2,
+                gfx_hal::PresentMode::Fifo => 3,
+                gfx_hal::PresentMode::Mailbox => 2,
                 gfx_hal::PresentMode::Relaxed => 1,
                 gfx_hal::PresentMode::Immediate => 0,
             })
@@ -173,7 +173,6 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                                     .into_bounds(&target_image.kind().extent()),
                             }),
                         );
-                        
                     } else {
                         log::debug!("Present node is copying");
                         encoder.copy_image(
@@ -463,7 +462,10 @@ where
                     match next.present(queue.raw(), Some(&for_image.release)) {
                         Ok(()) => break,
                         Err(e) => {
-                            log::debug!("Swapchain present error after next_image is acquired: {}", e);
+                            log::debug!(
+                                "Swapchain present error after next_image is acquired: {}",
+                                e
+                            );
                             // recreate swapchain on next frame.
                             break;
                         }
@@ -479,7 +481,7 @@ where
             }
             // Recreate swapchain when OutOfDate
             // The code has to execute after match due to mutable aliasing issues.
-            
+
             // TODO: use retired swapchains once available in hal and remove that wait
             factory.wait_idle().unwrap();
 

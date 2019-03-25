@@ -68,7 +68,7 @@ where
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         assert!(
-            range.start <= range.end,
+            range.start < range.end,
             "Memory mapping region must have valid size"
         );
         if !self.shared_memory().host_visible() {
@@ -485,7 +485,7 @@ fn max_blocks_per_size() -> u32 {
 }
 
 fn check_bit_range_set(bitset: &hibitset::BitSet, range: Range<u32>) -> bool {
-    debug_assert!(range.start <= range.end);
+    debug_assert!(range.start < range.end);
     let layer_size = std::mem::size_of::<usize>() as u32 * 8;
 
     assert_eq!(

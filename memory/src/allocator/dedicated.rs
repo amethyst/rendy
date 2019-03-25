@@ -62,7 +62,7 @@ where
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         assert!(
-            range.start <= range.end,
+            range.start < range.end,
             "Memory mapping region must have valid size"
         );
 
