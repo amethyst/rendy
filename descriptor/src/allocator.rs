@@ -120,8 +120,8 @@ where
             assert!(pool.freed + pool.free <= pool.size);
             if pool.freed + pool.free < pool.size {
                 log::error!(
-                    "Descriptor pools are still in use during allocator disposal. {:?}",
-                    self.pools
+                    "Descriptor pool is still in use during allocator disposal. {:?}",
+                    pool
                 );
             } else {
                 log::trace!("Destroying used up descriptor pool");
