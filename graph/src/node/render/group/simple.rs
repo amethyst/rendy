@@ -47,6 +47,9 @@ pub struct Pipeline {
 
     /// Depth stencil for pipeline.
     pub depth_stencil: gfx_hal::pso::DepthStencilDesc,
+
+    /// Primitive to use in the input assembler.
+    pub input_assembler_desc: gfx_hal::pso::InputAssemblerDesc,
 }
 
 pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
@@ -102,6 +105,14 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         }
     }
 
+    /// Returns the InputAssemblerDesc. Defaults to a TriangleList with Restart disabled, can be overriden.
+    fn input_assembler(&self) -> gfx_hal::pso::InputAssemblerDesc {
+        gfx_hal::pso::InputAssemblerDesc {
+            primitive: gfx_hal::Primitive::TriangleList,
+            primitive_restart: gfx_hal::pso::PrimitiveRestart::Disabled
+        }
+    }
+
     /// Graphics pipelines
     fn pipeline(&self) -> Pipeline {
         Pipeline {
@@ -111,6 +122,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
             depth_stencil: self
                 .depth_stencil()
                 .unwrap_or(gfx_hal::pso::DepthStencilDesc::default()),
+            input_assembler_desc: self.input_assembler()
         }
     }
 
@@ -279,10 +291,7 @@ where
                     rasterizer: gfx_hal::pso::Rasterizer::FILL,
                     vertex_buffers,
                     attributes,
-                    input_assembler: gfx_hal::pso::InputAssemblerDesc {
-                        primitive: gfx_hal::Primitive::TriangleList,
-                        primitive_restart: gfx_hal::pso::PrimitiveRestart::Disabled,
-                    },
+                    input_assembler: pipeline.input_assembler_desc,
                     blender: gfx_hal::pso::BlendDesc {
                         logic_op: None,
                         targets: pipeline.colors.clone(),
