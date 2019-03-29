@@ -586,7 +586,7 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Trace)
+        .filter_level(log::LevelFilter::Warn)
         .filter_module("quads", log::LevelFilter::Trace)
         .init();
 
