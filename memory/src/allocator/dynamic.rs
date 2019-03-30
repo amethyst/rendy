@@ -105,6 +105,10 @@ pub struct DynamicConfig {
     /// Maximum block size.
     /// For any request larger than this won't be allocated with this allocator.
     pub max_block_size: u64,
+
+    /// Maximum chunk of blocks size.
+    /// Actual chunk size is `min(max_chunk_size, block_size * blocks_per_chunk)`
+    pub max_chunk_size: u64,
 }
 
 /// Low-fragmentation allocator.
@@ -121,10 +125,18 @@ pub struct DynamicAllocator<B: gfx_hal::Backend> {
     memory_properties: gfx_hal::memory::Properties,
 
     /// Number of blocks per chunk.
-    blocks_per_chunk: u32,
+    _blocks_per_chunk: u32,
 
     /// All requests are rounded up to multiple of this value.
     block_size_granularity: u64,
+
+    /// Maximum block size.
+    /// For any request larger than this won't be allocated with this allocator.
+    max_block_size: u64,
+
+    /// Maximum chunk of blocks size.
+    /// Actual chunk size is `min(max_chunk_size, block_size * blocks_per_chunk)`
+    max_chunk_size: u64,
 
     /// List of chunk lists.
     /// Each index corresponds to `block_size_granularity * index` size.
@@ -157,13 +169,15 @@ where
     }
 }
 
+const MAX_BLOCKS_PER_CHUNK: u32 = std::mem::size_of::<usize>() as u32 * 8;
+
 impl<B> DynamicAllocator<B>
 where
     B: gfx_hal::Backend,
 {
     /// Maximum allocation size.
     pub fn max_allocation(&self) -> u64 {
-        self.max_block_size()
+        self.max_block_size
     }
 
     /// Create new `DynamicAllocator`
@@ -180,8 +194,9 @@ where
             memory_properties,
             config
         );
+
         // This is hack to simplify implementation of chunk cleaning.
-        config.blocks_per_chunk = std::mem::size_of::<usize>() as u32 * 8;
+        config.blocks_per_chunk = config.blocks_per_chunk.min(MAX_BLOCKS_PER_CHUNK);
 
         assert_ne!(
             config.block_size_granularity, 0,
@@ -191,7 +206,8 @@ where
         let max_chunk_size = config
             .max_block_size
             .checked_mul(config.blocks_per_chunk.into())
-            .expect("Max chunk size must fit u64 to allocate it from Vulkan");
+            .expect("Max chunk size must fit u64 to allocate it from Vulkan")
+            .min(config.max_chunk_size);
         if memory_properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
             assert!(
                 fits_usize(max_chunk_size),
@@ -208,24 +224,25 @@ where
             memory_type,
             memory_properties,
             block_size_granularity: config.block_size_granularity,
-            blocks_per_chunk: config.blocks_per_chunk,
+            _blocks_per_chunk: config.blocks_per_chunk,
+            max_block_size: config.max_block_size,
+            max_chunk_size: config.max_chunk_size,
             sizes: HashMap::new(),
         }
     }
 
-    /// Maximum block size.
-    /// Any request bigger will result in panic.
-    pub fn max_block_size(&self) -> u64 {
-        (self.block_size_granularity * self.sizes.len() as u64)
+    fn blocks_per_chunk(&self, size_index: usize) -> u32 {
+        ((self._blocks_per_chunk as u64 * self.block_size(size_index)).min(self.max_chunk_size)
+            / self.block_size(size_index)) as u32
     }
 
-    fn max_chunks_per_size(&self) -> u32 {
-        max_blocks_per_size() / self.blocks_per_chunk
+    fn max_chunks_per_size(&self, size_index: usize) -> u32 {
+        max_blocks_per_size() / self.blocks_per_chunk(size_index)
     }
 
     /// Returns size index.
     fn size_index(&self, size: u64) -> usize {
-        assert!(size <= self.max_block_size());
+        assert!(size <= self.max_block_size);
         ((size - 1) / self.block_size_granularity) as usize
     }
 
@@ -242,7 +259,7 @@ where
         size: u64,
     ) -> Result<(Chunk<B>, u64), gfx_hal::device::AllocationError> {
         log::trace!("Allocate new chunk: size: {}", size);
-        if size > self.max_block_size() {
+        if size > self.max_block_size {
             // Allocate from device.
             let (memory, mapping) = unsafe {
                 // Valid memory type specified.
@@ -309,8 +326,9 @@ where
             self.memory_type.0,
             size
         );
-        let max = self.max_chunks_per_size();
         let size_index = self.size_index(size);
+        let max_chunks = self.max_chunks_per_size(size_index);
+        let blocks_per_chunk = self.blocks_per_chunk(size_index);
         let (block_index, allocated) =
             match hibitset::BitSetLike::iter(&self.sizes.entry(size_index).or_default().blocks)
                 .next()
@@ -321,16 +339,16 @@ where
                     (block_index, 0)
                 }
                 None => {
-                    if self.sizes.entry(size_index).or_default().total_chunks == max {
+                    if self.sizes.entry(size_index).or_default().total_chunks == max_chunks {
                         return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
                     }
-                    let chunk_size = size * self.blocks_per_chunk as u64;
+                    let chunk_size = size * blocks_per_chunk as u64;
                     let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
                     let size_entry = self.sizes.entry(size_index).or_default();
                     let chunk_index = size_entry.chunks.push(chunk) as u32;
                     size_entry.total_chunks += 1;
-                    let block_index_start = chunk_index * self.blocks_per_chunk;
-                    let block_index_end = block_index_start + self.blocks_per_chunk;
+                    let block_index_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
+                    let block_index_end = block_index_start + blocks_per_chunk;
                     for block_index in block_index_start + 1..block_index_end {
                         assert!(!size_entry.blocks.add(block_index));
                     }
@@ -338,13 +356,13 @@ where
                 }
             };
 
-        let chunk_index = block_index / self.blocks_per_chunk;
+        let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
 
         let block_size = self.block_size(size_index);
         let ref chunk = self.sizes.entry(size_index).or_default().chunks[chunk_index as usize];
         let chunk_range = chunk.range();
         let block_offset =
-            chunk_range.start + (block_index % self.blocks_per_chunk) as u64 * block_size;
+            chunk_range.start + (block_index % MAX_BLOCKS_PER_CHUNK) as u64 * block_size;
         let block_range = block_offset..block_offset + block_size;
 
         Ok((
@@ -389,7 +407,7 @@ where
         use std::cmp::max;
         let size = max(size, align);
 
-        assert!(size <= self.max_block_size());
+        assert!(size <= self.max_block_size);
         self.alloc_from_chunk(device, size)
     }
 
@@ -407,9 +425,9 @@ where
             .add(block_index);
         debug_assert!(!old);
 
-        let chunk_index = block_index / self.blocks_per_chunk;
-        let chunk_start = chunk_index * self.blocks_per_chunk;
-        let chunk_end = chunk_start + self.blocks_per_chunk;
+        let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
+        let chunk_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
+        let chunk_end = chunk_start + self.blocks_per_chunk(size_index);
 
         if check_bit_range_set(
             &self.sizes.entry(size_index).or_default().blocks,
@@ -486,18 +504,23 @@ fn max_blocks_per_size() -> u32 {
 
 fn check_bit_range_set(bitset: &hibitset::BitSet, range: Range<u32>) -> bool {
     debug_assert!(range.start < range.end);
-    let layer_size = std::mem::size_of::<usize>() as u32 * 8;
 
     assert_eq!(
-        range.start % layer_size,
+        range.start % MAX_BLOCKS_PER_CHUNK,
         0,
         "Hack. Can be removed after this function works without this assert"
     );
-    assert_eq!(
-        range.end,
-        range.start + layer_size,
+    assert!(
+        range.end <= range.start + MAX_BLOCKS_PER_CHUNK,
         "Hack. Can be removed after this function works without this assert"
     );
 
-    hibitset::BitSetLike::layer0(&bitset, (range.start / layer_size) as usize) == !0
+    let count = range.end - range.start;
+    let clean = if count == MAX_BLOCKS_PER_CHUNK {
+        !0usize
+    } else {
+        (1usize << count) - 1
+    };
+    let bits = hibitset::BitSetLike::layer0(&bitset, (range.start / MAX_BLOCKS_PER_CHUNK) as usize);
+    bits == clean
 }
