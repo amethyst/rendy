@@ -140,7 +140,7 @@ pub struct DynamicAllocator<B: gfx_hal::Backend> {
 
     /// List of chunk lists.
     /// Each index corresponds to `block_size_granularity * index` size.
-    sizes: HashMap<usize, Size<B>>,
+    sizes: HashMap<u64, Size<B>>,
 }
 
 /// List of chunks
@@ -231,25 +231,13 @@ where
         }
     }
 
-    fn blocks_per_chunk(&self, size_index: usize) -> u32 {
-        ((self._blocks_per_chunk as u64 * self.block_size(size_index)).min(self.max_chunk_size)
-            / self.block_size(size_index)) as u32
+    fn blocks_per_chunk(&self, size: u64) -> u32 {
+        debug_assert_eq!(size % self.block_size_granularity, 0);
+        ((self._blocks_per_chunk as u64 * size).min(self.max_chunk_size) / size) as u32
     }
 
-    fn max_chunks_per_size(&self, size_index: usize) -> u32 {
-        max_blocks_per_size() / self.blocks_per_chunk(size_index)
-    }
-
-    /// Returns size index.
-    fn size_index(&self, size: u64) -> usize {
-        debug_assert!(size <= self.max_block_size);
-        ((size - 1) / self.block_size_granularity) as usize
-    }
-
-    /// Get block size for the size index.
-    fn block_size(&self, index: usize) -> u64 {
-        // Index must be acquired from `size_index` methods. Hence result is less than `max_block_size` and fits u64
-        (self.block_size_granularity * (index as u64 + 1))
+    fn max_chunks_per_size(&self, size: u64) -> u32 {
+        max_blocks_per_size() / self.blocks_per_chunk(size)
     }
 
     /// Allocate super-block to use as chunk memory.
@@ -326,46 +314,43 @@ where
             self.memory_type.0,
             size
         );
-        let size_index = self.size_index(size);
-        let block_size = self.block_size(size_index);
-        let max_chunks = self.max_chunks_per_size(size_index);
-        let blocks_per_chunk = self.blocks_per_chunk(size_index);
-        let (block_index, allocated) =
-            match hibitset::BitSetLike::iter(&self.sizes.entry(size_index).or_default().blocks)
-                .next()
-            {
-                Some(block_index) => {
-                    let size_entry = self.sizes.entry(size_index).or_default();
-                    let old = size_entry.blocks.remove(block_index);
-                    debug_assert!(old);
-                    (block_index, 0)
+        let max_chunks = self.max_chunks_per_size(size);
+        let blocks_per_chunk = self.blocks_per_chunk(size);
+        let mut size_entry = self.sizes.entry(size).or_default();
+        let (block_index, allocated) = match hibitset::BitSetLike::iter(&size_entry.blocks).next() {
+            Some(block_index) => {
+                let old = size_entry.blocks.remove(block_index);
+                debug_assert!(old);
+                (block_index, 0)
+            }
+            None => {
+                if size_entry.total_chunks == max_chunks {
+                    return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
                 }
-                None => {
-                    if self.sizes.entry(size_index).or_default().total_chunks == max_chunks {
-                        return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
-                    }
-                    let chunk_size = block_size * blocks_per_chunk as u64;
-                    let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
-                    let size_entry = self.sizes.entry(size_index).or_default();
-                    let chunk_index = size_entry.chunks.push(chunk) as u32;
-                    size_entry.total_chunks += 1;
-                    let block_index_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
-                    let block_index_end = block_index_start + blocks_per_chunk;
-                    for block_index in block_index_start + 1..block_index_end {
-                        let old = size_entry.blocks.add(block_index);
-                        debug_assert!(!old);
-                    }
-                    (block_index_start, allocated)
+                let chunk_size = size * blocks_per_chunk as u64;
+                let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
+                size_entry = self
+                    .sizes
+                    .get_mut(&size)
+                    .expect("Was initialized at the function beginning");
+                let chunk_index = size_entry.chunks.push(chunk) as u32;
+                size_entry.total_chunks += 1;
+                let block_index_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
+                let block_index_end = block_index_start + blocks_per_chunk;
+                for block_index in block_index_start + 1..block_index_end {
+                    let old = size_entry.blocks.add(block_index);
+                    debug_assert!(!old);
                 }
-            };
+                (block_index_start, allocated)
+            }
+        };
 
         let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
 
-        let ref chunk = self.sizes.entry(size_index).or_default().chunks[chunk_index as usize];
+        let ref chunk = size_entry.chunks[chunk_index as usize];
         let chunk_range = chunk.range();
-        let block_offset =
-            chunk_range.start + (block_index % MAX_BLOCKS_PER_CHUNK) as u64 * block_size;
-        let block_range = block_offset..block_offset + block_size;
+        let block_offset = chunk_range.start + (block_index % MAX_BLOCKS_PER_CHUNK) as u64 * size;
+        let block_range = block_offset..block_offset + size;
 
         debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < blocks_per_chunk);
 
@@ -410,6 +395,7 @@ where
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         use std::cmp::max;
         let size = max(size, align);
+        let size = ((size - 1) | (self.block_size_granularity - 1)) + 1;
 
         debug_assert!(size <= self.max_block_size);
         self.alloc_from_chunk(device, size)
@@ -417,45 +403,35 @@ where
 
     fn free(&mut self, device: &impl gfx_hal::Device<B>, block: DynamicBlock<B>) -> u64 {
         log::trace!("Free block: {:#?}", block);
-        let size_index = self.size_index(block.size());
+        let size = block.size();
         let block_index = block.index;
         block.dispose();
 
-        debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < self.blocks_per_chunk(size_index));
+        let blocks_per_chunk = self.blocks_per_chunk(size);
 
-        let old = self
+        debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < blocks_per_chunk);
+
+        let size_entry = self
             .sizes
-            .entry(size_index)
-            .or_default()
-            .blocks
-            .add(block_index);
+            .get_mut(&size)
+            .expect("Block was allocated so size entry must be initialized");
+        let old = size_entry.blocks.add(block_index);
         debug_assert!(!old);
 
         let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
         let chunk_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
-        let chunk_end = chunk_start + self.blocks_per_chunk(size_index);
+        let chunk_end = chunk_start + blocks_per_chunk;
 
-        if check_bit_range_set(
-            &self.sizes.entry(size_index).or_default().blocks,
-            chunk_start..chunk_end,
-        ) {
+        if check_bit_range_set(&size_entry.blocks, chunk_start..chunk_end) {
             for index in chunk_start..chunk_end {
-                let old = self
-                    .sizes
-                    .entry(size_index)
-                    .or_default()
-                    .blocks
-                    .remove(index);
+                let old = size_entry.blocks.remove(index);
                 debug_assert!(old);
             }
-            let chunk = self
-                .sizes
-                .entry(size_index)
-                .or_default()
+            let chunk = size_entry
                 .chunks
                 .pop(chunk_index as usize)
                 .expect("Chunk must exist");
-            self.sizes.entry(size_index).or_default().total_chunks -= 1;
+            size_entry.total_chunks -= 1;
             self.free_chunk(device, chunk)
         } else {
             0
