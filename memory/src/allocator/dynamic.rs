@@ -67,7 +67,7 @@ where
         _device: &impl gfx_hal::Device<B>,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
-        assert!(
+        debug_assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
@@ -209,7 +209,7 @@ where
             .expect("Max chunk size must fit u64 to allocate it from Vulkan")
             .min(config.max_chunk_size);
         if memory_properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
-            assert!(
+            debug_assert!(
                 fits_usize(max_chunk_size),
                 "Max chunk size must fit usize for mapping"
             );
@@ -242,7 +242,7 @@ where
 
     /// Returns size index.
     fn size_index(&self, size: u64) -> usize {
-        assert!(size <= self.max_block_size);
+        debug_assert!(size <= self.max_block_size);
         ((size - 1) / self.block_size_granularity) as usize
     }
 
@@ -335,7 +335,8 @@ where
             {
                 Some(block_index) => {
                     let size_entry = self.sizes.entry(size_index).or_default();
-                    assert!(size_entry.blocks.remove(block_index));
+                    let old = size_entry.blocks.remove(block_index);
+                    debug_assert!(old);
                     (block_index, 0)
                 }
                 None => {
@@ -350,7 +351,8 @@ where
                     let block_index_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
                     let block_index_end = block_index_start + blocks_per_chunk;
                     for block_index in block_index_start + 1..block_index_end {
-                        assert!(!size_entry.blocks.add(block_index));
+                        let old = size_entry.blocks.add(block_index);
+                        debug_assert!(!old);
                     }
                     (block_index_start, allocated)
                 }
@@ -364,6 +366,8 @@ where
         let block_offset =
             chunk_range.start + (block_index % MAX_BLOCKS_PER_CHUNK) as u64 * block_size;
         let block_range = block_offset..block_offset + block_size;
+
+        debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < blocks_per_chunk);
 
         Ok((
             DynamicBlock {
@@ -407,7 +411,7 @@ where
         use std::cmp::max;
         let size = max(size, align);
 
-        assert!(size <= self.max_block_size);
+        debug_assert!(size <= self.max_block_size);
         self.alloc_from_chunk(device, size)
     }
 
@@ -416,6 +420,8 @@ where
         let size_index = self.size_index(block.size());
         let block_index = block.index;
         block.dispose();
+
+        debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < self.blocks_per_chunk(size_index));
 
         let old = self
             .sizes
@@ -498,7 +504,7 @@ where
 
 fn max_blocks_per_size() -> u32 {
     let value = (std::mem::size_of::<usize>() * 8).pow(4);
-    assert!(fits_u32(value));
+    debug_assert!(fits_u32(value));
     value as u32
 }
 
@@ -510,7 +516,7 @@ fn check_bit_range_set(bitset: &hibitset::BitSet, range: Range<u32>) -> bool {
         0,
         "Hack. Can be removed after this function works without this assert"
     );
-    assert!(
+    debug_assert!(
         range.end <= range.start + MAX_BLOCKS_PER_CHUNK,
         "Hack. Can be removed after this function works without this assert"
     );
