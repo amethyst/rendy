@@ -291,7 +291,12 @@ impl MemoryHeap {
     }
 
     fn available(&self) -> u64 {
-        self.size - self.used
+        if self.used > self.size {
+            log::warn!("Heap size exceeded");
+            0
+        } else {
+            self.size - self.used
+        }
     }
 }
 
