@@ -327,6 +327,7 @@ where
             size
         );
         let size_index = self.size_index(size);
+        let block_size = self.block_size(size_index);
         let max_chunks = self.max_chunks_per_size(size_index);
         let blocks_per_chunk = self.blocks_per_chunk(size_index);
         let (block_index, allocated) =
@@ -343,7 +344,7 @@ where
                     if self.sizes.entry(size_index).or_default().total_chunks == max_chunks {
                         return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
                     }
-                    let chunk_size = size * blocks_per_chunk as u64;
+                    let chunk_size = block_size * blocks_per_chunk as u64;
                     let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
                     let size_entry = self.sizes.entry(size_index).or_default();
                     let chunk_index = size_entry.chunks.push(chunk) as u32;
@@ -360,7 +361,6 @@ where
 
         let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
 
-        let block_size = self.block_size(size_index);
         let ref chunk = self.sizes.entry(size_index).or_default().chunks[chunk_index as usize];
         let chunk_range = chunk.range();
         let block_offset =
