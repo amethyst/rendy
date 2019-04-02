@@ -82,6 +82,9 @@ where
 
         let mut buf = unsafe { device.create_buffer(size, usage.flags()) }?;
         let reqs = unsafe { device.get_buffer_requirements(&buf) };
+    
+        log::trace!("{:#?}", reqs);
+
         let block = heaps.allocate(
             device,
             reqs.type_mask as u32,
@@ -160,6 +163,9 @@ where
         let mut img =
             unsafe { device.create_image(kind, levels, format, tiling, usage.flags(), view_caps) }?;
         let reqs = unsafe { device.get_image_requirements(&img) };
+
+        log::trace!("{:#?}", reqs);
+
         let block = heaps.allocate(
             device,
             reqs.type_mask as u32,

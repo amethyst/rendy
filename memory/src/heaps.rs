@@ -149,7 +149,7 @@ where
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock<B>, HeapsError> {
-        // trace!("Alloc block: type '{}', usage '{:#?}', size: '{}', align: '{}'", memory_index, usage.value(), size, align);
+        log::trace!("Allocate memory block: type '{}', usage '{:#?}', size: '{}', align: '{}'", memory_index, usage, size, align);
         assert!(fits_usize(memory_index));
 
         let ref mut memory_type = self.types[memory_index as usize];

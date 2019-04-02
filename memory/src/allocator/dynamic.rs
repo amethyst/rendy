@@ -198,9 +198,9 @@ where
         // This is hack to simplify implementation of chunk cleaning.
         config.blocks_per_chunk = config.blocks_per_chunk.min(MAX_BLOCKS_PER_CHUNK);
 
-        assert_ne!(
-            config.block_size_granularity, 0,
-            "Allocation granularity can't be 0"
+        assert!(
+            config.block_size_granularity.is_power_of_two(),
+            "Allocation granularity must be power of two"
         );
 
         let max_chunk_size = config
@@ -309,11 +309,7 @@ where
         device: &impl gfx_hal::Device<B>,
         size: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!(
-            "Allocate block. type: {}, size: {}",
-            self.memory_type.0,
-            size
-        );
+        log::trace!("Allocate from chunk. size: {}", size);
         let max_chunks = self.max_chunks_per_size(size);
         let blocks_per_chunk = self.blocks_per_chunk(size);
         let mut size_entry = self.sizes.entry(size).or_default();
@@ -394,11 +390,19 @@ where
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         use std::cmp::max;
-        let size = max(size, align);
-        let size = ((size - 1) | (self.block_size_granularity - 1)) + 1;
+        let aligned_size = max(size, align);
+        let aligned_size = ((aligned_size - 1) | (self.block_size_granularity - 1)) + 1;
+
+        log::trace!(
+            "Allocate dynamic block: size: {}, align: {}, aligned size: {}, type: {}",
+            size,
+            align,
+            aligned_size,
+            self.memory_type.0
+        );
 
         debug_assert!(size <= self.max_block_size);
-        self.alloc_from_chunk(device, size)
+        self.alloc_from_chunk(device, aligned_size)
     }
 
     fn free(&mut self, device: &impl gfx_hal::Device<B>, block: DynamicBlock<B>) -> u64 {
