@@ -389,9 +389,8 @@ where
         size: u64,
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        use std::cmp::max;
-        let aligned_size = max(size, align);
-        let aligned_size = ((aligned_size - 1) | (self.block_size_granularity - 1)) + 1;
+        assert!(align.is_power_of_two());
+        let aligned_size = ((size - 1) | (align - 1) | (self.block_size_granularity - 1)) + 1;
 
         log::trace!(
             "Allocate dynamic block: size: {}, align: {}, aligned size: {}, type: {}",
