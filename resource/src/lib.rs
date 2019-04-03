@@ -25,7 +25,7 @@ pub use crate::{
     buffer::Buffer,
     escape::{Escape, Handle},
     image::{Image, ImageView},
-    resources::Resources,
+    resources::ResourceTracker,
     sampler::Sampler,
     set::{DescriptorSet, DescriptorSetLayout},
 };

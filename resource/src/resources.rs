@@ -23,18 +23,18 @@ impl Epochs {
 /// Resource handler.
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Default(bound = ""))]
-pub struct Resources<T> {
+pub struct ResourceTracker<T> {
     terminal: Terminal<T>,
     dropped: VecDeque<(Epochs, T)>,
 }
 
-impl<T> Resources<T> {
+impl<T> ResourceTracker<T> {
     /// Create new resource manager.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Wrap resource instance into handle.
+    /// Wrap resource instance into `Escape`.
     pub fn escape(&self, resource: T) -> Escape<T>
     where
         T: Sized,
@@ -42,7 +42,7 @@ impl<T> Resources<T> {
         Escape::escape(resource, &self.terminal)
     }
 
-    /// Wrap resource instance into handle.
+    /// Wrap resource instance into `Handle`.
     pub fn handle(&self, resource: T) -> Handle<T>
     where
         T: Sized,
