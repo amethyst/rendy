@@ -11,7 +11,7 @@ use {
             image::{self, Image, ImageView},
             sampler::{Sampler, SamplerCache},
             set::{self, DescriptorSet, DescriptorSetLayout},
-            Epochs, Escape, Handle, Resources,
+            Epochs, Escape, Handle, ResourceTracker,
         },
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         util::rendy_slow_assert,
@@ -30,12 +30,12 @@ static FACTORY_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsi
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Default(bound = ""))]
 struct ResourceHub<B: Backend> {
-    buffers: Resources<Buffer<B>>,
-    images: Resources<Image<B>>,
-    views: Resources<ImageView<B>>,
-    layouts: Resources<DescriptorSetLayout<B>>,
-    sets: Resources<DescriptorSet<B>>,
-    samplers: Resources<Sampler<B>>,
+    buffers: ResourceTracker<Buffer<B>>,
+    images: ResourceTracker<Image<B>>,
+    views: ResourceTracker<ImageView<B>>,
+    layouts: ResourceTracker<DescriptorSetLayout<B>>,
+    sets: ResourceTracker<DescriptorSet<B>>,
+    samplers: ResourceTracker<Sampler<B>>,
     samplers_cache: parking_lot::RwLock<SamplerCache<B>>,
 }
 
@@ -158,7 +158,12 @@ where
         Ok(())
     }
 
-    /// Creates a buffer that is managed with the specified properties.
+    /// Creates a buffer with the specified properties.
+    ///
+    /// This function returns relevant value, that it, the value cannot be dropped.
+    /// However buffer can be destroyed using [`destroy_relevant_buffer`] function.
+    ///
+    /// [`destroy_relevant_buffer`]: #method.destroy_relevant_buffer
     pub fn create_relevant_buffer(
         &self,
         info: buffer::Info,
@@ -167,7 +172,16 @@ where
         unsafe { Buffer::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
     }
 
-    /// Creates a buffer that is managed with the specified properties.
+    /// Destroy buffer.
+    pub unsafe fn destroy_relevant_buffer(&self, buffer: Buffer<B>) {
+        buffer.dispose(&self.device, &mut self.heaps.lock());
+    }
+
+    /// Creates a buffer with the specified properties.
+    ///
+    /// This function (unlike [`create_relevant_buffer`]) returns value that can be dropped.
+    ///
+    /// [`create_relevant_buffer`]: #method.create_relevant_buffer
     pub fn create_buffer(
         &self,
         info: buffer::Info,
@@ -177,7 +191,12 @@ where
         Ok(self.resources.buffers.escape(buffer))
     }
 
-    /// Creates an image that is managed with the specified properties.
+    /// Creates an image with the specified properties.
+    ///
+    /// This function returns relevant value, that it, the value cannot be dropped.
+    /// However image can be destroyed using [`destroy_relevant_image`] function.
+    ///
+    /// [`destroy_relevant_image`]: #method.destroy_relevant_image
     pub fn create_relevant_image(
         &self,
         info: image::Info,
@@ -186,7 +205,16 @@ where
         unsafe { Image::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
     }
 
-    /// Creates an image that is managed with the specified properties.
+    /// Destroy image.
+    pub unsafe fn destroy_relevant_image(&self, image: Image<B>) {
+        image.dispose(&self.device, &mut self.heaps.lock());
+    }
+
+    /// Creates an image with the specified properties.
+    ///
+    /// This function (unlike [`create_relevant_image`]) returns value that can be dropped.
+    ///
+    /// [`create_relevant_image`]: #method.create_relevant_image
     pub fn create_image(
         &self,
         info: image::Info,
@@ -196,7 +224,12 @@ where
         Ok(self.resources.images.escape(image))
     }
 
-    /// Create an image view that is managed with the specified properties
+    /// Create an image view with the specified properties
+    ///
+    /// This function returns relevant value, that it, the value cannot be dropped.
+    /// However image can be destroyed using [`destroy_relevant_image_view`] function.
+    ///
+    /// [`destroy_relevant_image_view`]: #method.destroy_relevant_image_view
     pub fn create_relevant_image_view(
         &self,
         image: Handle<Image<B>>,
@@ -206,7 +239,11 @@ where
         unsafe { ImageView::create(&self.device, info, image) }
     }
 
-    /// Create an image view that is managed with the specified properties
+    /// Create an image view with the specified properties
+    ///
+    /// This function (unlike [`create_relevant_image_view`]) returns value that can be dropped.
+    ///
+    /// [`create_relevant_image_view`]: #method.create_relevant_image_view
     pub fn create_image_view(
         &self,
         image: Handle<Image<B>>,
@@ -214,6 +251,11 @@ where
     ) -> Result<Escape<ImageView<B>>, failure::Error> {
         let view = self.create_relevant_image_view(image, info)?;
         Ok(self.resources.views.escape(view))
+    }
+
+    /// Destroy image view.
+    pub unsafe fn destroy_relevant_image_view(&self, view: ImageView<B>) {
+        view.dispose(&self.device);
     }
 
     /// Create a sampler
