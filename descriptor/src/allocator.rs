@@ -1,5 +1,5 @@
 use {
-    crate::{layout::*, ranges::*},
+    crate::ranges::*,
     gfx_hal::{
         device::OutOfMemory,
         pso::{AllocationError, DescriptorPool as _},
@@ -27,6 +27,12 @@ where
     /// Get raw set
     pub fn raw(&self) -> &B::DescriptorSet {
         &self.raw
+    }
+
+    /// Get raw set
+    /// It must not be replaced.
+    pub unsafe fn raw_mut(&mut self) -> &mut B::DescriptorSet {
+        &mut self.raw
     }
 }
 
@@ -138,7 +144,8 @@ where
     unsafe fn allocate(
         &mut self,
         device: &impl Device<B>,
-        layout: &DescriptorSetLayout<B>,
+        layout: &B::DescriptorSetLayout,
+        layout_ranges: DescriptorRanges,
         mut count: u32,
         allocation: &mut Allocation<B>,
     ) -> Result<(), OutOfMemory> {
@@ -153,7 +160,7 @@ where
 
             let allocate = pool.free.min(count);
             log::trace!("Allocate {} from exising pool", allocate);
-            allocate_from_pool::<B>(&mut pool.raw, layout.raw(), allocate, &mut allocation.sets)?;
+            allocate_from_pool::<B>(&mut pool.raw, layout, allocate, &mut allocation.sets)?;
             allocation.pools.extend(
                 std::iter::repeat(index as u64 + self.pools_offset).take(allocate as usize),
             );
@@ -168,7 +175,7 @@ where
 
         while count > 0 {
             let size = self.new_pool_size(count);
-            let pool_ranges = layout.ranges() * size;
+            let pool_ranges = layout_ranges * size;
             log::trace!(
                 "Create new pool with {} sets and {:?} descriptors",
                 size,
@@ -186,7 +193,7 @@ where
             let index = self.pools.len() - 1;
             let pool = self.pools.back_mut().unwrap();
 
-            allocate_from_pool::<B>(&mut pool.raw, layout.raw(), allocate, &mut allocation.sets)?;
+            allocate_from_pool::<B>(&mut pool.raw, layout, allocate, &mut allocation.sets)?;
             allocation.pools.extend(
                 std::iter::repeat(index as u64 + self.pools_offset).take(allocate as usize),
             );
@@ -254,7 +261,8 @@ where
     pub unsafe fn allocate(
         &mut self,
         device: &impl Device<B>,
-        layout: &DescriptorSetLayout<B>,
+        layout: &B::DescriptorSetLayout,
+        layout_ranges: DescriptorRanges,
         count: u32,
         extend: &mut impl Extend<DescriptorSet<B>>,
     ) -> Result<(), OutOfMemory> {
@@ -262,7 +270,6 @@ where
             return Ok(());
         }
 
-        let layout_ranges = layout.ranges();
         log::trace!(
             "Allocating {} sets with layout {:?} @ {:?}",
             count,
@@ -274,7 +281,7 @@ where
             .buckets
             .entry(layout_ranges)
             .or_insert_with(|| DescriptorBucket::new());
-        match bucket.allocate(device, layout, count, &mut self.allocation) {
+        match bucket.allocate(device, layout, layout_ranges, count, &mut self.allocation) {
             Ok(()) => {
                 extend.extend(
                     Iterator::zip(

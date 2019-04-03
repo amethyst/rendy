@@ -14,11 +14,11 @@ use rendy::{
     factory::{Config, Factory},
     graph::{present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::Device,
-    memory::MemoryUsageValue,
+    memory::{Data, Dynamic},
     mesh::{AsVertex, Mesh, PosColorNorm, Transform},
     resource::{
-        buffer::Buffer,
-        set::{DescriptorSet, DescriptorSetLayout},
+        buffer::{self, Buffer},
+        DescriptorSet, DescriptorSetLayout, Escape, Handle,
     },
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
@@ -122,8 +122,8 @@ struct MeshRenderPipelineDesc;
 
 #[derive(Debug)]
 struct MeshRenderPipeline<B: gfx_hal::Backend> {
-    buffer: Buffer<B>,
-    sets: Vec<DescriptorSet<B>>,
+    buffer: Escape<Buffer<B>>,
+    sets: Vec<Escape<DescriptorSet<B>>>,
 }
 
 impl<B> SimpleGraphicsPipelineDesc<B, Aux<B>> for MeshRenderPipelineDesc
@@ -199,7 +199,7 @@ where
         aux: &Aux<B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<MeshRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -209,21 +209,22 @@ where
 
         let buffer = factory
             .create_buffer(
-                align,
-                buffer_frame_size(align) * frames as u64,
-                (
-                    gfx_hal::buffer::Usage::UNIFORM
+                buffer::Info {
+                    size: buffer_frame_size(align) * frames as u64,
+                    usage: gfx_hal::buffer::Usage::UNIFORM
                         | gfx_hal::buffer::Usage::INDIRECT
                         | gfx_hal::buffer::Usage::VERTEX,
-                    MemoryUsageValue::Dynamic,
-                ),
+                },
+                Dynamic,
             )
             .unwrap();
 
         let mut sets = Vec::new();
         for index in 0..frames {
             unsafe {
-                let set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
+                let set = factory
+                    .create_descriptor_set(set_layouts[0].clone())
+                    .unwrap();
                 factory.write_descriptor_sets(Some(gfx_hal::pso::DescriptorSetWrite {
                     set: set.raw(),
                     binding: 0,
@@ -252,7 +253,7 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[DescriptorSetLayout<B>],
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         index: usize,
         aux: &Aux<B>,
     ) -> PrepareResult {
@@ -352,7 +353,6 @@ where
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
         .filter_module("meshes", log::LevelFilter::Trace)
         .init();
 
@@ -378,7 +378,7 @@ fn main() {
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        MemoryUsageValue::Data,
+        Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
@@ -388,7 +388,7 @@ fn main() {
         surface.kind(),
         1,
         gfx_hal::format::Format::D16Unorm,
-        MemoryUsageValue::Data,
+        Data,
         Some(gfx_hal::command::ClearValue::DepthStencil(
             gfx_hal::command::ClearDepthStencil(1.0, 0),
         )),

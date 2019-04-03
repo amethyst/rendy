@@ -79,7 +79,9 @@ where
                 Ok(MappedRange::from_raw(&self.memory, ptr, range))
             } else {
                 self.unmap(device);
-                let mapping = MappedRange::new(&self.memory, device, range.clone())?;
+                let ptr = device.map_memory(self.memory.raw(), range.clone())?;
+                let ptr = NonNull::new(ptr).expect("Memory mapping shouldn't return nullptr");
+                let mapping = MappedRange::from_raw(&self.memory, ptr, range);
                 self.mapping = Some((mapping.ptr(), mapping.range()));
                 Ok(mapping)
             }

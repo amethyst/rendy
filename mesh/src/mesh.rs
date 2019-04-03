@@ -7,8 +7,10 @@ use std::{borrow::Cow, cmp::min, mem::size_of};
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, Supports},
     factory::{BufferState, Factory},
-    resource::buffer::{
-        Buffer, IndexBuffer as UsageIndexBuffer, VertexBuffer as UsageVertexBuffer,
+    memory::Data,
+    resource::{
+        buffer::{Buffer, Info},
+        Escape,
     },
     util::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
     vertex::{AsVertex, VertexFormat},
@@ -17,14 +19,14 @@ use crate::{
 /// Vertex buffer with it's format
 #[derive(Debug)]
 pub struct VertexBuffer<B: gfx_hal::Backend> {
-    buffer: Buffer<B>,
+    buffer: Escape<Buffer<B>>,
     format: VertexFormat<'static>,
 }
 
 /// Index buffer with it's type
 #[derive(Debug)]
 pub struct IndexBuffer<B: gfx_hal::Backend> {
-    buffer: Buffer<B>,
+    buffer: Escape<Buffer<B>>,
     index_type: gfx_hal::IndexType,
 }
 
@@ -219,8 +221,14 @@ impl<'a> MeshBuilder<'a> {
                     len = min(len, vertices.len() as u32 / format.stride);
                     Ok(VertexBuffer {
                         buffer: {
-                            let mut buffer =
-                                factory.create_buffer(1, vertices.len() as _, UsageVertexBuffer)?;
+                            let mut buffer = factory.create_buffer(
+                                Info {
+                                    size: vertices.len() as _,
+                                    usage: gfx_hal::buffer::Usage::VERTEX
+                                        | gfx_hal::buffer::Usage::TRANSFER_DST,
+                                },
+                                Data,
+                            )?;
                             unsafe {
                                 // New buffer can't be touched by device yet.
                                 factory.upload_buffer(
@@ -252,8 +260,14 @@ impl<'a> MeshBuilder<'a> {
                     len = indices.len() as u32 / stride as u32;
                     Some(IndexBuffer {
                         buffer: {
-                            let mut buffer =
-                                factory.create_buffer(1, indices.len() as _, UsageIndexBuffer)?;
+                            let mut buffer = factory.create_buffer(
+                                Info {
+                                    size: indices.len() as _,
+                                    usage: gfx_hal::buffer::Usage::INDEX
+                                        | gfx_hal::buffer::Usage::TRANSFER_DST,
+                                },
+                                Data,
+                            )?;
                             unsafe {
                                 // New buffer can't be touched by device yet.
                                 factory.upload_buffer(

@@ -7,7 +7,7 @@ use {
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
         },
-        resource::set::DescriptorSetLayout,
+        resource::{DescriptorSetLayout, Handle},
     },
     gfx_hal::{Backend, Device},
 };
@@ -109,7 +109,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn input_assembler(&self) -> gfx_hal::pso::InputAssemblerDesc {
         gfx_hal::pso::InputAssemblerDesc {
             primitive: gfx_hal::Primitive::TriangleList,
-            primitive_restart: gfx_hal::pso::PrimitiveRestart::Disabled
+            primitive_restart: gfx_hal::pso::PrimitiveRestart::Disabled,
         }
     }
 
@@ -122,7 +122,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
             depth_stencil: self
                 .depth_stencil()
                 .unwrap_or(gfx_hal::pso::DepthStencilDesc::default()),
-            input_assembler_desc: self.input_assembler()
+            input_assembler_desc: self.input_assembler(),
         }
     }
 
@@ -153,7 +153,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<Self::Pipeline, failure::Error>;
 }
 
@@ -181,7 +181,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[DescriptorSetLayout<B>],
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -202,7 +202,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
 
 #[derive(Debug)]
 pub struct SimpleRenderGroup<B: Backend, P> {
-    set_layouts: Vec<DescriptorSetLayout<B>>,
+    set_layouts: Vec<Handle<DescriptorSetLayout<B>>>,
     pipeline_layout: B::PipelineLayout,
     graphics_pipeline: B::GraphicsPipeline,
     pipeline: P,
@@ -258,7 +258,11 @@ where
             .layout
             .sets
             .into_iter()
-            .map(|set| factory.create_descriptor_set_layout(set.bindings))
+            .map(|set| {
+                factory
+                    .create_descriptor_set_layout(set.bindings)
+                    .map(Handle::from)
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         let pipeline_layout = unsafe {

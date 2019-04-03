@@ -26,11 +26,11 @@ use rendy::{
         NodeSubmittable,
     },
     hal::Device,
-    memory::MemoryUsageValue,
+    memory::{Data, Dynamic},
     mesh::{AsVertex, Color},
     resource::{
-        buffer::Buffer,
-        set::{DescriptorSet, DescriptorSetLayout},
+        buffer::{self, Buffer},
+        DescriptorSet, DescriptorSetLayout, Escape, Handle,
     },
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
@@ -102,10 +102,9 @@ struct QuadsRenderPipelineDesc;
 
 #[derive(Debug)]
 struct QuadsRenderPipeline<B: gfx_hal::Backend> {
-    indirect: Buffer<B>,
-    vertices: Buffer<B>,
-
-    descriptor_set: DescriptorSet<B>,
+    indirect: Escape<Buffer<B>>,
+    vertices: Escape<Buffer<B>>,
+    descriptor_set: Escape<DescriptorSet<B>>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for QuadsRenderPipelineDesc
@@ -187,7 +186,7 @@ where
         _aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
@@ -196,9 +195,11 @@ where
 
         let mut indirect = factory
             .create_buffer(
-                512,
-                std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
-                (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic),
+                buffer::Info {
+                    size: std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
+                    usage: gfx_hal::buffer::Usage::INDIRECT,
+                },
+                Dynamic,
             )
             .unwrap();
 
@@ -221,9 +222,11 @@ where
 
         let mut vertices = factory
             .create_buffer(
-                512,
-                std::mem::size_of::<Color>() as u64 * 6,
-                (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
+                buffer::Info {
+                    size: std::mem::size_of::<Color>() as u64 * 6,
+                    usage: gfx_hal::buffer::Usage::VERTEX,
+                },
+                Dynamic,
             )
             .unwrap();
 
@@ -274,7 +277,9 @@ where
 
         assert_eq!(set_layouts.len(), 1);
 
-        let descriptor_set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
+        let descriptor_set = factory
+            .create_descriptor_set(set_layouts[0].clone())
+            .unwrap();
 
         unsafe {
             gfx_hal::Device::write_descriptor_sets(
@@ -310,7 +315,7 @@ where
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _sets: &[DescriptorSetLayout<B>],
+        _sets: &[Handle<DescriptorSetLayout<B>>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -344,11 +349,11 @@ where
 
 #[derive(Debug)]
 struct GravBounce<B: gfx_hal::Backend> {
-    set_layout: DescriptorSetLayout<B>,
+    set_layout: Handle<DescriptorSetLayout<B>>,
     pipeline_layout: B::PipelineLayout,
     pipeline: B::ComputePipeline,
 
-    descriptor_set: DescriptorSet<B>,
+    descriptor_set: Escape<DescriptorSet<B>>,
 
     command_pool: CommandPool<B, Compute>,
     command_buffer:
@@ -429,7 +434,7 @@ where
         log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = BOUNCE_COMPUTE.module(factory)?;
 
-        let set_layout = factory.create_descriptor_set_layout(vec![
+        let set_layout = Handle::from(factory.create_descriptor_set_layout(vec![
             gfx_hal::pso::DescriptorSetLayoutBinding {
                 binding: 0,
                 ty: gfx_hal::pso::DescriptorType::StorageBuffer,
@@ -437,7 +442,7 @@ where
                 stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
                 immutable_samplers: false,
             },
-        ])?;
+        ])?);
 
         let pipeline_layout = unsafe {
             gfx_hal::Device::create_pipeline_layout(
@@ -466,7 +471,7 @@ where
 
         unsafe { factory.destroy_shader_module(module) };
 
-        let descriptor_set = factory.create_descriptor_set(&set_layout)?;
+        let descriptor_set = factory.create_descriptor_set(set_layout.clone())?;
 
         unsafe {
             gfx_hal::Device::write_descriptor_sets(
@@ -586,7 +591,6 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
         .filter_module("quads", log::LevelFilter::Trace)
         .init();
 
@@ -625,14 +629,14 @@ fn build_graph(
 
     let posvel = graph_builder.create_buffer(
         QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64,
-        MemoryUsageValue::Dynamic,
+        Dynamic,
     );
 
     let color = graph_builder.create_image(
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        MemoryUsageValue::Data,
+        Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
@@ -642,7 +646,7 @@ fn build_graph(
         surface.kind(),
         1,
         gfx_hal::format::Format::D16Unorm,
-        MemoryUsageValue::Data,
+        Data,
         Some(gfx_hal::command::ClearValue::DepthStencil(
             gfx_hal::command::ClearDepthStencil(1.0, 0),
         )),

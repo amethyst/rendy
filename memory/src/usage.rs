@@ -4,7 +4,7 @@
 use crate::allocator::Kind;
 
 /// Memory usage trait.
-pub trait MemoryUsage: Copy + std::fmt::Debug {
+pub trait MemoryUsage: std::fmt::Debug {
     /// Get set of properties required for the usage.
     fn properties_required(&self) -> gfx_hal::memory::Properties;
 
@@ -17,6 +17,22 @@ pub trait MemoryUsage: Copy + std::fmt::Debug {
 
     /// Get comparable fitness value for memory allocator.
     fn allocator_fitness(&self, kind: Kind) -> u32;
+}
+
+impl<T> MemoryUsage for T
+where
+    T: std::ops::Deref + std::fmt::Debug,
+    T::Target: MemoryUsage,
+{
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        (&**self).properties_required()
+    }
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        (&**self).memory_fitness(properties)
+    }
+    fn allocator_fitness(&self, kind: Kind) -> u32 {
+        (&**self).allocator_fitness(kind)
+    }
 }
 
 /// Full speed GPU access.
