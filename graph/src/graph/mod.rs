@@ -4,16 +4,17 @@ use {
         command::{Families, QueueId},
         factory::Factory,
         frame::{Fences, Frame, Frames},
-        memory::MemoryUsageValue,
+        memory::MemoryUsage,
         node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
-        resource::{buffer, image},
+        resource::{
+            buffer::{self, Buffer},
+            image::{self, Image},
+            Escape,
+        },
         BufferId, ImageId, NodeId,
     },
     gfx_hal::Backend,
 };
-
-// TODO: Use actual limits.
-const UNIVERSAL_ALIGNMENT: u64 = 512;
 
 #[derive(Debug)]
 struct GraphNode<B: Backend, T: ?Sized> {
@@ -35,34 +36,40 @@ pub struct Graph<B: Backend, T: ?Sized> {
 
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
-    buffers: Vec<Option<buffer::Buffer<B>>>,
-    images: Vec<Option<(image::Image<B>, Option<gfx_hal::command::ClearValue>)>>,
+    buffers: Vec<Option<Escape<Buffer<B>>>>,
+    images: Vec<Option<(Escape<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
 }
 
 impl<B: Backend> GraphContext<B> {
     fn alloc<'a>(
         factory: &Factory<B>,
         chains: &chain::Chains,
-        buffers: impl IntoIterator<Item = &'a (buffer::Info, MemoryUsageValue)>,
+        buffers: impl IntoIterator<Item = &'a (buffer::Info, Box<dyn MemoryUsage>)>,
         images: impl IntoIterator<
             Item = &'a (
                 image::Info,
-                MemoryUsageValue,
+                Box<dyn MemoryUsage>,
                 Option<gfx_hal::command::ClearValue>,
             ),
         >,
     ) -> Result<Self, failure::Error> {
         log::trace!("Allocate buffers");
-        let buffers: Vec<Option<buffer::Buffer<B>>> = buffers
+        let buffers: Vec<Option<Escape<Buffer<B>>>> = buffers
             .into_iter()
             .enumerate()
-            .map(|(index, &(ref info, memory))| {
+            .map(|(index, (info, memory))| {
                 chains
                     .buffers
                     .get(&chain::Id(index))
                     .map(|buffer| {
                         factory
-                            .create_buffer(UNIVERSAL_ALIGNMENT, info.size, (buffer.usage(), memory))
+                            .create_buffer(
+                                buffer::Info {
+                                    usage: buffer.usage(),
+                                    ..info.clone()
+                                },
+                                memory,
+                            )
                             .map(|buffer| Some(buffer))
                     })
                     .unwrap_or(Ok(None))
@@ -70,7 +77,7 @@ impl<B: Backend> GraphContext<B> {
             .collect::<Result<_, _>>()?;
 
         log::trace!("Allocate images");
-        let images: Vec<Option<(image::Image<B>, _)>> = images
+        let images: Vec<Option<(Escape<Image<B>>, _)>> = images
             .into_iter()
             .enumerate()
             .map(|(index, (info, memory, clear))| {
@@ -80,13 +87,11 @@ impl<B: Backend> GraphContext<B> {
                     .map(|image| {
                         factory
                             .create_image(
-                                UNIVERSAL_ALIGNMENT,
-                                info.kind,
-                                info.levels,
-                                info.format,
-                                info.tiling,
-                                info.view_caps,
-                                (image.usage(), *memory),
+                                image::Info {
+                                    usage: image.usage(),
+                                    ..info.clone()
+                                },
+                                memory,
                             )
                             .map(|image| Some((image, *clear)))
                     })
@@ -104,23 +109,32 @@ impl<B: Backend> GraphContext<B> {
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
-    ) -> Option<&(image::Image<B>, Option<gfx_hal::command::ClearValue>)> {
-        self.images.get(id.0).and_then(|x| x.as_ref())
+    ) -> Option<(&Image<B>, Option<gfx_hal::command::ClearValue>)> {
+        self.images
+            .get(id.0)
+            .and_then(|x| x.as_ref())
+            .map(|&(ref x, ref y)| (&**x, *y))
     }
 
-    pub fn get_buffer(&self, id: BufferId) -> Option<&buffer::Buffer<B>> {
-        self.buffers.get(id.0).and_then(|x| x.as_ref())
+    pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer<B>> {
+        self.buffers
+            .get(id.0)
+            .and_then(|x| x.as_ref())
+            .map(|x| &**x)
     }
 
     pub fn get_image_mut(&mut self, id: ImageId) -> Option<&mut image::Image<B>> {
         self.images
             .get_mut(id.0)
             .and_then(|x| x.as_mut())
-            .map(|(i, _)| i)
+            .map(|(i, _)| &mut **i)
     }
 
     pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut buffer::Buffer<B>> {
-        self.buffers.get_mut(id.0).and_then(|x| x.as_mut())
+        self.buffers
+            .get_mut(id.0)
+            .and_then(|x| x.as_mut())
+            .map(|x| &mut **x)
     }
 }
 
@@ -258,10 +272,10 @@ where
 #[derive(Debug)]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
-    buffers: Vec<(buffer::Info, MemoryUsageValue)>,
+    buffers: Vec<(buffer::Info, Box<dyn MemoryUsage>)>,
     images: Vec<(
         image::Info,
-        MemoryUsageValue,
+        Box<dyn MemoryUsage>,
         Option<gfx_hal::command::ClearValue>,
     )>,
     frames_in_flight: u32,
@@ -283,13 +297,13 @@ where
     }
 
     /// Create new buffer owned by graph.
-    pub fn create_buffer(&mut self, size: u64, memory: MemoryUsageValue) -> BufferId {
+    pub fn create_buffer(&mut self, size: u64, memory: impl MemoryUsage + 'static) -> BufferId {
         self.buffers.push((
             buffer::Info {
                 size,
                 usage: gfx_hal::buffer::Usage::empty(),
             },
-            memory,
+            Box::new(memory),
         ));
         BufferId(self.buffers.len() - 1)
     }
@@ -300,7 +314,7 @@ where
         kind: gfx_hal::image::Kind,
         levels: gfx_hal::image::Level,
         format: gfx_hal::format::Format,
-        memory: MemoryUsageValue,
+        memory: impl MemoryUsage + 'static,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
         self.images.push((
@@ -312,7 +326,7 @@ where
                 view_caps: gfx_hal::image::ViewCapabilities::empty(),
                 usage: gfx_hal::image::Usage::empty(),
             },
-            memory,
+            Box::new(memory),
             clear,
         ));
         ImageId(self.images.len() - 1)
@@ -486,7 +500,7 @@ fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
                 layout: chains.images[&chain_id].links()[link]
                     .submission_state(submission.id())
                     .layout,
-                clear: if link == 0 { *clear } else { None },
+                clear: if link == 0 { clear } else { None },
                 acquire: sync.acquire.images.get(&chain_id).map(
                     |chain::Barrier { states, families }| ImageBarrier {
                         states: (states.start.0, states.start.1)..(states.end.0, states.end.1),

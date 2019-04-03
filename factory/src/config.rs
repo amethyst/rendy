@@ -162,16 +162,19 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                     dynamic: Some(DynamicConfig {
                         max_block_size: min(
                             _16mb,
-                            (properties.memory_heaps[mt.heap_index as usize] / 32 - 1).next_power_of_two(),
+                            (properties.memory_heaps[mt.heap_index as usize] / 32 - 1)
+                                .next_power_of_two(),
                         ),
                         block_size_granularity: min(
                             256,
-                            (properties.memory_heaps[mt.heap_index as usize] / 1024 - 1).next_power_of_two(),
+                            (properties.memory_heaps[mt.heap_index as usize] / 1024 - 1)
+                                .next_power_of_two(),
                         ),
                         blocks_per_chunk: 64,
                         max_chunk_size: min(
                             _256mb,
-                            (properties.memory_heaps[mt.heap_index as usize] / 8 - 1).next_power_of_two(),
+                            (properties.memory_heaps[mt.heap_index as usize] / 8 - 1)
+                                .next_power_of_two(),
                         ),
                     }),
                 };

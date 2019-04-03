@@ -1,6 +1,6 @@
 //! Window system integration.
 
-#[warn(
+#![warn(
     missing_debug_implementations,
     missing_copy_implementations,
     missing_docs,
@@ -10,12 +10,8 @@
     unused_import_braces,
     unused_qualifications
 )]
-use rendy_resource::{
-    escape::Terminal,
-    image::{Image, Info},
-};
 
-use rendy_memory::MemoryBlock;
+use rendy_resource::image::{self, Image};
 
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
@@ -210,7 +206,7 @@ where
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        let (swapchain, backbuffer, terminal) = create_swapchain(
+        let (swapchain, backbuffer) = create_swapchain(
             &mut self,
             physical_device,
             device,
@@ -224,8 +220,6 @@ where
             surface: self,
             swapchain: Some(swapchain),
             backbuffer: Some(backbuffer),
-            terminal,
-            image_count,
             present_mode,
             usage,
         })
@@ -244,14 +238,7 @@ unsafe fn create_swapchain<B: gfx_hal::Backend>(
     image_count: u32,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
-) -> Result<
-    (
-        B::Swapchain,
-        Backbuffer<B>,
-        Option<Terminal<(B::Image, Option<MemoryBlock<B>>)>>,
-    ),
-    failure::Error,
-> {
+) -> Result<(B::Swapchain, Backbuffer<B>), failure::Error> {
     let (capabilities, formats, present_modes, alpha) = surface.compatibility(physical_device);
 
     if !present_modes.contains(&present_mode) {
@@ -344,15 +331,14 @@ unsafe fn create_swapchain<B: gfx_hal::Backend>(
         None,
     )?;
 
-    let (backbuffer, terminal) = match backbuffer {
+    let backbuffer = match backbuffer {
         gfx_hal::Backbuffer::Images(images) => {
-            let terminal = Terminal::new();
             let backbuffer = Backbuffer::Images(
                 images
                     .into_iter()
                     .map(|image| {
-                        Image::new(
-                            Info {
+                        Image::create_from_swapchain(
+                            image::Info {
                                 kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
                                 levels: 1,
                                 format,
@@ -361,13 +347,11 @@ unsafe fn create_swapchain<B: gfx_hal::Backend>(
                                 usage,
                             },
                             image,
-                            None,
-                            &terminal,
                         )
                     })
                     .collect(),
             );
-            (backbuffer, Some(terminal))
+            backbuffer
         }
         gfx_hal::Backbuffer::Framebuffer(raw) => {
             let backbuffer = Backbuffer::Framebuffer {
@@ -375,11 +359,11 @@ unsafe fn create_swapchain<B: gfx_hal::Backend>(
                 format,
                 extent,
             };
-            (backbuffer, None)
+            backbuffer
         }
     };
 
-    Ok((swapchain, backbuffer, terminal))
+    Ok((swapchain, backbuffer))
 }
 
 /// Backbuffer of the `Target`.
@@ -410,8 +394,6 @@ pub struct Target<B: gfx_hal::Backend> {
     surface: Surface<B>,
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Backbuffer<B>>,
-    terminal: Option<Terminal<(B::Image, Option<MemoryBlock<B>>)>>,
-    image_count: u32,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
     relevant: relevant::Relevant,
@@ -438,13 +420,19 @@ where
     /// # Safety
     ///
     /// Swapchain must be not in use.
-    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>) {
-        self.backbuffer.take().map(drop);
-        self.terminal
-            .map(|mut terminal| terminal.drain().for_each(drop));
+    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>) -> Surface<B> {
+        match self.backbuffer {
+            Some(Backbuffer::Images(images)) => {
+                images
+                    .into_iter()
+                    .for_each(|image| image.dispose_swapchain_image());
+            }
+            _ => {}
+        };
+
         self.relevant.dispose();
         self.swapchain.take().map(|s| device.destroy_swapchain(s));
-        drop(self.surface);
+        self.surface
     }
 
     /// Get raw surface handle.
@@ -466,24 +454,31 @@ where
         physical_device: &B::PhysicalDevice,
         device: &impl gfx_hal::Device<B>,
     ) -> Result<(), failure::Error> {
-        self.backbuffer.take().map(drop);
-        self.terminal
-            .take()
-            .map(|mut terminal| terminal.drain().for_each(drop));
+        let image_count = match self.backbuffer.take() {
+            Some(Backbuffer::Images(images)) => {
+                let count = images.len();
+                images
+                    .into_iter()
+                    .for_each(|image| image.dispose_swapchain_image());
+                count
+            }
+            Some(Backbuffer::Framebuffer { .. }) => 0,
+            None => 0,
+        };
+
         self.swapchain.take().map(|s| device.destroy_swapchain(s));
 
-        let (swapchain, backbuffer, terminal) = create_swapchain(
+        let (swapchain, backbuffer) = create_swapchain(
             &mut self.surface,
             physical_device,
             device,
-            self.image_count,
+            image_count as u32,
             self.present_mode,
             self.usage,
         )?;
 
         self.swapchain.replace(swapchain);
         self.backbuffer.replace(backbuffer);
-        self.terminal = terminal;
 
         Ok(())
     }
@@ -497,7 +492,7 @@ where
         self.swapchain.as_mut().expect("Swapchain already disposed")
     }
 
-    /// Get raw handlers for the swapchain images.
+    /// Get raw handlers for the swapchain images or framebuffer.
     pub fn backbuffer(&self) -> &Backbuffer<B> {
         self.backbuffer
             .as_ref()

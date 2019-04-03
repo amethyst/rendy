@@ -5,7 +5,7 @@ use crate::{
         CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
         PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
     },
-    resource::{Buffer, Image},
+    resource::{Buffer, Escape, Image},
 };
 
 /// State of the buffer on device.
@@ -160,9 +160,9 @@ where
     pub(crate) unsafe fn upload_buffer(
         &self,
         device: &B::Device,
-        buffer: &mut Buffer<B>,
+        buffer: &Buffer<B>,
         offset: u64,
-        staging: Buffer<B>,
+        staging: Escape<Buffer<B>>,
         last: Option<BufferState>,
         next: BufferState,
     ) -> Result<(), failure::Error> {
@@ -225,13 +225,13 @@ where
     pub(crate) unsafe fn upload_image(
         &self,
         device: &B::Device,
-        image: &mut Image<B>,
+        image: &Image<B>,
         data_width: u32,
         data_height: u32,
         image_layers: gfx_hal::image::SubresourceLayers,
         image_offset: gfx_hal::image::Offset,
         image_extent: gfx_hal::image::Extent,
-        staging: Buffer<B>,
+        staging: Escape<Buffer<B>>,
         last: ImageStateOrLayout,
         next: ImageState,
     ) -> Result<(), failure::Error> {
@@ -390,7 +390,7 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
 #[derive(Debug)]
 pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
     command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
+    staging_buffers: Vec<Escape<Buffer<B>>>,
     fence: B::Fence,
 }
 
@@ -398,7 +398,7 @@ pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
 struct NextUploads<B: gfx_hal::Backend> {
     command_buffer:
         CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
+    staging_buffers: Vec<Escape<Buffer<B>>>,
     fence: B::Fence,
 }
 
@@ -476,7 +476,6 @@ where
                     return;
                 }
                 Err(gfx_hal::device::DeviceLost) => {
-                    self.pending.push_front(pending);
                     panic!("Device lost error is not handled yet");
                 }
                 Ok(true) => {

@@ -5,13 +5,13 @@ use {
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
         descriptor::DescriptorAllocator,
-        memory::{Heaps, Write},
+        memory::{self, Heaps, MemoryUsage, Write},
         resource::{
             buffer::{self, Buffer},
             image::{self, Image, ImageView},
-            sampler::Sampler,
-            set::{DescriptorSet, DescriptorSetLayout},
-            Epochs, Resources,
+            sampler::{Sampler, SamplerCache},
+            set::{self, DescriptorSet, DescriptorSetLayout},
+            Epochs, Escape, Handle, Resources,
         },
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         util::rendy_slow_assert,
@@ -27,6 +27,59 @@ use {
 
 static FACTORY_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
+#[derive(Debug, derivative::Derivative)]
+#[derivative(Default(bound = ""))]
+struct ResourceHub<B: Backend> {
+    buffers: Resources<Buffer<B>>,
+    images: Resources<Image<B>>,
+    views: Resources<ImageView<B>>,
+    layouts: Resources<DescriptorSetLayout<B>>,
+    sets: Resources<DescriptorSet<B>>,
+    samplers: Resources<Sampler<B>>,
+    samplers_cache: parking_lot::RwLock<SamplerCache<B>>,
+}
+
+impl<B> ResourceHub<B>
+where
+    B: Backend,
+{
+    unsafe fn cleanup(
+        &mut self,
+        device: &B::Device,
+        heaps: &mut Heaps<B>,
+        allocator: &mut DescriptorAllocator<B>,
+        next: Epochs,
+        complete: Epochs,
+    ) {
+        self.sets
+            .cleanup(|s| s.dispose(allocator), &next, &complete);
+        self.views.cleanup(|v| v.dispose(device), &next, &complete);
+        self.layouts
+            .cleanup(|l| l.dispose(device), &next, &complete);
+        self.buffers
+            .cleanup(|b| b.dispose(device, heaps), &next, &complete);
+        self.images
+            .cleanup(|i| i.dispose(device, heaps), &next, &complete);
+        self.samplers
+            .cleanup(|i| i.dispose(device), &next, &complete);
+    }
+
+    unsafe fn dispose(
+        mut self,
+        device: &B::Device,
+        heaps: &mut Heaps<B>,
+        allocator: &mut DescriptorAllocator<B>,
+    ) {
+        drop(self.samplers_cache);
+        self.sets.dispose(|s| s.dispose(allocator));
+        self.views.dispose(|v| v.dispose(device));
+        self.layouts.dispose(|l| l.dispose(device));
+        self.buffers.dispose(|b| b.dispose(device, heaps));
+        self.images.dispose(|i| i.dispose(device, heaps));
+        self.samplers.dispose(|i| i.dispose(device));
+    }
+}
+
 /// Higher level device interface.
 /// Manges memory, resources and queue families.
 #[derive(derivative::Derivative)]
@@ -34,7 +87,7 @@ static FACTORY_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsi
 pub struct Factory<B: Backend> {
     descriptor_allocator: ManuallyDrop<parking_lot::Mutex<DescriptorAllocator<B>>>,
     heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
-    resources: ManuallyDrop<parking_lot::RwLock<Resources<B>>>,
+    resources: ManuallyDrop<ResourceHub<B>>,
     epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
     uploader: Uploader<B>,
     families_indices: Vec<usize>,
@@ -59,7 +112,7 @@ where
             // Device is idle.
             self.uploader.dispose(&self.device);
             log::trace!("Uploader disposed");
-            std::ptr::read(&mut *self.resources).into_inner().dispose(
+            std::ptr::read(&mut *self.resources).dispose(
                 &self.device,
                 self.heaps.get_mut(),
                 self.descriptor_allocator.get_mut(),
@@ -106,71 +159,94 @@ where
     }
 
     /// Creates a buffer that is managed with the specified properties.
+    pub fn create_relevant_buffer(
+        &self,
+        info: buffer::Info,
+        memory_usage: impl MemoryUsage,
+    ) -> Result<Buffer<B>, failure::Error> {
+        unsafe { Buffer::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
+    }
+
+    /// Creates a buffer that is managed with the specified properties.
     pub fn create_buffer(
         &self,
-        align: u64,
-        size: u64,
-        usage: impl buffer::Usage,
-    ) -> Result<Buffer<B>, failure::Error> {
-        let mut heaps = self.heaps.lock();
-        self.resources
-            .read()
-            .create_buffer(&self.device, &mut heaps, align, size, usage)
+        info: buffer::Info,
+        memory_usage: impl MemoryUsage,
+    ) -> Result<Escape<Buffer<B>>, failure::Error> {
+        let buffer = self.create_relevant_buffer(info, memory_usage)?;
+        Ok(self.resources.buffers.escape(buffer))
+    }
+
+    /// Creates an image that is managed with the specified properties.
+    pub fn create_relevant_image(
+        &self,
+        info: image::Info,
+        memory_usage: impl MemoryUsage,
+    ) -> Result<Image<B>, failure::Error> {
+        unsafe { Image::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
     }
 
     /// Creates an image that is managed with the specified properties.
     pub fn create_image(
         &self,
-        align: u64,
-        kind: image::Kind,
-        levels: image::Level,
-        format: format::Format,
-        tiling: image::Tiling,
-        view_caps: image::ViewCapabilities,
-        usage: impl image::Usage,
-    ) -> Result<Image<B>, failure::Error> {
-        let mut heaps = self.heaps.lock();
-        self.resources.read().create_image(
-            &self.device,
-            &mut heaps,
-            align,
-            kind,
-            levels,
-            format,
-            tiling,
-            view_caps,
-            usage,
-        )
+        info: image::Info,
+        memory_usage: impl MemoryUsage,
+    ) -> Result<Escape<Image<B>>, failure::Error> {
+        let image = self.create_relevant_image(info, memory_usage)?;
+        Ok(self.resources.images.escape(image))
+    }
+
+    /// Create an image view that is managed with the specified properties
+    pub fn create_relevant_image_view(
+        &self,
+        image: Handle<Image<B>>,
+        info: image::ViewInfo,
+    ) -> Result<ImageView<B>, failure::Error> {
+        // TODO: Check image belongs to this factory.
+        unsafe { ImageView::create(&self.device, info, image) }
     }
 
     /// Create an image view that is managed with the specified properties
     pub fn create_image_view(
         &self,
-        image: &Image<B>,
-        view_kind: image::ViewKind,
-        format: format::Format,
-        swizzle: format::Swizzle,
-        range: image::SubresourceRange,
-    ) -> Result<ImageView<B>, failure::Error> {
-        self.resources.read().create_image_view(
-            &self.device,
-            image,
-            view_kind,
-            format,
-            swizzle,
-            range,
-        )
+        image: Handle<Image<B>>,
+        info: image::ViewInfo,
+    ) -> Result<Escape<ImageView<B>>, failure::Error> {
+        let view = self.create_relevant_image_view(image, info)?;
+        Ok(self.resources.views.escape(view))
+    }
+
+    /// Create a sampler
+    pub fn create_relevant_sampler(
+        &self,
+        info: gfx_hal::image::SamplerInfo,
+    ) -> Result<Sampler<B>, gfx_hal::device::AllocationError> {
+        unsafe { Sampler::create(&self.device, info) }
     }
 
     /// Create a sampler
     pub fn create_sampler(
         &self,
-        filter: image::Filter,
-        wrap_mode: image::WrapMode,
-    ) -> Result<Sampler<B>, failure::Error> {
-        self.resources
-            .write()
-            .create_sampler(&self.device, filter, wrap_mode)
+        info: gfx_hal::image::SamplerInfo,
+    ) -> Result<Escape<Sampler<B>>, gfx_hal::device::AllocationError> {
+        let sampler = self.create_relevant_sampler(info)?;
+        Ok(self.resources.samplers.escape(sampler))
+    }
+
+    /// Create a sampler
+    pub fn get_sampler(
+        &self,
+        info: gfx_hal::image::SamplerInfo,
+    ) -> Result<Handle<Sampler<B>>, gfx_hal::device::AllocationError> {
+        let samplers = &self.resources.samplers;
+        let device = &self.device;
+
+        SamplerCache::get_with_upgradable_lock(
+            self.resources.samplers_cache.upgradable_read(),
+            parking_lot::RwLockUpgradableReadGuard::upgrade,
+            info.clone(),
+            || Ok(samplers.handle(unsafe { Sampler::create(device, info) }?)),
+        )
     }
 
     /// Update buffer bound to host visible memory.vk::AccessFlags.
@@ -206,14 +282,20 @@ where
     /// * `state` must match first buffer usage by device after content uploaded.
     pub unsafe fn upload_buffer<T>(
         &self,
-        buffer: &mut Buffer<B>,
+        buffer: &Buffer<B>,
         offset: u64,
         content: &[T],
         last: Option<BufferState>,
         next: BufferState,
     ) -> Result<(), failure::Error> {
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
-        let mut staging = self.create_buffer(256, content_size, buffer::UploadBuffer)?;
+        let mut staging = self.create_buffer(
+            buffer::Info {
+                size: content_size,
+                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
+            },
+            memory::Upload,
+        )?;
 
         self.upload_visible_buffer(&mut staging, 0, content)?;
 
@@ -230,7 +312,7 @@ where
     /// * `state` must match first image usage by device after content uploaded.
     pub unsafe fn upload_image<T>(
         &self,
-        image: &mut Image<B>,
+        image: &Image<B>,
         data_width: u32,
         data_height: u32,
         image_layers: image::SubresourceLayers,
@@ -256,7 +338,13 @@ where
             "Size of must match size of the image region"
         );
 
-        let mut staging = self.create_buffer(256, content_size, buffer::UploadBuffer)?;
+        let mut staging = self.create_buffer(
+            buffer::Info {
+                size: content_size,
+                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
+            },
+            memory::Upload,
+        )?;
 
         self.upload_visible_buffer(&mut staging, 0, content)?;
 
@@ -344,9 +432,9 @@ where
         }
     }
 
-    /// Destroy target returning underlying window back to the caller.
-    pub unsafe fn destroy_target(&self, target: Target<B>) {
-        target.dispose(&self.device);
+    /// Destroy target returning underlying surface back to the caller.
+    pub unsafe fn destroy_target(&self, target: Target<B>) -> Surface<B> {
+        target.dispose(&self.device)
     }
 
     /// Get surface support for family.
@@ -544,7 +632,7 @@ where
         let complete = self.complete_epochs();
         unsafe {
             self.uploader.cleanup(&self.device);
-            self.resources.get_mut().cleanup(
+            self.resources.cleanup(
                 &self.device,
                 self.heaps.get_mut(),
                 self.descriptor_allocator.get_mut(),
@@ -568,35 +656,40 @@ where
     }
 
     /// Create descriptor set layout with specified bindings.
-    pub fn create_descriptor_set_layout(
+    pub fn create_relevant_descriptor_set_layout(
         &self,
         bindings: Vec<DescriptorSetLayoutBinding>,
     ) -> Result<DescriptorSetLayout<B>, OutOfMemory> {
-        self.resources
-            .read()
-            .create_descriptor_set_layout(&self.device, bindings)
+        unsafe { DescriptorSetLayout::create(&self.device, set::Info { bindings }) }
     }
 
-    // /// Destroy descriptor set layout with specified bindings.
-    // pub fn destroy_descriptor_set_layout(&self, layout: DescriptorSetLayout<B>) {
-    //     unsafe {
-    //         layout.dispose(&self.device);
-    //     }
-    // }
+    /// Create descriptor set layout with specified bindings.
+    pub fn create_descriptor_set_layout(
+        &self,
+        bindings: Vec<DescriptorSetLayoutBinding>,
+    ) -> Result<Escape<DescriptorSetLayout<B>>, OutOfMemory> {
+        let layout = self.create_relevant_descriptor_set_layout(bindings)?;
+        Ok(self.resources.layouts.escape(layout))
+    }
 
     /// Create descriptor sets with specified layout.
-    ///
-    /// # Safety
-    ///
-    /// `layout` must be created by this `Factory`.
-    ///
+    pub fn create_relevant_descriptor_set(
+        &self,
+        layout: Handle<DescriptorSetLayout<B>>,
+    ) -> Result<DescriptorSet<B>, OutOfMemory> {
+        // TODO: Check `layout` belongs to this factory.
+        unsafe {
+            DescriptorSet::create(&self.device, &mut self.descriptor_allocator.lock(), layout)
+        }
+    }
+
+    /// Create descriptor sets with specified layout.
     pub fn create_descriptor_set(
         &self,
-        layout: &DescriptorSetLayout<B>,
-    ) -> Result<DescriptorSet<B>, OutOfMemory> {
-        Ok(self
-            .create_descriptor_sets::<SmallVec<[_; 1]>>(layout, 1)?
-            .swap_remove(0))
+        layout: Handle<DescriptorSetLayout<B>>,
+    ) -> Result<Escape<DescriptorSet<B>>, OutOfMemory> {
+        let set = self.create_relevant_descriptor_set(layout)?;
+        Ok(self.resources.sets.escape(set))
     }
 
     /// Create descriptor sets with specified layout.
@@ -605,20 +698,29 @@ where
     ///
     /// `layout` must be created by this `Factory`.
     ///
-    pub fn create_descriptor_sets<E>(
+    pub fn create_descriptor_sets<T>(
         &self,
-        layout: &DescriptorSetLayout<B>,
+        layout: Handle<DescriptorSetLayout<B>>,
         count: u32,
-    ) -> Result<E, OutOfMemory>
+    ) -> Result<T, OutOfMemory>
     where
-        E: Default + Extend<DescriptorSet<B>>,
+        T: std::iter::FromIterator<Escape<DescriptorSet<B>>>,
     {
-        self.resources.read().create_descriptor_sets(
-            &self.device,
-            &mut self.descriptor_allocator.lock(),
-            layout,
-            count,
-        )
+        let mut result = SmallVec::<[_; 32]>::new();
+        unsafe {
+            DescriptorSet::create_many(
+                &self.device,
+                &mut self.descriptor_allocator.lock(),
+                layout,
+                count,
+                &mut result,
+            )
+        }?;
+
+        Ok(result
+            .into_iter()
+            .map(|set| self.resources.sets.escape(set))
+            .collect())
     }
 }
 
@@ -785,7 +887,7 @@ where
             parking_lot::Mutex::new(DescriptorAllocator::new()),
         ),
         heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
-        resources: ManuallyDrop::new(parking_lot::RwLock::new(Resources::new())),
+        resources: ManuallyDrop::new(ResourceHub::default()),
         uploader: unsafe { Uploader::new(&device, &families) }?,
         families_indices: families.indices().into(),
         epochs,

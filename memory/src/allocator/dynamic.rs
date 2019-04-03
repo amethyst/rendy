@@ -357,7 +357,7 @@ where
                 index: block_index,
                 ptr: chunk.ptr().map(|ptr| {
                     mapped_fitting_range(ptr, chunk.range(), block_range)
-                        .expect("Block must be in sub-range of chunk")
+                        .expect("Block must be sub-range of chunk")
                 }),
                 relevant: relevant::Relevant,
             },

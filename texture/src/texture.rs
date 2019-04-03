@@ -1,8 +1,12 @@
 use crate::{
     factory::{Factory, ImageState},
+    memory::Data,
     pixel::AsPixel,
-    resource::image::{Image, ImageView, Texture as TextureUsage},
-    resource::sampler::Sampler,
+    resource::{
+        image::{Image, ImageView, Info, ViewInfo},
+        sampler::Sampler,
+        Escape, Handle,
+    },
     util::cast_cow,
 };
 
@@ -10,9 +14,9 @@ use crate::{
 /// Can be loaded from various of formats.
 #[derive(Debug)]
 pub struct Texture<B: gfx_hal::Backend> {
-    pub image: Image<B>,
-    pub image_view: ImageView<B>,
-    pub sampler: Sampler<B>,
+    pub image: Handle<Image<B>>,
+    pub image_view: Escape<ImageView<B>>,
+    pub sampler: Handle<Sampler<B>>,
 }
 
 #[derive(Clone, Debug)]
@@ -166,19 +170,23 @@ impl<'a> TextureBuilder<'a> {
     where
         B: gfx_hal::Backend,
     {
-        let mut image = factory.create_image(
-            256,
-            self.kind,
-            1,
-            self.format,
-            gfx_hal::image::Tiling::Optimal,
-            gfx_hal::image::ViewCapabilities::empty(),
-            TextureUsage,
-        )?;
+        let image: Handle<Image<B>> = factory
+            .create_image(
+                Info {
+                    kind: self.kind,
+                    levels: 1,
+                    format: self.format,
+                    tiling: gfx_hal::image::Tiling::Optimal,
+                    view_caps: gfx_hal::image::ViewCapabilities::empty(),
+                    usage: gfx_hal::image::Usage::SAMPLED,
+                },
+                Data,
+            )?
+            .into();
 
         unsafe {
             factory.upload_image(
-                &mut image,
+                &image,
                 self.data_width,
                 self.data_height,
                 gfx_hal::image::SubresourceLayers {
@@ -195,18 +203,23 @@ impl<'a> TextureBuilder<'a> {
         }
 
         let image_view = factory.create_image_view(
-            &image,
-            self.view_kind,
-            self.format,
-            self.swizzle,
-            gfx_hal::image::SubresourceRange {
-                aspects: self.format.surface_desc().aspects,
-                levels: 0..1,
-                layers: 0..self.kind.num_layers(),
+            image.clone(),
+            ViewInfo {
+                view_kind: self.view_kind,
+                format: self.format,
+                swizzle: self.swizzle,
+                range: gfx_hal::image::SubresourceRange {
+                    aspects: self.format.surface_desc().aspects,
+                    levels: 0..1,
+                    layers: 0..self.kind.num_layers(),
+                },
             },
         )?;
 
-        let sampler = factory.create_sampler(self.filter, gfx_hal::image::WrapMode::Clamp)?;
+        let sampler = factory.get_sampler(gfx_hal::image::SamplerInfo::new(
+            self.filter,
+            gfx_hal::image::WrapMode::Clamp,
+        ))?;
 
         Ok(Texture {
             image,
