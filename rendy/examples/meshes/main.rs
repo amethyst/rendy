@@ -9,18 +9,20 @@
     allow(unused)
 )]
 
-use rendy::{
-    command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
-    factory::{Config, Factory},
-    graph::{present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-    hal::Device,
-    memory::{Data, Dynamic},
-    mesh::{AsVertex, Mesh, PosColorNorm, Transform},
-    resource::{
-        buffer::{self, Buffer},
-        DescriptorSet, DescriptorSetLayout, Escape, Handle,
+use {
+    gfx_hal::PhysicalDevice as _,
+    rendy::{
+        command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
+        factory::{Config, Factory},
+        graph::{
+            present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+        },
+        hal::Device as _,
+        memory::{Data, Dynamic},
+        mesh::{AsVertex, Mesh, PosColorNorm, Transform},
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
     },
-    shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
 use std::{cmp::min, mem::size_of, time};
@@ -209,7 +211,7 @@ where
 
         let buffer = factory
             .create_buffer(
-                buffer::Info {
+                BufferInfo {
                     size: buffer_frame_size(align) * frames as u64,
                     usage: gfx_hal::buffer::Usage::UNIFORM
                         | gfx_hal::buffer::Usage::INDIRECT
@@ -441,7 +443,9 @@ fn main() {
 
     let mut aux = Aux {
         frames: frames as _,
-        align: gfx_hal::adapter::PhysicalDevice::limits(factory.physical())
+        align: factory
+            .physical()
+            .limits()
             .min_uniform_buffer_offset_alignment,
         scene,
     };

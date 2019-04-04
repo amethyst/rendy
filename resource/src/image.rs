@@ -6,6 +6,7 @@ use {
     crate::{
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
+        util::{device_owned, Device, DeviceId},
     },
     gfx_hal::{format, Backend, Device as _},
     relevant::Relevant,
@@ -13,7 +14,7 @@ use {
 
 /// Image info.
 #[derive(Clone, Copy, Debug)]
-pub struct Info {
+pub struct ImageInfo {
     /// Kind of the image.
     pub kind: Kind,
 
@@ -40,11 +41,14 @@ pub struct Info {
 /// `B` - raw image type.
 #[derive(Debug)]
 pub struct Image<B: Backend> {
+    device: DeviceId,
     raw: B::Image,
     block: Option<MemoryBlock<B>>,
-    info: Info,
+    info: ImageInfo,
     relevant: Relevant,
 }
+
+device_owned!(Image<B>);
 
 impl<B> Image<B>
 where
@@ -59,9 +63,9 @@ where
     /// `terminal` will receive image and memory block upon drop, it must free image and memory properly.
     ///
     pub unsafe fn create(
-        device: &B::Device,
+        device: &Device<B>,
         heaps: &mut Heaps<B>,
-        info: Info,
+        info: ImageInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, failure::Error> {
         assert!(
@@ -94,6 +98,7 @@ where
         device.bind_image_memory(block.memory(), block.range().start, &mut img)?;
 
         Ok(Image {
+            device: device.id(),
             raw: img,
             block: Some(block),
             info,
@@ -102,8 +107,9 @@ where
     }
 
     /// Create image handler for swapchain image.
-    pub unsafe fn create_from_swapchain(info: Info, raw: B::Image) -> Self {
+    pub unsafe fn create_from_swapchain(device: DeviceId, info: ImageInfo, raw: B::Image) -> Self {
         Image {
+            device,
             raw,
             block: None,
             info,
@@ -111,34 +117,43 @@ where
         }
     }
 
-    pub unsafe fn dispose(self, device: &B::Device, heaps: &mut Heaps<B>) {
+    /// Destroy image resource.
+    pub unsafe fn dispose(self, device: &Device<B>, heaps: &mut Heaps<B>) {
+        self.assert_device_owner(device);
         device.destroy_image(self.raw);
         self.block.map(|block| heaps.free(device, block));
         self.relevant.dispose();
     }
 
-    pub unsafe fn dispose_swapchain_image(self) {
+    /// Drop image wrapper for swapchain image.
+    pub unsafe fn dispose_swapchain_image(self, device: DeviceId) {
+        assert_eq!(self.device_id(), device);
         assert!(self.block.is_none());
         self.relevant.dispose();
     }
 
+    /// Get reference for raw image resource.
     pub fn raw(&self) -> &B::Image {
         &self.raw
     }
 
+    /// Get mutable reference for raw image resource.
     pub unsafe fn raw_mut(&mut self) -> &mut B::Image {
         &mut self.raw
     }
 
+    /// Get reference to memory block occupied by image.
     pub fn block(&self) -> Option<&MemoryBlock<B>> {
         self.block.as_ref()
     }
 
+    /// Get mutable reference to memory block occupied by image.
     pub unsafe fn block_mut(&mut self) -> Option<&mut MemoryBlock<B>> {
         self.block.as_mut()
     }
 
-    pub fn info(&self) -> &Info {
+    /// Get image info.
+    pub fn info(&self) -> &ImageInfo {
         &self.info
     }
 
@@ -170,33 +185,38 @@ where
 // Image view info
 #[derive(Clone, Debug)]
 #[doc(hidden)]
-pub struct ViewInfo {
+pub struct ImageViewInfo {
     pub view_kind: ViewKind,
     pub format: format::Format,
     pub swizzle: format::Swizzle,
     pub range: SubresourceRange,
 }
 
+/// Generic image view resource wrapper.
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct ImageView<B: Backend> {
     raw: B::ImageView,
     image: Handle<Image<B>>,
-    info: ViewInfo,
+    info: ImageViewInfo,
     relevant: Relevant,
 }
+
+device_owned!(ImageView<B> @ |view: &Self| view.image.device_id());
 
 impl<B> ImageView<B>
 where
     B: Backend,
 {
     /// Create an image view.
-    pub unsafe fn create(
-        device: &B::Device,
-        info: ViewInfo,
+    pub fn create(
+        device: &Device<B>,
+        info: ImageViewInfo,
         image: Handle<Image<B>>,
     ) -> Result<Self, failure::Error> {
         log::trace!("{:#?}@{:#?}", info, image);
+
+        image.assert_device_owner(device);
 
         assert!(match_kind(
             image.kind(),
@@ -204,17 +224,19 @@ where
             image.info().view_caps
         ));
 
-        let view = device.create_image_view(
-            image.raw(),
-            info.view_kind,
-            info.format,
-            info.swizzle,
-            gfx_hal::image::SubresourceRange {
-                aspects: info.range.aspects.clone(),
-                layers: info.range.layers.clone(),
-                levels: info.range.levels.clone(),
-            },
-        )?;
+        let view = unsafe {
+            device.create_image_view(
+                image.raw(),
+                info.view_kind,
+                info.format,
+                info.swizzle,
+                SubresourceRange {
+                    aspects: info.range.aspects.clone(),
+                    layers: info.range.layers.clone(),
+                    levels: info.range.levels.clone(),
+                },
+            )
+        }?;
 
         Ok(ImageView {
             raw: view,
@@ -224,49 +246,54 @@ where
         })
     }
 
-    pub unsafe fn dispose(self, device: &B::Device) {
+    /// Destroy image view resource.
+    pub unsafe fn dispose(self, device: &Device<B>) {
         device.destroy_image_view(self.raw);
         drop(self.image);
         self.relevant.dispose();
     }
 
+    /// Get reference to raw image view resoruce.
     pub fn raw(&self) -> &B::ImageView {
         &self.raw
     }
 
+    /// Get mutable reference to raw image view resoruce.
     pub unsafe fn raw_mut(&mut self) -> &mut B::ImageView {
         &mut self.raw
     }
 
-    pub fn info(&self) -> &ViewInfo {
+    /// Get image view info.
+    pub fn info(&self) -> &ImageViewInfo {
         &self.info
+    }
+
+    /// Get image of this view.
+    pub fn image(&self) -> &Handle<Image<B>> {
+        &self.image
     }
 }
 
-fn match_kind(
-    kind: gfx_hal::image::Kind,
-    view_kind: gfx_hal::image::ViewKind,
-    view_caps: gfx_hal::image::ViewCapabilities,
-) -> bool {
+fn match_kind(kind: Kind, view_kind: ViewKind, view_caps: ViewCapabilities) -> bool {
     match kind {
-        gfx_hal::image::Kind::D1(..) => match view_kind {
-            gfx_hal::image::ViewKind::D1 | gfx_hal::image::ViewKind::D1Array => true,
+        Kind::D1(..) => match view_kind {
+            ViewKind::D1 | ViewKind::D1Array => true,
             _ => false,
         },
-        gfx_hal::image::Kind::D2(..) => match view_kind {
-            gfx_hal::image::ViewKind::D2 | gfx_hal::image::ViewKind::D2Array => true,
+        Kind::D2(..) => match view_kind {
+            ViewKind::D2 | ViewKind::D2Array => true,
             _ => false,
         },
-        gfx_hal::image::Kind::D3(..) => {
-            if view_caps == gfx_hal::image::ViewCapabilities::KIND_2D_ARRAY {
-                if view_kind == gfx_hal::image::ViewKind::D2 {
+        Kind::D3(..) => {
+            if view_caps == ViewCapabilities::KIND_2D_ARRAY {
+                if view_kind == ViewKind::D2 {
                     true
-                } else if view_kind == gfx_hal::image::ViewKind::D2Array {
+                } else if view_kind == ViewKind::D2Array {
                     true
                 } else {
                     false
                 }
-            } else if view_kind == gfx_hal::image::ViewKind::D3 {
+            } else if view_kind == ViewKind::D3 {
                 true
             } else {
                 false

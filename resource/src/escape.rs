@@ -7,9 +7,9 @@ use {
     crossbeam_channel::{Receiver, Sender},
     std::{
         iter::repeat,
-        mem::{forget, ManuallyDrop},
+        mem::ManuallyDrop,
         ops::{Deref, DerefMut},
-        ptr::read,
+        ptr::{drop_in_place, read},
         sync::Arc,
     },
 };
@@ -32,11 +32,17 @@ impl<T> Escape<T> {
 
     /// Unwrap escaping value.
     /// This will effectivly prevent it from escaping.
-    pub fn unescape(mut escape: Self) -> T {
+    pub fn unescape(escape: Self) -> T {
         unsafe {
-            std::ptr::read(&mut escape.sender);
-            let value = std::ptr::read(&mut *escape.value);
-            forget(escape);
+            // Prevent `<Escape<T> as Drop>::drop` from being executed.
+            let mut escape = ManuallyDrop::new(escape);
+
+            // Release value from `ManuallyDrop`.
+            let value = read(&mut *escape.value);
+
+            // Drop sender. If it panics - value will be dropped.
+            // Relevant values are allowed to be dropped due to panic.
+            drop_in_place(&mut escape.sender);
             value
         }
     }
@@ -63,6 +69,7 @@ impl<T> DerefMut for Escape<T> {
 impl<T> Drop for Escape<T> {
     fn drop(&mut self) {
         unsafe {
+            // Read value from `ManuallyDrop` wrapper and send it over the channel.
             self.sender.send(read(&mut *self.value));
         }
     }
@@ -129,6 +136,10 @@ impl<T> Drop for Terminal<T> {
     }
 }
 
+/// Allows values to "escape" dropping by sending them to the `Terminal`.
+/// Permit sharing unlike [`Escape`]
+///
+/// [`Escape`]: ./struct.Escape.html
 #[derive(derivative::Derivative, Debug)]
 #[derivative(Clone(bound = ""))]
 pub struct Handle<T> {

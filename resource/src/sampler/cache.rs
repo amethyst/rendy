@@ -10,6 +10,7 @@ use {
     },
 };
 
+/// Sampler cache holds handlers to created samplers.
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Default(bound = ""))]
 pub struct SamplerCache<B: Backend> {
@@ -20,6 +21,8 @@ impl<B> SamplerCache<B>
 where
     B: Backend,
 {
+    /// Get sampler with specified paramters.
+    /// Create new one using closure provided.
     pub fn get(
         &mut self,
         info: SamplerInfo,
@@ -34,6 +37,9 @@ where
         })
     }
 
+    /// Get sampler with specified paramters.
+    /// Create new one using closure provided.
+    /// Does not lock for writing if sampler exists.
     pub fn get_with_upgradable_lock<R, W, U>(
         read: R,
         upgrade: U,
@@ -48,7 +54,10 @@ where
         if let Some(sampler) = read.samplers.get(&info) {
             return Ok(sampler.clone());
         }
-
-        upgrade(read).get(info, create)
+        let sampler = create()?;
+        {
+            upgrade(read).samplers.insert(info, sampler.clone());
+        }
+        Ok(sampler)
     }
 }

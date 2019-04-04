@@ -1,17 +1,20 @@
 use std::{collections::VecDeque, ops::Range, ptr::NonNull};
 
-use crate::{
-    allocator::{Allocator, Kind},
-    block::Block,
-    mapping::*,
-    memory::*,
-    util::*,
+use {
+    crate::{
+        allocator::{Allocator, Kind},
+        block::Block,
+        mapping::*,
+        memory::*,
+        util::*,
+    },
+    gfx_hal::{Backend, Device as _},
 };
 
 /// Memory block allocated from `LinearAllocator`
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct LinearBlock<B: gfx_hal::Backend> {
+pub struct LinearBlock<B: Backend> {
     // #[derivative(Debug(format_with = "::memory::memory_ptr_fmt"))]
     memory: *const Memory<B>,
     linear_index: u64,
@@ -21,12 +24,12 @@ pub struct LinearBlock<B: gfx_hal::Backend> {
     relevant: relevant::Relevant,
 }
 
-unsafe impl<B> Send for LinearBlock<B> where B: gfx_hal::Backend {}
-unsafe impl<B> Sync for LinearBlock<B> where B: gfx_hal::Backend {}
+unsafe impl<B> Send for LinearBlock<B> where B: Backend {}
+unsafe impl<B> Sync for LinearBlock<B> where B: Backend {}
 
 impl<B> LinearBlock<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn shared_memory(&self) -> &Memory<B> {
         // Memory won't be freed until last block created from it deallocated.
@@ -44,7 +47,7 @@ where
 
 impl<B> Block<B> for LinearBlock<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     #[inline]
     fn properties(&self) -> gfx_hal::memory::Properties {
@@ -64,7 +67,7 @@ where
     #[inline]
     fn map<'a>(
         &'a mut self,
-        _device: &impl gfx_hal::Device<B>,
+        _device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         assert!(
@@ -84,7 +87,7 @@ where
     }
 
     #[inline]
-    fn unmap(&mut self, _device: &impl gfx_hal::Device<B>) {
+    fn unmap(&mut self, _device: &B::Device) {
         debug_assert!(self.shared_memory().host_visible());
     }
 }
@@ -108,7 +111,7 @@ pub struct LinearConfig {
 /// Allocation strategy requires minimal overhead and implementation is fast.
 /// But holding single block will completely stop memory recycling.
 #[derive(Debug)]
-pub struct LinearAllocator<B: gfx_hal::Backend> {
+pub struct LinearAllocator<B: Backend> {
     memory_type: gfx_hal::MemoryTypeId,
     memory_properties: gfx_hal::memory::Properties,
     linear_size: u64,
@@ -118,7 +121,7 @@ pub struct LinearAllocator<B: gfx_hal::Backend> {
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-struct Line<B: gfx_hal::Backend> {
+struct Line<B: Backend> {
     used: u64,
     free: u64,
     #[derivative(Debug = "ignore")]
@@ -126,12 +129,12 @@ struct Line<B: gfx_hal::Backend> {
     ptr: NonNull<u8>,
 }
 
-unsafe impl<B> Send for Line<B> where B: gfx_hal::Backend {}
-unsafe impl<B> Sync for Line<B> where B: gfx_hal::Backend {}
+unsafe impl<B> Send for Line<B> where B: Backend {}
+unsafe impl<B> Sync for Line<B> where B: Backend {}
 
 impl<B> LinearAllocator<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Get properties required by the `LinearAllocator`.
     pub fn properties_required() -> gfx_hal::memory::Properties {
@@ -172,7 +175,7 @@ where
     }
 
     /// Perform full cleanup of the memory allocated.
-    pub fn dispose(mut self, device: &impl gfx_hal::Device<B>) {
+    pub fn dispose(mut self, device: &B::Device) {
         let _ = self.cleanup(device, 0);
         if !self.lines.is_empty() {
             log::error!(
@@ -182,7 +185,7 @@ where
         }
     }
 
-    fn cleanup(&mut self, device: &impl gfx_hal::Device<B>, off: usize) -> u64 {
+    fn cleanup(&mut self, device: &B::Device, off: usize) -> u64 {
         let mut freed = 0;
         while self.lines.len() > off {
             if self.lines[0].used > self.lines[0].free {
@@ -205,7 +208,7 @@ where
 
 impl<B> Allocator<B> for LinearAllocator<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     type Block = LinearBlock<B>;
 
@@ -215,7 +218,7 @@ where
 
     fn alloc(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         size: u64,
         align: u64,
     ) -> Result<(LinearBlock<B>, u64), gfx_hal::device::AllocationError> {
@@ -289,7 +292,7 @@ where
         Ok((block, self.linear_size))
     }
 
-    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: Self::Block) -> u64 {
+    fn free(&mut self, device: &B::Device, block: Self::Block) -> u64 {
         let index = block.linear_index - self.offset;
         assert!(
             fits_usize(index),

@@ -4,12 +4,15 @@
 pub mod present;
 pub mod render;
 
-use crate::{
-    command::{Capability, Family, FamilyId, Fence, Queue, Submission, Submittable, Supports},
-    factory::Factory,
-    frame::Frames,
-    graph::GraphContext,
-    BufferId, ImageId, NodeId,
+use {
+    crate::{
+        command::{Capability, Family, FamilyId, Fence, Queue, Submission, Submittable, Supports},
+        factory::Factory,
+        frame::Frames,
+        graph::GraphContext,
+        BufferId, ImageId, NodeId,
+    },
+    gfx_hal::{queue::QueueFamilyId, Backend},
 };
 
 /// Buffer access node will perform.
@@ -38,7 +41,7 @@ pub struct BufferBarrier {
     pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
 
     /// Transfer between families.
-    pub families: Option<std::ops::Range<FamilyId>>,
+    pub families: Option<std::ops::Range<QueueFamilyId>>,
 }
 
 /// Buffer shared between nodes.
@@ -96,7 +99,7 @@ pub struct ImageBarrier {
     pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
 
     /// Transfer between families.
-    pub families: Option<std::ops::Range<FamilyId>>,
+    pub families: Option<std::ops::Range<QueueFamilyId>>,
 }
 
 /// Image shared between nodes.
@@ -126,7 +129,7 @@ pub struct NodeImage {
 }
 
 /// NodeSubmittable
-pub trait NodeSubmittable<'a, B: gfx_hal::Backend> {
+pub trait NodeSubmittable<'a, B: Backend> {
     /// Submittable type returned from `Node`.
     type Submittable: Submittable<B> + 'a;
 
@@ -143,7 +146,7 @@ pub trait NodeSubmittable<'a, B: gfx_hal::Backend> {
 /// `B` - backend type.
 /// `T` - auxiliary data type.
 ///
-pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
+pub trait Node<B: Backend, T: ?Sized>:
     for<'a> NodeSubmittable<'a, B> + std::fmt::Debug + Sized + Sync + Send + 'static
 {
     /// Capability required by node.
@@ -191,7 +194,7 @@ pub trait Node<B: gfx_hal::Backend, T: ?Sized>:
 /// Description of the node.
 /// Implementation of the builder type provide framegraph with static information about node
 /// that is used for building the node.
-pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
+pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
     /// Node this builder builds.
     type Node: Node<B, T>;
 
@@ -239,7 +242,7 @@ pub trait NodeDesc<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sized + 's
 }
 
 /// Trait-object safe `Node`.
-pub trait DynNode<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sync + Send {
+pub trait DynNode<B: Backend, T: ?Sized>: std::fmt::Debug + Sync + Send {
     /// Record commands required by node.
     /// Recorded buffers go into `submits`.
     unsafe fn run<'a>(
@@ -264,7 +267,7 @@ pub trait DynNode<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug + Sync + Send
 
 impl<B, T, N> DynNode<B, T> for (N,)
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
     N: Node<B, T>,
 {
@@ -297,7 +300,8 @@ where
 }
 
 /// Dynamic ode builder that emits `DynNode`.
-pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
+pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
+    /// Pick family for this node to be executed onto.
     fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId>;
 
     /// Get buffer accessed by the node.
@@ -325,7 +329,7 @@ pub trait NodeBuilder<B: gfx_hal::Backend, T: ?Sized>: std::fmt::Debug {
 /// Builder for the node.
 #[derive(derivative::Derivative)]
 #[derivative(Debug(bound = "N: std::fmt::Debug"))]
-pub struct DescBuilder<B: gfx_hal::Backend, T: ?Sized, N> {
+pub struct DescBuilder<B: Backend, T: ?Sized, N> {
     desc: N,
     buffers: Vec<BufferId>,
     images: Vec<ImageId>,
@@ -335,7 +339,7 @@ pub struct DescBuilder<B: gfx_hal::Backend, T: ?Sized, N> {
 
 impl<B, T, N> DescBuilder<B, T, N>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
 {
     /// Add buffer to the node.
@@ -383,7 +387,7 @@ where
 
 impl<B, T, N> NodeBuilder<B, T> for DescBuilder<B, T, N>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
     N: NodeDesc<B, T>,
 {
@@ -432,7 +436,7 @@ where
 }
 
 /// Convert graph barriers into gfx barriers.
-pub fn gfx_acquire_barriers<'a, 'b, B: gfx_hal::Backend>(
+pub fn gfx_acquire_barriers<'a, 'b, B: Backend>(
     ctx: &'a GraphContext<B>,
     buffers: impl IntoIterator<Item = &'b NodeBuffer>,
     images: impl IntoIterator<Item = &'b NodeImage>,
@@ -483,7 +487,7 @@ pub fn gfx_acquire_barriers<'a, 'b, B: gfx_hal::Backend>(
 }
 
 /// Convert graph barriers into gfx barriers.
-pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
+pub fn gfx_release_barriers<'a, B: Backend>(
     ctx: &'a GraphContext<B>,
     buffers: impl IntoIterator<Item = &'a NodeBuffer>,
     images: impl IntoIterator<Item = &'a NodeImage>,
@@ -533,12 +537,14 @@ pub fn gfx_release_barriers<'a, B: gfx_hal::Backend>(
     (bstart | istart..bend | iend, barriers)
 }
 
+/// Check if backend is metal.
 #[cfg(feature = "metal")]
-pub fn is_metal<B: gfx_hal::Backend>() -> bool {
+pub fn is_metal<B: Backend>() -> bool {
     std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
 }
 
+/// Check if backend is metal.
 #[cfg(not(feature = "metal"))]
-pub fn is_metal<B: gfx_hal::Backend>() -> bool {
+pub fn is_metal<B: Backend>() -> bool {
     false
 }

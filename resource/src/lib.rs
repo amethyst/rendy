@@ -1,7 +1,7 @@
 //! This crate provide methods to create/destroy and otherwise manage device resources.
 //! Primarily focus on buffers and images.
 
-#[warn(
+#![warn(
     missing_debug_implementations,
     missing_copy_implementations,
     missing_docs,
@@ -13,22 +13,14 @@
 )]
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;
+use rendy_util as util;
 
-pub mod buffer;
-pub mod escape;
-pub mod image;
-pub mod resources;
-pub mod sampler;
-pub mod set;
+mod buffer;
+mod escape;
+mod image;
+mod set;
 
-pub use crate::{
-    buffer::Buffer,
-    escape::{Escape, Handle},
-    image::{Image, ImageView},
-    resources::ResourceTracker,
-    sampler::Sampler,
-    set::{DescriptorSet, DescriptorSetLayout},
-};
+mod resources;
+mod sampler;
 
-#[doc(hidden)]
-pub use crate::resources::Epochs;
+pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};

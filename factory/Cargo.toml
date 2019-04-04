@@ -11,16 +11,16 @@ categories = ["rendering"]
 description = "Rendy's factory tool"
 
 [features]
-empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty"]
-dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12"]
-metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal"]
-vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan"]
+empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-util/empty"]
+dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-util/dx12"]
+metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-util/metal"]
+vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-util/vulkan"]
 serde-1 = [
     "serde",
     "rendy-memory/serde-1",
     "gfx-hal/serde",
 ]
-no-slow-safety-checks = ["rendy-wsi/no-slow-safety-checks", "rendy-util/no-slow-safety-checks"]
+no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }

@@ -1,30 +1,28 @@
 use {
     crate::{
         chain,
-        command::{Families, QueueId},
+        command::{Families, FamilyId, QueueId},
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::MemoryUsage,
         node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
-        resource::{
-            buffer::{self, Buffer},
-            image::{self, Image},
-            Escape,
-        },
+        resource::{Buffer, BufferInfo, Escape, Image, ImageInfo},
+        util::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
-    gfx_hal::Backend,
+    gfx_hal::{queue::QueueFamilyId, Backend},
 };
 
 #[derive(Debug)]
 struct GraphNode<B: Backend, T: ?Sized> {
     node: Box<dyn DynNode<B, T>>,
-    queue: QueueId,
+    queue: (usize, usize),
 }
 
 /// Graph that renders whole frame.
 #[derive(Debug)]
 pub struct Graph<B: Backend, T: ?Sized> {
+    device: DeviceId,
     nodes: Vec<GraphNode<B, T>>,
     schedule: chain::Schedule<chain::SyncData<usize, usize>>,
     semaphores: Vec<B::Semaphore>,
@@ -34,6 +32,9 @@ pub struct Graph<B: Backend, T: ?Sized> {
     ctx: GraphContext<B>,
 }
 
+device_owned!(Graph<B, T: ?Sized>);
+
+/// Graphics context contains all transient resources managed by graph.
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
     buffers: Vec<Option<Escape<Buffer<B>>>>,
@@ -44,10 +45,10 @@ impl<B: Backend> GraphContext<B> {
     fn alloc<'a>(
         factory: &Factory<B>,
         chains: &chain::Chains,
-        buffers: impl IntoIterator<Item = &'a (buffer::Info, Box<dyn MemoryUsage>)>,
+        buffers: impl IntoIterator<Item = &'a (BufferInfo, Box<dyn MemoryUsage>)>,
         images: impl IntoIterator<
             Item = &'a (
-                image::Info,
+                ImageInfo,
                 Box<dyn MemoryUsage>,
                 Option<gfx_hal::command::ClearValue>,
             ),
@@ -64,7 +65,7 @@ impl<B: Backend> GraphContext<B> {
                     .map(|buffer| {
                         factory
                             .create_buffer(
-                                buffer::Info {
+                                BufferInfo {
                                     usage: buffer.usage(),
                                     ..info.clone()
                                 },
@@ -87,7 +88,7 @@ impl<B: Backend> GraphContext<B> {
                     .map(|image| {
                         factory
                             .create_image(
-                                image::Info {
+                                ImageInfo {
                                     usage: image.usage(),
                                     ..info.clone()
                                 },
@@ -102,10 +103,12 @@ impl<B: Backend> GraphContext<B> {
         Ok(Self { buffers, images })
     }
 
-    pub fn get_image(&self, id: ImageId) -> Option<&image::Image<B>> {
+    /// Get reference to transient image by id.
+    pub fn get_image(&self, id: ImageId) -> Option<&Image<B>> {
         self.get_image_with_clear(id).map(|(i, _)| i)
     }
 
+    /// Get reference to transient image and clear value by id.
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
@@ -116,6 +119,7 @@ impl<B: Backend> GraphContext<B> {
             .map(|&(ref x, ref y)| (&**x, *y))
     }
 
+    /// Get reference to transient buffer by id.
     pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer<B>> {
         self.buffers
             .get(id.0)
@@ -123,14 +127,16 @@ impl<B: Backend> GraphContext<B> {
             .map(|x| &**x)
     }
 
-    pub fn get_image_mut(&mut self, id: ImageId) -> Option<&mut image::Image<B>> {
+    /// Get mutable reference to transient image by id.
+    pub fn get_image_mut(&mut self, id: ImageId) -> Option<&mut Image<B>> {
         self.images
             .get_mut(id.0)
             .and_then(|x| x.as_mut())
             .map(|(i, _)| &mut **i)
     }
 
-    pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut buffer::Buffer<B>> {
+    /// Get mutable reference to transient buffer by id.
+    pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer<B>> {
         self.buffers
             .get_mut(id.0)
             .and_then(|x| x.as_mut())
@@ -145,23 +151,9 @@ where
 {
     /// Perform graph execution.
     /// Run every node of the graph and submit resulting command buffers to the queues.
-    ///
-    /// # Parameters
-    ///
-    /// `command_queues`   - function to get `CommandQueue` by `QueueFamilyId` and index.
-    ///               `Graph` guarantees that it will submit only command buffers
-    ///               allocated from the command pool associated with specified `QueueFamilyId`.
-    ///
-    /// `device`    - `Device<B>` implementation. `B::Device` or wrapper.
-    ///
-    /// `aux`       - auxiliary data that `Node`s use.
-    ///
-    /// `fences`    - vector of fences that will be signaled after all commands are complete.
-    ///               Fences that are attached to last submissions of every queue are reset.
-    ///               This function may not use all fences. Unused fences are left in signaled state.
-    ///               If this function needs more fences they will be allocated from `device` and pushed to this `Vec`.
-    ///               So it's OK to start with empty `Vec`.
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
+        self.assert_device_owner(factory.device());
+
         if self.frames.next().index() >= self.inflight as _ {
             let wait = Frame::with_index(self.frames.next().index() - self.inflight as u64);
             let ref mut self_fences = self.fences;
@@ -186,7 +178,7 @@ where
                 .expect("Submission references node with out of bound index");
             debug_assert_eq!(
                 (qid.family(), qid.index()),
-                (queue.family(), queue.index()),
+                (QueueFamilyId(queue.0), queue.1),
                 "Node's queue doesn't match schedule"
             );
 
@@ -205,7 +197,7 @@ where
                 node.run(
                     &self.ctx,
                     factory,
-                    families.family_mut(queue.family()).queue_mut(queue.index()),
+                    families.family_by_index_mut(queue.0).queue_mut(queue.1),
                     aux,
                     &self.frames,
                     &submission
@@ -240,18 +232,25 @@ where
         }
 
         fences.truncate(fences_used);
-        unsafe {
-            self.frames.advance(fences);
-        }
+        self.frames.advance(fences);
     }
 
     /// Get queue that will exeute given node.
     pub fn node_queue(&self, node: NodeId) -> QueueId {
-        self.nodes[node.0].queue
+        let (f, i) = self.nodes[node.0].queue;
+        QueueId {
+            family: FamilyId {
+                device: self.device,
+                index: f,
+            },
+            index: i,
+        }
     }
 
     /// Dispose of the `Graph`.
     pub fn dispose(self, factory: &mut Factory<B>, data: &T) {
+        self.assert_device_owner(factory.device());
+
         assert!(factory.wait_idle().is_ok());
         self.frames.dispose(factory);
 
@@ -272,9 +271,9 @@ where
 #[derive(Debug)]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
-    buffers: Vec<(buffer::Info, Box<dyn MemoryUsage>)>,
+    buffers: Vec<(BufferInfo, Box<dyn MemoryUsage>)>,
     images: Vec<(
-        image::Info,
+        ImageInfo,
         Box<dyn MemoryUsage>,
         Option<gfx_hal::command::ClearValue>,
     )>,
@@ -299,7 +298,7 @@ where
     /// Create new buffer owned by graph.
     pub fn create_buffer(&mut self, size: u64, memory: impl MemoryUsage + 'static) -> BufferId {
         self.buffers.push((
-            buffer::Info {
+            BufferInfo {
                 size,
                 usage: gfx_hal::buffer::Usage::empty(),
             },
@@ -318,7 +317,7 @@ where
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
         self.images.push((
-            image::Info {
+            ImageInfo {
                 kind,
                 levels,
                 format,
@@ -352,7 +351,7 @@ where
     ///
     /// `families`      - `Iterator` of `B::QueueFamily`s.
     ///
-    /// `device`    - `Device<B>` implementation. `B::Device` or wrapper.
+    /// `device`    - `Device<B>` implementation. `Device<B>` or wrapper.
     ///
     /// `aux`       - auxiliary data that `Node`s use.
     pub fn build(
@@ -369,7 +368,9 @@ where
             .map(|(i, b)| make_chain_node(&**b, i, factory, families))
             .collect();
 
-        let chains = chain::collect(chain_nodes, |id| families.family(id).as_slice().len());
+        let chains = chain::collect(chain_nodes, |id| {
+            families.family_by_index(id.0).as_slice().len()
+        });
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
         let mut ctx = GraphContext::alloc(factory, &chains, &self.buffers, &self.images)?;
@@ -398,7 +399,7 @@ where
                         &mut ctx,
                         builder,
                         factory,
-                        families.family_mut(family.id()),
+                        families.family_by_index_mut(family.id().0),
                         queue.id().index(),
                         aux,
                         &chains,
@@ -416,13 +417,14 @@ where
             .collect::<Result<_, _>>()?;
 
         Ok(Graph {
+            device: factory.device().id(),
             ctx,
             nodes: built_nodes
                 .into_iter()
                 .map(Option::unwrap)
                 .map(|(node, qid)| GraphNode {
                     node,
-                    queue: QueueId(qid.family(), qid.index()),
+                    queue: (qid.family().0, qid.index()),
                 })
                 .collect(),
             schedule,
@@ -434,7 +436,7 @@ where
     }
 }
 
-fn build_node<'a, B: gfx_hal::Backend, T: ?Sized>(
+fn build_node<'a, B: Backend, T: ?Sized>(
     ctx: &mut GraphContext<B>,
     builder: Box<dyn NodeBuilder<B, T>>,
     factory: &mut Factory<B>,
@@ -535,7 +537,7 @@ where
     let images = builder.images();
     chain::Node {
         id,
-        family: builder.family(factory, families.as_slice()).unwrap(),
+        family: QueueFamilyId(builder.family(factory, families.as_slice()).unwrap().index),
         dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
         buffers: buffers
             .into_iter()

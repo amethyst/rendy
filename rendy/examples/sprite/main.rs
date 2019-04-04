@@ -8,7 +8,7 @@
     allow(unused)
 )]
 
-use rendy::{
+use {rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory, ImageState},
     graph::{
@@ -17,12 +17,12 @@ use rendy::{
     memory::{Data, Dynamic},
     mesh::{AsVertex, PosTex},
     resource::{
-        buffer::{self, Buffer},
+        Buffer, BufferInfo,
         DescriptorSet, DescriptorSetLayout, Escape, Handle,
     },
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
     texture::Texture,
-};
+}, gfx_hal::Device as _};
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -175,15 +175,14 @@ where
         let descriptor_set = factory.create_descriptor_set(set_layouts[0].clone()).unwrap();
 
         unsafe {
-            gfx_hal::Device::write_descriptor_sets(
-                factory.device(),
+            factory.device().write_descriptor_sets(
                 vec![
                     gfx_hal::pso::DescriptorSetWrite {
                         set: descriptor_set.raw(),
                         binding: 0,
                         array_offset: 0,
                         descriptors: vec![gfx_hal::pso::Descriptor::Image(
-                            texture.image_view.raw(),
+                            texture.view().raw(),
                             gfx_hal::image::Layout::ShaderReadOnlyOptimal,
                         )],
                     },
@@ -191,7 +190,7 @@ where
                         set: descriptor_set.raw(),
                         binding: 1,
                         array_offset: 0,
-                        descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler.raw())],
+                        descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler().raw())],
                     },
                 ],
             );
@@ -199,7 +198,7 @@ where
 
         let mut vbuf = factory
             .create_buffer(
-                buffer::Info {
+                BufferInfo {
                     size: PosTex::VERTEX.stride as u64 * 6,
                     usage: gfx_hal::buffer::Usage::VERTEX,
                 },

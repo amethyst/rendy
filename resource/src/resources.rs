@@ -5,8 +5,10 @@ use {
 };
 
 /// Resource usage epochs.
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Epochs {
+    /// 2D array of epochs.
     pub values: SmallVec<[SmallVec<[u64; 8]>; 4]>,
 }
 

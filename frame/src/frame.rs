@@ -39,6 +39,8 @@ impl CompleteFrame {
     }
 }
 
+/// Complete - next frame range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FramesRange {
     next: u64,
     complete_upper_bound: u64,
@@ -91,7 +93,8 @@ where
 
     /// Advance to the next frame.
     /// All fences of the next frame must be queued.
-    pub unsafe fn advance(&mut self, fences: Fences<B>) {
+    pub fn advance(&mut self, fences: Fences<B>) {
+        assert!(fences.iter().all(Fence::is_submitted));
         self.pending.push_back(fences);
         self.next += 1;
     }

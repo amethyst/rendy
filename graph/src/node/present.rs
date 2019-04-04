@@ -337,10 +337,12 @@ where
         self
     }
 
+    /// Get image count in presentable swapchain.
     pub fn image_count(&self) -> u32 {
         self.image_count
     }
 
+    /// Get present mode used by node.
     pub fn present_mode(&self) -> gfx_hal::PresentMode {
         self.present_mode
     }
@@ -355,7 +357,7 @@ where
         // Find correct queue family.
         families
             .iter()
-            .find(|family| factory.surface_support(family.id(), self.surface.raw()))
+            .find(|family| factory.surface_support(family.id(), &self.surface))
             .map(Family::id)
     }
 

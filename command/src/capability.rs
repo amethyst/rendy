@@ -181,7 +181,7 @@ impl Supports<Graphics> for General {
     }
 }
 
-impl<C> Supports<C> for gfx_hal::QueueType
+impl<C> Supports<C> for QueueType
 where
     C: Capability,
 {

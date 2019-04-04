@@ -52,7 +52,9 @@ pub struct Pipeline {
     pub input_assembler_desc: gfx_hal::pso::InputAssemblerDesc,
 }
 
+/// Descriptor for simple graphics pipeline implementation.
 pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
+    /// Simple graphics pipeline implementation
     type Pipeline: SimpleGraphicsPipeline<B, T>;
 
     /// Get set or buffer resources the node uses.
@@ -161,6 +163,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
     std::fmt::Debug + Sized + Send + Sync + 'static
 {
+    /// This pipeline descriptor.
     type Desc: SimpleGraphicsPipelineDesc<B, T, Pipeline = Self>;
 
     /// Make simple render group builder.
@@ -197,9 +200,11 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
         aux: &T,
     );
 
+    /// Free all resources and destroy pipeline instance.
     fn dispose(self, factory: &mut Factory<B>, aux: &T);
 }
 
+/// Render group that consist of simple graphics pipeline.
 #[derive(Debug)]
 pub struct SimpleRenderGroup<B: Backend, P> {
     set_layouts: Vec<Handle<DescriptorSetLayout<B>>>,
@@ -208,6 +213,7 @@ pub struct SimpleRenderGroup<B: Backend, P> {
     pipeline: P,
 }
 
+/// Descriptor for simple render group.
 #[derive(Debug)]
 pub struct SimpleRenderGroupDesc<P: std::fmt::Debug> {
     inner: P,

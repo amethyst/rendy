@@ -39,12 +39,12 @@ pub trait Allocator<B: gfx_hal::Backend> {
     /// On success returns allocated block and amount of memory consumed from device.
     fn alloc(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         size: u64,
         align: u64,
     ) -> Result<(Self::Block, u64), gfx_hal::device::AllocationError>;
 
     /// Free block of memory.
     /// Returns amount of memory returned to the device.
-    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: Self::Block) -> u64;
+    fn free(&mut self, device: &B::Device, block: Self::Block) -> u64;
 }
