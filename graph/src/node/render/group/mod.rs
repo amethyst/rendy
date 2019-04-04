@@ -16,6 +16,7 @@ use {
     gfx_hal::Backend,
 };
 
+/// Descriptor for render group
 pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Make render group builder.
     fn builder(self) -> DescBuilder<B, T, Self>
@@ -58,7 +59,9 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error>;
 }
 
+/// One or more graphics pipelines to be called in subpass.
 pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
+    /// Prepare resources and data for rendering.
     fn prepare(
         &mut self,
         factory: &Factory<B>,
@@ -68,6 +71,7 @@ pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
         aux: &T,
     ) -> PrepareResult;
 
+    /// Record commands.
     fn draw_inline(
         &mut self,
         encoder: RenderPassEncoder<'_, B>,
@@ -76,9 +80,11 @@ pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
         aux: &T,
     );
 
+    /// Free all resources and destroy group instance.
     fn dispose(self: Box<Self>, factory: &mut Factory<B>, aux: &T);
 }
 
+/// Builder fror render group.
 pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Make subpass from render group.
     fn into_subpass(self) -> SubpassBuilder<B, T>
@@ -103,6 +109,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Get nodes this group depends on.
     fn dependencies(&self) -> Vec<NodeId>;
 
+    /// Build render group instance.
     fn build<'a>(
         self: Box<Self>,
         ctx: &mut GraphContext<B>,

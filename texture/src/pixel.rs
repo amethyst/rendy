@@ -117,18 +117,31 @@ impl_channel_repr! {
     Float * _64 = f64;
 }
 
+/// Read channel.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct R;
+
+/// Read-green channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rg;
+
+/// Read-green-blue channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rgb;
+
+/// Read-green-blue-alpha channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rgba;
+
+/// Blue-green-red channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Bgr;
+
+/// Blue-green-red-alpha channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Bgra;
+
+/// Alpha-blue-green-red channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Abgr;
 
@@ -199,6 +212,7 @@ pub struct Pixel<C, S, T>
 where
     C: PixelRepr<S, T>,
 {
+    /// Pixel representation.
     pub repr: <C as PixelRepr<S, T>>::Repr,
 }
 
@@ -217,6 +231,7 @@ pub trait AsPixel: Copy + std::fmt::Debug + Default + Send + Sync + 'static {
 macro_rules! impl_pixel {
     ($($alias:ident = $channels:ident $size:ident $type:ident;)*) => {
         $(
+            /// Pixel type alias.
             pub type $alias = Pixel<$channels, $size, $type>;
 
             impl AsPixel for $alias {

@@ -25,13 +25,10 @@ use rendy::{
         BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
         NodeSubmittable,
     },
-    hal::Device,
+    hal::Device as _,
     memory::{Data, Dynamic},
     mesh::{AsVertex, Color},
-    resource::{
-        buffer::{self, Buffer},
-        DescriptorSet, DescriptorSetLayout, Escape, Handle,
-    },
+    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
 };
 
@@ -195,7 +192,7 @@ where
 
         let mut indirect = factory
             .create_buffer(
-                buffer::Info {
+                BufferInfo {
                     size: std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
                     usage: gfx_hal::buffer::Usage::INDIRECT,
                 },
@@ -222,7 +219,7 @@ where
 
         let mut vertices = factory
             .create_buffer(
-                buffer::Info {
+                BufferInfo {
                     size: std::mem::size_of::<Color>() as u64 * 6,
                     usage: gfx_hal::buffer::Usage::VERTEX,
                 },
@@ -282,9 +279,8 @@ where
             .unwrap();
 
         unsafe {
-            gfx_hal::Device::write_descriptor_sets(
-                factory.device(),
-                std::iter::once(gfx_hal::pso::DescriptorSetWrite {
+            factory.device().write_descriptor_sets(std::iter::once(
+                gfx_hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
@@ -292,8 +288,8 @@ where
                         posvelbuff.raw(),
                         Some(0)..Some(posvelbuff.size() as u64),
                     )),
-                }),
-            )
+                },
+            ))
         }
 
         Ok(QuadsRenderPipeline {
@@ -445,16 +441,14 @@ where
         ])?);
 
         let pipeline_layout = unsafe {
-            gfx_hal::Device::create_pipeline_layout(
-                factory.device(),
+            factory.device().create_pipeline_layout(
                 std::iter::once(set_layout.raw()),
                 std::iter::empty::<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
             )
         }?;
 
         let pipeline = unsafe {
-            gfx_hal::Device::create_compute_pipeline(
-                factory.device(),
+            factory.device().create_compute_pipeline(
                 &gfx_hal::pso::ComputePipelineDesc {
                     shader: gfx_hal::pso::EntryPoint {
                         entry: "main",
@@ -474,9 +468,8 @@ where
         let descriptor_set = factory.create_descriptor_set(set_layout.clone())?;
 
         unsafe {
-            gfx_hal::Device::write_descriptor_sets(
-                factory.device(),
-                std::iter::once(gfx_hal::pso::DescriptorSetWrite {
+            factory.device().write_descriptor_sets(std::iter::once(
+                gfx_hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
@@ -484,8 +477,8 @@ where
                         posvelbuff.raw(),
                         Some(0)..Some(posvelbuff.size()),
                     )),
-                }),
-            );
+                },
+            ));
         }
 
         let mut command_pool = factory

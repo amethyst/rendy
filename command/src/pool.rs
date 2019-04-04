@@ -1,13 +1,16 @@
 //! CommandPool module docs.
 
-use crate::{buffer::*, capability::*, family::FamilyId};
+use {
+    crate::{buffer::*, capability::*, family::FamilyId, util::Device},
+    gfx_hal::{Backend, Device as _},
+};
 
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
 /// Wraps raw buffers into `CommandCommand buffer`.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndividualReset> {
+pub struct CommandPool<B: Backend, C = QueueType, R = NoIndividualReset> {
     #[derivative(Debug = "ignore")]
     raw: B::CommandPool,
     capability: C,
@@ -16,11 +19,35 @@ pub struct CommandPool<B: gfx_hal::Backend, C = gfx_hal::QueueType, R = NoIndivi
     relevant: relevant::Relevant,
 }
 
+family_owned!(CommandPool<B, C, R>);
+
 impl<B, C, R> CommandPool<B, C, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     R: Reset,
 {
+    /// Create command pool associated with the family.
+    /// Command buffers created from the pool could be submitted to the queues of the family.
+    ///
+    /// # Safety
+    ///
+    /// Family must belong to specified device.
+    /// Family must have specified capability.
+    pub unsafe fn create(
+        family: FamilyId,
+        capability: C,
+        device: &Device<B>,
+    ) -> Result<Self, gfx_hal::device::OutOfMemory>
+    where
+        R: Reset,
+        C: Capability,
+    {
+        let reset = R::default();
+        let raw = device
+            .create_command_pool(gfx_hal::queue::QueueFamilyId(family.index), reset.flags())?;
+        Ok(CommandPool::from_raw(raw, capability, reset, family))
+    }
+
     /// Wrap raw command pool.
     ///
     /// # Safety
@@ -97,14 +124,15 @@ where
     ///
     /// # Safety
     ///
-    /// * All buffers allocated from this pool must be [freed](#method.free_buffers).
-    pub unsafe fn dispose(self, device: &impl gfx_hal::Device<B>) {
+    /// All buffers allocated from this pool must be [freed](#method.free_buffers).
+    pub unsafe fn dispose(self, device: &Device<B>) {
+        self.assert_device_owner(device);
         device.destroy_command_pool(self.raw);
         self.relevant.dispose();
     }
 
     /// Convert capability level
-    pub fn with_queue_type(self) -> CommandPool<B, gfx_hal::QueueType, R>
+    pub fn with_queue_type(self) -> CommandPool<B, QueueType, R>
     where
         C: Capability,
     {

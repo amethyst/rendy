@@ -1,7 +1,7 @@
 //!
 //!
 
-#[warn(
+#![warn(
     missing_debug_implementations,
     missing_copy_implementations,
     missing_docs,
@@ -11,56 +11,73 @@
     unused_import_braces,
     unused_qualifications
 )]
-use std::borrow::Cow;
 
+mod casts;
+mod slow;
+mod wrap;
+
+pub use crate::{casts::*, slow::*, wrap::*};
+
+/// Implement ownership checking for value with `device: DeviceId` field.
 #[macro_export]
-macro_rules! rendy_slow_assert {
-    ($($arg:tt)*) => {
-        #[cfg(not(feature = "no-slow-safety-checks"))]
-        assert!($($arg)*);
-    }
-}
-
-/// Chech if slice o f ordered values is sorted.
-pub fn is_slice_sorted<T: Ord>(slice: &[T]) -> bool {
-    is_slice_sorted_by_key(slice, |i| i)
-}
-
-/// Check if slice is sorted using ordered key and key extractor
-pub fn is_slice_sorted_by_key<'a, T, K: Ord>(slice: &'a [T], f: impl Fn(&'a T) -> K) -> bool {
-    if let Some((first, slice)) = slice.split_first() {
-        let mut cmp = f(first);
-        for item in slice {
-            let item = f(item);
-            if cmp > item {
-                return false;
+macro_rules! device_owned {
+    ($type:ident<B $(, $arg:ident $(: $(?$sized:ident)* $($bound:path)|*)*)*> @ $getter:expr) => {
+        #[allow(unused_qualifications)]
+        impl<B $(, $arg)*> $type<B $(, $arg)*>
+        where
+            B: gfx_hal::Backend,
+            $(
+                $($arg: $(?$sized)* $($bound)*,)*
+            )*
+        {
+            /// Get owned id.
+            pub fn device_id(&self) -> $crate::DeviceId {
+                ($getter)(self)
             }
-            cmp = item;
+
+            /// Assert specified device is owner.
+            pub fn assert_device_owner(&self, device: &$crate::Device<B>) {
+                assert_eq!(self.device_id(), device.id(), "Resource is not owned by speicified device");
+            }
+
+            /// Get owned id.
+            pub fn instance_id(&self) -> $crate::InstanceId {
+                self.device_id().instance
+            }
+
+            /// Assert specified instance is owner.
+            pub fn assert_instance_owner(&self, instance: &$crate::Instance<B>) {
+                assert_eq!(self.instance_id(), instance.id(), "Resource is not owned by speicified instance");
+            }
         }
-    }
-    true
+    };
+
+    ($type:ident<B $(, $arg:ident $(: $(?$sized:ident)* $($bound:path)|*)*)*>) => {
+        device_owned!($type<B $(, $arg $(: $(?$sized)* $($bound)|*)*)*> @ (|s: &Self| {s.device}));
+    };
 }
 
-/// Cast vec of some arbitrary type into vec of bytes.
-pub fn cast_vec<T: Copy>(mut vec: Vec<T>) -> Vec<u8> {
-    let len = std::mem::size_of::<T>() * vec.len();
-    let cap = std::mem::size_of::<T>() * vec.capacity();
-    let ptr = vec.as_mut_ptr();
-    std::mem::forget(vec);
-    unsafe { Vec::from_raw_parts(ptr as _, len, cap) }
-}
+/// Implement ownership checking for value with `instance: InstanceId` field.
+#[macro_export]
+macro_rules! instance_owned {
+    ($type:ident<B $(, $arg:ident)*>) => {
+        #[allow(unused_qualifications)]
+        impl<B $(, $arg)*> $type<B $(, $arg)*>
+        where
+            B: gfx_hal::Backend,
+            $(
+                $($arg: $bound)*,
+            )*
+        {
+            /// Get owned id.
+            pub fn instance_id(&self) -> $crate::InstanceId {
+                self.instance
+            }
 
-/// Cast slice of some arbitrary type into slice of bytes.
-pub fn cast_slice<T>(slice: &[T]) -> &[u8] {
-    let len = std::mem::size_of::<T>() * slice.len();
-    let ptr = slice.as_ptr();
-    unsafe { std::slice::from_raw_parts(ptr as _, len) }
-}
-
-/// Cast `cow` of some arbitrary type into `cow` of bytes.
-pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
-    match cow {
-        Cow::Borrowed(slice) => Cow::Borrowed(cast_slice(slice)),
-        Cow::Owned(vec) => Cow::Owned(cast_vec(vec)),
-    }
+            /// Assert specified instance is owner.
+            pub fn assert_instance_owner(&self, instance: &Instance<B>) {
+                assert_eq!(self.instance_id(), instance.id());
+            }
+        }
+    };
 }

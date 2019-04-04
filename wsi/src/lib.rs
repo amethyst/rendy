@@ -11,7 +11,11 @@
     unused_qualifications
 )]
 
-use rendy_resource::image::{self, Image};
+use {
+    gfx_hal::{Backend, Device as _},
+    rendy_resource::{Image, ImageInfo},
+    rendy_util::{device_owned, instance_owned, Device, DeviceId, Instance, InstanceId},
+};
 
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
@@ -38,7 +42,7 @@ mod gfx_backend_vulkan {
     pub(super) fn create_surface(
         instance: &gfx_backend_vulkan::Instance,
         window: &winit::Window,
-    ) -> <gfx_backend_vulkan::Backend as gfx_hal::Backend>::Surface {
+    ) -> <gfx_backend_vulkan::Backend as Backend>::Surface {
         instance.create_surface(window)
     }
 }
@@ -48,7 +52,7 @@ mod gfx_backend_dx12 {
     pub(super) fn create_surface(
         instance: &gfx_backend_dx12::Instance,
         window: &winit::Window,
-    ) -> <gfx_backend_dx12::Backend as gfx_hal::Backend>::Surface {
+    ) -> <gfx_backend_dx12::Backend as Backend>::Surface {
         instance.create_surface(window)
     }
 }
@@ -64,7 +68,7 @@ macro_rules! create_surface_for_backend {
             match b {$(
                 #[$feature]
                 _B::$backend => {
-                    if let Some(instance) = std::any::Any::downcast_ref($instance) {
+                    if let Some(instance) = $instance.raw_typed() {
                         let surface: Box<dyn std::any::Any> = Box::new(self::$backend::create_surface(instance, $window));
                         return *surface.downcast().expect(concat!("`", stringify!($backend), "::Backend::Surface` must be `", stringify!($backend), "::Surface`"));
                     }
@@ -90,24 +94,20 @@ macro_rules! create_surface_for_backend {
 }
 
 #[allow(unused_variables)]
-fn create_surface<B: gfx_hal::Backend>(
-    instance: &dyn std::any::Any,
-    window: &winit::Window,
-) -> B::Surface {
+fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) -> B::Surface {
     create_surface_for_backend!(instance, window);
 }
 
 /// Rendering target bound to window.
-pub struct Surface<B: gfx_hal::Backend> {
+pub struct Surface<B: Backend> {
     window: std::sync::Arc<winit::Window>,
     raw: B::Surface,
-    #[cfg(not(feature = "no-slow-safety-checks"))]
-    factory_id: usize,
+    instance: InstanceId,
 }
 
 impl<B> std::fmt::Debug for Surface<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Target")
@@ -116,38 +116,25 @@ where
     }
 }
 
+instance_owned!(Surface<B>);
+
 impl<B> Surface<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Create surface for the window.
-    pub fn new(
-        instance: &dyn std::any::Any,
-        window: std::sync::Arc<winit::Window>,
-        _factory_id: usize,
-    ) -> Self {
+    pub fn new(instance: &Instance<B>, window: std::sync::Arc<winit::Window>) -> Self {
         let raw = create_surface::<B>(instance, &window);
-        #[cfg(not(feature = "no-slow-safety-checks"))]
-        let s = Surface {
+        Surface {
             window,
             raw,
-            factory_id: _factory_id,
-        };
-        #[cfg(feature = "no-slow-safety-checks")]
-        let s = Surface { window, raw };
-
-        s
+            instance: instance.id(),
+        }
     }
 
     /// Get raw `B::Surface` reference
     pub fn raw(&self) -> &B::Surface {
         &self.raw
-    }
-
-    /// Get factory id that this surface was created from
-    #[cfg(not(feature = "no-slow-safety-checks"))]
-    pub fn factory_id(&self) -> usize {
-        self.factory_id
     }
 
     /// Get surface image kind.
@@ -201,11 +188,17 @@ where
     pub unsafe fn into_target(
         mut self,
         physical_device: &B::PhysicalDevice,
-        device: &impl gfx_hal::Device<B>,
+        device: &Device<B>,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
     ) -> Result<Target<B>, failure::Error> {
+        assert_eq!(
+            device.id().instance,
+            self.instance,
+            "Resource is not owned by speicified instance"
+        );
+
         let (swapchain, backbuffer) = create_swapchain(
             &mut self,
             physical_device,
@@ -216,6 +209,7 @@ where
         )?;
 
         Ok(Target {
+            device: device.id(),
             relevant: relevant::Relevant,
             surface: self,
             swapchain: Some(swapchain),
@@ -231,10 +225,10 @@ where
     }
 }
 
-unsafe fn create_swapchain<B: gfx_hal::Backend>(
+unsafe fn create_swapchain<B: Backend>(
     surface: &mut Surface<B>,
     physical_device: &B::PhysicalDevice,
-    device: &impl gfx_hal::Device<B>,
+    device: &Device<B>,
     image_count: u32,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
@@ -338,7 +332,8 @@ unsafe fn create_swapchain<B: gfx_hal::Backend>(
                     .into_iter()
                     .map(|image| {
                         Image::create_from_swapchain(
-                            image::Info {
+                            device.id(),
+                            ImageInfo {
                                 kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
                                 levels: 1,
                                 format,
@@ -370,7 +365,7 @@ unsafe fn create_swapchain<B: gfx_hal::Backend>(
 /// Either collection of `Image`s
 /// or framebuffer.
 #[derive(Debug)]
-pub enum Backbuffer<B: gfx_hal::Backend> {
+pub enum Backbuffer<B: Backend> {
     /// Collection of images that in the `Target`'s swapchain.
     Images(Vec<Image<B>>),
 
@@ -390,7 +385,8 @@ pub enum Backbuffer<B: gfx_hal::Backend> {
 
 /// Rendering target bound to window.
 /// With swapchain created.
-pub struct Target<B: gfx_hal::Backend> {
+pub struct Target<B: Backend> {
+    device: DeviceId,
     surface: Surface<B>,
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Backbuffer<B>>,
@@ -399,9 +395,11 @@ pub struct Target<B: gfx_hal::Backend> {
     relevant: relevant::Relevant,
 }
 
+device_owned!(Target<B>);
+
 impl<B> std::fmt::Debug for Target<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Target")
@@ -413,19 +411,21 @@ where
 
 impl<B> Target<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Dispose of target.
     ///
     /// # Safety
     ///
     /// Swapchain must be not in use.
-    pub unsafe fn dispose(mut self, device: &impl gfx_hal::Device<B>) -> Surface<B> {
+    pub unsafe fn dispose(mut self, device: &Device<B>) -> Surface<B> {
+        self.assert_device_owner(device);
+
         match self.backbuffer {
             Some(Backbuffer::Images(images)) => {
                 images
                     .into_iter()
-                    .for_each(|image| image.dispose_swapchain_image());
+                    .for_each(|image| image.dispose_swapchain_image(device.id()));
             }
             _ => {}
         };
@@ -436,8 +436,8 @@ where
     }
 
     /// Get raw surface handle.
-    pub fn surface(&self) -> &B::Surface {
-        &self.surface.raw()
+    pub fn surface(&self) -> &Surface<B> {
+        &self.surface
     }
 
     /// Get raw surface handle.
@@ -452,14 +452,16 @@ where
     pub unsafe fn recreate(
         &mut self,
         physical_device: &B::PhysicalDevice,
-        device: &impl gfx_hal::Device<B>,
+        device: &Device<B>,
     ) -> Result<(), failure::Error> {
+        self.assert_device_owner(device);
+
         let image_count = match self.backbuffer.take() {
             Some(Backbuffer::Images(images)) => {
                 let count = images.len();
                 images
                     .into_iter()
-                    .for_each(|image| image.dispose_swapchain_image());
+                    .for_each(|image| image.dispose_swapchain_image(device.id()));
                 count
             }
             Some(Backbuffer::Framebuffer { .. }) => 0,
@@ -526,13 +528,13 @@ where
 
 /// Represents acquire frames that will be presented next.
 #[derive(Debug)]
-pub struct NextImages<'a, B: gfx_hal::Backend> {
+pub struct NextImages<'a, B: Backend> {
     targets: smallvec::SmallVec<[(&'a Target<B>, u32); 8]>,
 }
 
 impl<'a, B> NextImages<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Get indices.
     pub fn indices(&self) -> impl IntoIterator<Item = u32> + '_ {
@@ -571,7 +573,7 @@ where
 
 impl<'a, B> std::ops::Index<usize> for NextImages<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     type Output = u32;
 

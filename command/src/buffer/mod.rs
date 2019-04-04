@@ -7,9 +7,12 @@ mod state;
 mod submit;
 mod usage;
 
-use crate::{
-    capability::{Capability, Supports},
-    family::FamilyId,
+use {
+    crate::{
+        capability::{Capability, Supports},
+        family::FamilyId,
+    },
+    gfx_hal::Backend,
 };
 
 pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
@@ -19,7 +22,7 @@ pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
 /// This way many methods become safe.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
+pub struct CommandBuffer<B: Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
     #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
     capability: C,
@@ -30,9 +33,11 @@ pub struct CommandBuffer<B: gfx_hal::Backend, C, S, L = PrimaryLevel, R = NoIndi
     relevant: relevant::Relevant,
 }
 
+family_owned!(CommandBuffer<B, C, S, L, R>);
+
 unsafe impl<B, C, S, L, R> Send for CommandBuffer<B, C, S, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     B::CommandBuffer: Send,
     C: Send,
     S: Send,
@@ -45,7 +50,7 @@ where
 
 unsafe impl<B, C, S, L, R> Sync for CommandBuffer<B, C, S, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     B::CommandBuffer: Sync,
     C: Sync,
     S: Sync,
@@ -58,7 +63,7 @@ where
 
 impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Wrap raw buffer handle.
     ///
@@ -157,7 +162,7 @@ where
 }
 
 /// Begin info for specific level and render pass relation.
-pub unsafe trait BeginInfo<'a, B: gfx_hal::Backend, L> {
+pub unsafe trait BeginInfo<'a, B: Backend, L> {
     /// Pass relation type.
     type PassRelation: RenderPassRelation<L>;
 
@@ -167,7 +172,7 @@ pub unsafe trait BeginInfo<'a, B: gfx_hal::Backend, L> {
 
 unsafe impl<'a, B, L> BeginInfo<'a, B, L> for ()
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     L: Level,
 {
     type PassRelation = OutsideRenderPass;
@@ -179,7 +184,7 @@ where
 
 unsafe impl<'a, B> BeginInfo<'a, B, SecondaryLevel> for gfx_hal::pass::Subpass<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     type PassRelation = RenderPassContinue;
 
@@ -195,7 +200,7 @@ where
 unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel>
     for (gfx_hal::pass::Subpass<'a, B>, Option<&'a F>)
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     F: std::borrow::Borrow<B::Framebuffer>,
 {
     type PassRelation = RenderPassContinue;
@@ -211,7 +216,7 @@ where
 
 unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel> for (gfx_hal::pass::Subpass<'a, B>, &'a F)
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     F: std::borrow::Borrow<B::Framebuffer>,
 {
     type PassRelation = RenderPassContinue;
@@ -227,7 +232,7 @@ where
 
 impl<B, C, L, R> CommandBuffer<B, C, InitialState, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Begin recording command buffer.
     ///
@@ -258,7 +263,7 @@ where
 
 impl<'a, B, C, U, P, L, R> CommandBuffer<B, C, RecordingState<U, P>, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Finish recording command buffer.
     pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
@@ -272,7 +277,7 @@ where
 
 impl<B, C, N, L, R> CommandBuffer<B, C, PendingState<N>, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Mark command buffer as complete.
     ///
@@ -299,7 +304,7 @@ where
 
 impl<B, C, S, L> CommandBuffer<B, C, S, L, IndividualReset>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     S: Resettable,
 {
     /// Reset command buffer.
@@ -310,7 +315,7 @@ where
 
 impl<B, C, S, L> CommandBuffer<B, C, S, L>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     S: Resettable,
 {
     /// Mark command buffer as reset.
@@ -328,7 +333,7 @@ where
 
 impl<B, C, S, L, R> CommandBuffer<B, C, S, L, R>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     S: Resettable,
 {
     /// Dispose of command buffer wrapper releasing raw comman buffer value.

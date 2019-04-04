@@ -6,7 +6,7 @@
 //! vertex attributes required by shader interface.
 //!
 
-#[warn(
+#![warn(
     missing_debug_implementations,
     missing_copy_implementations,
     missing_docs,

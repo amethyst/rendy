@@ -17,10 +17,7 @@ use rendy::{
     },
     memory::{Data, Dynamic},
     mesh::{AsVertex, PosColor},
-    resource::{
-        buffer::{self, Buffer},
-        DescriptorSetLayout, Escape, Handle,
-    },
+    resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
 };
 
@@ -147,7 +144,7 @@ where
         if self.vertex.is_none() {
             let mut vbuf = factory
                 .create_buffer(
-                    buffer::Info {
+                    BufferInfo {
                         size: PosColor::VERTEX.stride as u64 * 3,
                         usage: gfx_hal::buffer::Usage::VERTEX,
                     },

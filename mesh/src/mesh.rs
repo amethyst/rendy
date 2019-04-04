@@ -8,11 +8,8 @@ use crate::{
     command::{EncoderCommon, Graphics, QueueId, Supports},
     factory::{BufferState, Factory},
     memory::Data,
-    resource::{
-        buffer::{Buffer, Info},
-        Escape,
-    },
-    util::{cast_cow, is_slice_sorted, is_slice_sorted_by_key},
+    resource::{Buffer, BufferInfo, Escape},
+    util::cast_cow,
     vertex::{AsVertex, VertexFormat},
 };
 
@@ -80,8 +77,6 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 }
 
 /// Generics-free mesh builder.
-/// Useful for creating mesh from non-predefined set of data.
-/// Like from glTF.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshBuilder<'a> {
@@ -222,7 +217,7 @@ impl<'a> MeshBuilder<'a> {
                     Ok(VertexBuffer {
                         buffer: {
                             let mut buffer = factory.create_buffer(
-                                Info {
+                                BufferInfo {
                                     size: vertices.len() as _,
                                     usage: gfx_hal::buffer::Usage::VERTEX
                                         | gfx_hal::buffer::Usage::TRANSFER_DST,
@@ -261,7 +256,7 @@ impl<'a> MeshBuilder<'a> {
                     Some(IndexBuffer {
                         buffer: {
                             let mut buffer = factory.create_buffer(
-                                Info {
+                                BufferInfo {
                                     size: indices.len() as _,
                                     usage: gfx_hal::buffer::Usage::INDEX
                                         | gfx_hal::buffer::Usage::TRANSFER_DST,
@@ -406,4 +401,24 @@ fn is_compatible(left: &VertexFormat<'_>, right: &VertexFormat<'_>) -> bool {
                 true
             })
     })
+}
+
+/// Chech if slice o f ordered values is sorted.
+fn is_slice_sorted<T: Ord>(slice: &[T]) -> bool {
+    is_slice_sorted_by_key(slice, |i| i)
+}
+
+/// Check if slice is sorted using ordered key and key extractor
+fn is_slice_sorted_by_key<'a, T, K: Ord>(slice: &'a [T], f: impl Fn(&'a T) -> K) -> bool {
+    if let Some((first, slice)) = slice.split_first() {
+        let mut cmp = f(first);
+        for item in slice {
+            let item = f(item);
+            if cmp > item {
+                return false;
+            }
+            cmp = item;
+        }
+    }
+    true
 }

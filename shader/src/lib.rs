@@ -1,12 +1,6 @@
 //! Shader compilation.
 
-#[cfg(feature = "shader-compiler")]
-mod shaderc;
-
-#[cfg(feature = "shader-compiler")]
-pub use self::shaderc::*;
-
-#[warn(
+#![warn(
     missing_debug_implementations,
     missing_copy_implementations,
     missing_docs,
@@ -16,6 +10,12 @@ pub use self::shaderc::*;
     unused_import_braces,
     unused_qualifications
 )]
+
+#[cfg(feature = "shader-compiler")]
+mod shaderc;
+
+#[cfg(feature = "shader-compiler")]
+pub use self::shaderc::*;
 
 /// Interface to create shader modules from shaders.
 /// Implemented for static shaders via [`compile_to_spirv!`] macro.
@@ -32,7 +32,7 @@ pub trait Shader {
     where
         B: gfx_hal::Backend,
     {
-        unsafe { gfx_hal::Device::create_shader_module(factory.device(), &self.spirv()?) }
+        unsafe { gfx_hal::Device::create_shader_module(factory.device().raw(), &self.spirv()?) }
             .map_err(Into::into)
     }
 }

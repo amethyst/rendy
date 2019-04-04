@@ -1,9 +1,11 @@
 mod range;
 pub(crate) mod write;
 
-use std::{ops::Range, ptr::NonNull};
-
-use crate::{memory::Memory, util::fits_usize};
+use {
+    std::{ops::Range, ptr::NonNull},
+    crate::{memory::Memory, util::fits_usize},
+    gfx_hal::{Backend, Device as _},
+};
 
 pub(crate) use self::range::{
     mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range,
@@ -25,7 +27,7 @@ pub struct MaybeCoherent(bool);
 /// Represents range of the memory mapped to the host.
 /// Provides methods for safer host access to the memory.
 #[derive(Debug)]
-pub struct MappedRange<'a, B: gfx_hal::Backend, C = MaybeCoherent> {
+pub struct MappedRange<'a, B: Backend, C = MaybeCoherent> {
     /// Memory object that is mapped.
     memory: &'a Memory<B>,
 
@@ -41,7 +43,7 @@ pub struct MappedRange<'a, B: gfx_hal::Backend, C = MaybeCoherent> {
 
 impl<'a, B> MappedRange<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     // /// Map range of memory.
     // /// `range` is in memory object space.
@@ -53,7 +55,7 @@ where
     // /// * Memory object must be created with device specified.
     // pub unsafe fn new(
     //     memory: &'a Memory<B>,
-    //     device: &impl gfx_hal::Device<B>,
+    //     device: &B::Device,
     //     range: Range<u64>,
     // ) -> Result<Self, gfx_hal::mapping::Error> {
     //     assert!(
@@ -119,7 +121,7 @@ where
     /// * `T` Must be plain-old-data type compatible with data in mapped region.
     pub unsafe fn read<'b, T>(
         &'b mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         range: Range<u64>,
     ) -> Result<&'b [T], gfx_hal::mapping::Error>
     where
@@ -157,7 +159,7 @@ where
     /// * Caller must ensure that device won't write to or read from the memory region.
     pub unsafe fn write<'b, T: 'b>(
         &'b mut self,
-        device: &'b impl gfx_hal::Device<B>,
+        device: &'b B::Device,
         range: Range<u64>,
     ) -> Result<impl Write<T> + 'b, gfx_hal::mapping::Error>
     where
@@ -223,7 +225,7 @@ where
 
 impl<'a, B> From<MappedRange<'a, B, Coherent>> for MappedRange<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn from(range: MappedRange<'a, B, Coherent>) -> Self {
         MappedRange {
@@ -237,7 +239,7 @@ where
 
 impl<'a, B> From<MappedRange<'a, B, NonCoherent>> for MappedRange<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn from(range: MappedRange<'a, B, NonCoherent>) -> Self {
         MappedRange {
@@ -251,7 +253,7 @@ where
 
 impl<'a, B> MappedRange<'a, B, Coherent>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Fetch writer to the sub-region.
     ///

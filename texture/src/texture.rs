@@ -1,24 +1,49 @@
-use crate::{
-    factory::{Factory, ImageState},
-    memory::Data,
-    pixel::AsPixel,
-    resource::{
-        image::{Image, ImageView, Info, ViewInfo},
-        sampler::Sampler,
-        Escape, Handle,
+use {
+    crate::{
+        factory::{Factory, ImageState},
+        memory::Data,
+        pixel::AsPixel,
+        resource::{Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler},
+        util::cast_cow,
     },
-    util::cast_cow,
+    gfx_hal::Backend,
 };
 
 /// Static image.
 /// Can be loaded from various of formats.
 #[derive(Debug)]
-pub struct Texture<B: gfx_hal::Backend> {
-    pub image: Handle<Image<B>>,
-    pub image_view: Escape<ImageView<B>>,
-    pub sampler: Handle<Sampler<B>>,
+pub struct Texture<B: Backend> {
+    image: Handle<Image<B>>,
+    view: Escape<ImageView<B>>,
+    sampler: Handle<Sampler<B>>,
 }
 
+impl<B> Texture<B>
+where
+    B: Backend,
+{
+    /// Get image handle.
+    pub fn image(&self) -> &Handle<Image<B>> {
+        &self.image
+    }
+
+    /// Get sampler handle.
+    pub fn sampler(&self) -> &Handle<Sampler<B>> {
+        &self.sampler
+    }
+
+    /// Get reference to image view.
+    pub fn view(&self) -> &ImageView<B> {
+        &self.view
+    }
+
+    /// Get mutable reference to image view.
+    pub fn view_mut(&mut self) -> &mut ImageView<B> {
+        &mut self.view
+    }
+}
+
+/// Generics-free texture builder.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextureBuilder<'a> {
@@ -168,11 +193,11 @@ impl<'a> TextureBuilder<'a> {
         factory: &'a mut Factory<B>,
     ) -> Result<Texture<B>, failure::Error>
     where
-        B: gfx_hal::Backend,
+        B: Backend,
     {
         let image: Handle<Image<B>> = factory
             .create_image(
-                Info {
+                ImageInfo {
                     kind: self.kind,
                     levels: 1,
                     format: self.format,
@@ -202,19 +227,21 @@ impl<'a> TextureBuilder<'a> {
             )?;
         }
 
-        let image_view = factory.create_image_view(
-            image.clone(),
-            ViewInfo {
-                view_kind: self.view_kind,
-                format: self.format,
-                swizzle: self.swizzle,
-                range: gfx_hal::image::SubresourceRange {
-                    aspects: self.format.surface_desc().aspects,
-                    levels: 0..1,
-                    layers: 0..self.kind.num_layers(),
+        let view = unsafe {
+            factory.create_image_view(
+                image.clone(),
+                ImageViewInfo {
+                    view_kind: self.view_kind,
+                    format: self.format,
+                    swizzle: self.swizzle,
+                    range: gfx_hal::image::SubresourceRange {
+                        aspects: self.format.surface_desc().aspects,
+                        levels: 0..1,
+                        layers: 0..self.kind.num_layers(),
+                    },
                 },
-            },
-        )?;
+            )
+        }?;
 
         let sampler = factory.get_sampler(gfx_hal::image::SamplerInfo::new(
             self.filter,
@@ -223,7 +250,7 @@ impl<'a> TextureBuilder<'a> {
 
         Ok(Texture {
             image,
-            image_view,
+            view,
             sampler,
         })
     }

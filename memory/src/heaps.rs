@@ -92,7 +92,7 @@ where
     /// and `align` requirements.
     pub fn allocate(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         mask: u32,
         usage: impl MemoryUsage,
         size: u64,
@@ -143,7 +143,7 @@ where
     /// and `align` requirements.
     fn allocate_from(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         memory_index: u32,
         usage: impl MemoryUsage,
         size: u64,
@@ -177,7 +177,7 @@ where
     /// Free memory block.
     ///
     /// Memory block must be allocated from this heap.
-    pub fn free(&mut self, device: &impl gfx_hal::Device<B>, block: MemoryBlock<B>) {
+    pub fn free(&mut self, device: &B::Device, block: MemoryBlock<B>) {
         // trace!("Free block '{:#?}'", block);
         let memory_index = block.memory_index;
         debug_assert!(fits_usize(memory_index));
@@ -191,7 +191,7 @@ where
     /// Dispose of allocator.
     /// Cleanup allocators before dropping.
     /// Will panic if memory instances are left allocated.
-    pub fn dispose(self, device: &impl gfx_hal::Device<B>) {
+    pub fn dispose(self, device: &B::Device) {
         for mt in self.types {
             mt.dispose(device)
         }
@@ -274,13 +274,13 @@ where
 
     fn map<'a>(
         &'a mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         any_block!(&mut self.block => block.map(device, range))
     }
 
-    fn unmap(&mut self, device: &impl gfx_hal::Device<B>) {
+    fn unmap(&mut self, device: &B::Device) {
         any_block!(&mut self.block => block.unmap(device))
     }
 }
@@ -345,7 +345,7 @@ where
 
     fn alloc(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         usage: impl MemoryUsage,
         size: u64,
         align: u64,
@@ -400,7 +400,7 @@ where
         }
     }
 
-    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: BlockFlavor<B>) -> u64 {
+    fn free(&mut self, device: &B::Device, block: BlockFlavor<B>) -> u64 {
         match block {
             BlockFlavor::Dedicated(block) => self.dedicated.free(device, block),
             BlockFlavor::Linear(block) => self.linear.as_mut().unwrap().free(device, block),
@@ -408,7 +408,7 @@ where
         }
     }
 
-    fn dispose(self, device: &impl gfx_hal::Device<B>) {
+    fn dispose(self, device: &B::Device) {
         log::trace!("Dispose memory allocators");
 
         if let Some(linear) = self.linear {

@@ -117,7 +117,7 @@ where
             .min(MAX_SETS) // capped to MAX_SETS
     }
 
-    unsafe fn dispose(mut self, device: &impl Device<B>) {
+    unsafe fn dispose(mut self, device: &B::Device) {
         if self.total > 0 {
             log::error!("Not all descriptor sets were deallocated");
         }
@@ -143,7 +143,7 @@ where
 
     unsafe fn allocate(
         &mut self,
-        device: &impl Device<B>,
+        device: &B::Device,
         layout: &B::DescriptorSetLayout,
         layout_ranges: DescriptorRanges,
         mut count: u32,
@@ -214,7 +214,7 @@ where
         log::trace!("Freed {} from descriptor bucket", freed);
     }
 
-    unsafe fn cleanup(&mut self, device: &impl Device<B>) {
+    unsafe fn cleanup(&mut self, device: &B::Device) {
         while let Some(pool) = self.pools.pop_front() {
             if pool.freed < pool.size {
                 self.pools.push_front(pool);
@@ -251,7 +251,7 @@ where
         }
     }
 
-    pub unsafe fn dispose(mut self, device: &impl Device<B>) {
+    pub unsafe fn dispose(mut self, device: &B::Device) {
         self.buckets
             .drain()
             .for_each(|(_, bucket)| bucket.dispose(device));
@@ -260,7 +260,7 @@ where
 
     pub unsafe fn allocate(
         &mut self,
-        device: &impl Device<B>,
+        device: &B::Device,
         layout: &B::DescriptorSetLayout,
         layout_ranges: DescriptorRanges,
         count: u32,
@@ -359,7 +359,7 @@ where
         }
     }
 
-    pub unsafe fn cleanup(&mut self, device: &impl Device<B>) {
+    pub unsafe fn cleanup(&mut self, device: &B::Device) {
         self.buckets
             .values_mut()
             .for_each(|bucket| bucket.cleanup(device));

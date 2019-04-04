@@ -20,11 +20,11 @@ pub trait Block<B: gfx_hal::Backend> {
     /// Memory writes to the region performed by device become available for the host.
     fn map<'a>(
         &'a mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error>;
 
     /// Release memory mapping. Must be called after successful `map` call.
     /// No-op if block is not mapped.
-    fn unmap(&mut self, device: &impl gfx_hal::Device<B>);
+    fn unmap(&mut self, device: &B::Device);
 }

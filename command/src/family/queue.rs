@@ -4,6 +4,7 @@ use {
     gfx_hal::{queue::RawCommandQueue, Backend},
 };
 
+/// Command queue wrapper.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
 pub struct Queue<B: Backend> {
@@ -12,6 +13,8 @@ pub struct Queue<B: Backend> {
     id: QueueId,
     next_epoch: u64,
 }
+
+family_owned!(@NOCAP Queue<B> @ |q: &Self| q.id.family);
 
 impl<B> Queue<B>
 where
@@ -25,10 +28,12 @@ where
         }
     }
 
+    /// Id of the queue.
     pub fn id(&self) -> QueueId {
         self.id
     }
 
+    /// Get raw command queue.
     pub fn raw(&mut self) -> &mut impl RawCommandQueue<B> {
         &mut self.raw
     }
@@ -70,7 +75,7 @@ where
                 fence.as_ref().map(|f| f.raw()),
             );
         } else {
-            let family = self.id.family();
+            let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
                     gfx_hal::queue::Submission {
@@ -128,7 +133,7 @@ where
                 fence,
             );
         } else {
-            let family = self.id.family();
+            let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
                     gfx_hal::queue::Submission {
@@ -145,6 +150,7 @@ where
         }
     }
 
+    /// Wait for queue to finish all pending commands.
     pub fn wait_idle(&self) -> Result<(), gfx_hal::error::HostExecutionError> {
         self.raw.wait_idle()
     }

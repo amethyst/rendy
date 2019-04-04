@@ -18,10 +18,11 @@ use {
         },
         BufferId, ImageId, NodeId,
     },
-    gfx_hal::{image::Layout, Backend, Device},
+    gfx_hal::{image::Layout, Backend, Device as _},
     std::{cmp::min, collections::HashMap},
 };
 
+/// Build for rendering sub-pass.
 #[derive(derivative::Derivative)]
 #[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct SubpassBuilder<B: Backend, T: ?Sized> {
@@ -37,10 +38,12 @@ where
     B: Backend,
     T: ?Sized,
 {
+    /// Create new empty subpass builder.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Add render group to this subpass.
     pub fn add_group<R>(&mut self, group: R) -> &mut Self
     where
         R: RenderGroupBuilder<B, T> + 'static,
@@ -49,6 +52,7 @@ where
         self
     }
 
+    /// Add render group to this subpass.
     pub fn with_group<R>(mut self, group: R) -> Self
     where
         R: RenderGroupBuilder<B, T> + 'static,
@@ -57,31 +61,37 @@ where
         self
     }
 
+    /// Add input attachment to the subpass.
     pub fn add_input(&mut self, input: ImageId) -> &mut Self {
         self.inputs.push(input);
         self
     }
 
+    /// Add input attachment to the subpass.
     pub fn with_input(mut self, input: ImageId) -> Self {
         self.add_input(input);
         self
     }
 
+    /// Add color attachment to the subpass.
     pub fn add_color(&mut self, color: ImageId) -> &mut Self {
         self.colors.push(color);
         self
     }
 
+    /// Add color attachment to the subpass.
     pub fn with_color(mut self, color: ImageId) -> Self {
         self.add_color(color);
         self
     }
 
+    /// Set depth-stencil attachment to the subpass.
     pub fn set_depth_stencil(&mut self, depth_stencil: ImageId) -> &mut Self {
         self.depth_stencil = Some(depth_stencil);
         self
     }
 
+    /// Set depth-stencil attachment to the subpass.
     pub fn with_depth_stencil(mut self, depth_stencil: ImageId) -> Self {
         self.set_depth_stencil(depth_stencil);
         self
@@ -107,6 +117,7 @@ where
     }
 }
 
+/// Builder for render-pass node.
 #[derive(derivative::Derivative)]
 #[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
@@ -123,11 +134,13 @@ where
         Self::default()
     }
 
+    /// Add sub-pass to the render-pass.
     pub fn add_subpass(&mut self, subpass: SubpassBuilder<B, T>) -> &mut Self {
         self.subpasses.push(subpass);
         self
     }
 
+    /// Add sub-pass to the render-pass.
     pub fn with_subpass(mut self, subpass: SubpassBuilder<B, T>) -> Self {
         self.add_subpass(subpass);
         self
@@ -395,14 +408,16 @@ where
                 .collect();
 
             let result = unsafe {
-                gfx_hal::Device::create_render_pass(factory.device(), attachments, subpasses, {
-                    assert_eq!(
-                        self.subpasses.len(),
-                        1,
-                        "TODO: Implement subpass dependencies to allow more than one subpass"
-                    );
-                    std::iter::empty::<gfx_hal::pass::SubpassDependency>()
-                })
+                factory
+                    .device()
+                    .create_render_pass(attachments, subpasses, {
+                        assert_eq!(
+                            self.subpasses.len(),
+                            1,
+                            "TODO: Implement subpass dependencies to allow more than one subpass"
+                        );
+                        std::iter::empty::<gfx_hal::pass::SubpassDependency>()
+                    })
             }
             .unwrap();
 
@@ -544,7 +559,10 @@ where
                         group.build(
                             ctx,
                             factory,
-                            QueueId(family.id(), queue),
+                            QueueId {
+                                family: family.id(),
+                                index: queue,
+                            },
                             aux,
                             framebuffer_width,
                             framebuffer_height,
@@ -596,7 +614,7 @@ struct SubpassNode<B: Backend, T: ?Sized> {
 
 #[derive(derivative::Derivative)]
 #[derivative(Debug(bound = ""))]
-struct BarriersCommands<B: gfx_hal::Backend> {
+struct BarriersCommands<B: Backend> {
     submit: Submit<B, SimultaneousUse, SecondaryLevel>,
     buffer: CommandBuffer<
         B,
@@ -607,6 +625,7 @@ struct BarriersCommands<B: gfx_hal::Backend> {
     >,
 }
 
+/// Render-pass node.
 #[derive(derivative::Derivative)]
 #[derivative(Debug(bound = ""))]
 pub struct RenderPassNode<B: Backend, T: ?Sized> {

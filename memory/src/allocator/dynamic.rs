@@ -1,17 +1,17 @@
 use std::{collections::HashMap, ops::Range, ptr::NonNull};
 
-use crate::{
+use {crate::{
     allocator::{Allocator, Kind},
     block::Block,
     mapping::*,
     memory::*,
     util::*,
-};
+}, gfx_hal::{Backend, Device as _}};
 
 /// Memory block allocated from `DynamicAllocator`
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct DynamicBlock<B: gfx_hal::Backend> {
+pub struct DynamicBlock<B: Backend> {
     index: u32,
     // #[derivative(Debug(format_with = "super::memory_ptr_fmt"))]
     memory: *const Memory<B>,
@@ -21,12 +21,12 @@ pub struct DynamicBlock<B: gfx_hal::Backend> {
     relevant: relevant::Relevant,
 }
 
-unsafe impl<B> Send for DynamicBlock<B> where B: gfx_hal::Backend {}
-unsafe impl<B> Sync for DynamicBlock<B> where B: gfx_hal::Backend {}
+unsafe impl<B> Send for DynamicBlock<B> where B: Backend {}
+unsafe impl<B> Sync for DynamicBlock<B> where B: Backend {}
 
 impl<B> DynamicBlock<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn shared_memory(&self) -> &Memory<B> {
         // Memory won't be freed until last block created from it deallocated.
@@ -44,7 +44,7 @@ where
 
 impl<B> Block<B> for DynamicBlock<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     #[inline]
     fn properties(&self) -> gfx_hal::memory::Properties {
@@ -64,7 +64,7 @@ where
     #[inline]
     fn map<'a>(
         &'a mut self,
-        _device: &impl gfx_hal::Device<B>,
+        _device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         debug_assert!(
@@ -88,7 +88,7 @@ where
     }
 
     #[inline]
-    fn unmap(&mut self, _device: &impl gfx_hal::Device<B>) {}
+    fn unmap(&mut self, _device: &B::Device) {}
 }
 
 /// Config for `DynamicAllocator`.
@@ -117,7 +117,7 @@ pub struct DynamicConfig {
 /// Every freed block can be recycled independently.
 /// Memory objects can be returned to the system if whole memory object become unused (not implemented yet).
 #[derive(Debug)]
-pub struct DynamicAllocator<B: gfx_hal::Backend> {
+pub struct DynamicAllocator<B: Backend> {
     /// Memory type that this allocator allocates.
     memory_type: gfx_hal::MemoryTypeId,
 
@@ -145,7 +145,7 @@ pub struct DynamicAllocator<B: gfx_hal::Backend> {
 
 /// List of chunks
 #[derive(Debug)]
-struct Size<B: gfx_hal::Backend> {
+struct Size<B: Backend> {
     /// List of chunks.
     chunks: veclist::VecList<Chunk<B>>,
 
@@ -158,7 +158,7 @@ struct Size<B: gfx_hal::Backend> {
 
 impl<B> Default for Size<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn default() -> Self {
         Size {
@@ -173,7 +173,7 @@ const MAX_BLOCKS_PER_CHUNK: u32 = std::mem::size_of::<usize>() as u32 * 8;
 
 impl<B> DynamicAllocator<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Maximum allocation size.
     pub fn max_allocation(&self) -> u64 {
@@ -243,7 +243,7 @@ where
     /// Allocate super-block to use as chunk memory.
     fn alloc_chunk(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         size: u64,
     ) -> Result<(Chunk<B>, u64), gfx_hal::device::AllocationError> {
         log::trace!("Allocate new chunk: size: {}", size);
@@ -282,7 +282,7 @@ where
 
     /// Allocate super-block to use as chunk memory.
     #[warn(dead_code)]
-    fn free_chunk(&mut self, device: &impl gfx_hal::Device<B>, chunk: Chunk<B>) -> u64 {
+    fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>) -> u64 {
         log::trace!("Free chunk: {:#?}", chunk);
         match chunk {
             Chunk::Dedicated(boxed, _) => {
@@ -306,7 +306,7 @@ where
     /// Allocate from chunk.
     fn alloc_from_chunk(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         size: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         log::trace!("Allocate from chunk. size: {}", size);
@@ -375,7 +375,7 @@ where
 
 impl<B> Allocator<B> for DynamicAllocator<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     type Block = DynamicBlock<B>;
 
@@ -385,7 +385,7 @@ where
 
     fn alloc(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         size: u64,
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
@@ -404,7 +404,7 @@ where
         self.alloc_from_chunk(device, aligned_size)
     }
 
-    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: DynamicBlock<B>) -> u64 {
+    fn free(&mut self, device: &B::Device, block: DynamicBlock<B>) -> u64 {
         log::trace!("Free block: {:#?}", block);
         let size = block.size();
         let block_index = block.index;
@@ -444,7 +444,7 @@ where
 
 /// Block allocated for chunk.
 #[derive(Debug)]
-enum Chunk<B: gfx_hal::Backend> {
+enum Chunk<B: Backend> {
     /// Allocated from device.
     Dedicated(Box<Memory<B>>, Option<NonNull<u8>>),
 
@@ -452,12 +452,12 @@ enum Chunk<B: gfx_hal::Backend> {
     Dynamic(DynamicBlock<B>),
 }
 
-unsafe impl<B> Send for Chunk<B> where B: gfx_hal::Backend {}
-unsafe impl<B> Sync for Chunk<B> where B: gfx_hal::Backend {}
+unsafe impl<B> Send for Chunk<B> where B: Backend {}
+unsafe impl<B> Sync for Chunk<B> where B: Backend {}
 
 impl<B> Chunk<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn shared_memory(&self) -> &Memory<B> {
         match self {
