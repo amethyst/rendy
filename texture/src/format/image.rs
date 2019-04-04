@@ -160,7 +160,7 @@ impl TextureKind {
     }
 }
 
-#[derive(Derivative, Debug, Clone, PartialEq, Eq)]
+#[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derivative(Default)]
 pub struct ImageTextureConfig {

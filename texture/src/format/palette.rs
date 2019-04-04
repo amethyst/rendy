@@ -12,6 +12,7 @@ macro_rules! define_load {
         )
     };
     ($(pub fn $load_fn:ident<$($ty:ident: $where:path),*>($palette:ident) -> $pixel:ident $swizzle:tt;)*) => {$(
+        /// Function to load texture from `palette` pixels.
         pub fn $load_fn<$($ty),*>(
             palette: palette::$palette<$($ty),*>,
         ) -> TextureBuilder<'static>

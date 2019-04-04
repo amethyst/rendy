@@ -227,21 +227,19 @@ impl<'a> TextureBuilder<'a> {
             )?;
         }
 
-        let view = unsafe {
-            factory.create_image_view(
-                image.clone(),
-                ImageViewInfo {
-                    view_kind: self.view_kind,
-                    format: self.format,
-                    swizzle: self.swizzle,
-                    range: gfx_hal::image::SubresourceRange {
-                        aspects: self.format.surface_desc().aspects,
-                        levels: 0..1,
-                        layers: 0..self.kind.num_layers(),
-                    },
+        let view = factory.create_image_view(
+            image.clone(),
+            ImageViewInfo {
+                view_kind: self.view_kind,
+                format: self.format,
+                swizzle: self.swizzle,
+                range: gfx_hal::image::SubresourceRange {
+                    aspects: self.format.surface_desc().aspects,
+                    levels: 0..1,
+                    layers: 0..self.kind.num_layers(),
                 },
-            )
-        }?;
+            },
+        )?;
 
         let sampler = factory.get_sampler(gfx_hal::image::SamplerInfo::new(
             self.filter,

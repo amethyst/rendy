@@ -8,7 +8,6 @@
     not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
     allow(unused)
 )]
-
 use {
     gfx_hal::PhysicalDevice as _,
     rendy::{
