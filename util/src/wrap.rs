@@ -7,12 +7,16 @@ use {
 fn new_instance_id() -> InstanceId {
     static INSTANCE_ID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-    log::warn!("Slow safety checks are enabled! Disable them in production by enabling the 'no-slow-safety-checks' feature!");
     let id = INSTANCE_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     assert!(
         id < usize::max_value() && (id as u32) < u32::max_value(),
         "Too many instances created"
     );
+
+    if id == 0 {
+        // Warn once.
+        log::info!("Slow safety checks are enabled! You can disable them in production by enabling the 'no-slow-safety-checks' feature!");
+    }
 
     InstanceId { id: id as u32 }
 }

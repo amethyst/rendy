@@ -11,12 +11,12 @@ use {
 
 /// Descriptor set layout info.
 #[derive(Clone, Debug)]
-pub struct DescriptroSetInfo {
+pub struct DescriptorSetInfo {
     /// Bindings.
     pub bindings: Vec<DescriptorSetLayoutBinding>,
 }
 
-impl DescriptroSetInfo {
+impl DescriptorSetInfo {
     /// Get descriptor ranges of the layout.
     pub fn ranges(&self) -> descriptor::DescriptorRanges {
         descriptor::DescriptorRanges::from_bindings(&self.bindings)
@@ -28,7 +28,7 @@ impl DescriptroSetInfo {
 pub struct DescriptorSetLayout<B: Backend> {
     device: DeviceId,
     raw: B::DescriptorSetLayout,
-    info: DescriptroSetInfo,
+    info: DescriptorSetInfo,
     relevant: Relevant,
 }
 
@@ -41,7 +41,7 @@ where
     /// Create new descriptor set layout
     pub unsafe fn create(
         device: &Device<B>,
-        info: DescriptroSetInfo,
+        info: DescriptorSetInfo,
     ) -> Result<Self, gfx_hal::device::OutOfMemory> {
         let raw = device
             .create_descriptor_set_layout(&info.bindings, std::iter::empty::<B::Sampler>())?;
@@ -72,7 +72,7 @@ where
     }
 
     /// Get descriptor set layout info.
-    pub fn info(&self) -> &DescriptroSetInfo {
+    pub fn info(&self) -> &DescriptorSetInfo {
         &self.info
     }
 }

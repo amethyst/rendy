@@ -86,10 +86,10 @@ where
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(VERTEX.module(factory).unwrap());
+        storage.push(unsafe { VERTEX.module(factory).unwrap() });
 
         log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(FRAGMENT.module(factory).unwrap());
+        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {

@@ -20,7 +20,7 @@ use {
         memory::{Data, Dynamic},
         mesh::{AsVertex, Mesh, PosColorNorm, Transform},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
+        shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
     },
 };
 
@@ -42,14 +42,14 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: SpirvShaderInfo = StaticShaderInfo::new(
+    static ref VERTEX: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref FRAGMENT: SpirvShaderInfo = StaticShaderInfo::new(
+    static ref FRAGMENT: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
@@ -170,10 +170,10 @@ where
         storage.clear();
 
         log::trace!("Load shader module VERTEX");
-        storage.push(VERTEX.module(factory).unwrap());
+        storage.push(unsafe { VERTEX.module(factory).unwrap() });
 
         log::trace!("Load shader module FRAGMENT");
-        storage.push(FRAGMENT.module(factory).unwrap());
+        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
