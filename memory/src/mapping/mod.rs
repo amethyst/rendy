@@ -2,9 +2,9 @@ mod range;
 pub(crate) mod write;
 
 use {
-    std::{ops::Range, ptr::NonNull},
     crate::{memory::Memory, util::fits_usize},
     gfx_hal::{Backend, Device as _},
+    std::{ops::Range, ptr::NonNull},
 };
 
 pub(crate) use self::range::{

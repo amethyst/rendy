@@ -1,12 +1,15 @@
 use std::{collections::HashMap, ops::Range, ptr::NonNull};
 
-use {crate::{
-    allocator::{Allocator, Kind},
-    block::Block,
-    mapping::*,
-    memory::*,
-    util::*,
-}, gfx_hal::{Backend, Device as _}};
+use {
+    crate::{
+        allocator::{Allocator, Kind},
+        block::Block,
+        mapping::*,
+        memory::*,
+        util::*,
+    },
+    gfx_hal::{Backend, Device as _},
+};
 
 /// Memory block allocated from `DynamicAllocator`
 #[derive(derivative::Derivative)]
