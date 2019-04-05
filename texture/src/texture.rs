@@ -53,7 +53,7 @@ pub struct TextureBuilder<'a> {
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
-    filter: image::Filter,
+    sampler_info: gfx_hal::image::SamplerInfo,
     swizzle: gfx_hal::format::Swizzle,
 }
 
@@ -67,7 +67,10 @@ impl<'a> TextureBuilder<'a> {
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
             data_height: 0,
-            filter: image::Filter::Linear,
+            sampler_info: gfx_hal::image::SamplerInfo::new(
+                gfx_hal::image::Filter::Linear,
+                gfx_hal::image::WrapMode::Clamp,
+            ),
             swizzle: gfx_hal::format::Swizzle::NO,
         }
     }
@@ -157,15 +160,15 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
-    /// With image filter.
-    pub fn with_filter(mut self, filter: image::Filter) -> Self {
-        self.set_filter(filter);
+    /// With image sampler info.
+    pub fn with_sampler_info(mut self, sampler_info: gfx_hal::image::SamplerInfo) -> Self {
+        self.set_sampler_info(sampler_info);
         self
     }
 
-    /// Set image filter.
-    pub fn set_filter(&mut self, filter: image::Filter) -> &mut Self {
-        self.filter = filter;
+    /// Set image sampler info.
+    pub fn set_sampler_info(&mut self, sampler_info: gfx_hal::image::SamplerInfo) -> &mut Self {
+        self.sampler_info = sampler_info;
         self
     }
 
@@ -241,8 +244,7 @@ impl<'a> TextureBuilder<'a> {
             },
         )?;
 
-        let sampler =
-            factory.get_sampler(image::SamplerInfo::new(self.filter, image::WrapMode::Clamp))?;
+        let sampler = factory.get_sampler(self.sampler_info.clone())?;
 
         Ok(Texture {
             image,
