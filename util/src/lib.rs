@@ -37,7 +37,7 @@ macro_rules! device_owned {
 
             /// Assert specified device is owner.
             pub fn assert_device_owner(&self, device: &$crate::Device<B>) {
-                assert_eq!(self.device_id(), device.id(), "Resource is not owned by speicified device");
+                assert_eq!(self.device_id(), device.id(), "Resource is not owned by specified device");
             }
 
             /// Get owned id.
@@ -47,7 +47,7 @@ macro_rules! device_owned {
 
             /// Assert specified instance is owner.
             pub fn assert_instance_owner(&self, instance: &$crate::Instance<B>) {
-                assert_eq!(self.instance_id(), instance.id(), "Resource is not owned by speicified instance");
+                assert_eq!(self.instance_id(), instance.id(), "Resource is not owned by specified instance");
             }
         }
     };

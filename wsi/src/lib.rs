@@ -22,7 +22,7 @@ mod gfx_backend_empty {
     pub(super) fn create_surface(
         _instance: &gfx_backend_empty::Instance,
         _window: &winit::Window,
-    ) -> gfx_backend_empty::Surface {
+    ) -> <gfx_backend_empty::Backend as gfx_hal::Backend>::Surface {
         unimplemented!()
     }
 }
@@ -32,7 +32,7 @@ mod gfx_backend_metal {
     pub(super) fn create_surface(
         instance: &gfx_backend_metal::Instance,
         window: &winit::Window,
-    ) -> gfx_backend_metal::Surface {
+    ) -> <gfx_backend_metal::Backend as gfx_hal::Backend>::Surface {
         instance.create_surface(window)
     }
 }
@@ -42,7 +42,7 @@ mod gfx_backend_vulkan {
     pub(super) fn create_surface(
         instance: &gfx_backend_vulkan::Instance,
         window: &winit::Window,
-    ) -> <gfx_backend_vulkan::Backend as Backend>::Surface {
+    ) -> <gfx_backend_vulkan::Backend as gfx_hal::Backend>::Surface {
         instance.create_surface(window)
     }
 }
@@ -52,7 +52,7 @@ mod gfx_backend_dx12 {
     pub(super) fn create_surface(
         instance: &gfx_backend_dx12::Instance,
         window: &winit::Window,
-    ) -> <gfx_backend_dx12::Backend as Backend>::Surface {
+    ) -> <gfx_backend_dx12::Backend as gfx_hal::Backend>::Surface {
         instance.create_surface(window)
     }
 }
@@ -196,7 +196,7 @@ where
         assert_eq!(
             device.id().instance,
             self.instance,
-            "Resource is not owned by speicified instance"
+            "Resource is not owned by specified instance"
         );
 
         let (swapchain, backbuffer) = create_swapchain(

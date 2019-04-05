@@ -800,7 +800,7 @@ where
         &self,
         bindings: Vec<DescriptorSetLayoutBinding>,
     ) -> Result<DescriptorSetLayout<B>, OutOfMemory> {
-        unsafe { DescriptorSetLayout::create(&self.device, DescriptroSetInfo { bindings }) }
+        unsafe { DescriptorSetLayout::create(&self.device, DescriptorSetInfo { bindings }) }
     }
 
     /// Create descriptor set layout with specified bindings.

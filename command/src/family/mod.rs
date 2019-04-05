@@ -25,10 +25,9 @@ pub struct FamilyId {
     pub device: DeviceId,
 }
 
-impl FamilyId {
-    /// Get gfx-hal queue id.
-    pub fn gfx(&self) -> gfx_hal::queue::QueueFamilyId {
-        gfx_hal::queue::QueueFamilyId(self.index)
+impl From<FamilyId> for gfx_hal::queue::QueueFamilyId {
+    fn from(id: FamilyId) -> Self {
+        gfx_hal::queue::QueueFamilyId(id.index)
     }
 }
 
@@ -191,7 +190,7 @@ where
     /// Get queue family by id.
     pub fn family(&self, id: FamilyId) -> &Family<B> {
         assert_eq!(id.device, self.device);
-        &self.families[self.families_indices[id.index]]
+        self.family_by_index(id.index)
     }
 
     /// Get queue family by index.
@@ -202,7 +201,7 @@ where
     /// Get queue family by id.
     pub fn family_mut(&mut self, id: FamilyId) -> &mut Family<B> {
         assert_eq!(id.device, self.device);
-        &mut self.families[self.families_indices[id.index]]
+        self.family_by_index_mut(id.index)
     }
 
     /// Get queue family by index.

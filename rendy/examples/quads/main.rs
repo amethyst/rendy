@@ -29,7 +29,7 @@ use rendy::{
     memory::{Data, Dynamic},
     mesh::{AsVertex, Color},
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{Shader, ShaderKind, SourceLanguage, SpirvShaderInfo, StaticShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -51,21 +51,21 @@ struct PosVel {
 }
 
 lazy_static::lazy_static! {
-    static ref RENDER_VERTEX: SpirvShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_VERTEX: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref RENDER_FRAGMENT: SpirvShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_FRAGMENT: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref BOUNCE_COMPUTE: SpirvShaderInfo = StaticShaderInfo::new(
+    static ref BOUNCE_COMPUTE: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
@@ -130,10 +130,10 @@ where
         storage.clear();
 
         log::trace!("Load shader module RENDER_VERTEX");
-        storage.push(RENDER_VERTEX.module(factory).unwrap());
+        storage.push(unsafe { RENDER_VERTEX.module(factory).unwrap() });
 
         log::trace!("Load shader module RENDER_FRAGMENT");
-        storage.push(RENDER_FRAGMENT.module(factory).unwrap());
+        storage.push(unsafe { RENDER_FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -428,7 +428,7 @@ where
         let ref mut posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
-        let module = BOUNCE_COMPUTE.module(factory)?;
+        let module = unsafe { BOUNCE_COMPUTE.module(factory) }?;
 
         let set_layout = Handle::from(factory.create_descriptor_set_layout(vec![
             gfx_hal::pso::DescriptorSetLayoutBinding {
