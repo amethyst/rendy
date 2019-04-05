@@ -6,13 +6,16 @@ use {
         Backend, Device,
     },
     smallvec::{smallvec, SmallVec},
-    std::collections::{HashMap, VecDeque},
+    std::{
+        collections::{HashMap, VecDeque},
+        ops::Deref,
+    },
 };
 
 const MIN_SETS: u32 = 64;
 const MAX_SETS: u32 = 512;
 
-/// Descriptor set
+/// Descriptor set from allocator.
 #[derive(Debug)]
 pub struct DescriptorSet<B: Backend> {
     raw: B::DescriptorSet,
@@ -33,6 +36,17 @@ where
     /// It must not be replaced.
     pub unsafe fn raw_mut(&mut self) -> &mut B::DescriptorSet {
         &mut self.raw
+    }
+}
+
+impl<B> Deref for DescriptorSet<B>
+where
+    B: Backend,
+{
+    type Target = B::DescriptorSet;
+
+    fn deref(&self) -> &B::DescriptorSet {
+        &self.raw
     }
 }
 
@@ -227,6 +241,8 @@ where
     }
 }
 
+/// Descriptor allocator.
+/// Can be used to allocate descriptor sets for any layout.
 #[derive(Debug)]
 pub struct DescriptorAllocator<B: Backend> {
     buckets: HashMap<DescriptorRanges, DescriptorBucket<B>>,
@@ -239,6 +255,7 @@ impl<B> DescriptorAllocator<B>
 where
     B: Backend,
 {
+    /// Create new allocator instance.
     pub fn new() -> Self {
         DescriptorAllocator {
             buckets: HashMap::new(),
@@ -251,6 +268,8 @@ where
         }
     }
 
+    /// Destroy allocator instance.
+    /// All sets allocated from this allocator become invalid.
     pub unsafe fn dispose(mut self, device: &B::Device) {
         self.buckets
             .drain()
@@ -258,6 +277,12 @@ where
         self.relevant.dispose();
     }
 
+    /// Allocate descriptor set with specified layout.
+    /// `DescriptorRanges` must match descriptor numbers of the layout.
+    /// `DescriptorRanges` can be constructed [from bindings] that were used
+    /// to create layout instance.
+    ///
+    /// [from bindings]: .
     pub unsafe fn allocate(
         &mut self,
         device: &B::Device,
@@ -321,6 +346,13 @@ where
         }
     }
 
+    /// Free descriptor sets.
+    ///
+    /// # Safety
+    ///
+    /// None of descriptor sets can be refernced in any pending command buffers.
+    /// All command buffers where at least one of descriptor sets referenced
+    /// move to invalid state.
     pub unsafe fn free(&mut self, all_sets: impl IntoIterator<Item = DescriptorSet<B>>) {
         let mut free: Option<(DescriptorRanges, u64, SmallVec<[B::DescriptorSet; 32]>)> = None;
 
@@ -359,6 +391,7 @@ where
         }
     }
 
+    /// Perform cleanup to allow resources reuse.
     pub unsafe fn cleanup(&mut self, device: &B::Device) {
         self.buckets
             .values_mut()
