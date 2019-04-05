@@ -13,6 +13,9 @@ else
 	endif
 endif
 
+fast:
+	cd rendy && cargo build --all --examples --features "full $(RENDY_BACKEND) no-slow-safety-checks"
+
 build:
 	cd rendy && cargo build --all --examples --features "full $(RENDY_BACKEND)"
 
@@ -22,7 +25,7 @@ test:
 doc:
 	cd rendy && cargo doc --all --features "full $(RENDY_BACKEND)"
 
-all: build test doc
+all: fast build test doc
 
 quads:
 	cd rendy && cargo run --features "full $(RENDY_BACKEND)" --example quads
