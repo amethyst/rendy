@@ -58,10 +58,11 @@ where
     ///
     /// # Safety
     ///
-    /// `info` must match information about raw image.
-    /// `block` if provided must be the one bound to the raw image.
-    /// `terminal` will receive image and memory block upon drop, it must free image and memory properly.
+    /// In order to guarantee that `Heap::allocate` will return
+    /// memory range owned by this `Device`,
+    /// this `Heaps` instance must always be used with this `Device` instance.
     ///
+    /// Otherwise usage of hal methods must be always valid.
     pub unsafe fn create(
         device: &Device<B>,
         heaps: &mut Heaps<B>,

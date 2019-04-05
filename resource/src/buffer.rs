@@ -42,6 +42,14 @@ where
     B: Backend,
 {
     /// Create buffer, allocate memory block for it and bind.
+    ///
+    /// # Safety
+    ///
+    /// In order to guarantee that `Heap::allocate` will return
+    /// memory range owned by this `Device`,
+    /// this `Heaps` instance must always be used with this `Device` instance.
+    ///
+    /// Otherwise usage of hal methods must be always valid.
     pub unsafe fn create(
         device: &Device<B>,
         heaps: &mut Heaps<B>,
@@ -49,6 +57,7 @@ where
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, failure::Error> {
         log::trace!("{:#?}@{:#?}", info, memory_usage);
+        assert_ne!(info.size, 0);
 
         let mut buf = device.create_buffer(info.size, info.usage)?;
         let reqs = device.get_buffer_requirements(&buf);

@@ -281,7 +281,7 @@ where
         &self,
         info: SamplerInfo,
     ) -> Result<Sampler<B>, AllocationError> {
-        unsafe { Sampler::create(&self.device, info) }
+        Sampler::create(&self.device, info)
     }
 
     /// Destroy sampler.
@@ -325,7 +325,7 @@ where
             self.resources.samplers_cache.upgradable_read(),
             parking_lot::RwLockUpgradableReadGuard::upgrade,
             info.clone(),
-            || Ok(samplers.handle(unsafe { Sampler::create(device, info) }?)),
+            || Ok(samplers.handle(Sampler::create(device, info)?)),
         )
     }
 

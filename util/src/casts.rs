@@ -1,5 +1,3 @@
-
-
 use std::borrow::Cow;
 
 /// Cast vec of some arbitrary type into vec of bytes.
@@ -29,4 +27,3 @@ pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
         Cow::Owned(vec) => Cow::Owned(cast_vec(vec)),
     }
 }
-

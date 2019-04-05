@@ -8,21 +8,22 @@
     allow(unused)
 )]
 
-use {rendy::{
-    command::{Families, QueueId, RenderPassEncoder},
-    factory::{Config, Factory, ImageState},
-    graph::{
-        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+use {
+    gfx_hal::Device as _,
+    rendy::{
+        command::{Families, QueueId, RenderPassEncoder},
+        factory::{Config, Factory, ImageState},
+        graph::{
+            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
+            NodeImage,
+        },
+        memory::{Data, Dynamic},
+        mesh::{AsVertex, PosTex},
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+        texture::Texture,
     },
-    memory::{Data, Dynamic},
-    mesh::{AsVertex, PosTex},
-    resource::{
-        Buffer, BufferInfo,
-        DescriptorSet, DescriptorSetLayout, Escape, Handle,
-    },
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
-    texture::Texture,
-}, gfx_hal::Device as _};
+};
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -91,10 +92,10 @@ where
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(unsafe{VERTEX.module(factory).unwrap()});
+        storage.push(unsafe { VERTEX.module(factory).unwrap() });
 
         log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(unsafe{FRAGMENT.module(factory).unwrap()});
+        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -172,28 +173,28 @@ where
             )
             .unwrap();
 
-        let descriptor_set = factory.create_descriptor_set(set_layouts[0].clone()).unwrap();
+        let descriptor_set = factory
+            .create_descriptor_set(set_layouts[0].clone())
+            .unwrap();
 
         unsafe {
-            factory.device().write_descriptor_sets(
-                vec![
-                    gfx_hal::pso::DescriptorSetWrite {
-                        set: descriptor_set.raw(),
-                        binding: 0,
-                        array_offset: 0,
-                        descriptors: vec![gfx_hal::pso::Descriptor::Image(
-                            texture.view().raw(),
-                            gfx_hal::image::Layout::ShaderReadOnlyOptimal,
-                        )],
-                    },
-                    gfx_hal::pso::DescriptorSetWrite {
-                        set: descriptor_set.raw(),
-                        binding: 1,
-                        array_offset: 0,
-                        descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler().raw())],
-                    },
-                ],
-            );
+            factory.device().write_descriptor_sets(vec![
+                gfx_hal::pso::DescriptorSetWrite {
+                    set: descriptor_set.raw(),
+                    binding: 0,
+                    array_offset: 0,
+                    descriptors: vec![gfx_hal::pso::Descriptor::Image(
+                        texture.view().raw(),
+                        gfx_hal::image::Layout::ShaderReadOnlyOptimal,
+                    )],
+                },
+                gfx_hal::pso::DescriptorSetWrite {
+                    set: descriptor_set.raw(),
+                    binding: 1,
+                    array_offset: 0,
+                    descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler().raw())],
+                },
+            ]);
         }
 
         let mut vbuf = factory

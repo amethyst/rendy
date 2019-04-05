@@ -26,11 +26,12 @@ where
     B: Backend,
 {
     /// Create new sampler.
-    pub unsafe fn create(
+    pub fn create(
         device: &Device<B>,
         info: SamplerInfo,
     ) -> Result<Self, gfx_hal::device::AllocationError> {
-        let raw = device.create_sampler(info.clone())?;
+        // TODO: Check info is valid.
+        let raw = unsafe { device.create_sampler(info.clone()) }?;
         Ok(Sampler {
             device: device.id(),
             raw,
