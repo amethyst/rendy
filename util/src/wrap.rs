@@ -64,7 +64,7 @@ impl InstanceId {
 
 /// Raw instance wrapper with id.
 pub struct Instance<B: Backend> {
-    instance: Box<dyn Any>,
+    instance: Box<dyn Any + Send + Sync>,
     id: InstanceId,
     marker: PhantomData<B>,
 }

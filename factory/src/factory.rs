@@ -92,6 +92,12 @@ pub struct Factory<B: Backend> {
     instance: Instance<B>,
 }
 
+#[allow(unused)]
+fn factory_is_send_sync<B: Backend>() {
+    fn is_send_sync<T: Send + Sync>() {}
+    is_send_sync::<Factory<B>>();
+}
+
 impl<B> Drop for Factory<B>
 where
     B: Backend,
