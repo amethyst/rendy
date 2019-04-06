@@ -12,9 +12,9 @@ use {
         wsi::{Surface, Target},
     },
     gfx_hal::{
-        device::*, error::HostExecutionError, format, image, pso::DescriptorSetLayoutBinding,
-        Adapter, Backend, Device as _, Features, Gpu, Limits, PhysicalDevice,
-        Surface as GfxSurface,
+        buffer, device::*, error::HostExecutionError, format, image,
+        pso::DescriptorSetLayoutBinding, Adapter, Backend, Device as _, Features, Gpu, Limits,
+        PhysicalDevice, Surface as GfxSurface,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -400,11 +400,13 @@ where
         last: Option<BufferState>,
         next: BufferState,
     ) -> Result<(), failure::Error> {
+        assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
+
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
         let mut staging = self.create_buffer(
             BufferInfo {
                 size: content_size,
-                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
+                usage: buffer::Usage::TRANSFER_SRC,
             },
             memory::Upload,
         )?;
@@ -448,6 +450,7 @@ where
         last: impl Into<ImageStateOrLayout>,
         next: ImageState,
     ) -> Result<(), failure::Error> {
+        assert!(image.info().usage.contains(image::Usage::TRANSFER_DST));
         assert_eq!(image.format().surface_desc().aspects, image_layers.aspects);
         assert!(image_layers.layers.start <= image_layers.layers.end);
         assert!(image_layers.layers.end <= image.kind().num_layers());
@@ -467,7 +470,7 @@ where
         let mut staging = self.create_buffer(
             BufferInfo {
                 size: content_size,
-                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
+                usage: buffer::Usage::TRANSFER_SRC,
             },
             memory::Upload,
         )?;

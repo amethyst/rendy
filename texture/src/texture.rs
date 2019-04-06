@@ -6,7 +6,7 @@ use {
         resource::{Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler},
         util::cast_cow,
     },
-    gfx_hal::Backend,
+    gfx_hal::{image, Backend},
 };
 
 /// Static image.
@@ -47,13 +47,13 @@ where
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextureBuilder<'a> {
-    kind: gfx_hal::image::Kind,
-    view_kind: gfx_hal::image::ViewKind,
+    kind: image::Kind,
+    view_kind: image::ViewKind,
     format: gfx_hal::format::Format,
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
-    filter: gfx_hal::image::Filter,
+    filter: image::Filter,
     swizzle: gfx_hal::format::Swizzle,
 }
 
@@ -61,13 +61,13 @@ impl<'a> TextureBuilder<'a> {
     /// New empty builder.
     pub fn new() -> Self {
         TextureBuilder {
-            kind: gfx_hal::image::Kind::D1(0, 0),
-            view_kind: gfx_hal::image::ViewKind::D1,
+            kind: image::Kind::D1(0, 0),
+            view_kind: image::ViewKind::D1,
             format: gfx_hal::format::Format::Rgba8Unorm,
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
             data_height: 0,
-            filter: gfx_hal::image::Filter::Linear,
+            filter: image::Filter::Linear,
             swizzle: gfx_hal::format::Swizzle::NO,
         }
     }
@@ -134,37 +134,37 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// Set image extent.
-    pub fn with_kind(mut self, kind: gfx_hal::image::Kind) -> Self {
+    pub fn with_kind(mut self, kind: image::Kind) -> Self {
         self.set_kind(kind);
         self
     }
 
     /// Set image kind.
-    pub fn set_kind(&mut self, kind: gfx_hal::image::Kind) -> &mut Self {
+    pub fn set_kind(&mut self, kind: image::Kind) -> &mut Self {
         self.kind = kind;
         self
     }
 
     /// With image view kind.
-    pub fn with_view_kind(mut self, view_kind: gfx_hal::image::ViewKind) -> Self {
+    pub fn with_view_kind(mut self, view_kind: image::ViewKind) -> Self {
         self.set_view_kind(view_kind);
         self
     }
 
     /// Set image view kind.
-    pub fn set_view_kind(&mut self, view_kind: gfx_hal::image::ViewKind) -> &mut Self {
+    pub fn set_view_kind(&mut self, view_kind: image::ViewKind) -> &mut Self {
         self.view_kind = view_kind;
         self
     }
 
     /// With image filter.
-    pub fn with_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
+    pub fn with_filter(mut self, filter: image::Filter) -> Self {
         self.set_filter(filter);
         self
     }
 
     /// Set image filter.
-    pub fn set_filter(&mut self, filter: gfx_hal::image::Filter) -> &mut Self {
+    pub fn set_filter(&mut self, filter: image::Filter) -> &mut Self {
         self.filter = filter;
         self
     }
@@ -201,9 +201,9 @@ impl<'a> TextureBuilder<'a> {
                     kind: self.kind,
                     levels: 1,
                     format: self.format,
-                    tiling: gfx_hal::image::Tiling::Optimal,
-                    view_caps: gfx_hal::image::ViewCapabilities::empty(),
-                    usage: gfx_hal::image::Usage::SAMPLED,
+                    tiling: image::Tiling::Optimal,
+                    view_caps: image::ViewCapabilities::empty(),
+                    usage: image::Usage::SAMPLED | image::Usage::TRANSFER_DST,
                 },
                 Data,
             )?
@@ -214,15 +214,15 @@ impl<'a> TextureBuilder<'a> {
                 &image,
                 self.data_width,
                 self.data_height,
-                gfx_hal::image::SubresourceLayers {
+                image::SubresourceLayers {
                     aspects: self.format.surface_desc().aspects,
                     level: 0,
                     layers: 0..self.kind.num_layers(),
                 },
-                gfx_hal::image::Offset::ZERO,
+                image::Offset::ZERO,
                 self.kind.extent(),
                 &self.data,
-                gfx_hal::image::Layout::Undefined,
+                image::Layout::Undefined,
                 next_state,
             )?;
         }
@@ -233,7 +233,7 @@ impl<'a> TextureBuilder<'a> {
                 view_kind: self.view_kind,
                 format: self.format,
                 swizzle: self.swizzle,
-                range: gfx_hal::image::SubresourceRange {
+                range: image::SubresourceRange {
                     aspects: self.format.surface_desc().aspects,
                     levels: 0..1,
                     layers: 0..self.kind.num_layers(),
@@ -241,10 +241,8 @@ impl<'a> TextureBuilder<'a> {
             },
         )?;
 
-        let sampler = factory.get_sampler(gfx_hal::image::SamplerInfo::new(
-            self.filter,
-            gfx_hal::image::WrapMode::Clamp,
-        ))?;
+        let sampler =
+            factory.get_sampler(image::SamplerInfo::new(self.filter, image::WrapMode::Clamp))?;
 
         Ok(Texture {
             image,
