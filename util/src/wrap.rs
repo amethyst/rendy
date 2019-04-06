@@ -1,3 +1,8 @@
+//! These are Vulkan Instance and Device wrappers that contain a unique ID
+//! This allows checking if any other Vulkan resource belongs to a specific
+//! Instance or Device. This is required to ensure we are making a safe
+//! call.
+
 use {
     gfx_hal::Backend,
     std::{any::Any, marker::PhantomData, ops::Deref},
