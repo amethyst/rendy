@@ -1,5 +1,4 @@
-//!
-//!
+//! Crate that contains utility modules used by other rendy crates
 
 #![warn(
     missing_debug_implementations,
