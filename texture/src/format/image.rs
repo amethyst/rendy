@@ -1,3 +1,5 @@
+//! Module that turns an image into a `Texture`
+
 use crate::{pixel, TextureBuilder};
 use derivative::Derivative;
 
@@ -23,6 +25,7 @@ pub enum LayerLayout {
     Column,
 }
 
+/// Stores details about how the data is laid out
 struct DataLayout {
     /// distance between lines in texels
     pub line_stride: u32,
@@ -62,6 +65,7 @@ impl LayerLayout {
 #[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derivative(Default)]
+/// Enumerates the kinds of `Texture`s
 pub enum TextureKind {
     D1,
     D1Array,
@@ -177,6 +181,7 @@ pub struct ImageTextureConfig {
 
 #[cfg(feature = "serde")]
 mod serde_image_format {
+    //! Module for enabline serde to serialize and deserialize image formats
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     #[derive(Serialize, Deserialize)]
@@ -228,6 +233,7 @@ macro_rules! dyn_format {
     }};
 }
 
+/// Attempts to load a Texture from an image.
 pub fn load_from_image(
     bytes: &[u8],
     config: ImageTextureConfig,

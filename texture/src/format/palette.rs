@@ -1,3 +1,7 @@
+//! Module that generates functions to load a single color into a 1x1 `Texture`. Which function
+//! to use depends on what color space the user is using.
+//!
+//! TODO: Consider renaming this as there are no palettes to be found
 use crate::{pixel, texture::TextureBuilder};
 use palette::{white_point::WhitePoint, Component};
 
