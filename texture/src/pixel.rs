@@ -50,7 +50,8 @@ pub struct _32;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct _64;
 
-/// Size of the R, G, B, and A channels
+/// Byte size of each channel in the image, such as Red, Green,
+/// or other channels depending on the format.
 pub trait ChannelSize {
     /// Channel representation.
     const SIZE: u32;
