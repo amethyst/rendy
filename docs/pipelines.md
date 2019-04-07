@@ -72,15 +72,17 @@ Now we're making progress! Only 28,233 more stages to go!
 
 Yes, this is a shader stage that isn't with the rest of the shader stages. Shocking.
 
-As something is rasterized, the rasterizer produces a series of framebuffer addresses and values using a two-dimensional description of a point, line segment, or triangle. These are called _fragments_.
+From [the API docs](http://vulkan-spec-chunked.ahcox.com/ch24.html):
+> As something is rasterized, the rasterizer produces a series of framebuffer addresses and values using a two-dimensional 
+> description of a point, line segment, or triangle. A grid square, including its (x, y) framebuffer coordinates, z coordinate > (depth), and associated data added by fragment shaders is called a _fragment_.
 
 You probably guessed that a fragment shader alters these fragments.
 
-Once they are done, the fragments are updated in the framebuffer.
+Once they are done, a final series of `framebuffer operations`, such as color blending, sends the final color to the framebuffer.
 
 ### Framebuffer Operations
 
-After the fragment shaders are done, other things read the updated data to come up with the final color, transparency, and all that which we will skip. You don't have to do any of that. Fragment shaders are the only way to affect those.
+After the fragment shaders are done, other things read the updated data to come up with the final color, transparency, and all that which we will skip. You don't have to do any of that. With a few exceptions (such as altering the blend operation in the pipeline), fragment shaders are the only way to affect those.
 
 ## Back to Rendy
 
