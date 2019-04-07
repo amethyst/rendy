@@ -90,7 +90,7 @@ In Rendy, we describe one of these pipelines using two `Trait`s: a Pipeline Desc
 
 ### SimpleGraphicsPipelineDesc
 
-This `Trait` is defined in `graph/src/node/render/group/simple.rs`, and you will use it to set up the resources your pipeline will use. The `Desc` is short for `Descriptor`.
+This `Trait` is defined in `graph/src/node/render/group/simple.rs`, and you will use it to set up the resources your pipeline will use. The `Desc` is short for `Description`.
 
 With this `Trait`, you describe your graphics pipeline to Vulkan/Metal/whatever, such as the vertices you want to draw, how to blend colors, how much memory will be needed for buffers, and all that good stuff.
 
