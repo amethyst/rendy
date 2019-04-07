@@ -5,7 +5,6 @@
 #![warn(
     missing_debug_implementations,
     missing_copy_implementations,
-    missing_docs,
     trivial_casts,
     trivial_numeric_casts,
     unused_extern_crates,
