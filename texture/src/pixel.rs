@@ -85,7 +85,7 @@ macro_rules! impl_channel_repr {
     };
 }
 
-/// Actually generates the impl for the below types
+// Actually generates the impl for the below types
 impl_channel_repr! {
     Unorm * _8 = u8;
     Inorm * _8 = u8;
@@ -196,7 +196,7 @@ macro_rules! impl_pixel_repr {
     };
 }
 
-/// Actually use the macro to generate the implementations
+// Actually use the macro to generate the implementations
 impl_pixel_repr! {
     R;
     Rg;
@@ -257,8 +257,8 @@ macro_rules! impl_pixel {
     };
 }
 
-/// Actually implement AsPixel for all the formats
-/// TODO: Implement AsPixel for the Float; they are commented out until then
+// Actually implement AsPixel for all the formats
+// TODO: Implement AsPixel for the Float; they are commented out until then
 impl_pixel! {
     R8Unorm = R _8 Unorm;
     R8Inorm = R _8 Inorm;
