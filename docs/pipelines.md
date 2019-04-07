@@ -128,6 +128,8 @@ Once you are ready, you can check out this full diagram of a Pipeline: https://v
 
 And then, once you've recovered, the entire chapter on Pipelines in the Vulkan spec is here: https://vulkan.lunarg.com/doc/view/1.0.33.0/linux/vkspec.chunked/ch09.html.
 
+A similar document to this by @termhn (one of the primary Rendy contributors) can be found [here](https://github.com/termhn/gfx-hal-tutorial/blob/master/articles/zero-to-voxel-render-part1.md#the-graphics-pipeline).
+
 Good Luck....
 
 _...the final piece of the note appears to be stained with a mixture of tears and something darker, possibly blood..._
