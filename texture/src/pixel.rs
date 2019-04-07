@@ -226,7 +226,7 @@ where
     pub repr: <C as PixelRepr<S, T>>::Repr,
 }
 
-/// AsPixel trait for converting specific things into Pixels.
+/// AsPixel trait for extracting the underlying data representation information from a Rust data type
 /// # Example
 /// ```rust,no-run
 /// struct Rgba([u8; 4]);
