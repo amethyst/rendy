@@ -235,6 +235,21 @@ where
         Ok(self.resources.images.escape(image))
     }
 
+    /// Fetch image format details for a particular `ImageInfo`.
+    pub fn image_format_properties(&self, info: ImageInfo) -> Option<FormatProperties> {
+        self.physical().image_format_properties(
+            info.format,
+            match info.kind {
+                Kind::D1(_, _) => 1,
+                Kind::D2(_, _, _, _) => 2,
+                Kind::D3(_, _, _) => 3,
+            },
+            info.tiling,
+            info.usage,
+            info.view_caps,
+        )
+    }
+
     /// Create an image view with the specified properties
     ///
     /// This function returns relevant value, that is, the value cannot be dropped.

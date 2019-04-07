@@ -174,7 +174,9 @@ pub struct ImageTextureConfig {
     pub format: Option<ImageFormat>,
     pub repr: Repr,
     pub kind: TextureKind,
-    #[derivative(Default(value = "gfx_hal::image::SamplerInfo::new(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)"))]
+    #[derivative(Default(
+        value = "gfx_hal::image::SamplerInfo::new(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)"
+    ))]
     pub sampler_info: gfx_hal::image::SamplerInfo,
 }
 
