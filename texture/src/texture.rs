@@ -343,6 +343,11 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
         padding: 4,
     };
 
+    let t2to4_32 = BufferTransform::AddPadding {
+        stride: 8,
+        padding: 8,
+    };
+
     let t3to4_8 = BufferTransform::AddPadding {
         stride: 3,
         padding: 1,
@@ -351,6 +356,11 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
     let t3to4_16 = BufferTransform::AddPadding {
         stride: 6,
         padding: 2,
+    };
+
+    let t3to4_32 = BufferTransform::AddPadding {
+        stride: 12,
+        padding: 4,
     };
 
     let rgzo = Swizzle(Component::R, Component::G, Component::Zero, Component::One);
@@ -408,6 +418,14 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
         Format::Rgb16Uint => (Format::Rgba16Uint, t3to4_16, rgbo),
         Format::Rgb16Int => (Format::Rgba16Int, t3to4_16, rgbo),
         Format::Rgb16Float => (Format::Rgba16Float, t3to4_16, rgbo),
+
+        Format::Rg32Uint => (Format::Rgba32Uint, t2to4_32, rgzo),
+        Format::Rg32Int => (Format::Rgba32Int, t2to4_32, rgzo),
+        Format::Rg32Float => (Format::Rgba32Float, t2to4_32, rgzo),
+
+        Format::Rgb32Uint => (Format::Rgba32Uint, t3to4_32, rgbo),
+        Format::Rgb32Int => (Format::Rgba32Int, t3to4_32, rgbo),
+        Format::Rgb32Float => (Format::Rgba32Float, t3to4_32, rgbo),
         // TODO: add more conversions
         _ => return None,
     })
