@@ -1,3 +1,4 @@
+//! Module for creating a `Texture` from an image
 use {
     crate::{
         factory::{Factory, ImageState},
@@ -49,6 +50,7 @@ where
 /// Generics-free texture builder.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+/// Struct for staging data in preparation of building a `Texture`
 pub struct TextureBuilder<'a> {
     kind: image::Kind,
     view_kind: image::ViewKind,
@@ -61,7 +63,7 @@ pub struct TextureBuilder<'a> {
 }
 
 impl<'a> TextureBuilder<'a> {
-    /// New empty builder.
+    /// New empty `TextureBuilder`
     pub fn new() -> Self {
         TextureBuilder {
             kind: image::Kind::D1(0, 0),
@@ -246,6 +248,9 @@ impl<'a> TextureBuilder<'a> {
             }
         };
 
+        // The reason that factory.upload_image is unsafe is that the image being uploaded 
+        // must have been created by the same factory and that it is not in use; we guarantee 
+        // that here because we just created the image on the same factory right before.
         unsafe {
             factory.upload_image(
                 &image,

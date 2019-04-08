@@ -1,4 +1,6 @@
 //! Typed pixel formats.
+//! More information on these can be found [here](https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch31s03.html#VkFormat)
+//!
 
 /// Normalized unsigned integer representation
 #[derive(Clone, Copy, Debug, Default)]
@@ -16,11 +18,11 @@ pub struct Uint;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Int;
 
-/// ???
+/// Unsigned scaled integer representation
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Uscaled;
 
-/// ???
+/// Signed scaled integer representation
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Iscaled;
 
@@ -48,7 +50,8 @@ pub struct _32;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct _64;
 
-/// Size of the channel.
+/// Byte size of each channel in the image, such as Red, Green,
+/// or other channels depending on the format.
 pub trait ChannelSize {
     /// Channel representation.
     const SIZE: u32;
@@ -67,12 +70,13 @@ impl ChannelSize for _64 {
     const SIZE: u32 = 8;
 }
 
-/// Channel representation.
+/// Channel representation as a Rust type
 pub trait ChannelRepr<S> {
-    /// Channel representation.
+    /// Newtype to reduce verbosity of representing a Channel in Rust
     type Repr: Sized + std::fmt::Debug + Default + Copy + Send + Sync + 'static;
 }
 
+/// Generates an impl for a Channel
 macro_rules! impl_channel_repr {
     ($($type:ident * $size:ident = $repr:ident;)*) => {
         $(
@@ -81,6 +85,7 @@ macro_rules! impl_channel_repr {
     };
 }
 
+// Actually generates the impl for the below types
 impl_channel_repr! {
     Unorm * _8 = u8;
     Inorm * _8 = u8;
@@ -117,19 +122,19 @@ impl_channel_repr! {
     Float * _64 = f64;
 }
 
-/// Read channel.
+/// Red channel.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct R;
 
-/// Read-green channels.
+/// Red-green channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rg;
 
-/// Read-green-blue channels.
+/// Red-green-blue channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rgb;
 
-/// Read-green-blue-alpha channels.
+/// Red-green-blue-alpha channels.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rgba;
 
@@ -145,12 +150,13 @@ pub struct Bgra;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Abgr;
 
-/// Pixel representation.
+/// Pixel representation as a Rust type
 pub trait PixelRepr<S, T> {
-    /// Pixel representation.
+    /// Newtype to reduce verbosity of representing a Pixel in Rust
     type Repr: Sized + std::fmt::Debug + Default + Copy + Send + Sync + 'static;
 }
 
+/// Returns the number of channels for common RGBA combinations
 macro_rules! num_channels {
     (R) => {
         1
@@ -175,6 +181,7 @@ macro_rules! num_channels {
     };
 }
 
+/// Generates the Pixel impl for various Channels
 macro_rules! impl_pixel_repr {
     ($($channels:ident;)*) => {
         $(
@@ -189,6 +196,7 @@ macro_rules! impl_pixel_repr {
     };
 }
 
+// Actually use the macro to generate the implementations
 impl_pixel_repr! {
     R;
     Rg;
@@ -200,6 +208,8 @@ impl_pixel_repr! {
 }
 
 /// One pixel
+/// By default deriving X adds T: X bound for all type parameters for the type.
+/// We use `derivative` here to override that.
 #[derive(derivative::Derivative)]
 #[derivative(
     Clone(bound = ""),
@@ -216,7 +226,11 @@ where
     pub repr: <C as PixelRepr<S, T>>::Repr,
 }
 
-/// Pixel trait.
+/// AsPixel trait for extracting the underlying data representation information from a Rust data type
+/// # Example
+/// ```rust,no-run
+/// struct Rgba([u8; 4]);
+/// ```
 pub trait AsPixel: Copy + std::fmt::Debug + Default + Send + Sync + 'static {
     /// Name of the pixel type.
     const NAME: &'static str;
@@ -243,6 +257,8 @@ macro_rules! impl_pixel {
     };
 }
 
+// Actually implement AsPixel for all the formats
+// TODO: Implement AsPixel for the Float; they are commented out until then
 impl_pixel! {
     R8Unorm = R _8 Unorm;
     R8Inorm = R _8 Inorm;
@@ -349,6 +365,8 @@ impl_pixel! {
 
 #[cfg(feature = "palette")]
 mod palette_pixel {
+    //! A palette_pixel represents is a type that represents a single color value
+    //! in a color space.
     use super::*;
 
     macro_rules! impl_from_palette {
