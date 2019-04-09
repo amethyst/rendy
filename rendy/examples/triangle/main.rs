@@ -110,7 +110,7 @@ where
 
     fn build<'a>(
         self,
-        _ctx: &mut GraphContext<B>,
+        _ctx: &GraphContext<B>,
         _factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,

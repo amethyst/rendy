@@ -177,7 +177,7 @@ where
 
     fn build<'a>(
         self,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
@@ -410,7 +410,7 @@ where
 
     fn build<'a>(
         self,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,

@@ -262,7 +262,7 @@ where
 
     fn build<'a>(
         self: Box<Self>,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,

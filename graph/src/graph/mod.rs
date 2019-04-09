@@ -403,7 +403,7 @@ where
 }
 
 fn build_node<'a, B: Backend, T: ?Sized>(
-    ctx: &mut GraphContext<B>,
+    ctx: &GraphContext<B>,
     builder: Box<dyn NodeBuilder<B, T>>,
     factory: &mut Factory<B>,
     family: &mut rendy_command::Family<B>,
