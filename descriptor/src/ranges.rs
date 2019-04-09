@@ -3,11 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
-pub use gfx_hal::{
-    device::OutOfMemory,
-    pso::{DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorType},
-    Backend, Device,
-};
+pub use gfx_hal::pso::{DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorType};
 
 const DESCPTOR_TYPES_COUNT: usize = 11;
 
