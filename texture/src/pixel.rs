@@ -367,48 +367,75 @@ impl_pixel! {
 mod palette_pixel {
     //! A palette_pixel represents is a type that represents a single color value
     //! in a color space.
-    use super::*;
+    //!
+    use palette::{
+        encoding,
+        luma::{Luma, LumaStandard, Lumaa},
+        rgb::{Rgb, RgbStandard, Rgba},
+        white_point::D65,
+        Component,
+    };
 
     macro_rules! impl_from_palette {
-        (@impl R, $palette:expr) => {{
-            let (r,) = $palette.into_components();
-            [r.convert()]
-        }};
-        (@impl Rg, $palette:expr) => {{
-            let (r, g) = $palette.into_components();
-            [r.convert(), g.convert()]
-        }};
-        (@impl Rgb, $palette:expr) => {{
-            let (r, g, b) = $palette.into_components();
-            [r.convert(), g.convert(), b.convert()]
-        }};
-        (@impl Rgba, $palette:expr) => {{
-            let (r, g, b, a) = $palette.into_components();
-            [r.convert(), g.convert(), b.convert(), a.convert()]
-        }};
-        ($($palette:ident => $channels:ident $repr:ident;)*) => {$(
-            impl<S, T> From<palette::$palette<T>> for Pixel<$channels, S, $repr>
-            where
-                S: ChannelSize,
-                $repr: ChannelRepr<S>,
-                T: palette::Component,
-                <$repr as ChannelRepr<S>>::Repr: palette::Component,
+        (# $color:ident R as $encoding:path) => {
             {
-                fn from(palette: palette::$palette<T>) -> Self {
-                    Self {
-                        repr: impl_from_palette!(@impl $channels, palette),
-                    }
+                let f = $color.into_format();
+                let _: (f32,) = f.into_components();
+                let (r,) = f.into_encoding::<$encoding>().into_format().into_components();
+                Self { repr: [r] }
+            }
+        };
+        (# $color:ident Rg as $encoding:path) => {
+            {
+                let f = $color.into_format();
+                let _: (f32,f32) = f.into_components();
+                let (r,g) = f.into_encoding::<$encoding>().into_format().into_components();
+                Self { repr: [r,g] }
+            }
+        };
+        (# $color:ident Rgb as $encoding:path) => {
+            {
+                let f = $color.into_format();
+                let _: (f32,f32,f32) = f.into_components();
+                let (r,g,b) = f.into_encoding::<$encoding>().into_format().into_components();
+                Self { repr: [r,g,b] }
+            }
+        };
+        (# $color:ident Rgba as $encoding:path) => {
+            {
+                let f = $color.into_format();
+                let _: (f32,f32,f32,f32) = f.into_components();
+                let (r,g,b,a) = f.into_encoding::<$encoding>().into_format().into_components();
+                Self { repr: [r,g,b,a] }
+            }
+        };
+
+        ($($container:path as $encoding:path : $standard:path => $channels:ident $($repr:ident)|+),* $(,)*) => {$($(
+            impl<S, T, B> From<$container> for super::Pixel<super::$channels, B, super::$repr>
+            where
+                S: $standard,
+                T: Component,
+                B: super::ChannelSize,
+                super::$repr: super::ChannelRepr<B>,
+                <super::$repr as super::ChannelRepr<B>>::Repr: Component,
+            {
+                fn from(color: $container) -> Self {
+                    impl_from_palette!(# color $channels as $encoding)
                 }
             }
-        )*};
+        )+)*};
     }
 
     impl_from_palette! {
-        Srgb => Rgb Srgb;
-        Srgba => Rgba Srgb;
-        LinSrgb => Rgb Unorm;
-        LinSrgba => Rgba Unorm;
-        SrgbLuma => R Srgb;
-        SrgbLumaa => Rg Srgb;
+        Rgb<S, T> as encoding::Srgb: RgbStandard<Space = encoding::Srgb> => Rgb Srgb,
+        Rgba<S, T> as encoding::Srgb: RgbStandard<Space = encoding::Srgb> => Rgba Srgb,
+        Luma<S, T> as encoding::Srgb: LumaStandard<WhitePoint = D65> => R Srgb,
+        Lumaa<S, T> as encoding::Srgb: LumaStandard<WhitePoint = D65> => Rg Srgb,
+
+        Rgb<S, T> as encoding::Linear<encoding::Srgb>: RgbStandard<Space = encoding::Srgb> => Rgb Unorm | Float,
+        Rgba<S, T> as encoding::Linear<encoding::Srgb>: RgbStandard<Space = encoding::Srgb> => Rgba Unorm | Float,
+
+        Luma<S, T> as encoding::Linear<D65>: LumaStandard<WhitePoint = D65> => R Unorm | Float,
+        Lumaa<S, T> as encoding::Linear<D65>: LumaStandard<WhitePoint = D65> => Rg Unorm | Float,
     }
 }
