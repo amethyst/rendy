@@ -14,7 +14,7 @@ Can the CPU see the contents of the GPU's memory? Can the GPU access the system 
 
 A piece of memory is referred to as a `heap`. A `heap` has a size in bytes, and a location. The location can be local to the graphics device, or not local. In most systems, there will be two `heaps`: one on the Vulkan device, and one on the system used by the CPU. When you want to use some memory from a `heap`, you allocate it as a certain type of memory. Each type has different properties; a summary is below.
 
-*VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT*: If this is set, memory allocated with this type is the most efficient for device access. This bit _will only be set if the memory is also visible to the `host`_.
+*VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT*: If this is set, memory allocated with this type is the most efficient for device access. This bit _will only be set if the heap has the `VK_MEMORY_HEAP_DEVICE_LOCAL_BIT` set as well_.
 
 *VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT*: If this is set, the memory is visible to the `host`; the system with the CPU. 
 
