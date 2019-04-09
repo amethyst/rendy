@@ -210,7 +210,9 @@ where
             .max_block_size
             .checked_mul(config.blocks_per_chunk.into())
             .expect("Max chunk size must fit u64 to allocate it from Vulkan")
-            .min(config.max_chunk_size);
+            .min(config.max_chunk_size)
+            .next_power_of_two()
+            / 2;
         if memory_properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
             debug_assert!(
                 fits_usize(max_chunk_size),
@@ -234,9 +236,15 @@ where
         }
     }
 
+    fn chunk_size(&self, size: u64) -> u64 {
+        debug_assert_eq!(size % self.block_size_granularity, 0);
+        let chunk_size = (size * self._blocks_per_chunk as u64 / 2).next_power_of_two();
+        self.max_chunk_size.min(chunk_size)
+    }
+
     fn blocks_per_chunk(&self, size: u64) -> u32 {
         debug_assert_eq!(size % self.block_size_granularity, 0);
-        ((self._blocks_per_chunk as u64 * size).min(self.max_chunk_size) / size) as u32
+        (self.chunk_size(size) / size) as u32
     }
 
     fn max_chunks_per_size(&self, size: u64) -> u32 {
@@ -326,7 +334,7 @@ where
                 if size_entry.total_chunks == max_chunks {
                     return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
                 }
-                let chunk_size = size * blocks_per_chunk as u64;
+                let chunk_size = self.chunk_size(size);
                 let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
                 size_entry = self
                     .sizes
