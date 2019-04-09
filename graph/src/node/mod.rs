@@ -299,7 +299,7 @@ where
     }
 }
 
-/// Dynamic ode builder that emits `DynNode`.
+/// Dynamic node builder that emits `DynNode`.
 pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Pick family for this node to be executed onto.
     fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId>;
