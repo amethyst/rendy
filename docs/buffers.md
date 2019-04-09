@@ -14,15 +14,15 @@ Can the CPU see the contents of the GPU's memory? Can the GPU access the system 
 
 A piece of memory is referred to as a `heap`. A `heap` has a size in bytes, and a location. The location can be local to the graphics device, or not local. In most systems, there will be two `heaps`: one on the Vulkan device, and one on the system used by the CPU. When you want to use some memory from a `heap`, you allocate it as a certain type of memory. Each type has different properties; a summary is below.
 
-*VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT*: If this is set, memory allocated with this type is the most efficient for device access. This bit _will only be set if the heap has the `VK_MEMORY_HEAP_DEVICE_LOCAL_BIT` set as well_.
+*VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT*: If this is set, memory allocated with this type is the most efficient for device access. This bit _will only be set if and only if the heap has the `VK_MEMORY_HEAP_DEVICE_LOCAL_BIT` set as well_.
 
 *VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT*: If this is set, the memory is visible to the `host`; the system with the CPU. 
 
 *VK_MEMORY_PROPERTY_HOST_COHERENT_BIT*: If this is set, host writes or device writes become visible to each other without explicit flush commands
 
-*VK_MEMORY_PROPERTY_HOST_CACHED_BIT*: If this is set, the memory is cached on the `host`. _This memory may not be host coherent, but is usually faster than uncached memory_. This means that cached memory may not reflect the latest writes to it. 
+*VK_MEMORY_PROPERTY_HOST_CACHED_BIT*: If this is set, the memory is cached on the `host`. _This memory may not be host coherent, but reads from cached memory are usually faster than uncached memory_. This means that cached memory may not reflect the latest writes to it. 
 
-*VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT*: If this is set, the memory is visible to the device only. Despite its name, whatever memory is behind this allocation may or may not be lazily allocated.
+*VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT*: If this is set, the memory is visible to the device only. Despite its name, whatever memory is behind this allocation may or may not be lazily allocated. This memory may only be used for images if the VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT is set _on the image_. 
 
 ### Why So Many?
 
@@ -74,14 +74,15 @@ The code for these can be found in `rendy/memory/usage.rs`.
     * Used for data that will be frequently updated from the system side, such as uniform buffers, indirect calls, or instance    rate vertex buffers
 2. Upload
     * Host visible
+    * _Prefers_ not device local, not cached
     * CPU to GPU data flow with mapping
     * Used for staging data before copying to `Data` memory
 3. Download
     * Host visible
-    * _Prefers_ memory with fast GPU access
+    * _Prefers_ not device local, cached
     * Used for copying data from `Data` memory to the host
 4. Data
-    * Device local
+    * Device local and _not_ lazily allocated
     * Avoids memory that is also visible to the system
     * Used for render targets and persistent resources
 
