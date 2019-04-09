@@ -248,8 +248,8 @@ impl<'a> TextureBuilder<'a> {
             }
         };
 
-        // The reason that factory.upload_image is unsafe is that the image being uploaded 
-        // must have been created by the same factory and that it is not in use; we guarantee 
+        // The reason that factory.upload_image is unsafe is that the image being uploaded
+        // must have been created by the same factory and that it is not in use; we guarantee
         // that here because we just created the image on the same factory right before.
         unsafe {
             factory.upload_image(

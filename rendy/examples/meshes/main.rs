@@ -17,7 +17,7 @@ use {
             present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
         },
         hal::Device as _,
-        memory::{Data, Dynamic},
+        memory::Dynamic,
         mesh::{AsVertex, Mesh, PosColorNorm, Transform},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
@@ -194,7 +194,7 @@ where
 
     fn build<'a>(
         self,
-        _ctx: &mut GraphContext<B>,
+        _ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         aux: &Aux<B>,
@@ -379,7 +379,6 @@ fn main() {
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
@@ -389,7 +388,6 @@ fn main() {
         surface.kind(),
         1,
         gfx_hal::format::Format::D16Unorm,
-        Data,
         Some(gfx_hal::command::ClearValue::DepthStencil(
             gfx_hal::command::ClearDepthStencil(1.0, 0),
         )),

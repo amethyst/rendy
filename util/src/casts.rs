@@ -1,4 +1,4 @@
-//! Contains functions for casting 
+//! Contains functions for casting
 use std::borrow::Cow;
 
 /// Cast vec of some arbitrary type into vec of bytes.

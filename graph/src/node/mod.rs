@@ -231,7 +231,7 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
     ///
     fn build<'a>(
         self,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
@@ -316,7 +316,7 @@ pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Build node.
     fn build<'a>(
         self: Box<Self>,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,
@@ -421,7 +421,7 @@ where
 
     fn build<'a>(
         self: Box<Self>,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
         queue: usize,

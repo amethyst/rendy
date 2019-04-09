@@ -47,7 +47,7 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Build render group.
     fn build<'a>(
         self,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
@@ -112,7 +112,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Build render group instance.
     fn build<'a>(
         self: Box<Self>,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
@@ -160,7 +160,7 @@ where
 
     fn build<'a>(
         self: Box<Self>,
-        ctx: &mut GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,

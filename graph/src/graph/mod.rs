@@ -4,9 +4,9 @@ use {
         command::{Families, FamilyId, QueueId},
         factory::Factory,
         frame::{Fences, Frame, Frames},
-        memory::MemoryUsage,
+        memory::Data,
         node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
-        resource::{Buffer, BufferInfo, Escape, Image, ImageInfo},
+        resource::{Buffer, BufferInfo, Handle, Image, ImageInfo},
         util::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
@@ -37,28 +37,22 @@ device_owned!(Graph<B, T: ?Sized>);
 /// Graphics context contains all transient resources managed by graph.
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
-    buffers: Vec<Option<Escape<Buffer<B>>>>,
-    images: Vec<Option<(Escape<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
+    buffers: Vec<Option<Handle<Buffer<B>>>>,
+    images: Vec<Option<(Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
 }
 
 impl<B: Backend> GraphContext<B> {
     fn alloc<'a>(
         factory: &Factory<B>,
         chains: &chain::Chains,
-        buffers: impl IntoIterator<Item = &'a (BufferInfo, Box<dyn MemoryUsage>)>,
-        images: impl IntoIterator<
-            Item = &'a (
-                ImageInfo,
-                Box<dyn MemoryUsage>,
-                Option<gfx_hal::command::ClearValue>,
-            ),
-        >,
+        buffers: impl IntoIterator<Item = &'a BufferInfo>,
+        images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     ) -> Result<Self, failure::Error> {
         log::trace!("Allocate buffers");
-        let buffers: Vec<Option<Escape<Buffer<B>>>> = buffers
+        let buffers: Vec<Option<Handle<Buffer<B>>>> = buffers
             .into_iter()
             .enumerate()
-            .map(|(index, (info, memory))| {
+            .map(|(index, info)| {
                 chains
                     .buffers
                     .get(&chain::Id(index))
@@ -69,19 +63,19 @@ impl<B: Backend> GraphContext<B> {
                                     usage: buffer.usage(),
                                     ..info.clone()
                                 },
-                                memory,
+                                Data,
                             )
-                            .map(|buffer| Some(buffer))
+                            .map(|buffer| Some(buffer.into()))
                     })
                     .unwrap_or(Ok(None))
             })
             .collect::<Result<_, _>>()?;
 
         log::trace!("Allocate images");
-        let images: Vec<Option<(Escape<Image<B>>, _)>> = images
+        let images: Vec<Option<(Handle<Image<B>>, _)>> = images
             .into_iter()
             .enumerate()
-            .map(|(index, (info, memory, clear))| {
+            .map(|(index, (info, clear))| {
                 chains
                     .images
                     .get(&chain::Id(index))
@@ -92,9 +86,9 @@ impl<B: Backend> GraphContext<B> {
                                     usage: image.usage(),
                                     ..info.clone()
                                 },
-                                memory,
+                                Data,
                             )
-                            .map(|image| Some((image, *clear)))
+                            .map(|image| Some((image.into(), *clear)))
                     })
                     .unwrap_or(Ok(None))
             })
@@ -104,7 +98,7 @@ impl<B: Backend> GraphContext<B> {
     }
 
     /// Get reference to transient image by id.
-    pub fn get_image(&self, id: ImageId) -> Option<&Image<B>> {
+    pub fn get_image(&self, id: ImageId) -> Option<&Handle<Image<B>>> {
         self.get_image_with_clear(id).map(|(i, _)| i)
     }
 
@@ -112,35 +106,16 @@ impl<B: Backend> GraphContext<B> {
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
-    ) -> Option<(&Image<B>, Option<gfx_hal::command::ClearValue>)> {
+    ) -> Option<(&Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)> {
         self.images
             .get(id.0)
             .and_then(|x| x.as_ref())
-            .map(|&(ref x, ref y)| (&**x, *y))
+            .map(|&(ref x, ref y)| (&*x, *y))
     }
 
     /// Get reference to transient buffer by id.
-    pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer<B>> {
-        self.buffers
-            .get(id.0)
-            .and_then(|x| x.as_ref())
-            .map(|x| &**x)
-    }
-
-    /// Get mutable reference to transient image by id.
-    pub fn get_image_mut(&mut self, id: ImageId) -> Option<&mut Image<B>> {
-        self.images
-            .get_mut(id.0)
-            .and_then(|x| x.as_mut())
-            .map(|(i, _)| &mut **i)
-    }
-
-    /// Get mutable reference to transient buffer by id.
-    pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer<B>> {
-        self.buffers
-            .get_mut(id.0)
-            .and_then(|x| x.as_mut())
-            .map(|x| &mut **x)
+    pub fn get_buffer(&self, id: BufferId) -> Option<&Handle<Buffer<B>>> {
+        self.buffers.get(id.0).and_then(|x| x.as_ref()).map(|x| &*x)
     }
 }
 
@@ -271,12 +246,8 @@ where
 #[derive(Debug)]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
-    buffers: Vec<(BufferInfo, Box<dyn MemoryUsage>)>,
-    images: Vec<(
-        ImageInfo,
-        Box<dyn MemoryUsage>,
-        Option<gfx_hal::command::ClearValue>,
-    )>,
+    buffers: Vec<BufferInfo>,
+    images: Vec<(ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     frames_in_flight: u32,
 }
 
@@ -296,14 +267,11 @@ where
     }
 
     /// Create new buffer owned by graph.
-    pub fn create_buffer(&mut self, size: u64, memory: impl MemoryUsage + 'static) -> BufferId {
-        self.buffers.push((
-            BufferInfo {
-                size,
-                usage: gfx_hal::buffer::Usage::empty(),
-            },
-            Box::new(memory),
-        ));
+    pub fn create_buffer(&mut self, size: u64) -> BufferId {
+        self.buffers.push(BufferInfo {
+            size,
+            usage: gfx_hal::buffer::Usage::empty(),
+        });
         BufferId(self.buffers.len() - 1)
     }
 
@@ -313,7 +281,6 @@ where
         kind: gfx_hal::image::Kind,
         levels: gfx_hal::image::Level,
         format: gfx_hal::format::Format,
-        memory: impl MemoryUsage + 'static,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
         self.images.push((
@@ -325,7 +292,6 @@ where
                 view_caps: gfx_hal::image::ViewCapabilities::empty(),
                 usage: gfx_hal::image::Usage::empty(),
             },
-            Box::new(memory),
             clear,
         ));
         ImageId(self.images.len() - 1)
@@ -437,7 +403,7 @@ where
 }
 
 fn build_node<'a, B: Backend, T: ?Sized>(
-    ctx: &mut GraphContext<B>,
+    ctx: &GraphContext<B>,
     builder: Box<dyn NodeBuilder<B, T>>,
     factory: &mut Factory<B>,
     family: &mut rendy_command::Family<B>,
