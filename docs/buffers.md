@@ -62,6 +62,29 @@ let buffer = factory
 
 This creates a buffer with a size large enough to hold the data for multiple frames in our game, can store indirect draw commands, and can store vertex data. It also has the Rendy type of `Dynamic`, which means it can be used to send data back and forth between the CPU and GPU (bidirectional) rather than just one direction (unidirectional).
 
+### Rendy Memory Types
+
+Below is a summary of the memory types offered by Rendy. These contain a combination of flags most useful for their purpose; in some cases, they are differentiated only by usage. That is, the underlying Vulkan flags may be the same, but the Rendy type differs in order to be specific about usage.
+
+The code for these can be found in `rendy/memory/usage.rs`.
+
+1. Dynamic
+    * Host visible
+    * _Prefers_ memory with fast GPU access
+    * Used for data that will be frequently updated from the system side, such as uniform buffers, indirect calls, or instance    rate vertex buffers
+2. Upload
+    * Host visible
+    * CPU to GPU data flow with mapping
+    * Used for staging data before copying to `Data` memory
+3. Download
+    * Host visible
+    * _Prefers_ memory with fast GPU access
+    * Used for copying data from `Data` memory to the host
+4. Data
+    * Device local
+    * Avoids memory that is also visible to the system
+    * Used for render targets and persistent resources
+
 ## Useful Links
 
 [Usage Types in gfx_hal](https://docs.rs/gfx-hal/0.1.0/gfx_hal/buffer/struct.Usage.html)
