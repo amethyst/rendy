@@ -22,13 +22,13 @@ A piece of memory is referred to as a `heap`. A `heap` has a size in bytes, and 
 
 *VK_MEMORY_PROPERTY_HOST_CACHED_BIT*: If this is set, the memory is cached on the `host`. _This memory may not be host coherent, but reads from cached memory are usually faster than uncached memory_. This means that cached memory may not reflect the latest writes to it. 
 
-*VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT*: If this is set, the memory is visible to the device only. Despite its name, whatever memory is behind this allocation may or may not be lazily allocated. This memory may only be used for images if the VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT is set _on the image_. 
+*VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT*: If this is set, the memory is visible to the device only. Despite its name, whatever memory is behind this allocation may or may not be lazily allocated. This memory may only be used for VkImages, and only if the VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT is set _on the image_. An image that may or may not be displayed could use this, so that the memory is only allocated when it is actually shown.
 
 ### Why So Many?
 
 Vulkan is meant to be cross-platform, and used not just for graphics, but for compute as well. We often think of a graphics engine being meant for a desktop-style system with one graphics card, but there are many other configurations, such as:
 
-1. A server with multiple graphics cards meant for high parallelizable computation (machine learning, neural net training, etc)
+1. A server with multiple graphics cards meant for highly parallelizable computation (machine learning, neural net training, etc)
 2. CPUs with the GPUs embedded on the chip, also known as SOCs (System on a Chip)
 3. Devices with Unified Memory Access (UMA) where memory is non-local to _both_ the host and the device (weird, huh?)
 4. A GPU with no memory
