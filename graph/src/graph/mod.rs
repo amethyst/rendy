@@ -4,7 +4,7 @@ use {
         command::{Families, FamilyId, QueueId},
         factory::Factory,
         frame::{Fences, Frame, Frames},
-        memory::MemoryUsage,
+        memory::Data,
         node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
         resource::{Buffer, BufferInfo, Handle, Image, ImageInfo},
         util::{device_owned, DeviceId},
@@ -45,20 +45,14 @@ impl<B: Backend> GraphContext<B> {
     fn alloc<'a>(
         factory: &Factory<B>,
         chains: &chain::Chains,
-        buffers: impl IntoIterator<Item = &'a (BufferInfo, Box<dyn MemoryUsage>)>,
-        images: impl IntoIterator<
-            Item = &'a (
-                ImageInfo,
-                Box<dyn MemoryUsage>,
-                Option<gfx_hal::command::ClearValue>,
-            ),
-        >,
+        buffers: impl IntoIterator<Item = &'a BufferInfo>,
+        images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     ) -> Result<Self, failure::Error> {
         log::trace!("Allocate buffers");
         let buffers: Vec<Option<Handle<Buffer<B>>>> = buffers
             .into_iter()
             .enumerate()
-            .map(|(index, (info, memory))| {
+            .map(|(index, info)| {
                 chains
                     .buffers
                     .get(&chain::Id(index))
@@ -69,7 +63,7 @@ impl<B: Backend> GraphContext<B> {
                                     usage: buffer.usage(),
                                     ..info.clone()
                                 },
-                                memory,
+                                Data,
                             )
                             .map(|buffer| Some(buffer.into()))
                     })
@@ -81,7 +75,7 @@ impl<B: Backend> GraphContext<B> {
         let images: Vec<Option<(Handle<Image<B>>, _)>> = images
             .into_iter()
             .enumerate()
-            .map(|(index, (info, memory, clear))| {
+            .map(|(index, (info, clear))| {
                 chains
                     .images
                     .get(&chain::Id(index))
@@ -92,7 +86,7 @@ impl<B: Backend> GraphContext<B> {
                                     usage: image.usage(),
                                     ..info.clone()
                                 },
-                                memory,
+                                Data,
                             )
                             .map(|image| Some((image.into(), *clear)))
                     })
@@ -252,12 +246,8 @@ where
 #[derive(Debug)]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
-    buffers: Vec<(BufferInfo, Box<dyn MemoryUsage>)>,
-    images: Vec<(
-        ImageInfo,
-        Box<dyn MemoryUsage>,
-        Option<gfx_hal::command::ClearValue>,
-    )>,
+    buffers: Vec<BufferInfo>,
+    images: Vec<(ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     frames_in_flight: u32,
 }
 
@@ -277,14 +267,11 @@ where
     }
 
     /// Create new buffer owned by graph.
-    pub fn create_buffer(&mut self, size: u64, memory: impl MemoryUsage + 'static) -> BufferId {
-        self.buffers.push((
-            BufferInfo {
-                size,
-                usage: gfx_hal::buffer::Usage::empty(),
-            },
-            Box::new(memory),
-        ));
+    pub fn create_buffer(&mut self, size: u64) -> BufferId {
+        self.buffers.push(BufferInfo {
+            size,
+            usage: gfx_hal::buffer::Usage::empty(),
+        });
         BufferId(self.buffers.len() - 1)
     }
 
@@ -294,7 +281,6 @@ where
         kind: gfx_hal::image::Kind,
         levels: gfx_hal::image::Level,
         format: gfx_hal::format::Format,
-        memory: impl MemoryUsage + 'static,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
         self.images.push((
@@ -306,7 +292,6 @@ where
                 view_caps: gfx_hal::image::ViewCapabilities::empty(),
                 usage: gfx_hal::image::Usage::empty(),
             },
-            Box::new(memory),
             clear,
         ));
         ImageId(self.images.len() - 1)

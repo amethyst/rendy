@@ -26,7 +26,7 @@ use rendy::{
         NodeSubmittable,
     },
     hal::Device as _,
-    memory::{Data, Dynamic},
+    memory::Dynamic,
     mesh::{AsVertex, Color},
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
@@ -634,14 +634,12 @@ fn build_graph(
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let posvel =
-        graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64, Data);
+    let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
     let color = graph_builder.create_image(
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
@@ -651,7 +649,6 @@ fn build_graph(
         surface.kind(),
         1,
         gfx_hal::format::Format::D16Unorm,
-        Data,
         Some(gfx_hal::command::ClearValue::DepthStencil(
             gfx_hal::command::ClearDepthStencil(1.0, 0),
         )),

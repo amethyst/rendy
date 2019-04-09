@@ -17,7 +17,7 @@ use {
             present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
             NodeImage,
         },
-        memory::{Data, Dynamic},
+        memory::{Dynamic},
         mesh::{AsVertex, PosTex},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
@@ -360,7 +360,6 @@ fn main() {
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
