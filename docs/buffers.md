@@ -26,7 +26,7 @@ A piece of memory is referred to as a `heap`. A `heap` has a size in bytes, and 
 
 ### Why So Many?
 
-Vulkan is meant to be cross-platform, and used not just for graphics, but for compute as well. We often think of a graphics engine being meant for a desktop-style system with one graphics card, there are many other configurations, such as:
+Vulkan is meant to be cross-platform, and used not just for graphics, but for compute as well. We often think of a graphics engine being meant for a desktop-style system with one graphics card, but there are many other configurations, such as:
 
 1. A server with multiple graphics cards meant for high parallelizable computation (machine learning, neural net training, etc)
 2. CPUs with the GPUs embedded on the chip, also known as SOCs (System on a Chip)
