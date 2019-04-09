@@ -13,7 +13,7 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    factory::{Config, Factory},
+    factory::{BufferState, Config, Factory},
     frame::Frames,
     graph::{
         gfx_acquire_barriers, gfx_release_barriers,
@@ -188,7 +188,7 @@ where
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
-        let ref mut posvelbuff = ctx.get_buffer_mut(buffers[0].id).unwrap();
+        let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         let mut indirect = factory
             .create_buffer(
@@ -265,10 +265,6 @@ where
                         }),
                     ],
                 )
-                .unwrap();
-
-            factory
-                .upload_visible_buffer(posvelbuff, 0, &POSVEL_DATA)
                 .unwrap();
         }
 
@@ -408,7 +404,7 @@ where
         vec![BufferAccess {
             access: gfx_hal::buffer::Access::SHADER_READ | gfx_hal::buffer::Access::SHADER_WRITE,
             stages: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
-            usage: gfx_hal::buffer::Usage::STORAGE,
+            usage: gfx_hal::buffer::Usage::STORAGE | gfx_hal::buffer::Usage::TRANSFER_DST,
         }]
     }
 
@@ -417,7 +413,7 @@ where
         ctx: &mut GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
-        _queue: usize,
+        queue: usize,
         _aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
@@ -425,7 +421,25 @@ where
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
 
-        let ref mut posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
+        let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
+
+        unsafe {
+            factory.upload_buffer(
+                posvelbuff,
+                0,
+                &POSVEL_DATA,
+                None,
+                BufferState {
+                    queue: QueueId {
+                        index: queue,
+                        family: family.id(),
+                    },
+                    stage: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
+                    access: gfx_hal::buffer::Access::SHADER_WRITE
+                        | gfx_hal::buffer::Access::SHADER_READ,
+                },
+            )
+        }?;
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = unsafe { BOUNCE_COMPUTE.module(factory) }?;
@@ -620,10 +634,8 @@ fn build_graph(
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let posvel = graph_builder.create_buffer(
-        QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64,
-        Dynamic,
-    );
+    let posvel =
+        graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64, Data);
 
     let color = graph_builder.create_image(
         surface.kind(),

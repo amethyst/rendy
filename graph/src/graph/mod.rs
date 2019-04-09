@@ -6,7 +6,7 @@ use {
         frame::{Fences, Frame, Frames},
         memory::MemoryUsage,
         node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
-        resource::{Buffer, BufferInfo, Escape, Image, ImageInfo},
+        resource::{Buffer, BufferInfo, Handle, Image, ImageInfo},
         util::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
@@ -37,8 +37,8 @@ device_owned!(Graph<B, T: ?Sized>);
 /// Graphics context contains all transient resources managed by graph.
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
-    buffers: Vec<Option<Escape<Buffer<B>>>>,
-    images: Vec<Option<(Escape<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
+    buffers: Vec<Option<Handle<Buffer<B>>>>,
+    images: Vec<Option<(Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
 }
 
 impl<B: Backend> GraphContext<B> {
@@ -55,7 +55,7 @@ impl<B: Backend> GraphContext<B> {
         >,
     ) -> Result<Self, failure::Error> {
         log::trace!("Allocate buffers");
-        let buffers: Vec<Option<Escape<Buffer<B>>>> = buffers
+        let buffers: Vec<Option<Handle<Buffer<B>>>> = buffers
             .into_iter()
             .enumerate()
             .map(|(index, (info, memory))| {
@@ -71,14 +71,14 @@ impl<B: Backend> GraphContext<B> {
                                 },
                                 memory,
                             )
-                            .map(|buffer| Some(buffer))
+                            .map(|buffer| Some(buffer.into()))
                     })
                     .unwrap_or(Ok(None))
             })
             .collect::<Result<_, _>>()?;
 
         log::trace!("Allocate images");
-        let images: Vec<Option<(Escape<Image<B>>, _)>> = images
+        let images: Vec<Option<(Handle<Image<B>>, _)>> = images
             .into_iter()
             .enumerate()
             .map(|(index, (info, memory, clear))| {
@@ -94,7 +94,7 @@ impl<B: Backend> GraphContext<B> {
                                 },
                                 memory,
                             )
-                            .map(|image| Some((image, *clear)))
+                            .map(|image| Some((image.into(), *clear)))
                     })
                     .unwrap_or(Ok(None))
             })
@@ -104,7 +104,7 @@ impl<B: Backend> GraphContext<B> {
     }
 
     /// Get reference to transient image by id.
-    pub fn get_image(&self, id: ImageId) -> Option<&Image<B>> {
+    pub fn get_image(&self, id: ImageId) -> Option<&Handle<Image<B>>> {
         self.get_image_with_clear(id).map(|(i, _)| i)
     }
 
@@ -112,35 +112,16 @@ impl<B: Backend> GraphContext<B> {
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
-    ) -> Option<(&Image<B>, Option<gfx_hal::command::ClearValue>)> {
+    ) -> Option<(&Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)> {
         self.images
             .get(id.0)
             .and_then(|x| x.as_ref())
-            .map(|&(ref x, ref y)| (&**x, *y))
+            .map(|&(ref x, ref y)| (&*x, *y))
     }
 
     /// Get reference to transient buffer by id.
-    pub fn get_buffer(&self, id: BufferId) -> Option<&Buffer<B>> {
-        self.buffers
-            .get(id.0)
-            .and_then(|x| x.as_ref())
-            .map(|x| &**x)
-    }
-
-    /// Get mutable reference to transient image by id.
-    pub fn get_image_mut(&mut self, id: ImageId) -> Option<&mut Image<B>> {
-        self.images
-            .get_mut(id.0)
-            .and_then(|x| x.as_mut())
-            .map(|(i, _)| &mut **i)
-    }
-
-    /// Get mutable reference to transient buffer by id.
-    pub fn get_buffer_mut(&mut self, id: BufferId) -> Option<&mut Buffer<B>> {
-        self.buffers
-            .get_mut(id.0)
-            .and_then(|x| x.as_mut())
-            .map(|x| &mut **x)
+    pub fn get_buffer(&self, id: BufferId) -> Option<&Handle<Buffer<B>>> {
+        self.buffers.get(id.0).and_then(|x| x.as_ref()).map(|x| &*x)
     }
 }
 
