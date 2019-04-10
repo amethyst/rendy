@@ -53,13 +53,14 @@ impl std::fmt::Display for TotalMemoryUtilization {
         for (index, heap) in self.heaps.iter().enumerate() {
             let size = heap.size;
             let MemoryUtilization { used, effective } = heap.utilization;
-            let permyriad = used * 10000 / size;
-            let fill = if permyriad > 10000 {
+            let usage_basis_points = used * 10000 / size;
+            let fill = if usage_basis_points > 10000 {
+                // Shouldn't happen, but just in case.
                 50
             } else {
-                (permyriad / 200) as usize
+                (usage_basis_points / 200) as usize
             };
-            let effective = if used > 0 {
+            let effective_basis_points = if used > 0 {
                 effective * 10000 / used
             } else {
                 10000
@@ -73,16 +74,16 @@ impl std::fmt::Display for TotalMemoryUtilization {
                 format!("{}", index).magenta(),
                 format!("{}MB", used / MB),
                 format!("{}MB", size / MB),
-                format_permyriad(permyriad),
-                format_permyriad_inverted(effective),
+                format_basis_points(usage_basis_points),
+                format_basis_points_inverted(effective_basis_points),
                 line
             )?;
 
             for ty in self.types.iter().filter(|ty| ty.heap_index == index) {
                 let properties = ty.properties;
                 let MemoryUtilization { used, effective } = ty.utilization;
-                let permyriad = used * 10000 / size;
-                let effective = if used > 0 {
+                let usage_basis_points = used * 10000 / size;
+                let effective_basis_points = if used > 0 {
                     effective * 10000 / used
                 } else {
                     0
@@ -92,8 +93,8 @@ impl std::fmt::Display for TotalMemoryUtilization {
                     fmt,
                     "         {:>6} or{} {{ effective:{} }} | {:?}",
                     format!("{}MB", used / MB),
-                    format_permyriad(permyriad),
-                    format_permyriad_inverted(effective),
+                    format_basis_points(usage_basis_points),
+                    format_basis_points_inverted(effective_basis_points),
                     properties,
                 )?;
             }
@@ -103,32 +104,32 @@ impl std::fmt::Display for TotalMemoryUtilization {
     }
 }
 
-fn format_permyriad(permyriad: u64) -> CString {
-    debug_assert!(permyriad <= 10000);
-    let s = format!("{:>3}.{:02}%", permyriad / 100, permyriad % 100);
-    if permyriad > 7500 {
+fn format_basis_points(basis_points: u64) -> CString {
+    debug_assert!(basis_points <= 10000);
+    let s = format!("{:>3}.{:02}%", basis_points / 100, basis_points % 100);
+    if basis_points > 7500 {
         s.red()
-    } else if permyriad > 5000 {
+    } else if basis_points > 5000 {
         s.yellow()
-    } else if permyriad > 2500 {
+    } else if basis_points > 2500 {
         s.green()
-    } else if permyriad > 100 {
+    } else if basis_points > 100 {
         s.blue()
     } else {
         s.white()
     }
 }
 
-fn format_permyriad_inverted(permyriad: u64) -> CString {
-    debug_assert!(permyriad <= 10000);
-    let s = format!("{:>3}.{:02}%", permyriad / 100, permyriad % 100);
-    if permyriad > 9900 {
+fn format_basis_points_inverted(basis_points: u64) -> CString {
+    debug_assert!(basis_points <= 10000);
+    let s = format!("{:>3}.{:02}%", basis_points / 100, basis_points % 100);
+    if basis_points > 9900 {
         s.white()
-    } else if permyriad > 7500 {
+    } else if basis_points > 7500 {
         s.blue()
-    } else if permyriad > 5000 {
+    } else if basis_points > 5000 {
         s.green()
-    } else if permyriad > 2500 {
+    } else if basis_points > 2500 {
         s.yellow()
     } else {
         s.red()
