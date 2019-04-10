@@ -183,18 +183,20 @@ where
     }
 }
 
-// Image view info
+/// Image view info
 #[derive(Clone, Debug)]
-#[doc(hidden)]
 pub struct ImageViewInfo {
+    /// View kind
     pub view_kind: ViewKind,
+    /// Format for this view
     pub format: format::Format,
+    /// Swizzle operator for this view
     pub swizzle: format::Swizzle,
+    /// Range of full image to view
     pub range: SubresourceRange,
 }
 
 /// Generic image view resource wrapper.
-#[doc(hidden)]
 #[derive(Debug)]
 pub struct ImageView<B: Backend> {
     raw: B::ImageView,

@@ -7,6 +7,7 @@ use {
         resource::{Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler},
         util::{cast_cow, cast_slice},
     },
+    derivative::Derivative,
     gfx_hal::{
         format::{Component, Format, Swizzle},
         image, Backend,
@@ -57,13 +58,15 @@ pub enum MipLevel {
 }
 
 /// Generics-free texture builder.
-#[derive(Clone, Debug)]
+#[derive(Clone, Derivative)]
+#[derivative(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Struct for staging data in preparation of building a `Texture`
 pub struct TextureBuilder<'a> {
     kind: image::Kind,
     view_kind: image::ViewKind,
     format: Format,
+    #[derivative(Debug = "ignore")]
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,

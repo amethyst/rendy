@@ -964,7 +964,6 @@ where
     }
 }
 
-#[doc(hidden)]
 impl<B> std::ops::Deref for Factory<B>
 where
     B: Backend,
