@@ -18,6 +18,7 @@ mod mapping;
 mod memory;
 mod usage;
 mod util;
+mod utilization;
 
 pub use crate::{
     allocator::*,
@@ -26,4 +27,5 @@ pub use crate::{
     mapping::{write::Write, Coherent, MappedRange, MaybeCoherent, NonCoherent},
     memory::Memory,
     usage::*,
+    utilization::*,
 };
