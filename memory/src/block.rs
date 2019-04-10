@@ -16,6 +16,12 @@ pub trait Block<B: gfx_hal::Backend> {
     /// Get memory range owned by this block.
     fn range(&self) -> Range<u64>;
 
+    /// Get size of the block.
+    fn size(&self) -> u64 {
+        let range = self.range();
+        range.end - range.start
+    }
+
     /// Get mapping for the buffer range.
     /// Memory writes to the region performed by device become available for the host.
     fn map<'a>(

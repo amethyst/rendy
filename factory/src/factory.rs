@@ -5,7 +5,7 @@ use {
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
         descriptor::DescriptorAllocator,
-        memory::{self, Heaps, MemoryUsage, Write},
+        memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         util::{Device, DeviceId, Instance},
@@ -885,6 +885,11 @@ where
             .into_iter()
             .map(|set| self.resources.sets.escape(set))
             .collect())
+    }
+
+    /// Query memory utilization.
+    pub fn memory_utilization(&self) -> TotalMemoryUtilization {
+        self.heaps.lock().utilization()
     }
 }
 

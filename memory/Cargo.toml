@@ -23,6 +23,7 @@ relevant = { version = "0.4", features = ["log", "backtrace"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 veclist = "0.1"
+colorful = "0.2"
 
 [dev-dependencies]
 rand = "0.5"
