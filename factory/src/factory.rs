@@ -594,7 +594,6 @@ where
         gfx_hal::window::SurfaceCapabilities,
         Option<Vec<gfx_hal::format::Format>>,
         Vec<gfx_hal::PresentMode>,
-        Vec<gfx_hal::CompositeAlpha>,
     ) {
         profile_scope!("get_surface_compatibility");
 
@@ -1126,7 +1125,11 @@ where
 
         log::info!("Queues: {:#?}", get_queues);
 
-        let Gpu { device, mut queues } = unsafe { adapter.physical_device.open(&create_queues) }?;
+        let Gpu { device, mut queues } = unsafe {
+            adapter
+                .physical_device
+                .open(&create_queues, adapter.physical_device.features())
+        }?;
 
         let families = unsafe {
             families_from_device(device_id, &mut queues, get_queues, &adapter.queue_families)

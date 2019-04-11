@@ -29,11 +29,11 @@ rendy-util = { version = "0.1.0", path = "../util" }
 rendy-wsi = { version = "0.1.0", path = "../wsi" }
 rendy-shader = { version = "0.1.0", path = "../shader" }
 
-gfx-hal = "0.1"
-gfx-backend-empty = { version = "0.1.0", optional = true }
-gfx-backend-dx12 = { version = "0.1.0", optional = true }
-gfx-backend-metal = { version = "0.1.0", optional = true }
-gfx-backend-vulkan = { version = "0.1.0", optional = true }
+gfx-hal = { version = "0.2" }
+gfx-backend-empty = { version = "0.2", optional = true }
+gfx-backend-dx12  = { version = "0.2", optional = true }
+gfx-backend-metal = { version = "0.2", optional = true }
+gfx-backend-vulkan = { version = "0.2", optional = true }
 
 either = "1.5"
 bitflags = "1.0"
@@ -43,5 +43,5 @@ log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
-winit = "0.18"
+winit = "0.19"
 thread_profiler = "0.3"

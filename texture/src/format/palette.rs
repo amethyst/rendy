@@ -41,12 +41,12 @@ define_load! {
     pub fn load_from_linear_rgba<T: Component>(LinSrgba) -> Rgba8Unorm NO;
     pub fn load_from_linear_rgb_u16<T: Component>(LinSrgb) -> Rgb16Unorm NO;
     pub fn load_from_linear_rgba_u16<T: Component>(LinSrgba) -> Rgba16Unorm NO;
-    pub fn load_from_linear_rgb_f32<T: Component>(LinSrgb) -> Rgb32Float NO;
-    pub fn load_from_linear_rgba_f32<T: Component>(LinSrgba) -> Rgba32Float NO;
+    pub fn load_from_linear_rgb_f32<T: Component>(LinSrgb) -> Rgb32Sfloat NO;
+    pub fn load_from_linear_rgba_f32<T: Component>(LinSrgba) -> Rgba32Sfloat NO;
     pub fn load_from_luma<T: Component>(SrgbLuma) -> R8Srgb (R, R, R, One);
     pub fn load_from_lumaa<T: Component>(SrgbLumaa) -> Rg8Srgb (R, R, R, G);
     pub fn load_from_linear_luma<W: WhitePoint, T: Component>(LinLuma) -> R8Unorm (R, R, R, One);
     pub fn load_from_linear_lumaa<W: WhitePoint, T: Component>(LinLumaa) -> Rg8Unorm (R, R, R, G);
-    pub fn load_from_linear_luma_f32<W: WhitePoint, T: Component>(LinLuma) -> R32Float (R, R, R, One);
-    pub fn load_from_linear_lumaa_f32<W: WhitePoint, T: Component>(LinLumaa) -> Rg32Float (R, R, R, G);
+    pub fn load_from_linear_luma_f32<W: WhitePoint, T: Component>(LinLuma) -> R32Sfloat (R, R, R, One);
+    pub fn load_from_linear_lumaa_f32<W: WhitePoint, T: Component>(LinLumaa) -> Rg32Sfloat (R, R, R, G);
 }

@@ -24,7 +24,7 @@ pub struct Pipeline {
     pub vertices: Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
+        gfx_hal::pso::VertexInputRate,
     )>,
 
     /// Colors for pipeline.
@@ -86,7 +86,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     ) -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
+        gfx_hal::pso::VertexInputRate,
     )> {
         Vec::new()
     }
@@ -396,7 +396,7 @@ where
 fn push_vertex_desc(
     elements: &[gfx_hal::pso::Element<gfx_hal::format::Format>],
     stride: gfx_hal::pso::ElemStride,
-    rate: gfx_hal::pso::InstanceRate,
+    rate: gfx_hal::pso::VertexInputRate,
     vertex_buffers: &mut Vec<gfx_hal::pso::VertexBufferDesc>,
     attributes: &mut Vec<gfx_hal::pso::AttributeDesc>,
 ) {

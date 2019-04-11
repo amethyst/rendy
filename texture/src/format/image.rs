@@ -189,7 +189,7 @@ where
             let metadata = decoder.metadata();
             let (w, h) = (metadata.width, metadata.height);
 
-            let format = gfx_hal::format::Format::Rgb32Float;
+            let format = gfx_hal::format::Format::Rgb32Sfloat;
             let vec = crate::util::cast_vec(decoder.read_image_hdr()?);
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)

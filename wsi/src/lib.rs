@@ -150,7 +150,8 @@ where
 
     /// Get surface ideal format.
     pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
-        let (_capabilities, formats, _present_modes, _alpha) = self.compatibility(physical_device);
+        let (_capabilities, formats, _present_modes) =
+            gfx_hal::Surface::compatibility(&self.raw, physical_device);
         let formats = formats.unwrap();
 
         *formats
@@ -178,7 +179,6 @@ where
         gfx_hal::window::SurfaceCapabilities,
         Option<Vec<gfx_hal::format::Format>>,
         Vec<gfx_hal::PresentMode>,
-        Vec<gfx_hal::CompositeAlpha>,
     ) {
         gfx_hal::Surface::compatibility(&self.raw, physical_device)
     }
@@ -231,8 +231,8 @@ unsafe fn create_swapchain<B: Backend>(
     image_count: u32,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
-) -> Result<(B::Swapchain, Backbuffer<B>), failure::Error> {
-    let (capabilities, formats, present_modes, alpha) = surface.compatibility(physical_device);
+) -> Result<(B::Swapchain, Vec<Image<B>>), failure::Error> {
+    let (capabilities, formats, present_modes) = surface.compatibility(physical_device);
 
     if !present_modes.contains(&present_mode) {
         log::warn!(
@@ -302,7 +302,7 @@ unsafe fn create_swapchain<B: Backend>(
         }
     });
 
-    let (swapchain, backbuffer) = device.create_swapchain(
+    let (swapchain, images) = device.create_swapchain(
         &mut surface.raw,
         gfx_hal::SwapchainConfig {
             present_mode,
@@ -311,75 +311,39 @@ unsafe fn create_swapchain<B: Backend>(
             image_count,
             image_layers: 1,
             image_usage: usage,
-            composite_alpha: alpha
-                .into_iter()
-                .max_by_key(|alpha| match alpha {
-                    gfx_hal::window::CompositeAlpha::Inherit => 3,
-                    gfx_hal::window::CompositeAlpha::Opaque => 2,
-                    gfx_hal::window::CompositeAlpha::PreMultiplied => 1,
-                    gfx_hal::window::CompositeAlpha::PostMultiplied => 0,
-                })
-                .expect("No CompositeAlpha modes supported"),
+            composite_alpha: [
+                gfx_hal::window::CompositeAlpha::INHERIT,
+                gfx_hal::window::CompositeAlpha::OPAQUE,
+                gfx_hal::window::CompositeAlpha::PREMULTIPLIED,
+                gfx_hal::window::CompositeAlpha::POSTMULTIPLIED,
+            ]
+            .iter()
+            .find(|&bit| capabilities.composite_alpha & *bit == *bit)
+            .cloned()
+            .expect("No CompositeAlpha modes supported"),
         },
         None,
     )?;
 
-    let backbuffer = match backbuffer {
-        gfx_hal::Backbuffer::Images(images) => {
-            let backbuffer = Backbuffer::Images(
-                images
-                    .into_iter()
-                    .map(|image| {
-                        Image::create_from_swapchain(
-                            device.id(),
-                            ImageInfo {
-                                kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
-                                levels: 1,
-                                format,
-                                tiling: gfx_hal::image::Tiling::Optimal,
-                                view_caps: gfx_hal::image::ViewCapabilities::empty(),
-                                usage,
-                            },
-                            image,
-                        )
-                    })
-                    .collect(),
-            );
-            backbuffer
-        }
-        gfx_hal::Backbuffer::Framebuffer(raw) => {
-            let backbuffer = Backbuffer::Framebuffer {
-                raw,
-                format,
-                extent,
-            };
-            backbuffer
-        }
-    };
+    let backbuffer = images
+        .into_iter()
+        .map(|image| {
+            Image::create_from_swapchain(
+                device.id(),
+                ImageInfo {
+                    kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
+                    levels: 1,
+                    format,
+                    tiling: gfx_hal::image::Tiling::Optimal,
+                    view_caps: gfx_hal::image::ViewCapabilities::empty(),
+                    usage,
+                },
+                image,
+            )
+        })
+        .collect();
 
     Ok((swapchain, backbuffer))
-}
-
-/// Backbuffer of the `Target`.
-/// Either collection of `Image`s
-/// or framebuffer.
-#[derive(Debug)]
-pub enum Backbuffer<B: Backend> {
-    /// Collection of images that in the `Target`'s swapchain.
-    Images(Vec<Image<B>>),
-
-    /// Framebuffer of the `Target`.
-    Framebuffer {
-        /// Raw framebuffer.
-        /// Can be used with any render-pass.
-        raw: B::Framebuffer,
-
-        /// Formats of image in framebuffer.
-        format: gfx_hal::format::Format,
-
-        /// Extent of image in framebuffer.
-        extent: gfx_hal::window::Extent2D,
-    },
 }
 
 /// Rendering target bound to window.
@@ -388,7 +352,7 @@ pub struct Target<B: Backend> {
     device: DeviceId,
     surface: Surface<B>,
     swapchain: Option<B::Swapchain>,
-    backbuffer: Option<Backbuffer<B>>,
+    backbuffer: Option<Vec<Image<B>>>,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
     relevant: relevant::Relevant,
@@ -421,7 +385,7 @@ where
         self.assert_device_owner(device);
 
         match self.backbuffer {
-            Some(Backbuffer::Images(images)) => {
+            Some(images) => {
                 images
                     .into_iter()
                     .for_each(|image| image.dispose_swapchain_image(device.id()));
@@ -456,14 +420,13 @@ where
         self.assert_device_owner(device);
 
         let image_count = match self.backbuffer.take() {
-            Some(Backbuffer::Images(images)) => {
+            Some(images) => {
                 let count = images.len();
                 images
                     .into_iter()
                     .for_each(|image| image.dispose_swapchain_image(device.id()));
                 count
             }
-            Some(Backbuffer::Framebuffer { .. }) => 0,
             None => 0,
         };
 
@@ -493,8 +456,8 @@ where
         self.swapchain.as_mut().expect("Swapchain already disposed")
     }
 
-    /// Get raw handlers for the swapchain images or framebuffer.
-    pub fn backbuffer(&self) -> &Backbuffer<B> {
+    /// Get raw handlers for the swapchain images.
+    pub fn backbuffer(&self) -> &Vec<Image<B>> {
         self.backbuffer
             .as_ref()
             .expect("Swapchain already disposed")
@@ -511,8 +474,10 @@ where
                 .as_mut()
                 .ok_or(gfx_hal::AcquireError::OutOfDate)?,
             !0,
-            gfx_hal::FrameSync::Semaphore(signal),
-        )?;
+            Some(signal),
+            None,
+        )?
+        .0;
 
         Ok(NextImages {
             targets: std::iter::once((&*self, index)).collect(),
@@ -549,24 +514,22 @@ where
         self,
         queue: &mut impl gfx_hal::queue::RawCommandQueue<B>,
         wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>,
-    ) -> Result<(), failure::Error>
+    ) -> Result<Option<gfx_hal::window::Suboptimal>, gfx_hal::window::PresentError>
     where
         'a: 'b,
     {
-        queue
-            .present(
-                self.targets.iter().map(|(target, index)| {
-                    (
-                        target
-                            .swapchain
-                            .as_ref()
-                            .expect("Swapchain already disposed"),
-                        *index,
-                    )
-                }),
-                wait,
-            )
-            .map_err(|()| failure::format_err!("Suboptimal or out of date, or what?"))
+        queue.present(
+            self.targets.iter().map(|(target, index)| {
+                (
+                    target
+                        .swapchain
+                        .as_ref()
+                        .expect("Swapchain already disposed"),
+                    *index,
+                )
+            }),
+            wait,
+        )
     }
 }
 

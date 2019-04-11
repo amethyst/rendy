@@ -60,7 +60,7 @@ where
 }
 impl AsAttribute for Position {
     const NAME: &'static str = "position";
-    const FORMAT: Format = Format::Rgb32Float;
+    const FORMAT: Format = Format::Rgb32Sfloat;
 }
 
 /// Type for color attribute of vertex
@@ -78,7 +78,7 @@ where
 }
 impl AsAttribute for Color {
     const NAME: &'static str = "color";
-    const FORMAT: Format = Format::Rgba32Float;
+    const FORMAT: Format = Format::Rgba32Sfloat;
 }
 
 /// Type for texture coord attribute of vertex
@@ -97,7 +97,7 @@ where
 
 impl AsAttribute for Normal {
     const NAME: &'static str = "normal";
-    const FORMAT: Format = Format::Rgb32Float;
+    const FORMAT: Format = Format::Rgb32Sfloat;
 }
 
 /// Type for tangent attribute of vertex. W represents handedness and should always be 1 or -1
@@ -116,7 +116,7 @@ where
 
 impl AsAttribute for Tangent {
     const NAME: &'static str = "tangent";
-    const FORMAT: Format = Format::Rgba32Float;
+    const FORMAT: Format = Format::Rgba32Sfloat;
 }
 
 /// Type for texture coord attribute of vertex
@@ -135,7 +135,7 @@ where
 
 impl AsAttribute for TexCoord {
     const NAME: &'static str = "tex_coord";
-    const FORMAT: Format = Format::Rg32Float;
+    const FORMAT: Format = Format::Rg32Sfloat;
 }
 
 /// Vertex format contains information to initialize graphics pipeline
@@ -179,11 +179,11 @@ impl VertexFormat {
     /// Convert into gfx digestible type.
     pub fn gfx_vertex_input_desc(
         &self,
-        rate: gfx_hal::pso::InstanceRate,
+        rate: gfx_hal::pso::VertexInputRate,
     ) -> (
         Vec<gfx_hal::pso::Element<Format>>,
         gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
+        gfx_hal::pso::VertexInputRate,
     ) {
         (
             self.attributes
@@ -585,10 +585,10 @@ where
 impl AsVertex for Model {
     fn vertex() -> VertexFormat {
         VertexFormat::new((
-            (Format::Rgba32Float, "model"),
-            (Format::Rgba32Float, "model"),
-            (Format::Rgba32Float, "model"),
-            (Format::Rgba32Float, "model"),
+            (Format::Rgba32Sfloat, "model"),
+            (Format::Rgba32Sfloat, "model"),
+            (Format::Rgba32Sfloat, "model"),
+            (Format::Rgba32Sfloat, "model"),
         ))
     }
 }
