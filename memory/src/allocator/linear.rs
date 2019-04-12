@@ -193,6 +193,7 @@ where
             }
 
             let line = self.lines.pop_front().unwrap();
+            self.offset += 1;
 
             unsafe {
                 // trace!("Unmap memory: {:#?}", line.memory);
