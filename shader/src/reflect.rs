@@ -12,52 +12,62 @@ pub trait ReflectInto<T>: Sized {
     }
 }
 
-impl ReflectInto<Format> for image::ReflectFormat {
+impl ReflectInto<Format> for ReflectFormat {
     fn reflect_into(&self) -> Result<Format, failure::Error> {
         match self {
-            image::ReflectFormat::Undefined => Err(failure::format_err!("Undefined Format")),
-            image::ReflectFormat::R32_UINT => Ok(Format::R32Uint),
-            image::ReflectFormat::R32_SINT => Ok(Format::R32Int),
-            image::ReflectFormat::R32_SFLOAT => Ok(Format::R32Float),
-            image::ReflectFormat::R32G32_UINT => Ok(Format::Rg32Uint),
-            image::ReflectFormat::R32G32_SINT => Ok(Format::Rg32Int),
-            image::ReflectFormat::R32G32_SFLOAT => Ok(Format::Rg32Float),
-            image::ReflectFormat::R32G32B32_UINT => Ok(Format::Rgb32Uint),
-            image::ReflectFormat::R32G32B32_SINT => Ok(Format::Rgb32Int),
-            image::ReflectFormat::R32G32B32_SFLOAT => Ok(Format::Rgb32Float),
-            image::ReflectFormat::R32G32B32A32_UINT => Ok(Format::Rgb32Uint),
-            image::ReflectFormat::R32G32B32A32_SINT => Ok(Format::Rgb32Int),
-            image::ReflectFormat::R32G32B32A32_SFLOAT => Ok(Format::Rgb32Float),
+            ReflectFormat::Undefined => Err(failure::format_err!("Undefined Format")),
+            ReflectFormat::R32_UINT => Ok(Format::R32Uint),
+            ReflectFormat::R32_SINT => Ok(Format::R32Int),
+            ReflectFormat::R32_SFLOAT => Ok(Format::R32Float),
+            ReflectFormat::R32G32_UINT => Ok(Format::Rg32Uint),
+            ReflectFormat::R32G32_SINT => Ok(Format::Rg32Int),
+            ReflectFormat::R32G32_SFLOAT => Ok(Format::Rg32Float),
+            ReflectFormat::R32G32B32_UINT => Ok(Format::Rgb32Uint),
+            ReflectFormat::R32G32B32_SINT => Ok(Format::Rgb32Int),
+            ReflectFormat::R32G32B32_SFLOAT => Ok(Format::Rgb32Float),
+            ReflectFormat::R32G32B32A32_UINT => Ok(Format::Rgb32Uint),
+            ReflectFormat::R32G32B32A32_SINT => Ok(Format::Rgb32Int),
+            ReflectFormat::R32G32B32A32_SFLOAT => Ok(Format::Rgb32Float),
         }
     }
 }
 
 fn type_element_format(
-    flags: variable::ReflectTypeFlags,
-    traits: &traits::ReflectTypeDescriptionTraits,
-) -> Result<gfx_hal::format::Format, failure::Error> {
+    flags: ReflectTypeFlags,
+    traits: &ReflectTypeDescriptionTraits,
+) -> Result<Format, failure::Error> {
     enum NumTy {
-        Int(u32),
+        SInt,
+        UInt,
         Float,
     }
 
-    let num_ty = if flags.contains(variable::ReflectTypeFlags::INT) {
-        NumTy::Int(traits.numeric.scalar.signedness)
-    } else if flags.contains(variable::ReflectTypeFlags::FLOAT) {
+    let num_ty = if flags.contains(ReflectTypeFlags::INT) {
+        match traits.numeric.scalar.signedness {
+            0 => NumTy::UInt,
+            1 => NumTy::SInt,
+            _ => {
+                failure::bail!(
+                    "Unrecognized numeric signedness {:?}",
+                    traits.numeric.scalar.signedness
+                );
+            }
+        }
+    } else if flags.contains(ReflectTypeFlags::FLOAT) {
         NumTy::Float
     } else {
         failure::bail!("Unrecognized numeric type with flags {:?}", flags);
     };
 
     let current_type = match (num_ty, traits.numeric.scalar.width) {
-        (NumTy::Int(1), 8) => Format::R8Int,
-        (NumTy::Int(1), 16) => Format::R16Int,
-        (NumTy::Int(1), 32) => Format::R32Int,
-        (NumTy::Int(1), 64) => Format::R64Int,
-        (NumTy::Int(0), 8) => Format::R8Uint,
-        (NumTy::Int(0), 16) => Format::R16Uint,
-        (NumTy::Int(0), 32) => Format::R32Uint,
-        (NumTy::Int(0), 64) => Format::R64Uint,
+        (NumTy::SInt, 8) => Format::R8Int,
+        (NumTy::SInt, 16) => Format::R16Int,
+        (NumTy::SInt, 32) => Format::R32Int,
+        (NumTy::SInt, 64) => Format::R64Int,
+        (NumTy::UInt, 8) => Format::R8Uint,
+        (NumTy::UInt, 16) => Format::R16Uint,
+        (NumTy::UInt, 32) => Format::R32Uint,
+        (NumTy::UInt, 64) => Format::R64Uint,
         (NumTy::Float, 32) => Format::R32Float,
         (NumTy::Float, 64) => Format::R64Float,
         _ => {
@@ -114,12 +124,8 @@ fn type_element_format(
     }
 }
 
-impl ReflectInto<gfx_hal::pso::Element<gfx_hal::format::Format>>
-    for variable::ReflectTypeDescription
-{
-    fn reflect_into(
-        &self,
-    ) -> Result<gfx_hal::pso::Element<gfx_hal::format::Format>, failure::Error> {
+impl ReflectInto<gfx_hal::pso::Element<Format>> for ReflectTypeDescription {
+    fn reflect_into(&self) -> Result<gfx_hal::pso::Element<Format>, failure::Error> {
         let format = type_element_format(self.type_flags, &self.traits)?;
         Ok(gfx_hal::pso::Element {
             format: format,
@@ -128,7 +134,7 @@ impl ReflectInto<gfx_hal::pso::Element<gfx_hal::format::Format>>
     }
 }
 
-impl ReflectInto<gfx_hal::pso::AttributeDesc> for variable::ReflectInterfaceVariable {
+impl ReflectInto<gfx_hal::pso::AttributeDesc> for ReflectInterfaceVariable {
     fn reflect_into(&self) -> Result<gfx_hal::pso::AttributeDesc, failure::Error> {
         // An attribute is not an image format
         Ok(gfx_hal::pso::AttributeDesc {
@@ -146,10 +152,10 @@ impl ReflectInto<gfx_hal::pso::AttributeDesc> for variable::ReflectInterfaceVari
 // Descriptor Sets
 //
 
-impl ReflectInto<gfx_hal::pso::DescriptorType> for descriptor::ReflectDescriptorType {
+impl ReflectInto<gfx_hal::pso::DescriptorType> for ReflectDescriptorType {
     fn reflect_into(&self) -> Result<gfx_hal::pso::DescriptorType, failure::Error> {
-        use descriptor::ReflectDescriptorType::*;
         use gfx_hal::pso::DescriptorType;
+        use ReflectDescriptorType::*;
 
         match *self {
             Sampler => Ok(DescriptorType::Sampler),
@@ -173,9 +179,7 @@ impl ReflectInto<gfx_hal::pso::DescriptorType> for descriptor::ReflectDescriptor
     }
 }
 
-impl ReflectInto<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>
-    for descriptor::ReflectDescriptorSet
-{
+impl ReflectInto<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>> for ReflectDescriptorSet {
     fn reflect_into(
         &self,
     ) -> Result<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>, failure::Error> {
@@ -185,9 +189,7 @@ impl ReflectInto<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>
             .collect::<Result<Vec<_>, _>>()
     }
 }
-impl ReflectInto<gfx_hal::pso::DescriptorSetLayoutBinding>
-    for descriptor::ReflectDescriptorBinding
-{
+impl ReflectInto<gfx_hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptorBinding {
     fn reflect_into(&self) -> Result<gfx_hal::pso::DescriptorSetLayoutBinding, failure::Error> {
         Ok(gfx_hal::pso::DescriptorSetLayoutBinding {
             binding: self.binding,
@@ -201,7 +203,7 @@ impl ReflectInto<gfx_hal::pso::DescriptorSetLayoutBinding>
 
 fn convert_push_constant(
     stage: gfx_hal::pso::ShaderStageFlags,
-    variable: &variable::ReflectBlockVariable,
+    variable: &ReflectBlockVariable,
 ) -> Result<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>), failure::Error> {
     Ok((
         stage,
@@ -209,25 +211,25 @@ fn convert_push_constant(
     ))
 }
 
-fn convert_stage(stage: variable::ReflectShaderStageFlags) -> gfx_hal::pso::ShaderStageFlags {
+fn convert_stage(stage: ReflectShaderStageFlags) -> gfx_hal::pso::ShaderStageFlags {
     let mut bits = gfx_hal::pso::ShaderStageFlags::empty();
 
-    if stage.contains(variable::ReflectShaderStageFlags::VERTEX) {
+    if stage.contains(ReflectShaderStageFlags::VERTEX) {
         bits |= gfx_hal::pso::ShaderStageFlags::VERTEX;
     }
-    if stage.contains(variable::ReflectShaderStageFlags::FRAGMENT) {
+    if stage.contains(ReflectShaderStageFlags::FRAGMENT) {
         bits |= gfx_hal::pso::ShaderStageFlags::FRAGMENT;
     }
-    if stage.contains(variable::ReflectShaderStageFlags::GEOMETRY) {
+    if stage.contains(ReflectShaderStageFlags::GEOMETRY) {
         bits |= gfx_hal::pso::ShaderStageFlags::GEOMETRY;
     }
-    if stage.contains(variable::ReflectShaderStageFlags::COMPUTE) {
+    if stage.contains(ReflectShaderStageFlags::COMPUTE) {
         bits |= gfx_hal::pso::ShaderStageFlags::COMPUTE;
     }
-    if stage.contains(variable::ReflectShaderStageFlags::TESSELLATION_CONTROL) {
+    if stage.contains(ReflectShaderStageFlags::TESSELLATION_CONTROL) {
         bits |= gfx_hal::pso::ShaderStageFlags::HULL;
     }
-    if stage.contains(variable::ReflectShaderStageFlags::TESSELLATION_EVALUATION) {
+    if stage.contains(ReflectShaderStageFlags::TESSELLATION_EVALUATION) {
         bits |= gfx_hal::pso::ShaderStageFlags::DOMAIN;
     }
 
@@ -251,7 +253,7 @@ pub struct SpirvShaderDescription {
 }
 
 pub(crate) fn generate_attributes(
-    attributes: Vec<variable::ReflectInterfaceVariable>,
+    attributes: Vec<ReflectInterfaceVariable>,
 ) -> Result<Vec<gfx_hal::pso::AttributeDesc>, failure::Error> {
     let mut out_attributes = Vec::new();
 

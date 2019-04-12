@@ -1,7 +1,8 @@
+//!
+//! Reflection extensions
+//!
 use crate::node::render::{Layout, SetLayout};
-/// Reflection extensions
 use rendy_shader::Shader;
-
 use std::ops::{Bound, RangeBounds};
 
 /// Extension for SpirvShaderReflection providing graph render type conversion
@@ -28,6 +29,7 @@ pub trait ShaderLayoutGenerator {
     /// Returns the stage flag for this shader
     fn stage(&self) -> Result<gfx_hal::pso::ShaderStageFlags, failure::Error>;
 
+    /// Returns this shaders push constants in gfx-hal format
     fn push_constants(
         &self,
         range: Option<std::ops::Range<usize>>,
@@ -121,7 +123,9 @@ impl<S: Shader> ShaderLayoutGenerator for S {
     }
 }
 
+/// Iterator function implementation for merging multiple shader layouts into a single shader set layout
 pub trait SpirvLayoutMerger {
+    /// Returns a merged Layout from the provided iterator
     fn merge(self) -> Result<Layout, failure::Error>;
 }
 impl<T> SpirvLayoutMerger for T
@@ -130,14 +134,10 @@ where
     T::Item: Shader + Sized,
 {
     fn merge(self) -> Result<Layout, failure::Error> {
-        let mut iter = self.into_iter();
-
         let mut sets = Vec::new();
         let mut push_constants = Vec::new();
 
-        let mut shader = iter.next();
-        while shader.is_some() {
-            let s = shader.unwrap();
+        for s in self.into_iter() {
             let current_layout = s.layout()?;
 
             for (n, set) in current_layout.sets.iter().enumerate() {
@@ -160,7 +160,6 @@ where
                 }
             }
             push_constants.extend(s.push_constants(None)?);
-            shader = iter.next();
         }
 
         Ok(Layout {
@@ -173,7 +172,7 @@ where
 /// This enum provides logical comparison results for descriptor sets. Because shaders can share bindings,
 /// we cannot do a strict equality check for exclusion - we must see if shaders match, or if they are the same bindings
 /// but mismatched descriptions.
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum BindingEquality {
     /// The bindings match
@@ -207,9 +206,9 @@ pub fn compare_bindings(
 /// This enum provides logical comparison results for sets. Because shaders can share bindings,
 /// we cannot do a strict equality check for exclusion - we must see if shaders match, or if they are the same bindings
 /// but mismatched descriptions.
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum SetEquality {
+enum SetEquality {
     /// The sets match
     Equal,
     /// The sets share a binding index, but have different values. This is usually an error case.
@@ -220,7 +219,7 @@ pub enum SetEquality {
     NotEqual,
 }
 
-pub fn compare_set(lhv: &SetLayout, rhv: &SetLayout) -> SetEquality {
+fn compare_set(lhv: &SetLayout, rhv: &SetLayout) -> SetEquality {
     use std::collections::HashMap;
     // Bindings may not be in order, so we need to make a copy and index them by binding.
     let mut lhv_bindings = HashMap::new();
@@ -260,7 +259,7 @@ pub fn compare_set(lhv: &SetLayout, rhv: &SetLayout) -> SetEquality {
 }
 
 /// Function copied from range_contains RFC rust implementation in nightly
-pub(crate) fn range_contains<U, R>(range: &R, item: &U) -> bool
+fn range_contains<U, R>(range: &R, item: &U) -> bool
 where
     U: ?Sized + PartialOrd<U>,
     R: RangeBounds<U>,

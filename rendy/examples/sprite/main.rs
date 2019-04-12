@@ -81,6 +81,7 @@ where
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     )> {
+        use rendy::mesh::AsVertex;
         vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
     }
 
@@ -129,6 +130,7 @@ where
 
     #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
+        use rendy::graph::render::SetLayout;
         Layout {
             sets: vec![SetLayout {
                 bindings: vec![

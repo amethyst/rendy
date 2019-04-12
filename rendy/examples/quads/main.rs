@@ -19,7 +19,7 @@ use rendy::{
         gfx_acquire_barriers, gfx_release_barriers,
         present::PresentNode,
         render::{
-            Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline,
+            Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
         BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
@@ -27,7 +27,7 @@ use rendy::{
     },
     hal::Device as _,
     memory::Dynamic,
-    mesh::{AsVertex, Color},
+    mesh::{Color},
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
 };
@@ -119,6 +119,7 @@ where
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     )> {
+        use rendy::mesh::AsVertex;
         vec![Color::VERTEX.gfx_vertex_input_desc(0)]
     }
 

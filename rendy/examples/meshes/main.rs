@@ -18,7 +18,7 @@ use {
         },
         hal::Device as _,
         memory::Dynamic,
-        mesh::{AsVertex, Mesh, PosColorNorm, Transform},
+        mesh::{Mesh, PosColorNorm, Transform, AsVertex},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
     },
@@ -135,6 +135,7 @@ where
 
     #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
+        use rendy::graph::render::SetLayout;
         Layout {
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
@@ -152,7 +153,7 @@ where
     #[cfg(feature = "spirv-reflection")]
     fn layout(&self) -> Layout {
         use rendy::graph::reflect::SpirvLayoutMerger;
-        vec![*VERTEX, *FRAGMENT].merge().unwrap()
+        vec![VERTEX.clone(), FRAGMENT.clone()].merge().unwrap()
     }
 
     #[cfg(feature = "spirv-reflection")]

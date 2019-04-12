@@ -37,4 +37,5 @@ mod node;
 pub use self::{graph::*, node::*};
 
 #[cfg(feature = "spirv-reflection")]
+#[doc(inline)]
 pub mod reflect;
