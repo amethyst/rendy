@@ -10,8 +10,7 @@ use crate::{
     memory::Data,
     resource::{Buffer, BufferInfo, Escape},
     util::cast_cow,
-    AsVertex,
-    VertexFormat,
+    AsVertex, VertexFormat,
 };
 
 /// Vertex buffer with it's format

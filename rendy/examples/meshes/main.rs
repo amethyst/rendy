@@ -18,7 +18,7 @@ use {
         },
         hal::Device as _,
         memory::Dynamic,
-        mesh::{Mesh, PosColorNorm, Transform, AsVertex},
+        mesh::{AsVertex, Mesh, PosColorNorm, Transform},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
     },
@@ -28,7 +28,7 @@ use {
 use rendy::shader::SpirvReflectedShader as SpirvShader;
 
 #[cfg(not(feature = "spirv-reflection"))]
-use rendy::shader::SpirvShader as SpirvShader;
+use rendy::shader::SpirvShader;
 
 use std::{cmp::min, mem::size_of, time};
 

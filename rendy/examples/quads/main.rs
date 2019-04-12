@@ -27,7 +27,7 @@ use rendy::{
     },
     hal::Device as _,
     memory::Dynamic,
-    mesh::{Color},
+    mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
 };
@@ -36,7 +36,7 @@ use rendy::{
 use rendy::shader::SpirvReflectedShader as SpirvShader;
 
 #[cfg(not(feature = "spirv-reflection"))]
-use rendy::shader::SpirvShader as SpirvShader;
+use rendy::shader::SpirvShader;
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -138,7 +138,10 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         use rendy::graph::reflect::ShaderLayoutGenerator;
-        vec![RENDER_VERTEX.attributes(..).unwrap().gfx_vertex_input_desc(0)]
+        vec![RENDER_VERTEX
+            .attributes(..)
+            .unwrap()
+            .gfx_vertex_input_desc(0)]
     }
 
     fn load_shader_set<'a>(
@@ -201,7 +204,9 @@ where
     #[cfg(feature = "spirv-reflection")]
     fn layout(&self) -> Layout {
         use rendy::graph::reflect::SpirvLayoutMerger;
-        vec![RENDER_VERTEX.clone(), RENDER_FRAGMENT.clone()].merge().unwrap()
+        vec![RENDER_VERTEX.clone(), RENDER_FRAGMENT.clone()]
+            .merge()
+            .unwrap()
     }
 
     fn build<'a>(

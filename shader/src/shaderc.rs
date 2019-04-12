@@ -49,8 +49,8 @@ impl<P, E> SourceShaderInfo<P, E> {
     #[cfg(feature = "spirv-reflection")]
     /// Precompile shader source code into Spir-V bytecode.
     pub fn precompile(&self) -> Result<SpirvReflectedShader, failure::Error>
-        where
-            Self: Shader,
+    where
+        Self: Shader,
     {
         //#[cfg(not(feature = "spirv-reflection"))]
         Ok(SpirvReflectedShader::new(self.spirv()?.into_owned()))
@@ -89,8 +89,6 @@ where
 
         Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
     }
-
-
 }
 
 /// Shader info with static data.

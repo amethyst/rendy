@@ -2,7 +2,6 @@
 //! Basic example uses the shader reflection to dump a shader and then exits.
 //!
 #![cfg(feature = "shader")]
-
 #![forbid(overflowing_literals)]
 #![deny(missing_copy_implementations)]
 #![deny(missing_debug_implementations)]
@@ -21,7 +20,7 @@
 #![deny(rust_2018_idioms)]
 #![allow(unused_unsafe)]
 
-use rendy::shader::{SourceShaderInfo, ShaderKind, SourceLanguage, Shader };
+use rendy::shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo};
 
 fn main() {
     env_logger::Builder::from_default_env()
@@ -30,24 +29,29 @@ fn main() {
         .init();
 
     let vertex = SourceShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/dumpshader/shader.vert"),
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/dumpshader/shader.vert"
+        ),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
     let fragment = SourceShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/dumpshader/shader.frag"),
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/dumpshader/shader.frag"
+        ),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
     );
 
-
     match vertex.reflect() {
         Ok(info) => {
             println!("{:?}", info);
-        },
+        }
         Err(e) => {
             panic!("Reflect on shader failed: {}", e);
         }
@@ -56,10 +60,9 @@ fn main() {
     match fragment.reflect() {
         Ok(info) => {
             println!("{:?}", info);
-        },
+        }
         Err(e) => {
             panic!("Reflect on shader failed: {}", e);
         }
     }
-
 }

@@ -31,7 +31,9 @@ pub trait Shader {
     #[cfg(feature = "spirv-reflection")]
     /// Uses spirv-reflect to generate a [SpirvShaderDescription] reflection representation, which is
     /// an intermediate to gfx_hal data representations.
-    fn reflect(&self) -> Result<&SpirvShaderDescription, failure::Error> { unimplemented!("Shader reflection not implemented for this type") }
+    fn reflect(&self) -> Result<&SpirvShaderDescription, failure::Error> {
+        unimplemented!("Shader reflection not implemented for this type")
+    }
 
     /// Create shader module.
     ///
@@ -72,7 +74,6 @@ impl Shader for SpirvShader {
     }
 }
 
-
 #[cfg(feature = "spirv-reflection")]
 /// Spir-V shader with reflection
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -91,10 +92,7 @@ impl SpirvReflectedShader {
         assert_eq!(spirv.len() % 4, 0);
         let reflection = reflect::SpirvShaderDescription::from_bytes(spirv.as_slice()).unwrap();
 
-        Self {
-            spirv,
-            reflection,
-        }
+        Self { spirv, reflection }
     }
 }
 

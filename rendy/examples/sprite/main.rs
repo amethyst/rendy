@@ -17,7 +17,7 @@ use {
             present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
             NodeImage,
         },
-        memory::{Dynamic},
+        memory::Dynamic,
         mesh::{AsVertex, PosTex},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
@@ -29,7 +29,7 @@ use {
 use rendy::shader::SpirvReflectedShader as SpirvShader;
 
 #[cfg(not(feature = "spirv-reflection"))]
-use rendy::shader::SpirvShader as SpirvShader;
+use rendy::shader::SpirvShader;
 
 use winit::{EventsLoop, WindowBuilder};
 
