@@ -11,6 +11,7 @@ categories = ["rendering"]
 description = "Rendy's texture"
 
 [features]
+no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 serde-1 = ["serde", "gfx-hal/serde", "rendy-factory/serde"]
 
 [dependencies]
@@ -26,3 +27,4 @@ failure = "0.1"
 serde = { version = "1.0", optional = true }
 image = { version = "0.21.0", optional = true }
 palette = { version = "0.4", optional = true }
+log = "0.4"

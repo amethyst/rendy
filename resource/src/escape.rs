@@ -6,93 +6,50 @@
 use {
     crossbeam_channel::{Receiver, Sender},
     std::{
-        cell::UnsafeCell,
         iter::repeat,
-        mem::{forget, ManuallyDrop},
+        mem::ManuallyDrop,
         ops::{Deref, DerefMut},
-        ptr::read,
+        ptr::{drop_in_place, read},
         sync::Arc,
     },
 };
-
-#[derive(Debug)] // `Debug` impl doesn't access value stored in `UnsafeCell`
-struct Inner<T> {
-    sender: Sender<T>,
-    value: UnsafeCell<Option<T>>,
-}
-
-impl<T> Inner<T> {
-    /// This function must be called at most once for given instance.
-    /// No other access to the inner value is possible until `Any`.
-    unsafe fn escape(&self, value: T) {
-        debug_assert!((*self.value.get()).is_none());
-        *self.value.get() = Some(value);
-    }
-}
-
-unsafe impl<T: Send> Send for Inner<T> {}
-unsafe impl<T: Send + Sync> Sync for Inner<T> {}
-
-impl<T> Drop for Inner<T> {
-    fn drop(&mut self) {
-        if let Some(value) = unsafe { &mut *self.value.get() }.take() {
-            self.sender.send(value);
-        }
-    }
-}
 
 /// Allows values to "escape" dropping by sending them to the `Terminal`.
 #[derive(Debug)]
 pub struct Escape<T> {
     value: ManuallyDrop<T>,
-    inner: Arc<Inner<T>>,
+    sender: Sender<T>,
 }
 
 impl<T> Escape<T> {
-    /// Create new `Escape` bound to given `Terminal`.
-    pub fn new(value: T, terminal: &Terminal<T>) -> Self {
+    /// Escape value.
+    pub fn escape(value: T, terminal: &Terminal<T>) -> Self {
         Escape {
             value: ManuallyDrop::new(value),
-            inner: Arc::new(Inner {
-                sender: Sender::clone(&terminal.sender),
-                value: UnsafeCell::new(None),
-            }),
+            sender: Sender::clone(&terminal.sender),
         }
-    }
-
-    /// Keep escaped value alive until all `KeepAlive` instanced created from it are dropped.
-    pub fn keep_alive(&self) -> KeepAlive
-    where
-        T: Send + Sync + 'static,
-    {
-        KeepAlive(self.inner.clone() as _)
     }
 
     /// Unwrap escaping value.
     /// This will effectivly prevent it from escaping.
-    /// In case of existing `KeepAlive` created from this instance this function will **escape** value instead.
-    pub fn unescape(mut self) -> Option<T> {
+    pub fn unescape(escape: Self) -> T {
         unsafe {
-            let inner = read(&mut self.inner);
-            let value = read(&mut *self.value);
-            forget(self);
+            // Prevent `<Escape<T> as Drop>::drop` from being executed.
+            let mut escape = ManuallyDrop::new(escape);
 
-            match Arc::try_unwrap(inner) {
-                Ok(_) => Some(value),
-                Err(inner) => {
-                    inner.escape(value);
-                    None
-                }
-            }
+            // Release value from `ManuallyDrop`.
+            let value = read(&mut *escape.value);
+
+            // Drop sender. If it panics - value will be dropped.
+            // Relevant values are allowed to be dropped due to panic.
+            drop_in_place(&mut escape.sender);
+            value
         }
     }
-}
 
-impl<T> Drop for Escape<T> {
-    fn drop(&mut self) {
-        unsafe {
-            self.inner.escape(read(&mut *self.value));
-        }
+    /// Share escaped value.
+    pub fn share(escape: Self) -> Handle<T> {
+        escape.into()
     }
 }
 
@@ -109,119 +66,19 @@ impl<T> DerefMut for Escape<T> {
     }
 }
 
-/// Allows values to "escape" dropping by sending them to the `Terminal`.
-/// Unlike `Escape` it doesn't support `KeepAlive` mechanism but has less overhead in exchange.
-#[derive(Debug)]
-pub struct EscapeCheap<T> {
-    value: ManuallyDrop<T>,
-    sender: Sender<T>,
-}
-
-impl<T> EscapeCheap<T> {
-    /// Create new `Escape` bound to given `Terminal`.
-    pub fn new(value: T, terminal: &Terminal<T>) -> Self {
-        EscapeCheap {
-            sender: Sender::clone(&terminal.sender),
-            value: ManuallyDrop::new(value),
-        }
-    }
-}
-
-impl<T> Deref for EscapeCheap<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &*self.value
-    }
-}
-
-impl<T> DerefMut for EscapeCheap<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut *self.value
-    }
-}
-
-impl<T> Drop for EscapeCheap<T> {
+impl<T> Drop for Escape<T> {
     fn drop(&mut self) {
         unsafe {
+            // Read value from `ManuallyDrop` wrapper and send it over the channel.
             self.sender.send(read(&mut *self.value));
         }
     }
 }
 
-/// Allows values to "escape" dropping by sending them to the `Terminal`.
-/// Unlike `Escape` it doesn't allow mutable access, but permits sharing via `Clone`.
-#[derive(Debug, derivative::Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct EscapeShared<T> {
-    inner: Arc<EscapeCheap<T>>,
-}
-
-impl<T> EscapeShared<T> {
-    /// Create new `Escape` bound to given `Terminal`.
-    pub fn new(value: T, terminal: &Terminal<T>) -> Self {
-        EscapeShared {
-            inner: Arc::new(EscapeCheap::new(value, terminal)),
-        }
-    }
-
-    /// Keep escaped value alive until all `KeepAlive` instanced created from it are dropped.
-    pub fn keep_alive(&self) -> KeepAlive
-    where
-        T: Send + Sync + 'static,
-    {
-        KeepAlive(self.inner.clone() as _)
-    }
-
-    /// Unwrap escaping value.
-    /// This will effectivly prevent it from escaping.
-    /// In case of existing `KeepAlive` created from this instance this function will **escape** value instead.
-    pub fn unescape(self) -> Option<T> {
-        match Arc::try_unwrap(self.inner) {
-            Ok(mut inner) => unsafe {
-                let value = read(&mut *inner.value);
-                drop(read(&mut inner.sender));
-                forget(inner);
-                Some(value)
-            },
-            Err(_) => None,
-        }
-    }
-}
-
-impl<T> Deref for EscapeShared<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &*self.inner.value
-    }
-}
-
-/// Values of `KeepAlive` keeps resources from destroying.
-///
-/// # Example
-///
-/// ```
-/// # extern crate rendy_resource;
-/// # use rendy_resource::*;
-///
-/// fn foo<B: gfx_hal::Backend>(buffer: Buffer<B>) {
-///     let kp: KeepAlive = buffer.keep_alive();
-///
-///     // `kp` keeps this buffer from being destroyed.
-///     // It still can be referenced by command buffer on used by GPU.
-///     drop(buffer);
-///
-///     // If there is no `KeepAlive` instances created from this buffer
-///     // then it can be destrouyed after this line.
-///     drop(kp);
-/// }
-/// ```
-#[derive(Clone, Debug)]
-pub struct KeepAlive(std::sync::Arc<dyn std::any::Any + Send + Sync>);
-
 /// This types allows the user to create `Escape` wrappers.
 /// Receives values from dropped `Escape` instances that was created by this `Terminal`.
 #[derive(Debug)]
-pub struct Terminal<T: 'static> {
+pub struct Terminal<T> {
     receiver: Receiver<T>,
     sender: ManuallyDrop<Sender<T>>,
 }
@@ -244,12 +101,7 @@ impl<T> Terminal<T> {
 
     /// Wrap the value. It will be yielded by iterator returned by `Terminal::drain` if `Escape` will be dropped.
     pub fn escape(&self, value: T) -> Escape<T> {
-        Escape::new(value, &self)
-    }
-
-    /// Wrap the value. It will be yielded by iterator returned by `Terminal::drain` if `EscapeShared` will be dropped.
-    pub fn escape_shared(&self, value: T) -> EscapeShared<T> {
-        EscapeShared::new(value, &self)
+        Escape::escape(value, &self)
     }
 
     // /// Check if `Escape` will send value to this `Terminal`.
@@ -274,12 +126,38 @@ impl<T> Drop for Terminal<T> {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.sender);
-            match self.receiver.recv() {
+            match self.receiver.try_recv() {
                 None => {}
                 Some(_) => {
-                    error!("Terminal must be dropped after all `Escape`s");
+                    log::error!("Terminal must be dropped after all `Escape`s");
                 }
             }
         }
+    }
+}
+
+/// Allows values to "escape" dropping by sending them to the `Terminal`.
+/// Permit sharing unlike [`Escape`]
+///
+/// [`Escape`]: ./struct.Escape.html
+#[derive(derivative::Derivative, Debug)]
+#[derivative(Clone(bound = ""))]
+pub struct Handle<T> {
+    inner: Arc<Escape<T>>,
+}
+
+impl<T> From<Escape<T>> for Handle<T> {
+    fn from(value: Escape<T>) -> Self {
+        Handle {
+            inner: Arc::new(value),
+        }
+    }
+}
+
+impl<T> Deref for Handle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &**self.inner
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "rendy-memory"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/omni-viral/rendy"
@@ -23,6 +23,7 @@ relevant = { version = "0.4", features = ["log", "backtrace"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 veclist = "0.1"
+colorful = "0.2"
 
 [dev-dependencies]
 rand = "0.5"

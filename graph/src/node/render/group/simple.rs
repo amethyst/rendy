@@ -2,11 +2,12 @@ use {
     super::{RenderGroup, RenderGroupDesc},
     crate::{
         command::{QueueId, RenderPassEncoder},
-        descriptor::DescriptorSetLayout,
         factory::Factory,
+        graph::GraphContext,
         node::{
             render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
         },
+        resource::{DescriptorSetLayout, Handle},
     },
     gfx_hal::{Backend, Device},
 };
@@ -46,9 +47,14 @@ pub struct Pipeline {
 
     /// Depth stencil for pipeline.
     pub depth_stencil: gfx_hal::pso::DepthStencilDesc,
+
+    /// Primitive to use in the input assembler.
+    pub input_assembler_desc: gfx_hal::pso::InputAssemblerDesc,
 }
 
+/// Descriptor for simple graphics pipeline implementation.
 pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
+    /// Simple graphics pipeline implementation
     type Pipeline: SimpleGraphicsPipeline<B, T>;
 
     /// Get set or buffer resources the node uses.
@@ -101,6 +107,14 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         }
     }
 
+    /// Returns the InputAssemblerDesc. Defaults to a TriangleList with Restart disabled, can be overriden.
+    fn input_assembler(&self) -> gfx_hal::pso::InputAssemblerDesc {
+        gfx_hal::pso::InputAssemblerDesc {
+            primitive: gfx_hal::Primitive::TriangleList,
+            primitive_restart: gfx_hal::pso::PrimitiveRestart::Disabled,
+        }
+    }
+
     /// Graphics pipelines
     fn pipeline(&self) -> Pipeline {
         Pipeline {
@@ -110,6 +124,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
             depth_stencil: self
                 .depth_stencil()
                 .unwrap_or(gfx_hal::pso::DepthStencilDesc::default()),
+            input_assembler_desc: self.input_assembler(),
         }
     }
 
@@ -134,12 +149,13 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Build pass instance.
     fn build<'a>(
         self,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<Self::Pipeline, failure::Error>;
 }
 
@@ -147,6 +163,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
     std::fmt::Debug + Sized + Send + Sync + 'static
 {
+    /// This pipeline descriptor.
     type Desc: SimpleGraphicsPipelineDesc<B, T, Pipeline = Self>;
 
     /// Make simple render group builder.
@@ -167,7 +184,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[DescriptorSetLayout<B>],
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -183,17 +200,20 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
         aux: &T,
     );
 
+    /// Free all resources and destroy pipeline instance.
     fn dispose(self, factory: &mut Factory<B>, aux: &T);
 }
 
+/// Render group that consist of simple graphics pipeline.
 #[derive(Debug)]
 pub struct SimpleRenderGroup<B: Backend, P> {
-    set_layouts: Vec<DescriptorSetLayout<B>>,
+    set_layouts: Vec<Handle<DescriptorSetLayout<B>>>,
     pipeline_layout: B::PipelineLayout,
     graphics_pipeline: B::GraphicsPipeline,
     pipeline: P,
 }
 
+/// Descriptor for simple render group.
 #[derive(Debug)]
 pub struct SimpleRenderGroupDesc<P: std::fmt::Debug> {
     inner: P,
@@ -223,14 +243,15 @@ where
 
     fn build<'a>(
         self,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
         subpass: gfx_hal::pass::Subpass<'_, B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
         let mut shaders = Vec::new();
 
@@ -243,7 +264,11 @@ where
             .layout
             .sets
             .into_iter()
-            .map(|set| factory.create_descriptor_set_layout(set.bindings))
+            .map(|set| {
+                factory
+                    .create_descriptor_set_layout(set.bindings)
+                    .map(Handle::from)
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         let pipeline_layout = unsafe {
@@ -276,10 +301,7 @@ where
                     rasterizer: gfx_hal::pso::Rasterizer::FILL,
                     vertex_buffers,
                     attributes,
-                    input_assembler: gfx_hal::pso::InputAssemblerDesc {
-                        primitive: gfx_hal::Primitive::TriangleList,
-                        primitive_restart: gfx_hal::pso::PrimitiveRestart::Disabled,
-                    },
+                    input_assembler: pipeline.input_assembler_desc,
                     blender: gfx_hal::pso::BlendDesc {
                         logic_op: None,
                         targets: pipeline.colors.clone(),
@@ -307,7 +329,7 @@ where
 
         let pipeline = self
             .inner
-            .build(factory, queue, aux, buffers, images, &set_layouts)?;
+            .build(ctx, factory, queue, aux, buffers, images, &set_layouts)?;
 
         for module in shaders.into_iter() {
             unsafe { factory.destroy_shader_module(module) };
@@ -362,9 +384,7 @@ where
             factory
                 .device()
                 .destroy_pipeline_layout(self.pipeline_layout);
-            for set_layout in self.set_layouts.into_iter() {
-                factory.destroy_descriptor_set_layout(set_layout);
-            }
+            drop(self.set_layouts);
         }
     }
 }

@@ -3,31 +3,42 @@
 mod queue;
 mod submission;
 
-use crate::{
-    buffer::Reset,
-    capability::{Capability, Supports},
-    pool::CommandPool,
+use {
+    crate::{
+        buffer::Reset,
+        capability::{Capability, QueueType, Supports},
+        pool::CommandPool,
+        util::{device_owned, Device, DeviceId},
+    },
+    gfx_hal::Backend,
 };
 
 pub use self::{queue::*, submission::*};
 
 /// Family id.
-pub type FamilyId = gfx_hal::queue::QueueFamilyId;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct FamilyId {
+    /// Family id within device.
+    pub index: usize,
+
+    /// Device id.
+    pub device: DeviceId,
+}
+
+impl From<FamilyId> for gfx_hal::queue::QueueFamilyId {
+    fn from(id: FamilyId) -> Self {
+        gfx_hal::queue::QueueFamilyId(id.index)
+    }
+}
 
 /// Queue id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct QueueId(pub FamilyId, pub usize);
+pub struct QueueId {
+    /// Queue index.
+    pub index: usize,
 
-impl QueueId {
-    /// Get family of the queue.
-    pub fn family(&self) -> FamilyId {
-        self.0
-    }
-
-    /// Get index of the queue.
-    pub fn index(&self) -> usize {
-        self.1
-    }
+    /// Family id.
+    pub family: FamilyId,
 }
 
 /// Family of the command queues.
@@ -35,16 +46,18 @@ impl QueueId {
 /// All queues of the family have same capabilities.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct Family<B: gfx_hal::Backend, C = gfx_hal::QueueType> {
+pub struct Family<B: Backend, C = QueueType> {
     id: FamilyId,
     queues: Vec<Queue<B>>,
     // min_image_transfer_granularity: gfx_hal::image::Extent,
     capability: C,
 }
 
-impl<B> Family<B>
+device_owned!(Family<B, C> @ |f: &Self| f.id.device);
+
+impl<B> Family<B, QueueType>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Query queue family from device.
     ///
@@ -63,12 +76,14 @@ where
         Family {
             id,
             queues: {
-                let queues = queues.take_raw(id).expect("");
+                let queues = queues
+                    .take_raw(gfx_hal::queue::QueueFamilyId(id.index))
+                    .expect("");
                 assert_eq!(queues.len(), count);
                 queues
                     .into_iter()
                     .enumerate()
-                    .map(|(index, queue)| Queue::new(queue, QueueId(id, index)))
+                    .map(|(index, queue)| Queue::new(queue, QueueId { family: id, index }))
                     .collect()
             },
             // min_image_transfer_granularity: properties.min_image_transfer_granularity,
@@ -79,7 +94,7 @@ where
 
 impl<B, C> Family<B, C>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Get id of the family.
     pub fn id(&self) -> FamilyId {
@@ -110,21 +125,14 @@ where
     /// Command buffers created from the pool could be submitted to the queues of the family.
     pub fn create_pool<R>(
         &self,
-        device: &impl gfx_hal::Device<B>,
+        device: &Device<B>,
     ) -> Result<CommandPool<B, C, R>, gfx_hal::device::OutOfMemory>
     where
         R: Reset,
         C: Capability,
     {
-        let reset = R::default();
-        let pool = unsafe {
-            // Is this family belong to specified device.
-            let raw = device.create_command_pool(self.id, reset.flags())?;
-
-            CommandPool::from_raw(raw, self.capability, reset, self.id)
-        };
-
-        Ok(pool)
+        self.assert_device_owner(device);
+        unsafe { CommandPool::create(self.id, self.capability, device) }
     }
 
     /// Get family capability.
@@ -136,7 +144,7 @@ where
     }
 
     /// Convert capability from type-level to value-level.
-    pub fn with_queue_type(self) -> Family<B, gfx_hal::QueueType>
+    pub fn with_queue_type(self) -> Family<B, QueueType>
     where
         C: Capability,
     {
@@ -168,23 +176,37 @@ where
 }
 
 /// Collection of queue families of one device.
-pub struct Families<B: gfx_hal::Backend> {
+#[derive(Debug)]
+pub struct Families<B: Backend> {
+    device: DeviceId,
     families: Vec<Family<B>>,
     families_indices: Vec<usize>,
 }
 
 impl<B> Families<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Get queue family by id.
     pub fn family(&self, id: FamilyId) -> &Family<B> {
-        &self.families[self.families_indices[id.0]]
+        assert_eq!(id.device, self.device);
+        self.family_by_index(id.index)
+    }
+
+    /// Get queue family by index.
+    pub fn family_by_index(&self, index: usize) -> &Family<B> {
+        &self.families[self.families_indices[index]]
     }
 
     /// Get queue family by id.
     pub fn family_mut(&mut self, id: FamilyId) -> &mut Family<B> {
-        &mut self.families[self.families_indices[id.0]]
+        assert_eq!(id.device, self.device);
+        self.family_by_index_mut(id.index)
+    }
+
+    /// Get queue family by index.
+    pub fn family_by_index_mut(&mut self, index: usize) -> &mut Family<B> {
+        &mut self.families[self.families_indices[index]]
     }
 
     /// Get queue families as slice.
@@ -212,24 +234,26 @@ where
 /// `families` iterator must yeild unique family indices with queue count used during `device` creation.
 /// `properties` must contain properties retuned for queue family from physical device for each family id yielded by `families`.
 pub unsafe fn families_from_device<B>(
+    device: DeviceId,
     queues: &mut gfx_hal::queue::Queues<B>,
     families: impl IntoIterator<Item = (FamilyId, usize)>,
     queue_types: &[impl gfx_hal::queue::QueueFamily],
 ) -> Families<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     let families: Vec<_> = families
         .into_iter()
-        .map(|(index, count)| Family::from_device(queues, index, count, &queue_types[index.0]))
+        .map(|(id, count)| Family::from_device(queues, id, count, &queue_types[id.index]))
         .collect();
 
     let mut families_indices = vec![!0; families.len()];
     for (index, family) in families.iter().enumerate() {
-        families_indices[family.id().0] = index;
+        families_indices[family.id.index] = index;
     }
 
     Families {
+        device,
         families,
         families_indices,
     }

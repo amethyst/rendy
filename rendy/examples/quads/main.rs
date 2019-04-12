@@ -13,8 +13,7 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    descriptor::{DescriptorSet, DescriptorSetLayout},
-    factory::{Config, Factory},
+    factory::{BufferState, Config, Factory},
     frame::Frames,
     graph::{
         gfx_acquire_barriers, gfx_release_barriers,
@@ -23,13 +22,14 @@ use rendy::{
             Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
-        BufferAccess, Graph, GraphBuilder, Node, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
+        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
+        NodeSubmittable,
     },
     hal::Device,
     memory::MemoryUsageValue,
     mesh::{Color},
     resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -43,27 +43,51 @@ type Backend = rendy::metal::Backend;
 #[cfg(feature = "vulkan")]
 type Backend = rendy::vulkan::Backend;
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct PosVel {
+    pos: [f32; 2],
+    vel: [f32; 2],
+}
+
 lazy_static::lazy_static! {
-    static ref RENDER_VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_VERTEX: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref RENDER_FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+    static ref RENDER_FRAGMENT: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref BOUNCE_COMPUTE: StaticShaderInfo = StaticShaderInfo::new(
+    static ref BOUNCE_COMPUTE: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
+
+    static ref POSVEL_DATA: Vec<PosVel> = {
+        let mut rng = rand::thread_rng();
+        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+        (0..QUADS)
+            .map(|_index| PosVel {
+                pos: [
+                    rand::Rng::sample(&mut rng, uniform),
+                    rand::Rng::sample(&mut rng, uniform),
+                ],
+                vel: [
+                    rand::Rng::sample(&mut rng, uniform),
+                    rand::Rng::sample(&mut rng, uniform),
+                ],
+            })
+            .collect()
+    };
 }
 
 const QUADS: u32 = 2_000_000;
@@ -75,10 +99,9 @@ struct QuadsRenderPipelineDesc;
 
 #[derive(Debug)]
 struct QuadsRenderPipeline<B: gfx_hal::Backend> {
-    indirect: Buffer<B>,
-    vertices: Buffer<B>,
-
-    descriptor_set: DescriptorSet<B>,
+    indirect: Escape<Buffer<B>>,
+    vertices: Escape<Buffer<B>>,
+    descriptor_set: Escape<DescriptorSet<B>>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for QuadsRenderPipelineDesc
@@ -119,11 +142,11 @@ where
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *RENDER_VERTEX);
-        storage.push(RENDER_VERTEX.module(factory).unwrap());
+        log::trace!("Load shader module RENDER_VERTEX");
+        storage.push(unsafe { RENDER_VERTEX.module(factory).unwrap() });
 
-        log::trace!("Load shader module '{:#?}'", *RENDER_FRAGMENT);
-        storage.push(RENDER_FRAGMENT.module(factory).unwrap());
+        log::trace!("Load shader module RENDER_FRAGMENT");
+        storage.push(unsafe { RENDER_FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -176,23 +199,26 @@ where
 
     fn build<'a>(
         self,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
-        let ref mut posvelbuff = buffers[0].buffer;
+        let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         let mut indirect = factory
             .create_buffer(
-                512,
-                std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
-                (gfx_hal::buffer::Usage::INDIRECT, MemoryUsageValue::Dynamic),
+                BufferInfo {
+                    size: std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
+                    usage: gfx_hal::buffer::Usage::INDIRECT,
+                },
+                Dynamic,
             )
             .unwrap();
 
@@ -215,9 +241,11 @@ where
 
         let mut vertices = factory
             .create_buffer(
-                512,
-                std::mem::size_of::<Color>() as u64 * 6,
-                (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
+                BufferInfo {
+                    size: std::mem::size_of::<Color>() as u64 * 6,
+                    usage: gfx_hal::buffer::Usage::VERTEX,
+                },
+                Dynamic,
             )
             .unwrap();
 
@@ -228,76 +256,49 @@ where
                     0,
                     &[
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(0.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(240.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(90.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(330.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(60.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(0.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(240.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(180.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(60.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                         Color({
-                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(270.0, 1.0, 1.0))
+                            let (r, g, b) = palette::Srgb::from(palette::Hsv::new(150.0, 1.0, 1.0))
                                 .into_components();
                             [r, g, b, 1.0]
                         }),
                     ],
                 )
                 .unwrap();
-
-            let mut rng = rand::thread_rng();
-            let uniform = rand::distributions::Uniform::new(0.0, 1.0);
-
-            #[repr(C)]
-            #[derive(Copy, Clone)]
-            struct PosVel {
-                pos: [f32; 2],
-                vel: [f32; 2],
-            }
-            factory
-                .upload_visible_buffer(
-                    posvelbuff,
-                    0,
-                    &(0..QUADS)
-                        .map(|_index| PosVel {
-                            pos: [
-                                rand::Rng::sample(&mut rng, uniform),
-                                rand::Rng::sample(&mut rng, uniform),
-                            ],
-                            vel: [
-                                rand::Rng::sample(&mut rng, uniform),
-                                rand::Rng::sample(&mut rng, uniform),
-                            ],
-                        })
-                        .collect::<Vec<PosVel>>(),
-                )
-                .unwrap();
         }
 
         assert_eq!(set_layouts.len(), 1);
 
-        let descriptor_set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
+        let descriptor_set = factory
+            .create_descriptor_set(set_layouts[0].clone())
+            .unwrap();
 
         unsafe {
-            gfx_hal::Device::write_descriptor_sets(
-                factory.device(),
-                std::iter::once(gfx_hal::pso::DescriptorSetWrite {
+            factory.device().write_descriptor_sets(std::iter::once(
+                gfx_hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
@@ -305,8 +306,8 @@ where
                         posvelbuff.raw(),
                         Some(0)..Some(posvelbuff.size() as u64),
                     )),
-                }),
-            )
+                },
+            ))
         }
 
         Ok(QuadsRenderPipeline {
@@ -328,7 +329,7 @@ where
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _sets: &[DescriptorSetLayout<B>],
+        _sets: &[Handle<DescriptorSetLayout<B>>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -357,18 +358,16 @@ where
         );
     }
 
-    fn dispose(self, factory: &mut Factory<B>, _aux: &T) {
-        factory.destroy_descriptor_sets(Some(self.descriptor_set));
-    }
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
 #[derive(Debug)]
 struct GravBounce<B: gfx_hal::Backend> {
-    set_layout: DescriptorSetLayout<B>,
+    set_layout: Handle<DescriptorSetLayout<B>>,
     pipeline_layout: B::PipelineLayout,
     pipeline: B::ComputePipeline,
 
-    descriptor_set: DescriptorSet<B>,
+    descriptor_set: Escape<DescriptorSet<B>>,
 
     command_pool: CommandPool<B, Compute>,
     command_buffer:
@@ -395,6 +394,7 @@ where
 
     fn run<'a>(
         &'a mut self,
+        _ctx: &GraphContext<B>,
         _factory: &Factory<B>,
         _aux: &T,
         _frames: &'a Frames<B>,
@@ -409,8 +409,6 @@ where
         factory.destroy_command_pool(self.command_pool);
         factory.destroy_compute_pipeline(self.pipeline);
         factory.destroy_pipeline_layout(self.pipeline_layout);
-        factory.destroy_descriptor_sets(Some(self.descriptor_set));
-        factory.destroy_descriptor_set_layout(self.set_layout);
     }
 }
 
@@ -428,28 +426,47 @@ where
         vec![BufferAccess {
             access: gfx_hal::buffer::Access::SHADER_READ | gfx_hal::buffer::Access::SHADER_WRITE,
             stages: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
-            usage: gfx_hal::buffer::Usage::STORAGE,
+            usage: gfx_hal::buffer::Usage::STORAGE | gfx_hal::buffer::Usage::TRANSFER_DST,
         }]
     }
 
     fn build<'a>(
         self,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         family: &mut Family<B>,
-        _queue: usize,
+        queue: usize,
         _aux: &T,
-        mut buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
     ) -> Result<Self::Node, failure::Error> {
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
 
-        let ref mut posvelbuff = buffers[0].buffer;
+        let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
-        log::trace!("Load shader module '{:#?}'", *BOUNCE_COMPUTE);
-        let module = BOUNCE_COMPUTE.module(factory)?;
+        unsafe {
+            factory.upload_buffer(
+                posvelbuff,
+                0,
+                &POSVEL_DATA,
+                None,
+                BufferState {
+                    queue: QueueId {
+                        index: queue,
+                        family: family.id(),
+                    },
+                    stage: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
+                    access: gfx_hal::buffer::Access::SHADER_WRITE
+                        | gfx_hal::buffer::Access::SHADER_READ,
+                },
+            )
+        }?;
 
-        let set_layout = factory.create_descriptor_set_layout(vec![
+        log::trace!("Load shader module BOUNCE_COMPUTE");
+        let module = unsafe { BOUNCE_COMPUTE.module(factory) }?;
+
+        let set_layout = Handle::from(factory.create_descriptor_set_layout(vec![
             gfx_hal::pso::DescriptorSetLayoutBinding {
                 binding: 0,
                 ty: gfx_hal::pso::DescriptorType::StorageBuffer,
@@ -457,19 +474,17 @@ where
                 stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
                 immutable_samplers: false,
             },
-        ])?;
+        ])?);
 
         let pipeline_layout = unsafe {
-            gfx_hal::Device::create_pipeline_layout(
-                factory.device(),
+            factory.device().create_pipeline_layout(
                 std::iter::once(set_layout.raw()),
                 std::iter::empty::<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
             )
         }?;
 
         let pipeline = unsafe {
-            gfx_hal::Device::create_compute_pipeline(
-                factory.device(),
+            factory.device().create_compute_pipeline(
                 &gfx_hal::pso::ComputePipelineDesc {
                     shader: gfx_hal::pso::EntryPoint {
                         entry: "main",
@@ -486,12 +501,11 @@ where
 
         unsafe { factory.destroy_shader_module(module) };
 
-        let descriptor_set = factory.create_descriptor_set(&set_layout)?;
+        let descriptor_set = factory.create_descriptor_set(set_layout.clone())?;
 
         unsafe {
-            gfx_hal::Device::write_descriptor_sets(
-                factory.device(),
-                std::iter::once(gfx_hal::pso::DescriptorSetWrite {
+            factory.device().write_descriptor_sets(std::iter::once(
+                gfx_hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
@@ -499,8 +513,8 @@ where
                         posvelbuff.raw(),
                         Some(0)..Some(posvelbuff.size()),
                     )),
-                }),
-            );
+                },
+            ));
         }
 
         let mut command_pool = factory
@@ -519,14 +533,14 @@ where
         );
 
         {
-            let (stages, barriers) = gfx_acquire_barriers(&*buffers, None);
+            let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
             log::info!("Acquire {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
         }
         encoder.dispatch(QUADS, 1, 1);
 
         {
-            let (stages, barriers) = gfx_release_barriers(&*buffers, None);
+            let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
             log::info!("Release {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
         }
@@ -551,9 +565,14 @@ fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    mut graph: Graph<Backend, ()>,
+    window: std::sync::Arc<winit::Window>,
 ) -> Result<(), failure::Error> {
+    let mut graph = build_graph(factory, families, window.clone());
+
     let started = std::time::Instant::now();
+
+    let mut last_window_size = window.get_inner_size();
+    let mut need_rebuild = false;
 
     let mut frames = 0u64..;
     let mut elapsed = started.elapsed();
@@ -561,10 +580,26 @@ fn run(
     for _ in &mut frames {
         factory.maintain(families);
         event_loop.poll_events(|_| ());
-        graph.run(factory, families, &mut ());
+        let new_window_size = window.get_inner_size();
+
+        if last_window_size != new_window_size {
+            need_rebuild = true;
+        }
+
+        if need_rebuild && last_window_size == new_window_size {
+            need_rebuild = false;
+            let started = std::time::Instant::now();
+            graph.dispose(factory, &());
+            println!("Graph disposed in: {:?}", started.elapsed());
+            graph = build_graph(factory, families, window.clone());
+        }
+
+        last_window_size = new_window_size;
+
+        graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
+        if elapsed >= std::time::Duration::new(1, 0) {
             break;
         }
     }
@@ -585,7 +620,6 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
         .filter_module("quads", log::LevelFilter::Trace)
         .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
@@ -599,24 +633,36 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
-        .unwrap();
+        .unwrap()
+        .into();
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
+    run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+    log::debug!("Done");
+
+    log::debug!("Drop families");
+    drop(families);
+
+    log::debug!("Drop factory");
+    drop(factory);
+}
+
+fn build_graph(
+    factory: &mut Factory<Backend>,
+    families: &mut Families<Backend>,
+    window: std::sync::Arc<winit::Window>,
+) -> Graph<Backend, ()> {
+    let surface = factory.create_surface(window.clone());
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let posvel = graph_builder.create_buffer(
-        QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64,
-        MemoryUsageValue::Dynamic,
-    );
+    let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
     let color = graph_builder.create_image(
         surface.kind(),
         1,
-        gfx_hal::format::Format::Rgba8Unorm,
-        MemoryUsageValue::Data,
+        factory.get_surface_format(&surface),
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
@@ -626,7 +672,6 @@ fn main() {
         surface.kind(),
         1,
         gfx_hal::format::Format::D16Unorm,
-        MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::DepthStencil(
             gfx_hal::command::ClearDepthStencil(1.0, 0),
         )),
@@ -646,11 +691,10 @@ fn main() {
 
     graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
-    let graph = graph_builder
-        .build(&mut factory, &mut families, &mut ())
-        .unwrap();
-
-    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
+    let started = std::time::Instant::now();
+    let graph = graph_builder.build(factory, families, &()).unwrap();
+    println!("Graph built in: {:?}", started.elapsed());
+    graph
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

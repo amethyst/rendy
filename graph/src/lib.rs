@@ -1,6 +1,6 @@
 //! Framegraph implementation for Rendy engine.
 
-#[warn(
+#![warn(
     missing_debug_implementations,
     missing_copy_implementations,
     missing_docs,
@@ -12,11 +12,11 @@
 )]
 use rendy_chain as chain;
 use rendy_command as command;
-use rendy_descriptor as descriptor;
 use rendy_factory as factory;
 use rendy_frame as frame;
 use rendy_memory as memory;
 use rendy_resource as resource;
+use rendy_util as util;
 use rendy_wsi as wsi;
 
 /// Id of the buffer in graph.

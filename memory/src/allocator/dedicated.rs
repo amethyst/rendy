@@ -1,25 +1,28 @@
 use std::{ops::Range, ptr::NonNull};
 
-use crate::{
-    allocator::{Allocator, Kind},
-    block::Block,
-    mapping::{mapped_fitting_range, MappedRange},
-    memory::*,
+use {
+    crate::{
+        allocator::{Allocator, Kind},
+        block::Block,
+        mapping::{mapped_fitting_range, MappedRange},
+        memory::*,
+    },
+    gfx_hal::{Backend, Device as _},
 };
 
 /// Memory block allocated from `DedicatedAllocator`
 #[derive(Debug)]
-pub struct DedicatedBlock<B: gfx_hal::Backend> {
+pub struct DedicatedBlock<B: Backend> {
     memory: Memory<B>,
     mapping: Option<(NonNull<u8>, Range<u64>)>,
 }
 
-unsafe impl<B> Send for DedicatedBlock<B> where B: gfx_hal::Backend {}
-unsafe impl<B> Sync for DedicatedBlock<B> where B: gfx_hal::Backend {}
+unsafe impl<B> Send for DedicatedBlock<B> where B: Backend {}
+unsafe impl<B> Sync for DedicatedBlock<B> where B: Backend {}
 
 impl<B> DedicatedBlock<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Get inner memory.
     /// Panics if mapped.
@@ -39,7 +42,7 @@ where
 
 impl<B> Block<B> for DedicatedBlock<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     #[inline]
     fn properties(&self) -> gfx_hal::memory::Properties {
@@ -58,11 +61,11 @@ where
 
     fn map<'a>(
         &'a mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         assert!(
-            range.start <= range.end,
+            range.start < range.end,
             "Memory mapping region must have valid size"
         );
 
@@ -79,14 +82,16 @@ where
                 Ok(MappedRange::from_raw(&self.memory, ptr, range))
             } else {
                 self.unmap(device);
-                let mapping = MappedRange::new(&self.memory, device, range.clone())?;
+                let ptr = device.map_memory(self.memory.raw(), range.clone())?;
+                let ptr = NonNull::new(ptr).expect("Memory mapping shouldn't return nullptr");
+                let mapping = MappedRange::from_raw(&self.memory, ptr, range);
                 self.mapping = Some((mapping.ptr(), mapping.range()));
                 Ok(mapping)
             }
         }
     }
 
-    fn unmap(&mut self, device: &impl gfx_hal::Device<B>) {
+    fn unmap(&mut self, device: &B::Device) {
         if self.mapping.take().is_some() {
             unsafe {
                 // trace!("Unmap memory: {:#?}", self.memory);
@@ -133,7 +138,7 @@ impl DedicatedAllocator {
 
 impl<B> Allocator<B> for DedicatedAllocator
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     type Block = DedicatedBlock<B>;
 
@@ -144,7 +149,7 @@ where
     #[inline]
     fn alloc(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         size: u64,
         _align: u64,
     ) -> Result<(DedicatedBlock<B>, u64), gfx_hal::device::AllocationError> {
@@ -162,7 +167,7 @@ where
     }
 
     #[inline]
-    fn free(&mut self, device: &impl gfx_hal::Device<B>, mut block: DedicatedBlock<B>) -> u64 {
+    fn free(&mut self, device: &B::Device, mut block: DedicatedBlock<B>) -> u64 {
         block.unmap(device);
         let size = block.memory.size();
         self.used -= size;

@@ -1,6 +1,11 @@
-use std::ops::Range;
+mod heap;
+mod memory_type;
 
-use crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, util::*};
+use {
+    self::{heap::MemoryHeap, memory_type::MemoryType},
+    crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, util::*, utilization::*},
+    std::ops::Range,
+};
 
 /// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
@@ -92,7 +97,7 @@ where
     /// and `align` requirements.
     pub fn allocate(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         mask: u32,
         usage: impl MemoryUsage,
         size: u64,
@@ -107,8 +112,8 @@ where
                 .enumerate()
                 .filter(|(index, _)| (mask & (1u32 << index)) != 0)
                 .filter_map(|(index, mt)| {
-                    if mt.properties.contains(usage.properties_required()) {
-                        let fitness = usage.memory_fitness(mt.properties);
+                    if mt.properties().contains(usage.properties_required()) {
+                        let fitness = usage.memory_fitness(mt.properties());
                         Some((index, mt, fitness))
                     } else {
                         None
@@ -125,7 +130,7 @@ where
 
             suitable_types
                 .into_iter()
-                .filter(|(_, mt, _)| self.heaps[mt.heap_index].available() > size + align)
+                .filter(|(_, mt, _)| self.heaps[mt.heap_index()].available() > size + align)
                 .max_by_key(|&(_, _, fitness)| fitness)
                 .ok_or_else(|| {
                     log::error!("All suitable heaps are exhausted. {:#?}", self);
@@ -143,24 +148,30 @@ where
     /// and `align` requirements.
     fn allocate_from(
         &mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         memory_index: u32,
         usage: impl MemoryUsage,
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock<B>, HeapsError> {
-        // trace!("Alloc block: type '{}', usage '{:#?}', size: '{}', align: '{}'", memory_index, usage.value(), size, align);
+        log::trace!(
+            "Allocate memory block: type '{}', usage '{:#?}', size: '{}', align: '{}'",
+            memory_index,
+            usage,
+            size,
+            align
+        );
         assert!(fits_usize(memory_index));
 
         let ref mut memory_type = self.types[memory_index as usize];
-        let ref mut memory_heap = self.heaps[memory_type.heap_index];
+        let ref mut memory_heap = self.heaps[memory_type.heap_index()];
 
         if memory_heap.available() < size {
             return Err(gfx_hal::device::OutOfMemory::OutOfDeviceMemory.into());
         }
 
         let (block, allocated) = memory_type.alloc(device, usage, size, align)?;
-        memory_heap.used += allocated;
+        memory_heap.allocated(allocated, block.size());
 
         Ok(MemoryBlock {
             block,
@@ -171,23 +182,32 @@ where
     /// Free memory block.
     ///
     /// Memory block must be allocated from this heap.
-    pub fn free(&mut self, device: &impl gfx_hal::Device<B>, block: MemoryBlock<B>) {
+    pub fn free(&mut self, device: &B::Device, block: MemoryBlock<B>) {
         // trace!("Free block '{:#?}'", block);
         let memory_index = block.memory_index;
         debug_assert!(fits_usize(memory_index));
+        let size = block.size();
 
         let ref mut memory_type = self.types[memory_index as usize];
-        let ref mut memory_heap = self.heaps[memory_type.heap_index];
+        let ref mut memory_heap = self.heaps[memory_type.heap_index()];
         let freed = memory_type.free(device, block.block);
-        memory_heap.used -= freed;
+        memory_heap.freed(freed, size);
     }
 
     /// Dispose of allocator.
     /// Cleanup allocators before dropping.
     /// Will panic if memory instances are left allocated.
-    pub fn dispose(self, device: &impl gfx_hal::Device<B>) {
+    pub fn dispose(self, device: &B::Device) {
         for mt in self.types {
             mt.dispose(device)
+        }
+    }
+
+    /// Get memory utilization.
+    pub fn utilization(&self) -> TotalMemoryUtilization {
+        TotalMemoryUtilization {
+            heaps: self.heaps.iter().map(MemoryHeap::utilization).collect(),
+            types: self.types.iter().map(MemoryType::utilization).collect(),
         }
     }
 }
@@ -247,6 +267,22 @@ macro_rules! any_block {
     }};
 }
 
+impl<B> BlockFlavor<B>
+where
+    B: gfx_hal::Backend,
+{
+    #[inline]
+    fn size(&self) -> u64 {
+        use self::BlockFlavor::*;
+        match self {
+            Dedicated(block) => block.size(),
+            Linear(block) => block.size(),
+            Dynamic(block) => block.size(),
+            // Chunk(block) => block.size(),
+        }
+    }
+}
+
 impl<B> Block<B> for MemoryBlock<B>
 where
     B: gfx_hal::Backend,
@@ -268,141 +304,13 @@ where
 
     fn map<'a>(
         &'a mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
         any_block!(&mut self.block => block.map(device, range))
     }
 
-    fn unmap(&mut self, device: &impl gfx_hal::Device<B>) {
+    fn unmap(&mut self, device: &B::Device) {
         any_block!(&mut self.block => block.unmap(device))
-    }
-}
-
-#[derive(Debug)]
-struct MemoryHeap {
-    size: u64,
-    used: u64,
-}
-
-impl MemoryHeap {
-    fn new(size: u64) -> Self {
-        MemoryHeap { size, used: 0 }
-    }
-
-    fn available(&self) -> u64 {
-        self.size - self.used
-    }
-}
-
-#[derive(Debug)]
-struct MemoryType<B: gfx_hal::Backend> {
-    heap_index: usize,
-    properties: gfx_hal::memory::Properties,
-    dedicated: DedicatedAllocator,
-    linear: Option<LinearAllocator<B>>,
-    dynamic: Option<DynamicAllocator<B>>,
-    // chunk: Option<ChunkAllocator>,
-}
-
-impl<B> MemoryType<B>
-where
-    B: gfx_hal::Backend,
-{
-    fn new(
-        memory_type: gfx_hal::MemoryTypeId,
-        heap_index: usize,
-        properties: gfx_hal::memory::Properties,
-        config: HeapsConfig,
-    ) -> Self {
-        MemoryType {
-            properties,
-            heap_index,
-            dedicated: DedicatedAllocator::new(memory_type, properties),
-            linear: if properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
-                config
-                    .linear
-                    .map(|config| LinearAllocator::new(memory_type, properties, config))
-            } else {
-                None
-            },
-            dynamic: config
-                .dynamic
-                .map(|config| DynamicAllocator::new(memory_type, properties, config)),
-        }
-    }
-
-    fn alloc(
-        &mut self,
-        device: &impl gfx_hal::Device<B>,
-        usage: impl MemoryUsage,
-        size: u64,
-        align: u64,
-    ) -> Result<(BlockFlavor<B>, u64), gfx_hal::device::AllocationError> {
-        match (self.dynamic.as_mut(), self.linear.as_mut()) {
-            (Some(dynamic), Some(linear)) => {
-                if dynamic.max_allocation() >= size
-                    && usage.allocator_fitness(Kind::Dynamic)
-                        > usage.allocator_fitness(Kind::Linear)
-                {
-                    dynamic
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Dynamic(block), size))
-                } else if linear.max_allocation() >= size
-                    && usage.allocator_fitness(Kind::Linear) > 0
-                {
-                    linear
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Linear(block), size))
-                } else {
-                    self.dedicated
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
-                }
-            }
-            (Some(dynamic), None) => {
-                if dynamic.max_allocation() >= size && usage.allocator_fitness(Kind::Dynamic) > 0 {
-                    dynamic
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Dynamic(block), size))
-                } else {
-                    self.dedicated
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
-                }
-            }
-            (None, Some(linear)) => {
-                if linear.max_allocation() >= size && usage.allocator_fitness(Kind::Linear) > 0 {
-                    linear
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Linear(block), size))
-                } else {
-                    self.dedicated
-                        .alloc(device, size, align)
-                        .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
-                }
-            }
-            (None, None) => self
-                .dedicated
-                .alloc(device, size, align)
-                .map(|(block, size)| (BlockFlavor::Dedicated(block), size)),
-        }
-    }
-
-    fn free(&mut self, device: &impl gfx_hal::Device<B>, block: BlockFlavor<B>) -> u64 {
-        match block {
-            BlockFlavor::Dedicated(block) => self.dedicated.free(device, block),
-            BlockFlavor::Linear(block) => self.linear.as_mut().unwrap().free(device, block),
-            BlockFlavor::Dynamic(block) => self.dynamic.as_mut().unwrap().free(device, block),
-        }
-    }
-
-    fn dispose(self, device: &impl gfx_hal::Device<B>) {
-        if let Some(linear) = self.linear {
-            linear.dispose(device);
-        }
-        if let Some(dynamic) = self.dynamic {
-            dynamic.dispose();
-        }
     }
 }

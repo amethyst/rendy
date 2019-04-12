@@ -1,5 +1,10 @@
+//! Module that turns an image into a `Texture`
+
 use crate::{pixel, TextureBuilder};
 use derivative::Derivative;
+
+// reexport for easy usage in ImageTextureConfig
+pub use image::ImageFormat;
 
 #[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -23,6 +28,7 @@ pub enum LayerLayout {
     Column,
 }
 
+/// Stores details about how the data is laid out
 struct DataLayout {
     /// distance between lines in texels
     pub line_stride: u32,
@@ -62,6 +68,7 @@ impl LayerLayout {
 #[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derivative(Default)]
+/// Enumerates the kinds of `Texture`s
 pub enum TextureKind {
     D1,
     D1Array,
@@ -168,15 +175,18 @@ pub struct ImageTextureConfig {
     /// When `None`, format is determined automatically based on magic bytes.
     /// Automatic method doesn't support TGA format.
     #[cfg_attr(feature = "serde", serde(with = "serde_image_format"))]
-    format: Option<image::ImageFormat>,
-    repr: Repr,
-    kind: TextureKind,
-    #[derivative(Default(value = "gfx_hal::image::Filter::Linear"))]
-    filter: gfx_hal::image::Filter,
+    pub format: Option<ImageFormat>,
+    pub repr: Repr,
+    pub kind: TextureKind,
+    #[derivative(Default(
+        value = "gfx_hal::image::SamplerInfo::new(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)"
+    ))]
+    pub sampler_info: gfx_hal::image::SamplerInfo,
 }
 
 #[cfg(feature = "serde")]
 mod serde_image_format {
+    //! Module for enabline serde to serialize and deserialize image formats
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     #[derive(Serialize, Deserialize)]
@@ -228,6 +238,7 @@ macro_rules! dyn_format {
     }};
 }
 
+/// Attempts to load a Texture from an image.
 pub fn load_from_image(
     bytes: &[u8],
     config: ImageTextureConfig,
@@ -283,5 +294,5 @@ pub fn load_from_image(
         .with_data_height(layout.layer_stride)
         .with_kind(kind)
         .with_view_kind(config.kind.view_kind())
-        .with_filter(config.filter))
+        .with_sampler_info(config.sampler_info))
 }

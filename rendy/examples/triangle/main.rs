@@ -11,12 +11,13 @@
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
-    descriptor::DescriptorSetLayout,
     factory::{Config, Factory},
-    graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
-    memory::MemoryUsageValue,
+    graph::{
+        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+    },
+    memory::Dynamic,
     mesh::{AsVertex, PosColor},
-    resource::buffer::Buffer,
+    resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
 };
 
@@ -52,7 +53,7 @@ struct TriangleRenderPipelineDesc;
 
 #[derive(Debug)]
 struct TriangleRenderPipeline<B: gfx_hal::Backend> {
-    vertex: Option<Buffer<B>>,
+    vertex: Option<Escape<Buffer<B>>>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for TriangleRenderPipelineDesc
@@ -85,10 +86,10 @@ where
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(VERTEX.module(factory).unwrap());
+        storage.push(unsafe { VERTEX.module(factory).unwrap() });
 
         log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(FRAGMENT.module(factory).unwrap());
+        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -109,12 +110,13 @@ where
 
     fn build<'a>(
         self,
+        _ctx: &GraphContext<B>,
         _factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<TriangleRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -135,16 +137,18 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[DescriptorSetLayout<B>],
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
         if self.vertex.is_none() {
             let mut vbuf = factory
                 .create_buffer(
-                    512,
-                    PosColor::VERTEX.stride as u64 * 3,
-                    (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
+                    BufferInfo {
+                        size: PosColor::VERTEX.stride as u64 * 3,
+                        usage: gfx_hal::buffer::Usage::VERTEX,
+                    },
+                    Dynamic,
                 )
                 .unwrap();
 
@@ -232,7 +236,6 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
         .filter_module("triangle", log::LevelFilter::Trace)
         .init();
 
@@ -257,7 +260,6 @@ fn main() {
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),

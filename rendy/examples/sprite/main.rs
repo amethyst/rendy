@@ -8,16 +8,21 @@
     allow(unused)
 )]
 
-use rendy::{
-    command::{Families, QueueId, RenderPassEncoder},
-    descriptor::{DescriptorSet, DescriptorSetLayout},
-    factory::{Config, Factory, ImageState},
-    graph::{present::PresentNode, render::*, Graph, GraphBuilder, NodeBuffer, NodeImage},
-    memory::MemoryUsageValue,
-    mesh::{AsVertex, PosTex},
-    resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
-    texture::Texture,
+use {
+    gfx_hal::Device as _,
+    rendy::{
+        command::{Families, QueueId, RenderPassEncoder},
+        factory::{Config, Factory, ImageState},
+        graph::{
+            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
+            NodeImage,
+        },
+        memory::{Dynamic},
+        mesh::{AsVertex, PosTex},
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+        texture::Texture,
+    },
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -53,8 +58,8 @@ struct SpriteGraphicsPipelineDesc;
 #[derive(Debug)]
 struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
     texture: Texture<B>,
-    vbuf: Buffer<B>,
-    descriptor_set: DescriptorSet<B>,
+    vbuf: Escape<Buffer<B>>,
+    descriptor_set: Escape<DescriptorSet<B>>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for SpriteGraphicsPipelineDesc
@@ -100,10 +105,10 @@ where
         storage.clear();
 
         log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(VERTEX.module(factory).unwrap());
+        storage.push(unsafe { VERTEX.module(factory).unwrap() });
 
         log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(FRAGMENT.module(factory).unwrap());
+        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -155,12 +160,13 @@ where
 
     fn build<'b>(
         self,
+        _ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         queue: QueueId,
         _aux: &T,
-        buffers: Vec<NodeBuffer<'b, B>>,
-        images: Vec<NodeImage<'b, B>>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<SpriteGraphicsPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -187,36 +193,37 @@ where
             )
             .unwrap();
 
-        let descriptor_set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
+        let descriptor_set = factory
+            .create_descriptor_set(set_layouts[0].clone())
+            .unwrap();
 
         unsafe {
-            gfx_hal::Device::write_descriptor_sets(
-                factory.device(),
-                vec![
-                    gfx_hal::pso::DescriptorSetWrite {
-                        set: descriptor_set.raw(),
-                        binding: 0,
-                        array_offset: 0,
-                        descriptors: vec![gfx_hal::pso::Descriptor::Image(
-                            texture.image_view.raw(),
-                            gfx_hal::image::Layout::ShaderReadOnlyOptimal,
-                        )],
-                    },
-                    gfx_hal::pso::DescriptorSetWrite {
-                        set: descriptor_set.raw(),
-                        binding: 1,
-                        array_offset: 0,
-                        descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler.raw())],
-                    },
-                ],
-            );
+            factory.device().write_descriptor_sets(vec![
+                gfx_hal::pso::DescriptorSetWrite {
+                    set: descriptor_set.raw(),
+                    binding: 0,
+                    array_offset: 0,
+                    descriptors: vec![gfx_hal::pso::Descriptor::Image(
+                        texture.view().raw(),
+                        gfx_hal::image::Layout::ShaderReadOnlyOptimal,
+                    )],
+                },
+                gfx_hal::pso::DescriptorSetWrite {
+                    set: descriptor_set.raw(),
+                    binding: 1,
+                    array_offset: 0,
+                    descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler().raw())],
+                },
+            ]);
         }
 
         let mut vbuf = factory
             .create_buffer(
-                512,
-                PosTex::VERTEX.stride as u64 * 6,
-                (gfx_hal::buffer::Usage::VERTEX, MemoryUsageValue::Dynamic),
+                BufferInfo {
+                    size: PosTex::VERTEX.stride as u64 * 6,
+                    usage: gfx_hal::buffer::Usage::VERTEX,
+                },
+                Dynamic,
             )
             .unwrap();
 
@@ -275,7 +282,7 @@ where
         &mut self,
         _factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[DescriptorSetLayout<B>],
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         _index: usize,
         _aux: &T,
     ) -> PrepareResult {
@@ -349,7 +356,6 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
         .filter_module("sprite", log::LevelFilter::Trace)
         .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
@@ -374,8 +380,7 @@ fn main() {
     let color = graph_builder.create_image(
         surface.kind(),
         1,
-        gfx_hal::format::Format::Rgba8Unorm,
-        MemoryUsageValue::Data,
+        factory.get_surface_format(&surface),
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),

@@ -1,9 +1,11 @@
 mod range;
 pub(crate) mod write;
 
-use std::{ops::Range, ptr::NonNull};
-
-use crate::{memory::Memory, util::fits_usize};
+use {
+    crate::{memory::Memory, util::fits_usize},
+    gfx_hal::{Backend, Device as _},
+    std::{ops::Range, ptr::NonNull},
+};
 
 pub(crate) use self::range::{
     mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range,
@@ -25,7 +27,7 @@ pub struct MaybeCoherent(bool);
 /// Represents range of the memory mapped to the host.
 /// Provides methods for safer host access to the memory.
 #[derive(Debug)]
-pub struct MappedRange<'a, B: gfx_hal::Backend, C = MaybeCoherent> {
+pub struct MappedRange<'a, B: Backend, C = MaybeCoherent> {
     /// Memory object that is mapped.
     memory: &'a Memory<B>,
 
@@ -41,47 +43,54 @@ pub struct MappedRange<'a, B: gfx_hal::Backend, C = MaybeCoherent> {
 
 impl<'a, B> MappedRange<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
-    /// Map range of memory.
-    ///
-    /// # Safety
-    ///
-    /// * Only one range for the given memory object can be mapped.
-    /// * Memory object must be not mapped.
-    /// * Memory object must be created with device specified.
-    pub unsafe fn new(
-        memory: &'a Memory<B>,
-        device: &impl gfx_hal::Device<B>,
-        range: Range<u64>,
-    ) -> Result<Self, gfx_hal::mapping::Error> {
-        assert!(
-            range.start <= range.end,
-            "Memory mapping region must have valid size"
-        );
-        assert!(
-            fits_usize(range.end - range.start),
-            "Range length must fit in usize"
-        );
-        assert!(memory.host_visible());
+    // /// Map range of memory.
+    // /// `range` is in memory object space.
+    // ///
+    // /// # Safety
+    // ///
+    // /// * Only one range for the given memory object can be mapped.
+    // /// * Memory object must be not mapped.
+    // /// * Memory object must be created with device specified.
+    // pub unsafe fn new(
+    //     memory: &'a Memory<B>,
+    //     device: &B::Device,
+    //     range: Range<u64>,
+    // ) -> Result<Self, gfx_hal::mapping::Error> {
+    //     assert!(
+    //         range.start < range.end,
+    //         "Memory mapping region must have valid size"
+    //     );
+    //     assert!(
+    //         fits_usize(range.end - range.start),
+    //         "Range length must fit in usize"
+    //     );
+    //     assert!(memory.host_visible());
 
-        let ptr = device.map_memory(memory.raw(), range.clone())?;
-        assert!(
-            (ptr as usize).wrapping_neg() >= (range.end - range.start) as usize,
-            "Resulting pointer value + range length must fit in usize. Pointer: {:p}, range {:?}",
-            ptr,
-            range,
-        );
+    //     let ptr = device.map_memory(memory.raw(), range.clone())?;
+    //     assert!(
+    //         (ptr as usize).wrapping_neg() >= (range.end - range.start) as usize,
+    //         "Resulting pointer value + range length must fit in usize. Pointer: {:p}, range {:?}",
+    //         ptr,
+    //         range,
+    //     );
 
-        Ok(Self::from_raw(memory, NonNull::new_unchecked(ptr), range))
-    }
+    //     Ok(Self::from_raw(memory, NonNull::new_unchecked(ptr), range))
+    // }
 
     /// Construct mapped range from raw mapping
     ///
     /// # Safety
     ///
     /// `memory` `range` must be mapped to host memory region pointer by `ptr`.
+    /// `range` is in memory object space.
+    /// `ptr` points to the `range.start` offset from memory origin.
     pub unsafe fn from_raw(memory: &'a Memory<B>, ptr: NonNull<u8>, range: Range<u64>) -> Self {
+        assert!(
+            range.start < range.end,
+            "Memory mapping region must have valid size"
+        );
         MappedRange {
             ptr,
             range,
@@ -91,6 +100,7 @@ where
     }
 
     /// Get pointer to beginning of memory region.
+    /// i.e. to `range().start` offset from memory origin.
     pub fn ptr(&self) -> NonNull<u8> {
         self.ptr
     }
@@ -108,25 +118,36 @@ where
     /// # Safety
     ///
     /// * Caller must ensure that device won't write to the memory region until the borrowing ends.
-    /// * `T` Must be plain-old-data type with memory layout compatible with data written by the device.
+    /// * `T` Must be plain-old-data type compatible with data in mapped region.
     pub unsafe fn read<'b, T>(
         &'b mut self,
-        device: &impl gfx_hal::Device<B>,
+        device: &B::Device,
         range: Range<u64>,
     ) -> Result<&'b [T], gfx_hal::mapping::Error>
     where
         'a: 'b,
         T: Copy,
     {
+        assert!(
+            range.start < range.end,
+            "Memory mapping region must have valid size"
+        );
+        assert!(
+            fits_usize(range.end - range.start),
+            "Range length must fit in usize"
+        );
+
         let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
             .ok_or_else(|| gfx_hal::mapping::Error::OutOfBounds)?;
+
+        let size = (range.end - range.start) as usize;
 
         if self.coherent.0 {
             device
                 .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
         }
 
-        let slice = mapped_slice::<T>(ptr, range);
+        let slice = mapped_slice::<T>(ptr, size);
         Ok(slice)
     }
 
@@ -138,22 +159,33 @@ where
     /// * Caller must ensure that device won't write to or read from the memory region.
     pub unsafe fn write<'b, T: 'b>(
         &'b mut self,
-        device: &'b impl gfx_hal::Device<B>,
+        device: &'b B::Device,
         range: Range<u64>,
     ) -> Result<impl Write<T> + 'b, gfx_hal::mapping::Error>
     where
         'a: 'b,
         T: Copy,
     {
+        assert!(
+            range.start < range.end,
+            "Memory mapping region must have valid size"
+        );
+        assert!(
+            fits_usize(range.end - range.start),
+            "Range length must fit in usize"
+        );
+
         let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
             .ok_or_else(|| gfx_hal::mapping::Error::OutOfBounds)?;
+
+        let size = (range.end - range.start) as usize;
 
         if !self.coherent.0 {
             device
                 .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
         }
 
-        let slice = mapped_slice_mut::<T>(ptr, range.clone());
+        let slice = mapped_slice_mut::<T>(ptr, size);
 
         let ref memory = self.memory;
 
@@ -193,7 +225,7 @@ where
 
 impl<'a, B> From<MappedRange<'a, B, Coherent>> for MappedRange<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn from(range: MappedRange<'a, B, Coherent>) -> Self {
         MappedRange {
@@ -207,7 +239,7 @@ where
 
 impl<'a, B> From<MappedRange<'a, B, NonCoherent>> for MappedRange<'a, B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     fn from(range: MappedRange<'a, B, NonCoherent>) -> Self {
         MappedRange {
@@ -221,7 +253,7 @@ where
 
 impl<'a, B> MappedRange<'a, B, Coherent>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Fetch writer to the sub-region.
     ///
@@ -235,10 +267,21 @@ where
     where
         U: Copy,
     {
+        assert!(
+            range.start < range.end,
+            "Memory mapping region must have valid size"
+        );
+        assert!(
+            fits_usize(range.end - range.start),
+            "Range length must fit in usize"
+        );
+
         let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
             .ok_or_else(|| gfx_hal::mapping::Error::OutOfBounds)?;
 
-        let slice = mapped_slice_mut::<U>(ptr, range.clone());
+        let size = (range.end - range.start) as usize;
+
+        let slice = mapped_slice_mut::<U>(ptr, size);
 
         Ok(WriteCoherent { slice })
     }

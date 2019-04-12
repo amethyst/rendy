@@ -3,11 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
-pub use gfx_hal::{
-    device::OutOfMemory,
-    pso::{DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorType},
-    Backend, Device,
-};
+pub use gfx_hal::pso::{DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorType};
 
 const DESCPTOR_TYPES_COUNT: usize = 11;
 
@@ -25,18 +21,22 @@ const DESCRIPTOR_TYPES: [DescriptorType; DESCPTOR_TYPES_COUNT] = [
     DescriptorType::InputAttachment,
 ];
 
+/// Number of descriptors per type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DescriptorRanges {
     counts: [u32; DESCPTOR_TYPES_COUNT],
 }
 
 impl DescriptorRanges {
+    /// Create new instance without descriptors.
     pub fn zero() -> Self {
         DescriptorRanges {
             counts: [0; DESCPTOR_TYPES_COUNT],
         }
     }
 
+    /// Iterate through ranges yelding
+    /// descriptor types and their amount.
     pub fn iter(&self) -> DescriptorRangesIter<'_> {
         DescriptorRangesIter {
             counts: &self.counts,
@@ -44,14 +44,17 @@ impl DescriptorRanges {
         }
     }
 
+    /// Read as slice.
     pub fn counts(&self) -> &[u32] {
         &self.counts
     }
 
+    /// Read or write as slice.
     pub fn counts_mut(&mut self) -> &mut [u32] {
         &mut self.counts
     }
 
+    /// Calculate ranges from bindings.
     pub fn from_bindings(bindings: &[DescriptorSetLayoutBinding]) -> Self {
         let mut descs = DescriptorRanges {
             counts: [0; DESCPTOR_TYPES_COUNT],
@@ -138,6 +141,7 @@ impl<'a> IntoIterator for &'a DescriptorRanges {
     }
 }
 
+/// Iterator over descriptor ranges.
 pub struct DescriptorRangesIter<'a> {
     counts: &'a [u32; DESCPTOR_TYPES_COUNT],
     index: u8,

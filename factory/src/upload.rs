@@ -1,11 +1,15 @@
 use std::collections::VecDeque;
 
-use crate::{
-    command::{
-        CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
-        PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
+use {
+    crate::{
+        command::{
+            CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
+            PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
+        },
+        resource::{Buffer, Escape, Image},
+        util::Device,
     },
-    resource::{Buffer, Image},
+    gfx_hal::Device as _,
 };
 
 /// State of the buffer on device.
@@ -129,16 +133,16 @@ where
     ///
     /// `families` must belong to the `device`
     pub(crate) unsafe fn new(
-        device: &B::Device,
+        device: &Device<B>,
         families: &Families<B>,
     ) -> Result<Self, gfx_hal::device::OutOfMemory> {
         let mut family_uploads = Vec::new();
         for family in families.as_slice() {
-            while family_uploads.len() <= family.id().0 {
+            while family_uploads.len() <= family.id().index {
                 family_uploads.push(None);
             }
 
-            family_uploads[family.id().0] = Some(parking_lot::Mutex::new(FamilyUploads {
+            family_uploads[family.id().index] = Some(parking_lot::Mutex::new(FamilyUploads {
                 fences: Vec::new(),
                 pool: family
                     .create_pool(device)
@@ -159,18 +163,18 @@ where
     ///
     pub(crate) unsafe fn upload_buffer(
         &self,
-        device: &B::Device,
-        buffer: &mut Buffer<B>,
+        device: &Device<B>,
+        buffer: &Buffer<B>,
         offset: u64,
-        staging: Buffer<B>,
+        staging: Escape<Buffer<B>>,
         last: Option<BufferState>,
         next: BufferState,
     ) -> Result<(), failure::Error> {
-        let mut family_uploads = self.family_uploads[next.queue.family().0]
+        let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
             .unwrap()
             .lock();
-        let next_upload = family_uploads.next_upload(device, next.queue.index())?;
+        let next_upload = family_uploads.next_upload(device, next.queue.index)?;
         let mut encoder = next_upload.command_buffer.encoder();
         let range = Some(offset)..Some(offset + staging.size());
 
@@ -224,22 +228,22 @@ where
     ///
     pub(crate) unsafe fn upload_image(
         &self,
-        device: &B::Device,
-        image: &mut Image<B>,
+        device: &Device<B>,
+        image: &Image<B>,
         data_width: u32,
         data_height: u32,
         image_layers: gfx_hal::image::SubresourceLayers,
         image_offset: gfx_hal::image::Offset,
         image_extent: gfx_hal::image::Extent,
-        staging: Buffer<B>,
+        staging: Escape<Buffer<B>>,
         last: ImageStateOrLayout,
         next: ImageState,
     ) -> Result<(), failure::Error> {
-        let mut family_uploads = self.family_uploads[next.queue.family().0]
+        let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
             .unwrap()
             .lock();
-        let next_upload = family_uploads.next_upload(device, next.queue.index())?;
+        let next_upload = family_uploads.next_upload(device, next.queue.index)?;
 
         let whole_image =
             image_offset == gfx_hal::image::Offset::ZERO && image_extent == image.kind().extent();
@@ -343,7 +347,7 @@ where
     ///
     /// `device` must be the same that was used to create this `Uploader`.
     ///
-    pub(crate) unsafe fn cleanup(&mut self, device: &B::Device) {
+    pub(crate) unsafe fn cleanup(&mut self, device: &Device<B>) {
         for uploader in self.family_uploads.iter_mut() {
             if let Some(uploader) = uploader {
                 uploader.get_mut().cleanup(device);
@@ -359,7 +363,7 @@ where
     ///
     pub(crate) unsafe fn flush(&mut self, families: &mut Families<B>) {
         for family in families.as_slice_mut() {
-            let uploader = self.family_uploads[family.id().0]
+            let uploader = self.family_uploads[family.id().index]
                 .as_mut()
                 .expect("Uploader must be initialized for all families");
             uploader.get_mut().flush(family);
@@ -371,7 +375,7 @@ where
     /// `device` must be the same that was used to create this `Uploader`.
     /// `device` must be idle.
     ///
-    pub(crate) unsafe fn dispose(&mut self, device: &B::Device) {
+    pub(crate) unsafe fn dispose(&mut self, device: &Device<B>) {
         self.family_uploads.drain(..).for_each(|fu| {
             fu.map(|fu| fu.into_inner().dispose(device));
         });
@@ -390,7 +394,7 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
 #[derive(Debug)]
 pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
     command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
+    staging_buffers: Vec<Escape<Buffer<B>>>,
     fence: B::Fence,
 }
 
@@ -398,7 +402,7 @@ pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
 struct NextUploads<B: gfx_hal::Backend> {
     command_buffer:
         CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
-    staging_buffers: Vec<Buffer<B>>,
+    staging_buffers: Vec<Escape<Buffer<B>>>,
     fence: B::Fence,
 }
 
@@ -430,7 +434,7 @@ where
 
     unsafe fn next_upload(
         &mut self,
-        device: &B::Device,
+        device: &Device<B>,
         queue: usize,
     ) -> Result<&mut NextUploads<B>, failure::Error> {
         while self.next.len() <= queue {
@@ -450,7 +454,7 @@ where
                     .fences
                     .pop()
                     .map(Ok)
-                    .unwrap_or_else(|| gfx_hal::Device::create_fence(device, false))?;
+                    .unwrap_or_else(|| device.create_fence(false))?;
                 *slot = Some(NextUploads {
                     command_buffer: buffer.begin(OneShot, ()),
                     staging_buffers: Vec::new(),
@@ -468,15 +472,14 @@ where
     ///
     /// `device` must be the same that was used with other methods of this instance.
     ///
-    unsafe fn cleanup(&mut self, device: &B::Device) {
+    unsafe fn cleanup(&mut self, device: &Device<B>) {
         while let Some(pending) = self.pending.pop_front() {
-            match gfx_hal::Device::get_fence_status(device, &pending.fence) {
+            match device.get_fence_status(&pending.fence) {
                 Ok(false) => {
                     self.pending.push_front(pending);
                     return;
                 }
                 Err(gfx_hal::device::DeviceLost) => {
-                    self.pending.push_front(pending);
                     panic!("Device lost error is not handled yet");
                 }
                 Ok(true) => {
@@ -492,22 +495,22 @@ where
     ///
     /// Device must be idle.
     ///
-    unsafe fn dispose(mut self, device: &B::Device) {
+    unsafe fn dispose(mut self, device: &Device<B>) {
         let pool = &mut self.pool;
         self.pending.drain(..).for_each(|pending| {
-            gfx_hal::Device::destroy_fence(device, pending.fence);
+            device.destroy_fence(pending.fence);
             pool.free_buffers(Some(pending.command_buffer.mark_complete()))
         });
 
         self.fences
             .drain(..)
-            .for_each(|fence| gfx_hal::Device::destroy_fence(device, fence));
+            .for_each(|fence| device.destroy_fence(fence));
         self.command_buffers
             .drain(..)
             .for_each(|command_buffer| pool.free_buffers(Some(command_buffer)));
         self.next.drain(..).filter_map(|n| n).for_each(|next| {
             pool.free_buffers(Some(next.command_buffer));
-            gfx_hal::Device::destroy_fence(device, next.fence);
+            device.destroy_fence(next.fence);
         });
         drop(pool);
         self.pool.dispose(device);

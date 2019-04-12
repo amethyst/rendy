@@ -10,9 +10,13 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's queues and commands tools"
 
+[features]
+no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+
 [dependencies]
 gfx-hal = "0.1"
 derivative = "1.0"
 failure = "0.1"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
+rendy-util = { version = "0.1", path = "../util" }

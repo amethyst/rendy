@@ -11,4 +11,16 @@ categories = ["rendering"]
 description = "Rendy's utilities"
 
 [features]
+empty = ["gfx-backend-empty"]
+dx12 = ["gfx-backend-dx12"]
+metal = ["gfx-backend-metal"]
+vulkan = ["gfx-backend-vulkan"]
 no-slow-safety-checks = []
+
+[dependencies]
+log = "0.4"
+gfx-hal = "0.1"
+gfx-backend-empty = { version = "0.1.0", optional = true }
+gfx-backend-dx12 = { version = "0.1.0", optional = true }
+gfx-backend-metal = { version = "0.1.0", optional = true }
+gfx-backend-vulkan = { version = "0.1.0", optional = true }

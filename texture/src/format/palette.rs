@@ -1,3 +1,6 @@
+//! Module that generates functions to load a single color into a 1x1 `Texture`. Which function
+//! to use depends on what color space the user is using.
+//!
 use crate::{pixel, texture::TextureBuilder};
 use palette::{white_point::WhitePoint, Component};
 
@@ -12,6 +15,7 @@ macro_rules! define_load {
         )
     };
     ($(pub fn $load_fn:ident<$($ty:ident: $where:path),*>($palette:ident) -> $pixel:ident $swizzle:tt;)*) => {$(
+        /// Function to load texture from `palette` pixels.
         pub fn $load_fn<$($ty),*>(
             palette: palette::$palette<$($ty),*>,
         ) -> TextureBuilder<'static>

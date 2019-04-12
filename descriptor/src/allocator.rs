@@ -1,18 +1,21 @@
 use {
-    crate::{layout::*, ranges::*},
+    crate::ranges::*,
     gfx_hal::{
         device::OutOfMemory,
         pso::{AllocationError, DescriptorPool as _},
         Backend, Device,
     },
     smallvec::{smallvec, SmallVec},
-    std::collections::{HashMap, VecDeque},
+    std::{
+        collections::{HashMap, VecDeque},
+        ops::Deref,
+    },
 };
 
 const MIN_SETS: u32 = 64;
 const MAX_SETS: u32 = 512;
 
-/// Descriptor set
+/// Descriptor set from allocator.
 #[derive(Debug)]
 pub struct DescriptorSet<B: Backend> {
     raw: B::DescriptorSet,
@@ -28,6 +31,23 @@ where
     pub fn raw(&self) -> &B::DescriptorSet {
         &self.raw
     }
+
+    /// Get raw set
+    /// It must not be replaced.
+    pub unsafe fn raw_mut(&mut self) -> &mut B::DescriptorSet {
+        &mut self.raw
+    }
+}
+
+impl<B> Deref for DescriptorSet<B>
+where
+    B: Backend,
+{
+    type Target = B::DescriptorSet;
+
+    fn deref(&self) -> &B::DescriptorSet {
+        &self.raw
+    }
 }
 
 #[derive(Debug)]
@@ -36,11 +56,18 @@ struct Allocation<B: Backend> {
     pools: Vec<u64>,
 }
 
-#[derive(Debug)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
 struct DescriptorPool<B: Backend> {
+    #[derivative(Debug = "ignore")]
     raw: B::DescriptorPool,
     size: u32,
+
+    // Number of free sets left.
     free: u32,
+
+    // Number of sets freed (they can't be reused until gfx-hal 0.2)
+    freed: u32,
 }
 
 unsafe fn allocate_from_pool<B: Backend>(
@@ -104,16 +131,23 @@ where
             .min(MAX_SETS) // capped to MAX_SETS
     }
 
-    unsafe fn dispose(mut self, device: &impl Device<B>) {
+    unsafe fn dispose(mut self, device: &B::Device) {
         if self.total > 0 {
             log::error!("Not all descriptor sets were deallocated");
         }
 
-        if !self.pools.is_empty() {
-            log::error!(
-                "Descriptor pools are still in use during allocator disposal. {:?}",
-                self.pools
-            );
+        while let Some(pool) = self.pools.pop_front() {
+            assert!(pool.freed + pool.free <= pool.size);
+            if pool.freed + pool.free < pool.size {
+                log::error!(
+                    "Descriptor pool is still in use during allocator disposal. {:?}",
+                    pool
+                );
+            } else {
+                log::trace!("Destroying used up descriptor pool");
+                device.destroy_descriptor_pool(pool.raw);
+                self.pools_offset += 1;
+            }
         }
 
         self.pools
@@ -123,8 +157,9 @@ where
 
     unsafe fn allocate(
         &mut self,
-        device: &impl Device<B>,
-        layout: &DescriptorSetLayout<B>,
+        device: &B::Device,
+        layout: &B::DescriptorSetLayout,
+        layout_ranges: DescriptorRanges,
         mut count: u32,
         allocation: &mut Allocation<B>,
     ) -> Result<(), OutOfMemory> {
@@ -139,7 +174,7 @@ where
 
             let allocate = pool.free.min(count);
             log::trace!("Allocate {} from exising pool", allocate);
-            allocate_from_pool::<B>(&mut pool.raw, layout.raw(), allocate, &mut allocation.sets)?;
+            allocate_from_pool::<B>(&mut pool.raw, layout, allocate, &mut allocation.sets)?;
             allocation.pools.extend(
                 std::iter::repeat(index as u64 + self.pools_offset).take(allocate as usize),
             );
@@ -154,27 +189,32 @@ where
 
         while count > 0 {
             let size = self.new_pool_size(count);
-            let pool_ranges = layout.ranges() * size;
+            let pool_ranges = layout_ranges * size;
             log::trace!(
                 "Create new pool with {} sets and {:?} descriptors",
                 size,
                 pool_ranges,
             );
-            let mut raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
-
+            let raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
             let allocate = size.min(count);
 
-            allocate_from_pool::<B>(&mut raw, layout.raw(), allocate, &mut allocation.sets)?;
-            allocation.pools.extend(
-                std::iter::repeat(self.pools.len() as u64 + self.pools_offset).take(count as usize),
-            );
             self.pools.push_back(DescriptorPool {
                 raw,
                 size,
-                free: size - allocate,
+                free: size,
+                freed: 0,
             });
+            let index = self.pools.len() - 1;
+            let pool = self.pools.back_mut().unwrap();
+
+            allocate_from_pool::<B>(&mut pool.raw, layout, allocate, &mut allocation.sets)?;
+            allocation.pools.extend(
+                std::iter::repeat(index as u64 + self.pools_offset).take(allocate as usize),
+            );
+
             count -= allocate;
-            self.total += count as u64;
+            pool.free -= allocate;
+            self.total += allocate as u64;
         }
 
         Ok(())
@@ -182,24 +222,27 @@ where
 
     unsafe fn free(&mut self, sets: impl IntoIterator<Item = B::DescriptorSet>, pool: u64) {
         let pool = &mut self.pools[(pool - self.pools_offset) as usize];
-        let mut freed = 0;
-        pool.raw.free_sets(sets.into_iter().inspect(|_| freed += 1));
-        pool.free += freed;
+        let freed = sets.into_iter().count() as u32;
+        pool.freed += freed;
         self.total -= freed as u64;
+        log::trace!("Freed {} from descriptor bucket", freed);
     }
 
-    unsafe fn cleanup(&mut self, device: &impl Device<B>) {
+    unsafe fn cleanup(&mut self, device: &B::Device) {
         while let Some(pool) = self.pools.pop_front() {
-            if pool.free < pool.size {
+            if pool.freed < pool.size {
                 self.pools.push_front(pool);
                 break;
             }
+            log::trace!("Destroying used up descriptor pool");
             device.destroy_descriptor_pool(pool.raw);
             self.pools_offset += 1;
         }
     }
 }
 
+/// Descriptor allocator.
+/// Can be used to allocate descriptor sets for any layout.
 #[derive(Debug)]
 pub struct DescriptorAllocator<B: Backend> {
     buckets: HashMap<DescriptorRanges, DescriptorBucket<B>>,
@@ -212,6 +255,7 @@ impl<B> DescriptorAllocator<B>
 where
     B: Backend,
 {
+    /// Create new allocator instance.
     pub fn new() -> Self {
         DescriptorAllocator {
             buckets: HashMap::new(),
@@ -224,18 +268,26 @@ where
         }
     }
 
-    pub unsafe fn dispose(mut self, device: &impl Device<B>) {
-        self.cleanup(device);
+    /// Destroy allocator instance.
+    /// All sets allocated from this allocator become invalid.
+    pub unsafe fn dispose(mut self, device: &B::Device) {
         self.buckets
             .drain()
             .for_each(|(_, bucket)| bucket.dispose(device));
         self.relevant.dispose();
     }
 
+    /// Allocate descriptor set with specified layout.
+    /// `DescriptorRanges` must match descriptor numbers of the layout.
+    /// `DescriptorRanges` can be constructed [from bindings] that were used
+    /// to create layout instance.
+    ///
+    /// [from bindings]: .
     pub unsafe fn allocate(
         &mut self,
-        device: &impl Device<B>,
-        layout: &DescriptorSetLayout<B>,
+        device: &B::Device,
+        layout: &B::DescriptorSetLayout,
+        layout_ranges: DescriptorRanges,
         count: u32,
         extend: &mut impl Extend<DescriptorSet<B>>,
     ) -> Result<(), OutOfMemory> {
@@ -243,7 +295,6 @@ where
             return Ok(());
         }
 
-        let layout_ranges = layout.ranges();
         log::trace!(
             "Allocating {} sets with layout {:?} @ {:?}",
             count,
@@ -255,7 +306,7 @@ where
             .buckets
             .entry(layout_ranges)
             .or_insert_with(|| DescriptorBucket::new());
-        match bucket.allocate(device, layout, count, &mut self.allocation) {
+        match bucket.allocate(device, layout, layout_ranges, count, &mut self.allocation) {
             Ok(()) => {
                 extend.extend(
                     Iterator::zip(
@@ -295,38 +346,53 @@ where
         }
     }
 
-    pub unsafe fn free(&mut self, sets: impl IntoIterator<Item = DescriptorSet<B>>) {
+    /// Free descriptor sets.
+    ///
+    /// # Safety
+    ///
+    /// None of descriptor sets can be refernced in any pending command buffers.
+    /// All command buffers where at least one of descriptor sets referenced
+    /// move to invalid state.
+    pub unsafe fn free(&mut self, all_sets: impl IntoIterator<Item = DescriptorSet<B>>) {
         let mut free: Option<(DescriptorRanges, u64, SmallVec<[B::DescriptorSet; 32]>)> = None;
 
         // Collect contig
-        for set in sets {
+        for set in all_sets {
             match &mut free {
                 slot @ None => {
                     slot.replace((set.ranges, set.pool, smallvec![set.raw]));
                 }
-                Some((ranges, pool, sets)) if *ranges == set.ranges && *pool == set.pool => {
-                    sets.push(set.raw);
+                Some((ranges, pool, raw_sets)) if *ranges == set.ranges && *pool == set.pool => {
+                    raw_sets.push(set.raw);
                 }
-                Some((ranges, pool, sets)) => {
-                    self.buckets
+                Some((ranges, pool, raw_sets)) => {
+                    let bucket = self
+                        .buckets
                         .get_mut(ranges)
-                        .expect("Set should be allocated from this allocator")
-                        .free(sets.drain(), *pool);
+                        .expect("Set should be allocated from this allocator");
+                    debug_assert!(bucket.total >= raw_sets.len() as u64);
+
+                    bucket.free(raw_sets.drain(), *pool);
                     *pool = set.pool;
-                    sets.push(set.raw);
+                    *ranges = set.ranges;
+                    raw_sets.push(set.raw);
                 }
             }
         }
 
-        if let Some((ranges, pool, sets)) = free {
-            self.buckets
+        if let Some((ranges, pool, raw_sets)) = free {
+            let bucket = self
+                .buckets
                 .get_mut(&ranges)
-                .expect("Set should be allocated from this allocator")
-                .free(sets, pool);
+                .expect("Set should be allocated from this allocator");
+            debug_assert!(bucket.total >= raw_sets.len() as u64);
+
+            bucket.free(raw_sets, pool);
         }
     }
 
-    pub unsafe fn cleanup(&mut self, device: &impl Device<B>) {
+    /// Perform cleanup to allow resources reuse.
+    pub unsafe fn cleanup(&mut self, device: &B::Device) {
         self.buckets
             .values_mut()
             .for_each(|bucket| bucket.cleanup(device));

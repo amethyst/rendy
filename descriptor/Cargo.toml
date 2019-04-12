@@ -8,9 +8,10 @@ license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/rendy-descriptor"
 keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
-description = "Rendy's descriptor tool"
+description = "Rendy's descriptor allocator"
 
 [dependencies]
+derivative = "1.0"
 gfx-hal = "0.1"
 failure = "0.1"
 log = "0.4"

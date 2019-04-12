@@ -1,11 +1,13 @@
 // This module is gated under "shader-compiler" feature
 use super::Shader;
+use crate::SpirvShader;
 pub use shaderc::{self, ShaderKind, SourceLanguage};
 
 macro_rules! vk_make_version {
-    ($major: expr, $minor: expr, $patch: expr) => {
-        (($major as u32) << 22) | (($minor as u32) << 12) | $patch as u32
-    };
+    ($major: expr, $minor: expr, $patch: expr) => {{
+        let (major, minor, patch): (u32, u32, u32) = ($major, $minor, $patch);
+        (major << 22) | (minor << 12) | patch
+    }};
 }
 
 /// Shader loaded from a source in the filesystem.
@@ -26,6 +28,16 @@ impl<P, E> SourceShaderInfo<P, E> {
             lang,
             entry,
         }
+    }
+}
+
+impl<P, E> SourceShaderInfo<P, E> {
+    /// Precompile shader source code into Spir-V bytecode.
+    pub fn precompile(&self) -> Result<SpirvShader, failure::Error>
+    where
+        Self: Shader,
+    {
+        Ok(SpirvShader::new(self.spirv()?.into_owned()))
     }
 }
 

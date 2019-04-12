@@ -11,10 +11,10 @@ categories = ["rendering"]
 description = "Rendy's render graph"
 
 [features]
-empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-factory/gfx-backend-empty"]
-dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-factory/gfx-backend-dx12"]
-metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-factory/gfx-backend-metal"]
-vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/gfx-backend-vulkan"]
+empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-factory/gfx-backend-empty", "rendy-util/empty"]
+dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-factory/gfx-backend-dx12", "rendy-util/dx12"]
+metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-factory/gfx-backend-metal", "rendy-util/metal"]
+vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/gfx-backend-vulkan", "rendy-util/vulkan"]
 spirv-reflection = [ "rendy-shader" ]
 
 [dependencies]
@@ -25,6 +25,7 @@ rendy-factory = { version = "0.1.0", path = "../factory" }
 rendy-frame = { version = "0.1.0", path = "../frame" }
 rendy-memory = { version = "0.1.0", path = "../memory" }
 rendy-resource = { version = "0.1.0", path = "../resource" }
+rendy-util = { version = "0.1.0", path = "../util" }
 rendy-wsi = { version = "0.1.0", path = "../wsi" }
 rendy-shader = { path = "../shader", optional = true }
 

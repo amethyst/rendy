@@ -8,17 +8,20 @@
     not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
     allow(unused)
 )]
-
-use rendy::{
-    command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
-    descriptor::{DescriptorSet, DescriptorSetLayout},
-    factory::{Config, Factory},
-    graph::{present::PresentNode, render::*, GraphBuilder, NodeBuffer, NodeImage},
-    hal::Device,
-    memory::MemoryUsageValue,
-    mesh::{AsVertex, Mesh, PosColorNorm, Transform},
-    resource::buffer::Buffer,
-    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+use {
+    gfx_hal::PhysicalDevice as _,
+    rendy::{
+        command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
+        factory::{Config, Factory},
+        graph::{
+            present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+        },
+        hal::Device as _,
+        memory::Dynamic,
+        mesh::{AsVertex, Mesh, PosColorNorm, Transform},
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+    },
 };
 
 use std::{cmp::min, mem::size_of, time};
@@ -39,19 +42,19 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+    static ref VERTEX: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+    static ref FRAGMENT: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -120,8 +123,8 @@ struct MeshRenderPipelineDesc;
 
 #[derive(Debug)]
 struct MeshRenderPipeline<B: gfx_hal::Backend> {
-    buffer: Buffer<B>,
-    sets: Vec<DescriptorSet<B>>,
+    buffer: Escape<Buffer<B>>,
+    sets: Vec<Escape<DescriptorSet<B>>>,
 }
 
 impl<B> SimpleGraphicsPipelineDesc<B, Aux<B>> for MeshRenderPipelineDesc
@@ -190,11 +193,11 @@ where
     ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
         storage.clear();
 
-        log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(VERTEX.module(factory).unwrap());
+        log::trace!("Load shader module VERTEX");
+        storage.push(unsafe { VERTEX.module(factory).unwrap() });
 
-        log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(FRAGMENT.module(factory).unwrap());
+        log::trace!("Load shader module FRAGMENT");
+        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
 
         gfx_hal::pso::GraphicsShaderSet {
             vertex: gfx_hal::pso::EntryPoint {
@@ -215,12 +218,13 @@ where
 
     fn build<'a>(
         self,
+        _ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
         aux: &Aux<B>,
-        buffers: Vec<NodeBuffer<'a, B>>,
-        images: Vec<NodeImage<'a, B>>,
-        set_layouts: &[DescriptorSetLayout<B>],
+        buffers: Vec<NodeBuffer>,
+        images: Vec<NodeImage>,
+        set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<MeshRenderPipeline<B>, failure::Error> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
@@ -230,21 +234,22 @@ where
 
         let buffer = factory
             .create_buffer(
-                align,
-                buffer_frame_size(align) * frames as u64,
-                (
-                    gfx_hal::buffer::Usage::UNIFORM
+                BufferInfo {
+                    size: buffer_frame_size(align) * frames as u64,
+                    usage: gfx_hal::buffer::Usage::UNIFORM
                         | gfx_hal::buffer::Usage::INDIRECT
                         | gfx_hal::buffer::Usage::VERTEX,
-                    MemoryUsageValue::Dynamic,
-                ),
+                },
+                Dynamic,
             )
             .unwrap();
 
         let mut sets = Vec::new();
         for index in 0..frames {
             unsafe {
-                let set = factory.create_descriptor_set(&set_layouts[0]).unwrap();
+                let set = factory
+                    .create_descriptor_set(set_layouts[0].clone())
+                    .unwrap();
                 factory.write_descriptor_sets(Some(gfx_hal::pso::DescriptorSetWrite {
                     set: set.raw(),
                     binding: 0,
@@ -273,7 +278,7 @@ where
         &mut self,
         factory: &Factory<B>,
         _queue: QueueId,
-        _set_layouts: &[DescriptorSetLayout<B>],
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         index: usize,
         aux: &Aux<B>,
     ) -> PrepareResult {
@@ -320,15 +325,17 @@ where
                 .unwrap()
         };
 
-        unsafe {
-            factory
-                .upload_visible_buffer(
-                    &mut self.buffer,
-                    transforms_offset(index, align),
-                    &scene.objects[..],
-                )
-                .unwrap()
-        };
+        if !scene.objects.is_empty() {
+            unsafe {
+                factory
+                    .upload_visible_buffer(
+                        &mut self.buffer,
+                        transforms_offset(index, align),
+                        &scene.objects[..],
+                    )
+                    .unwrap()
+            };
+        }
 
         PrepareResult::DrawReuse
     }
@@ -365,15 +372,12 @@ where
         );
     }
 
-    fn dispose(mut self, factory: &mut Factory<B>, _aux: &Aux<B>) {
-        factory.destroy_descriptor_sets(self.sets.drain(..));
-    }
+    fn dispose(self, _factory: &mut Factory<B>, _aux: &Aux<B>) {}
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Warn)
         .filter_module("meshes", log::LevelFilter::Trace)
         .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
@@ -400,7 +404,6 @@ fn main() {
         surface.kind(),
         1,
         factory.get_surface_format(&surface),
-        MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::Color(
             [1.0, 1.0, 1.0, 1.0].into(),
         )),
@@ -410,7 +413,6 @@ fn main() {
         surface.kind(),
         1,
         gfx_hal::format::Format::D16Unorm,
-        MemoryUsageValue::Data,
         Some(gfx_hal::command::ClearValue::DepthStencil(
             gfx_hal::command::ClearDepthStencil(1.0, 0),
         )),
@@ -463,7 +465,9 @@ fn main() {
 
     let mut aux = Aux {
         frames: frames as _,
-        align: gfx_hal::adapter::PhysicalDevice::limits(factory.physical())
+        align: factory
+            .physical()
+            .limits()
             .min_uniform_buffer_offset_alignment,
         scene,
     };
