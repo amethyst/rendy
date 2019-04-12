@@ -15,6 +15,9 @@ mod casts;
 mod slow;
 mod wrap;
 
+#[doc(inline)]
+pub mod types;
+
 pub use crate::{casts::*, slow::*, wrap::*};
 
 /// Implement ownership checking for value with `device: DeviceId` field.

@@ -23,8 +23,8 @@ pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'st
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Position(pub [f32; 3]);
 impl<T> From<T> for Position
-where
-    T: Into<[f32; 3]>,
+    where
+        T: Into<[f32; 3]>,
 {
     fn from(from: T) -> Self {
         Position(from.into())
@@ -42,8 +42,8 @@ impl AsAttribute for Position {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Color(pub [f32; 4]);
 impl<T> From<T> for Color
-where
-    T: Into<[f32; 4]>,
+    where
+        T: Into<[f32; 4]>,
 {
     fn from(from: T) -> Self {
         Color(from.into())
@@ -61,8 +61,8 @@ impl AsAttribute for Color {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Normal(pub [f32; 3]);
 impl<T> From<T> for Normal
-where
-    T: Into<[f32; 3]>,
+    where
+        T: Into<[f32; 3]>,
 {
     fn from(from: T) -> Self {
         Normal(from.into())
@@ -81,8 +81,8 @@ impl AsAttribute for Normal {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Tangent(pub [f32; 3]);
 impl<T> From<T> for Tangent
-where
-    T: Into<[f32; 3]>,
+    where
+        T: Into<[f32; 3]>,
 {
     fn from(from: T) -> Self {
         Tangent(from.into())
@@ -101,8 +101,8 @@ impl AsAttribute for Tangent {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TexCoord(pub [f32; 2]);
 impl<T> From<T> for TexCoord
-where
-    T: Into<[f32; 2]>,
+    where
+        T: Into<[f32; 2]>,
 {
     fn from(from: T) -> Self {
         TexCoord(from.into())
@@ -149,17 +149,17 @@ pub trait AsVertex: Debug + PartialEq + PartialOrd + Copy + Sized + Send + Sync 
     /// Returns attribute of vertex by type
     #[inline]
     fn attribute<F>() -> Attribute
-    where
-        F: AsAttribute,
-        Self: WithAttribute<F>,
+        where
+            F: AsAttribute,
+            Self: WithAttribute<F>,
     {
         <Self as WithAttribute<F>>::ATTRIBUTE
     }
 }
 
 impl<T> AsVertex for T
-where
-    T: AsAttribute,
+    where
+        T: AsAttribute,
 {
     const VERTEX: VertexFormat<'static> = VertexFormat {
         attributes: Cow::Borrowed(&[Attribute {
@@ -177,8 +177,8 @@ pub trait WithAttribute<F: AsAttribute>: AsVertex {
 }
 
 impl<T> WithAttribute<T> for T
-where
-    T: AsAttribute,
+    where
+        T: AsAttribute,
 {
     const ATTRIBUTE: Attribute = Attribute {
         format: T::FORMAT,
@@ -443,8 +443,8 @@ impl WithAttribute<TexCoord> for PosNormTangTex {
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Transform(pub [[f32; 4]; 4]);
 impl<T> From<T> for Transform
-where
-    T: Into<[[f32; 4]; 4]>,
+    where
+        T: Into<[[f32; 4]; 4]>,
 {
     fn from(from: T) -> Self {
         Transform(from.into())

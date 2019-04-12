@@ -4,6 +4,7 @@
 use crate::node::render::{Layout, SetLayout};
 use rendy_shader::Shader;
 use std::ops::{Bound, RangeBounds};
+use crate::util::types::vertex::VertexFormat;
 
 /// Extension for SpirvShaderReflection providing graph render type conversion
 /// Implementors of this return the appropriate descriptor sets and attribute layers for a given shader set.
@@ -16,13 +17,8 @@ pub trait ShaderLayoutGenerator {
     fn attributes<B: RangeBounds<usize>>(
         &self,
         range: B,
-        rate: gfx_hal::pso::InstanceRate,
     ) -> Result<
-        (
-            Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-            gfx_hal::pso::ElemStride,
-            gfx_hal::pso::InstanceRate,
-        ),
+        VertexFormat,
         failure::Error,
     >;
 
@@ -55,16 +51,11 @@ impl<S: Shader> ShaderLayoutGenerator for S {
     fn attributes<B: RangeBounds<usize>>(
         &self,
         range: B,
-        rate: gfx_hal::pso::InstanceRate,
     ) -> Result<
-        (
-            Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-            gfx_hal::pso::ElemStride,
-            gfx_hal::pso::InstanceRate,
-        ),
+        VertexFormat,
         failure::Error,
     > {
-        let mut input_attributes = self.reflect()?.input_attributes;
+        let mut input_attributes = self.reflect()?.input_attributes.clone();
 
         let mut sizes = Vec::<u32>::with_capacity(input_attributes.len());
         sizes.resize(input_attributes.len(), u32::default());
@@ -104,7 +95,10 @@ impl<S: Shader> ShaderLayoutGenerator for S {
         let stride = sizes.iter().sum();
         log::trace!("Defining Vertex Buffer: {:?}, {:?}", elements, stride);
 
-        Ok((elements, stride, rate))
+        Ok(VertexFormat {
+            attributes: std::borrow::Cow::from(elements),
+            stride,
+        })
     }
 
     fn stage(&self) -> Result<gfx_hal::pso::ShaderStageFlags, failure::Error> {
@@ -119,7 +113,7 @@ impl<S: Shader> ShaderLayoutGenerator for S {
             failure::bail!("We do not support manually specifying push constant ranges across shaders at this time")
         }
 
-        Ok(self.reflect()?.push_constants)
+        Ok(self.reflect()?.push_constants.clone())
     }
 }
 
@@ -166,6 +160,60 @@ where
             sets,
             push_constants,
         })
+    }
+}
+
+/// Provides the ability to cache the reflected values so reflection does not occur again
+#[derive(Clone, Debug)]
+pub struct ShaderCache<'a> {
+    attributes: VertexFormat<'a>,
+    layout: Layout,
+    stage: gfx_hal::pso::ShaderStageFlags,
+    push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>,
+}
+
+impl<'a> ShaderLayoutGenerator for ShaderCache<'a> {
+    fn layout(&self) -> Result<Layout, failure::Error> {
+        Ok(self.layout.clone())
+    }
+
+    fn attributes<B: RangeBounds<usize>>(
+        &self,
+        range: B,
+    ) -> Result<
+        VertexFormat,
+        failure::Error,
+    > {
+        // Rebuild the VertexFormat based on the range given
+        let mut stride: u32 = 0;
+        let elements: Vec<_> = self.attributes.attributes.iter().enumerate()
+            .filter_map(|(n, e)| {
+                if range_contains(&range, &n) {
+                    stride += (e.format.surface_desc().bits / 8) as u32;
+                    return Some(*e);
+                }
+                None
+            })
+            .collect();
+        Ok(VertexFormat {
+            attributes: std::borrow::Cow::from(elements),
+            stride,
+        })
+    }
+
+    fn stage(&self) -> Result<gfx_hal::pso::ShaderStageFlags, failure::Error> {
+        Ok(self.stage)
+    }
+
+    fn push_constants(
+        &self,
+        range: Option<std::ops::Range<usize>>,
+    ) -> Result<Vec<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>, failure::Error> {
+        if let Some(range) = range {
+            Ok(self.push_constants[range].to_vec())
+        } else {
+            Ok(self.push_constants.clone())
+        }
     }
 }
 

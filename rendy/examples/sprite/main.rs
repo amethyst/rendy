@@ -25,6 +25,12 @@ use {
     },
 };
 
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflectedShader as SpirvShader;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::shader::SpirvShader as SpirvShader;
+
 use winit::{EventsLoop, WindowBuilder};
 
 #[cfg(feature = "dx12")]
@@ -37,19 +43,19 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
+    static ref VERTEX: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
+    static ref FRAGMENT: SpirvShader = StaticShaderInfo::new(
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 }
 
 #[derive(Debug, Default)]
@@ -94,7 +100,7 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         use rendy::graph::reflect::ShaderLayoutGenerator;
-        vec![VERTEX.attributes(.., 0).unwrap()]
+        vec![VERTEX.attributes(..).unwrap().gfx_vertex_input_desc(0)]
     }
 
     fn load_shader_set<'b>(
@@ -157,7 +163,7 @@ where
     #[cfg(feature = "spirv-reflection")]
     fn layout(&self) -> Layout {
         use rendy::graph::reflect::SpirvLayoutMerger;
-        vec![*VERTEX, *FRAGMENT].merge().unwrap()
+        vec![VERTEX.clone(), FRAGMENT.clone()].merge().unwrap()
     }
 
     fn build<'b>(

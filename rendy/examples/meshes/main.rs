@@ -20,9 +20,15 @@ use {
         memory::Dynamic,
         mesh::{Mesh, PosColorNorm, Transform, AsVertex},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
     },
 };
+
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflectedShader as SpirvShader;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::shader::SpirvShader as SpirvShader;
 
 use std::{cmp::min, mem::size_of, time};
 
@@ -167,8 +173,8 @@ where
         use rendy::graph::reflect::ShaderLayoutGenerator;
 
         vec![
-            VERTEX.attributes(0..3, 0).unwrap(),
-            VERTEX.attributes(3..7, 1).unwrap(),
+            VERTEX.attributes(0..3).unwrap().gfx_vertex_input_desc(0),
+            VERTEX.attributes(3..7).unwrap().gfx_vertex_input_desc(1),
         ]
     }
 

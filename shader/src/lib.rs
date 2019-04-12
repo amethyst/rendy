@@ -31,11 +31,7 @@ pub trait Shader {
     #[cfg(feature = "spirv-reflection")]
     /// Uses spirv-reflect to generate a [SpirvShaderDescription] reflection representation, which is
     /// an intermediate to gfx_hal data representations.
-    fn reflect(&self) -> Result<SpirvShaderDescription, failure::Error> {
-        Ok(reflect::SpirvShaderDescription::from_bytes(
-            &*(self.spirv()?),
-        )?)
-    }
+    fn reflect(&self) -> Result<&SpirvShaderDescription, failure::Error> { unimplemented!("Shader reflection not implemented for this type") }
 
     /// Create shader module.
     ///
@@ -73,5 +69,42 @@ impl SpirvShader {
 impl Shader for SpirvShader {
     fn spirv(&self) -> Result<std::borrow::Cow<'_, [u8]>, failure::Error> {
         Ok(std::borrow::Cow::Borrowed(&self.spirv))
+    }
+}
+
+
+#[cfg(feature = "spirv-reflection")]
+/// Spir-V shader with reflection
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug)]
+pub struct SpirvReflectedShader {
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    spirv: Vec<u8>,
+    reflection: SpirvShaderDescription,
+}
+
+#[cfg(feature = "spirv-reflection")]
+impl SpirvReflectedShader {
+    /// Create Spir-V shader from bytes.
+    pub fn new(spirv: Vec<u8>) -> Self {
+        assert!(!spirv.is_empty());
+        assert_eq!(spirv.len() % 4, 0);
+        let reflection = reflect::SpirvShaderDescription::from_bytes(spirv.as_slice()).unwrap();
+
+        Self {
+            spirv,
+            reflection,
+        }
+    }
+}
+
+#[cfg(feature = "spirv-reflection")]
+impl Shader for SpirvReflectedShader {
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u8]>, failure::Error> {
+        Ok(std::borrow::Cow::Borrowed(&self.spirv))
+    }
+
+    fn reflect(&self) -> Result<&SpirvShaderDescription, failure::Error> {
+        Ok(&self.reflection)
     }
 }

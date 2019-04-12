@@ -1,7 +1,12 @@
 // This module is gated under "shader-compiler" feature
 use super::Shader;
-use crate::SpirvShader;
 pub use shaderc::{self, ShaderKind, SourceLanguage};
+
+#[cfg(not(feature = "spirv-reflection"))]
+use crate::SpirvShader;
+
+#[cfg(feature = "spirv-reflection")]
+use crate::SpirvReflectedShader;
 
 macro_rules! vk_make_version {
     ($major: expr, $minor: expr, $patch: expr) => {{
@@ -33,11 +38,22 @@ impl<P, E> SourceShaderInfo<P, E> {
 
 impl<P, E> SourceShaderInfo<P, E> {
     /// Precompile shader source code into Spir-V bytecode.
+    #[cfg(not(feature = "spirv-reflection"))]
     pub fn precompile(&self) -> Result<SpirvShader, failure::Error>
     where
         Self: Shader,
     {
         Ok(SpirvShader::new(self.spirv()?.into_owned()))
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    /// Precompile shader source code into Spir-V bytecode.
+    pub fn precompile(&self) -> Result<SpirvReflectedShader, failure::Error>
+        where
+            Self: Shader,
+    {
+        //#[cfg(not(feature = "spirv-reflection"))]
+        Ok(SpirvReflectedShader::new(self.spirv()?.into_owned()))
     }
 }
 
@@ -73,6 +89,8 @@ where
 
         Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
     }
+
+
 }
 
 /// Shader info with static data.

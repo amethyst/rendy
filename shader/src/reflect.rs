@@ -3,6 +3,7 @@
 
 use gfx_hal::format::Format;
 use spirv_reflect::{types::*, ShaderModule};
+use crate::Shader;
 
 /// Workaround extension trait copy of std::convert::From, for simple conversion from spirv-reflect types to gfx_hal types
 pub trait ReflectInto<T>: Sized {
@@ -250,6 +251,9 @@ pub struct SpirvShaderDescription {
     pub stage_flag: gfx_hal::pso::ShaderStageFlags,
     /// Push Constants
     pub push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>,
+    /// Raw shader bytes
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    pub spirv: Vec<u8>,
 }
 
 pub(crate) fn generate_attributes(
@@ -273,8 +277,18 @@ pub(crate) fn generate_attributes(
     Ok(out_attributes)
 }
 
+impl Shader for SpirvShaderDescription {
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u8]>, failure::Error> {
+        Ok(std::borrow::Cow::Borrowed(&self.spirv))
+    }
+
+    fn reflect(&self) -> Result<&SpirvShaderDescription, failure::Error> {
+        Ok(self)
+    }
+}
+
 impl SpirvShaderDescription {
-    ///
+    /// Creates a reflection instance based on the provided spirv byte code
     pub fn from_bytes(data: &[u8]) -> Result<Self, failure::Error> {
         log::trace!("Shader reflecting into SpirvShaderDescription");
 
@@ -342,6 +356,7 @@ impl SpirvShaderDescription {
                     push_constants: push_constants
                         .map_err(|e| failure::format_err!("Error parsing push constants: {}", e))?,
                     stage_flag,
+                    spirv: data.to_vec(),
                 })
             }
             Err(e) => Err(failure::format_err!("Failed to reflect data: {}", e)),

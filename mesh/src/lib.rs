@@ -24,6 +24,7 @@ use rendy_util as util;
 
 mod format;
 mod mesh;
-mod vertex;
 
-pub use crate::{format::*, mesh::*, vertex::*};
+pub use crate::{format::*, mesh::*};
+
+pub use util::types::vertex::*;

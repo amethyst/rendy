@@ -29,8 +29,14 @@ use rendy::{
     memory::Dynamic,
     mesh::{Color},
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+    shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
 };
+
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflectedShader as SpirvShader;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::shader::SpirvShader as SpirvShader;
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -132,7 +138,7 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         use rendy::graph::reflect::ShaderLayoutGenerator;
-        vec![RENDER_VERTEX.attributes(.., 0).unwrap()]
+        vec![RENDER_VERTEX.attributes(..).unwrap().gfx_vertex_input_desc(0)]
     }
 
     fn load_shader_set<'a>(
