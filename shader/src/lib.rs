@@ -1,14 +1,14 @@
 //! Shader compilation.
 
-#[cfg(feature = "shader-compiler")]
-mod shaderc;
 #[cfg(feature = "spirv-reflection")]
 pub mod reflect;
-
 #[cfg(feature = "shader-compiler")]
-pub use self::shaderc::*;
+mod shaderc;
+
 #[cfg(feature = "spirv-reflection")]
 pub use self::reflect::*;
+#[cfg(feature = "shader-compiler")]
+pub use self::shaderc::*;
 
 #[warn(
     missing_debug_implementations,

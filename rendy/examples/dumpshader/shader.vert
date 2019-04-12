@@ -1,36 +1,46 @@
 #version 450
-#extension GL_ARB_separate_shader_objects : enable
 
-layout(location = 0) in vec4 color_vec4;
-layout(location = 1) in vec4 balls_vec4;
-layout(location = 2) in float balls_float;
-layout(location = 4) in dvec4 double_Vec;
-
-
-layout(location = 0) out vec4 frag_color;
-
-layout(std430, set = 0, binding = 0) buffer _ {
-    vec4 posvel[];
-} posvelbuff;
-
-vec2 vertices[6] = {
-    vec2(0.00, 0.00),
-    vec2(0.00, 0.01),
-    vec2(0.01, 0.01),
-    vec2(0.00, 0.00),
-    vec2(0.01, 0.01),
-    vec2(0.01, 0.00),
+layout(std140, set = 0, binding = 0) uniform ViewArgs {
+    uniform mat4 proj;
+    uniform mat4 view;
 };
 
+// Quad transform.
+layout(location = 0) in vec2 dir_x;
+layout(location = 1) in vec2 dir_y;
+layout(location = 2) in vec2 pos;
+layout(location = 3) in float depth;
+
+// Texture quad.
+layout(location = 4) in vec2 u_offset;
+layout(location = 5) in vec2 v_offset;
+
+layout(location = 0) out vec2 tex_uv;
+
+const vec2 positions[6] = vec2[](
+    // First triangle
+    vec2(-0.5, -0.5), // Left bottom
+    vec2(0.5, -0.5), // Right bottom
+    vec2(0.5, 0.5), // Right top
+
+    // Second triangle
+    vec2(0.5, 0.5), // Right top
+    vec2(-0.5, 0.5), // Left top
+    vec2(-0.5, -0.5)  // Left bottom
+);
+
+// coords = 0.0 to 1.0 texture coordinates
+vec2 texture_coords(vec2 coords, vec2 u, vec2 v) {
+    return vec2(mix(u.x, u.y, coords.x+0.5), mix(v.x, v.y, coords.y+0.5));
+}
+
 void main() {
-    int index = gl_InstanceIndex;
-    vec4 posvel = posvelbuff.posvel[index];
-    vec2 pos = posvel.rg;
-    vec2 vertex = vertices[gl_VertexIndex];
+    float tex_u = positions[gl_VertexIndex][0];
+    float tex_v = positions[gl_VertexIndex][1];
 
-    vec2 v = ((vertex + pos / 1.01) * 2.0) - vec2(1.0, 1.0);
-    v.y = -v.y;
+    vec2 uv = pos + tex_u * dir_x + tex_v * dir_y;
+    tex_uv = texture_coords(vec2(tex_u, tex_v), u_offset, v_offset);
 
-    frag_color = vec4(color_vec4.rgb, 1.0);
-    gl_Position = vec4(v, 0.0, 1.0);
+    vec4 vertex = vec4(uv, depth, 1.0);
+    gl_Position = proj * view * vertex;
 }

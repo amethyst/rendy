@@ -29,15 +29,31 @@ fn main() {
         .filter_module("init", log::LevelFilter::Trace)
         .init();
 
-    let shader = SourceShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert"),
+    let vertex = SourceShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/dumpshader/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     );
 
+    let fragment = SourceShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/dumpshader/shader.frag"),
+        ShaderKind::Fragment,
+        SourceLanguage::GLSL,
+        "main",
+    );
 
-    match shader.reflect() {
+
+    match vertex.reflect() {
+        Ok(info) => {
+            println!("{:?}", info);
+        },
+        Err(e) => {
+            panic!("Reflect on shader failed: {}", e);
+        }
+    }
+
+    match fragment.reflect() {
         Ok(info) => {
             println!("{:?}", info);
         },
