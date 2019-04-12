@@ -75,14 +75,14 @@ impl AsAttribute for Normal {
     const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
 }
 
-/// Type for tangent attribute of vertex
+/// Type for tangent attribute of vertex. W represents handedness and should always be 1 or -1
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Tangent(pub [f32; 3]);
+pub struct Tangent(pub [f32; 4]);
 impl<T> From<T> for Tangent
     where
-        T: Into<[f32; 3]>,
+        T: Into<[f32; 4]>,
 {
     fn from(from: T) -> Self {
         Tangent(from.into())
@@ -91,8 +91,8 @@ impl<T> From<T> for Tangent
 
 impl AsAttribute for Tangent {
     const NAME: &'static str = "tangent";
-    const SIZE: u32 = 12;
-    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
+    const SIZE: u32 = 16;
+    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgba32Float;
 }
 
 /// Type for texture coord attribute of vertex
