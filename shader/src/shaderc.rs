@@ -63,7 +63,7 @@ where
                         .ok_or_else(|| failure::format_err!("Failed to init Shaderc"))?;
                     ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                     ops.set_source_language(self.lang);
-                    ops.set_generate_debug_info();
+                    //ops.set_generate_debug_info();
                     //ops.set_optimization_level(shaderc::OptimizationLevel::None);
                     ops.set_optimization_level(shaderc::OptimizationLevel::Performance);;
                     ops

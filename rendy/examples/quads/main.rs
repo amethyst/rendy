@@ -19,16 +19,16 @@ use rendy::{
         gfx_acquire_barriers, gfx_release_barriers,
         present::PresentNode,
         render::{
-            Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
+            Layout, PrepareResult, RenderGroupBuilder, SetLayout, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
         BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
         NodeSubmittable,
     },
-    hal::Device,
-    memory::MemoryUsageValue,
-    mesh::{Color},
-    resource::buffer::Buffer,
+    hal::Device as _,
+    memory::Dynamic,
+    mesh::{AsVertex, Color},
+    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
 };
 
@@ -194,7 +194,7 @@ where
     #[cfg(feature = "spirv-reflection")]
     fn layout(&self) -> Layout {
         use rendy::graph::reflect::SpirvLayoutMerger;
-        vec![*RENDER_VERTEX, *RENDER_FRAGMENT].merge().unwrap()
+        vec![RENDER_VERTEX.clone(), RENDER_FRAGMENT.clone()].merge().unwrap()
     }
 
     fn build<'a>(
