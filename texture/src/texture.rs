@@ -368,6 +368,8 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
         padding: 4,
     };
 
+    let intact = BufferTransform::Intact;
+
     let rgzo = Swizzle(Component::R, Component::G, Component::Zero, Component::One);
     let rgbo = Swizzle(Component::R, Component::G, Component::B, Component::One);
     let bgro = Swizzle(Component::B, Component::G, Component::R, Component::One);
@@ -400,13 +402,13 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
         Format::Bgr8Int => (Format::Rgba8Int, t3to4_8, bgro),
         Format::Bgr8Srgb => (Format::Rgba8Srgb, t3to4_8, bgro),
 
-        Format::Bgra8Unorm => (Format::Rgba8Unorm, t3to4_8, bgra),
-        Format::Bgra8Inorm => (Format::Rgba8Inorm, t3to4_8, bgra),
-        Format::Bgra8Uscaled => (Format::Rgba8Uscaled, t3to4_8, bgra),
-        Format::Bgra8Iscaled => (Format::Rgba8Iscaled, t3to4_8, bgra),
-        Format::Bgra8Uint => (Format::Rgba8Uint, t3to4_8, bgra),
-        Format::Bgra8Int => (Format::Rgba8Int, t3to4_8, bgra),
-        Format::Bgra8Srgb => (Format::Rgba8Srgb, t3to4_8, bgra),
+        Format::Bgra8Unorm => (Format::Rgba8Unorm, intact, bgra),
+        Format::Bgra8Inorm => (Format::Rgba8Inorm, intact, bgra),
+        Format::Bgra8Uscaled => (Format::Rgba8Uscaled, intact, bgra),
+        Format::Bgra8Iscaled => (Format::Rgba8Iscaled, intact, bgra),
+        Format::Bgra8Uint => (Format::Rgba8Uint, intact, bgra),
+        Format::Bgra8Int => (Format::Rgba8Int, intact, bgra),
+        Format::Bgra8Srgb => (Format::Rgba8Srgb, intact, bgra),
 
         Format::Rg16Unorm => (Format::Rgba16Unorm, t2to4_16, rgzo),
         Format::Rg16Inorm => (Format::Rgba16Inorm, t2to4_16, rgzo),
