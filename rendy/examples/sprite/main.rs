@@ -17,10 +17,10 @@ use {
             present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
             NodeImage,
         },
-        memory::{Dynamic},
+        memory::Dynamic,
         mesh::{AsVertex, PosTex},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo, SpirvReflectionGenerator},
         texture::Texture,
     },
 };
@@ -52,6 +52,14 @@ lazy_static::lazy_static! {
     );
 }
 
+#[cfg(feature = "spirv-reflection")]
+lazy_static::lazy_static! {
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*VERTEX).unwrap()
+        .with_fragment(&*FRAGMENT).unwrap()
+        .reflect().unwrap();
+}
+
 #[derive(Debug, Default)]
 struct SpriteGraphicsPipelineDesc;
 
@@ -73,6 +81,29 @@ where
         None
     }
 
+    #[cfg(feature = "spirv-reflection")]
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    )> {
+        vec![
+            SHADERS.attributes(..).unwrap().gfx_vertex_input_desc(0),
+        ]
+    }
+
+    #[cfg(feature = "spirv-reflection")]
+    fn load_shader_set(
+        &self,
+        factory: &mut Factory<B>,
+        _aux: &T,
+    ) -> rendy_shader::ShaderSet<B> {
+        SHADERS.build(factory).unwrap()
+    }
+
+    #[cfg(not(feature = "spirv-reflection"))]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -83,6 +114,7 @@ where
         vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
     }
 
+    #[cfg(not(feature = "spirv-reflection"))]
     fn load_shader_set<'b>(
         &self,
         storage: &'b mut Vec<B::ShaderModule>,
@@ -114,6 +146,12 @@ where
         }
     }
 
+    #[cfg(feature = "spirv-reflection")]
+    fn layout(&self) -> Layout {
+        SHADERS.layout().unwrap()
+    }
+
+    #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
         Layout {
             sets: vec![SetLayout {
@@ -200,7 +238,7 @@ where
         let mut vbuf = factory
             .create_buffer(
                 BufferInfo {
-                    size: PosTex::VERTEX.stride as u64 * 6,
+                    size: SHADERS.attributes(..).unwrap().stride as u64 * 6,
                     usage: gfx_hal::buffer::Usage::VERTEX,
                 },
                 Dynamic,
@@ -337,6 +375,8 @@ fn run(
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("sprite", log::LevelFilter::Trace)
+        .filter_module("rendy_shader", log::LevelFilter::Trace)
+        .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();

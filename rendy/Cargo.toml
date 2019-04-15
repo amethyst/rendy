@@ -19,6 +19,7 @@ vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx
 serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 shader-compiler = ["rendy-shader/shader-compiler"]
+spirv-reflection = ["rendy-shader/spirv-reflection", "rendy-graph/spirv-reflection" ]
 
 command = ["rendy-command"]
 descriptor = ["rendy-descriptor"]
@@ -33,7 +34,7 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-base = ["shader-compiler", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+base = [ "vulkan", "texture-image", "shader-compiler", "spirv-reflection", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
 default = ["base"]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]

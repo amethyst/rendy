@@ -14,8 +14,14 @@
 #[cfg(feature = "shader-compiler")]
 mod shaderc;
 
+#[cfg(feature = "spirv-reflection")]
+mod reflect;
+
 #[cfg(feature = "shader-compiler")]
 pub use self::shaderc::*;
+
+#[cfg(feature = "spirv-reflection")]
+pub use self::reflect::{ShaderSet, ShaderSetBuilder, SpirvReflection, SpirvReflectionGenerator};
 
 /// Interface to create shader modules from shaders.
 /// Implemented for static shaders via [`compile_to_spirv!`] macro.
