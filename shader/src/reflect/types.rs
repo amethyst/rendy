@@ -1,9 +1,8 @@
 //! Using spirv-reflect-rs for reflection.
 //!
 
-use crate::Shader;
 use gfx_hal::format::Format;
-use spirv_reflect::{types::*, ShaderModule};
+use spirv_reflect::types::*;
 use std::collections::HashMap;
 
 /// Workaround extension trait copy of std::convert::From, for simple conversion from spirv-reflect types to gfx_hal types

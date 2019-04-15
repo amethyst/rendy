@@ -15,7 +15,6 @@ empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-factory/gfx-
 dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-factory/gfx-backend-dx12", "rendy-util/dx12"]
 metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-factory/gfx-backend-metal", "rendy-util/metal"]
 vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-factory/gfx-backend-vulkan", "rendy-util/vulkan"]
-spirv-reflection = [ "rendy-shader" ]
 
 [dependencies]
 rendy-chain = { version = "0.1.0", path = "../chain" }
@@ -27,7 +26,7 @@ rendy-memory = { version = "0.1.0", path = "../memory" }
 rendy-resource = { version = "0.1.0", path = "../resource" }
 rendy-util = { version = "0.1.0", path = "../util" }
 rendy-wsi = { version = "0.1.0", path = "../wsi" }
-rendy-shader = { version = "0.1.0", path = "../shader", optional = true }
+rendy-shader = { version = "0.1.0", path = "../shader" }
 
 gfx-hal = "0.1"
 gfx-backend-empty = { version = "0.1.0", optional = true }

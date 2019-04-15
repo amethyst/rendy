@@ -1,7 +1,7 @@
 [package]
 name = "rendy-shader"
 version = "0.1.0"
-authors = ["omni-viral <scareaangel@gmail.com>"]
+authors = ["omni-viral <scareaangel@gmail.com>", "Walter Pearce <jaynus@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/omni-viral/rendy"
 license = "MIT OR Apache-2.0"

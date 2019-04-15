@@ -19,7 +19,7 @@ vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx
 serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 shader-compiler = ["rendy-shader/shader-compiler"]
-spirv-reflection = ["rendy-shader/spirv-reflection", "rendy-graph/spirv-reflection" ]
+spirv-reflection = ["rendy-shader/spirv-reflection" ]
 
 command = ["rendy-command"]
 descriptor = ["rendy-descriptor"]
@@ -34,14 +34,14 @@ texture = ["rendy-texture", "factory", "util"]
 util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
-base = [ "vulkan", "texture-image", "shader-compiler", "spirv-reflection", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
-default = ["base"]
+base = [ "shader-compiler", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
+default = [ "base", "spirv-reflection" ]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]
 texture-image = ["texture", "rendy-texture/image"]
 texture-palette = ["texture", "rendy-texture/palette"]
 
-full = ["base", "mesh-obj", "texture-image", "texture-palette"]
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection" ]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }

@@ -1,42 +1,46 @@
-use crate::Shader;
 use gfx_hal::{pso::ShaderStageFlags, Backend};
 use rendy_util::types::{vertex::VertexFormat, Layout, SetLayout};
 use spirv_reflect::ShaderModule;
 use std::collections::HashMap;
-use std::ops::{RangeBounds, Bound};
-mod types;
+use std::ops::{Bound, Range, RangeBounds};
+
+pub(crate) mod types;
 use types::*;
 
+use crate::{ShaderSet, ShaderSetBuilder};
+
 #[derive(Clone, Debug)]
-pub struct SpirvCachedGfxDescription {
+pub(crate) struct SpirvCachedGfxDescription {
     pub vertices: (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, u32),
     pub layout: Layout,
 }
 
+/// Trait implemented by `ShaderSet`, `ShaderSetBuilder` and `ShaderStorage` for accessing gfx_hal and rendy specific versions of reflected shader information
 pub trait SpirvReflectionGenerator {
-    /// Returns attributes from range
-    fn attributes_range<R: std::ops::RangeBounds<usize>>(
+    /// Returns attributes within a given index range in rendy/gfx_hal format in the form of a `VertexFormat`
+    fn attributes_range<R: RangeBounds<usize>>(
         &self,
         range: R,
     ) -> Result<VertexFormat, failure::Error>;
 
-    /// Returns attributes by name
-    fn attributes(
-        &self,
-        names: &[&str],
-    ) -> Result<VertexFormat, failure::Error>;
+    /// Returns attributes based on their names in rendy/gfx_hal format in the form of a `VertexFormat`. Note that attributes are sorted in their layout location
+    /// order, not in the order provided.
+    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error>;
 
-    /// Returns from full set reflection
+    /// Returns the merged descriptor set layouts of all shaders in this set in gfx_hal format in the form of a `Layout` structure.
     fn layout(&self) -> Result<Layout, failure::Error>;
 
+    /// Returns the combined stages of shaders which are in this set in the form of a `ShaderStageFlags` bitflag.
     fn stage(&self) -> ShaderStageFlags;
 
+    /// Returns the reflected push constants of this shader set in gfx_hal format.
     fn push_constants(
         &self,
-        range: Option<std::ops::Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, std::ops::Range<u32>)>, failure::Error>;
+        range: Option<Range<usize>>,
+    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error>;
 }
 
+/// Contains intermediate structured data of reflected shader information.
 #[derive(Clone, Debug)]
 pub struct SpirvReflection {
     /// Vec of output variables with names.
@@ -48,11 +52,13 @@ pub struct SpirvReflection {
     /// Stage flag of this shader
     pub stage_flag: ShaderStageFlags,
     /// Push Constants
-    pub push_constants: Vec<(ShaderStageFlags, std::ops::Range<u32>)>,
-    /// Entrypoint name
+    pub push_constants: Vec<(ShaderStageFlags, Range<u32>)>,
+    /// All possible entrypoints to this shader
     pub entrypoints: Vec<(ShaderStageFlags, String)>,
+    /// User selected entry point or default
+    pub entrypoint: Option<String>,
     /// Cached value of gfx-hal specific data
-    pub cache: Option<SpirvCachedGfxDescription>,
+    pub(crate) cache: Option<SpirvCachedGfxDescription>,
 }
 impl Default for SpirvReflection {
     fn default() -> Self {
@@ -63,36 +69,35 @@ impl Default for SpirvReflection {
             stage_flag: ShaderStageFlags::VERTEX,
             push_constants: Vec::new(),
             entrypoints: Vec::new(),
+            entrypoint: None,
             cache: None,
         }
     }
 }
 
 impl SpirvReflection {
-    pub fn new(
+    pub(crate) fn new(
         stage_flag: ShaderStageFlags,
+        entrypoint: Option<String>,
         entrypoints: Vec<(ShaderStageFlags, String)>,
         input_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
         output_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
         descriptor_sets: Vec<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>,
-        push_constants: Vec<(ShaderStageFlags, std::ops::Range<u32>)>,
+        push_constants: Vec<(ShaderStageFlags, Range<u32>)>,
     ) -> Result<Self, failure::Error> {
-        let mut selfie = SpirvReflection {
+        Ok(SpirvReflection {
             output_attributes,
             input_attributes,
             descriptor_sets,
             stage_flag,
             push_constants,
             entrypoints,
+            entrypoint: entrypoint,
             cache: None,
-        };
-
-        Ok(selfie)
+        })
     }
 
-    fn compile_cache(&mut self) -> Result<(), failure::Error> {
-        log::trace!("Compiling cache for set: {:?}", self.stage_flag);
-
+    pub(crate) fn compile_cache(&mut self) -> Result<(), failure::Error> {
         let mut stride: u32 = 0;
         let mut vertices = self
             .input_attributes
@@ -100,54 +105,67 @@ impl SpirvReflection {
             .map(|(_, e)| e)
             .collect::<Vec<_>>();
         vertices.sort_by(|a, b| a.location.cmp(&b.location));
-        log::trace!("Sorted: {:?}", vertices);
+
+        // BBreak apart the sets into the appropriate grouping
+
+        let layout = if self.descriptor_sets.len() > 0 {
+            Layout {
+                sets: self
+                    .descriptor_sets
+                    .iter()
+                    .map(|e| SetLayout {
+                        bindings: e.clone(),
+                    })
+                    .collect(),
+                push_constants: self.push_constants.clone(),
+            }
+        } else {
+            Layout {
+                sets: vec![],
+                push_constants: self.push_constants.clone(),
+            }
+        };
 
         self.cache = Some(SpirvCachedGfxDescription {
-            vertices: (vertices.iter().map(|e| {
-                let mut element = e.element.clone();
-                element.offset = stride;
-                stride += element.format.surface_desc().bits as u32 / 8;
-                element
-            }).collect::<Vec<_>>(), stride),
-            layout: Layout {
-                sets: vec![SetLayout {
-                    bindings: self.descriptor_sets[0].clone(),
-                }],
-                push_constants: self.push_constants.clone(),
-            },
+            vertices: (
+                vertices
+                    .iter()
+                    .map(|e| {
+                        let mut element = e.element.clone();
+                        element.offset = stride;
+                        stride += element.format.surface_desc().bits as u32 / 8;
+                        element
+                    })
+                    .collect::<Vec<_>>(),
+                stride,
+            ),
+            layout,
         });
-
-        log::trace!("Compiled Cache: {:?}", self.cache);
 
         Ok(())
     }
 
-    pub fn reflect(spirv: &[u8]) -> Result<Self, failure::Error> {
-        let reflected = SpirvReflection::default();
-
-        log::trace!("Shader reflecting into SpirvReflection");
-
+    /// This function performs the actual SPIRV reflection utilizing spirv-reflect-rs, and then converting it into appropriate structures which are then consumed by rendy.
+    pub fn reflect(spirv: &[u8], entrypoint: Option<&str>) -> Result<Self, failure::Error> {
         match ShaderModule::load_u8_data(spirv) {
             Ok(module) => {
-                let stage_flag = types::convert_stage(module.get_shader_stage());
+                let stage_flag = convert_stage(module.get_shader_stage());
 
-                let input_attributes = types::generate_attributes(
-                    module.enumerate_input_variables(None).map_err(|e| {
+                let input_attributes =
+                    generate_attributes(module.enumerate_input_variables(None).map_err(|e| {
                         failure::format_err!(
                             "Failed to get input attributes from spirv-reflect: {}",
                             e
                         )
-                    })?,
-                );
+                    })?);
 
-                let output_attributes = types::generate_attributes(
-                    module.enumerate_input_variables(None).map_err(|e| {
+                let output_attributes =
+                    generate_attributes(module.enumerate_input_variables(None).map_err(|e| {
                         failure::format_err!(
                             "Failed to get output attributes from spirv-reflect: {}",
                             e
                         )
-                    })?,
-                );
+                    })?);
 
                 let descriptor_sets: Result<Vec<_>, _> = module
                     .enumerate_descriptor_sets(None)
@@ -179,11 +197,14 @@ impl SpirvReflection {
                         )
                     })?
                     .iter()
-                    .map(|c| types::convert_push_constant(stage_flag, c))
+                    .map(|c| convert_push_constant(stage_flag, c))
                     .collect();
+
+                let entrypoint = if let Some(e) = entrypoint { e } else { "main" };
 
                 Self::new(
                     stage_flag,
+                    Some(entrypoint.to_string()),
                     vec![(stage_flag, module.get_entry_point_name())],
                     input_attributes.map_err(|e| {
                         failure::format_err!("Error parsing input attributes: {}", e)
@@ -201,11 +222,7 @@ impl SpirvReflection {
 }
 
 impl SpirvReflectionGenerator for SpirvReflection {
-    fn attributes(
-        &self,
-        names: &[&str],
-    ) -> Result<VertexFormat, failure::Error> {
-
+    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
         if self.cache.is_none() {
             failure::bail!("Cache isn't constructed for shader: {:?}", self.stage());
         }
@@ -214,19 +231,28 @@ impl SpirvReflectionGenerator for SpirvReflection {
         assert!(names.len() < 64);
         let mut locations = smallvec::SmallVec::<[u32; 64]>::new();
         for name in names {
-           locations.push(self.input_attributes.get(&name.to_string()).ok_or(failure::format_err!("Attribute named {} does not exist", name))?.location);
+            locations.push(
+                self.input_attributes
+                    .get(&name.to_string())
+                    .ok_or(failure::format_err!(
+                        "Attribute named {} does not exist",
+                        name
+                    ))?
+                    .location,
+            );
         }
         locations.sort();
 
         let mut stride: u32 = 0;
-        let elements = locations.iter()
+        let elements = locations
+            .iter()
             .filter_map(|n| {
                 let mut element = self.cache.as_ref().unwrap().vertices.0[*n as usize].clone();
                 element.offset = stride;
                 stride += element.format.surface_desc().bits as u32 / 8;
                 return Some(element);
-                None
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
 
         Ok(VertexFormat {
             attributes: std::borrow::Cow::from(elements),
@@ -234,7 +260,7 @@ impl SpirvReflectionGenerator for SpirvReflection {
         })
     }
 
-    fn attributes_range<R: std::ops::RangeBounds<usize>>(
+    fn attributes_range<R: RangeBounds<usize>>(
         &self,
         range: R,
     ) -> Result<VertexFormat, failure::Error> {
@@ -243,7 +269,11 @@ impl SpirvReflectionGenerator for SpirvReflection {
         ))?;
 
         let mut stride: u32 = 0;
-        let elements = cache.vertices.0.iter().enumerate()
+        let elements = cache
+            .vertices
+            .0
+            .iter()
+            .enumerate()
             .filter_map(|(n, e)| {
                 if range_contains(&range, &n) {
                     let mut element = e.clone();
@@ -252,8 +282,8 @@ impl SpirvReflectionGenerator for SpirvReflection {
                     return Some(element);
                 }
                 None
-            }).collect::<Vec<_>>();
-
+            })
+            .collect::<Vec<_>>();
 
         Ok(VertexFormat {
             attributes: std::borrow::Cow::from(elements),
@@ -281,124 +311,29 @@ impl SpirvReflectionGenerator for SpirvReflection {
     #[inline(always)]
     fn push_constants(
         &self,
-        range: Option<std::ops::Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, std::ops::Range<u32>)>, failure::Error> {
-        Ok(self.push_constants.clone())
-    }
-}
-
-#[derive(Debug)]
-pub struct ShaderStorage<B: Backend> {
-    stage: ShaderStageFlags,
-    spirv: Vec<u8>,
-    reflection: SpirvReflection,
-    module: Option<B::ShaderModule>,
-}
-impl<B: Backend> ShaderStorage<B> {
-    pub fn get_entry_point<'a>(
-        &'a self,
-    ) -> Result<Option<gfx_hal::pso::EntryPoint<'a, B>>, failure::Error> {
-        Ok(Some(gfx_hal::pso::EntryPoint {
-            entry: &self.reflection.entrypoints.get(0).ok_or(failure::format_err!("Shader {:?} missing entry point", self.stage))?.1,
-            module: self.module.as_ref().unwrap(),
-            specialization: gfx_hal::pso::Specialization::default(),
-        }))
-    }
-
-    pub unsafe fn compile(
-        &mut self,
-        factory: &rendy_factory::Factory<B>,
-    ) -> Result<(), failure::Error> {
-        self.module = Some(gfx_hal::Device::create_shader_module(
-            factory.device().raw(),
-            &self.spirv,
-        )?);
-
-        Ok(())
-    }
-
-    fn manual_drop(&mut self, factory: &rendy_factory::Factory<B>) {
-        use gfx_hal::device::Device;
-
-        if let Some(module) = self.module.take() {
-            unsafe { factory.destroy_shader_module(module) };
-        }
-        self.module = None;
-    }
-}
-impl<B: Backend> Drop for ShaderStorage<B> {
-    fn drop(&mut self) {
-        if self.module.is_some() {
-            panic!(
-                "This shader storage class needs to be manually dropped with manual_drop() first"
-            );
-        }
-    }
-}
-
-//    /// Build final set reflection
-//    pub(crate) fn new(set_reflection: SpirvReflection, set_description: gfx_hal::pso::GraphicsShaderSet<'a, B>, shaders: Vec<(Vec<u8>, SpirvReflection)>) -> Self
-#[derive(derivative::Derivative, Debug)]
-#[derivative(Default(bound = ""))]
-pub struct ShaderSet<B: Backend> {
-    shaders: std::collections::HashMap<ShaderStageFlags, ShaderStorage<B>>,
-    set_reflection: SpirvReflection,
-}
-
-impl<B: Backend> ShaderSet<B> {
-    /// Returns gfx_hal graphics shader set representation (Multiple shader stages need to be provided)
-    pub fn load(
-        &mut self,
-        factory: &rendy_factory::Factory<B>,
-    ) -> Result<&mut Self, failure::Error> {
-        for (_, v) in self.shaders.iter_mut() {
-            unsafe { v.compile(factory)? }
-        }
-
-        Ok(self)
-    }
-
-    pub fn raw<'a>(
-        &'a self,
-        factory: &rendy_factory::Factory<B>,
-    ) -> Result<(gfx_hal::pso::GraphicsShaderSet<'a, B>), failure::Error> {
-        Ok(gfx_hal::pso::GraphicsShaderSet {
-            vertex: self
-                .shaders
-                .get(&ShaderStageFlags::VERTEX)
-                .unwrap()
-                .get_entry_point()?
-                .unwrap(),
-            fragment: match self.shaders.get(&ShaderStageFlags::FRAGMENT) {
-                Some(fragment) => fragment.get_entry_point()?,
-                None => None,
-            },
-            domain: match self.shaders.get(&ShaderStageFlags::DOMAIN) {
-                Some(domain) => domain.get_entry_point()?,
-                None => None,
-            },
-            hull: match self.shaders.get(&ShaderStageFlags::HULL) {
-                Some(hull) => hull.get_entry_point()?,
-                None => None,
-            },
-            geometry: match self.shaders.get(&ShaderStageFlags::GEOMETRY) {
-                Some(geometry) => geometry.get_entry_point()?,
-                None => None,
-            },
-        })
-    }
-
-    pub fn manual_drop(&mut self, factory: &rendy_factory::Factory<B>) {
-        for (_, shader) in self.shaders.iter_mut() {
-            shader.manual_drop(factory);
+        range: Option<Range<usize>>,
+    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error> {
+        if range.is_some() {
+            Ok(self
+                .push_constants
+                .iter()
+                .enumerate()
+                .filter_map(|(n, p)| {
+                    if range_contains(range.as_ref().unwrap(), &n) {
+                        return Some(p.clone());
+                    }
+                    return None;
+                })
+                .collect())
+        } else {
+            Ok(self.push_constants.clone())
         }
     }
 }
 
 impl<B: Backend> SpirvReflectionGenerator for ShaderSet<B> {
     #[inline(always)]
-    /// Returns attributes from range
-    fn attributes_range<R: std::ops::RangeBounds<usize>>(
+    fn attributes_range<R: RangeBounds<usize>>(
         &self,
         range: R,
     ) -> Result<VertexFormat, failure::Error> {
@@ -406,17 +341,11 @@ impl<B: Backend> SpirvReflectionGenerator for ShaderSet<B> {
     }
 
     #[inline(always)]
-    /// Returns attributes from range
-    fn attributes(
-        &self,
-        names: &[&str],
-    ) -> Result<VertexFormat, failure::Error> {
+    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
         self.set_reflection.attributes(names)
     }
 
-
     #[inline(always)]
-    /// Returns from full set reflection
     fn layout(&self) -> Result<Layout, failure::Error> {
         self.set_reflection.layout()
     }
@@ -429,202 +358,15 @@ impl<B: Backend> SpirvReflectionGenerator for ShaderSet<B> {
     #[inline(always)]
     fn push_constants(
         &self,
-        range: Option<std::ops::Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, std::ops::Range<u32>)>, failure::Error> {
+        range: Option<Range<usize>>,
+    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error> {
         self.set_reflection.push_constants(range)
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct ShaderSetBuilder {
-    vertex: Option<(Vec<u8>, SpirvReflection)>,
-    fragment: Option<(Vec<u8>, SpirvReflection)>,
-    geometry: Option<(Vec<u8>, SpirvReflection)>,
-    hull: Option<(Vec<u8>, SpirvReflection)>,
-    domain: Option<(Vec<u8>, SpirvReflection)>,
-    compute: Option<(Vec<u8>, SpirvReflection)>,
-    set_reflection: Option<SpirvReflection>,
-}
-impl ShaderSetBuilder {
-    pub fn build<B: Backend>(
-        &self,
-        factory: &rendy_factory::Factory<B>,
-    ) -> Result<ShaderSet<B>, failure::Error> {
-        let mut set = ShaderSet::<B>::default();
-
-        if self.vertex.is_none() && self.compute.is_none() {
-            failure::bail!("A vertex or compute shader must be provided");
-        }
-
-        let vertex = self.vertex.clone().unwrap();
-        let mut storage = ShaderStorage {
-            stage: ShaderStageFlags::VERTEX,
-            spirv: vertex.0,
-            reflection: vertex.1,
-            module: None,
-        };
-        unsafe {
-            storage.compile(factory);
-        }
-        set.shaders.insert(ShaderStageFlags::VERTEX, storage);
-
-        if let Some(fragment) = self.fragment.clone() {
-            let mut storage = ShaderStorage {
-                stage: ShaderStageFlags::FRAGMENT,
-                spirv: fragment.0,
-                reflection: fragment.1,
-                module: None,
-            };
-            unsafe {
-                storage.compile(factory);
-            }
-            set.shaders.insert(ShaderStageFlags::FRAGMENT, storage);
-        }
-
-        if let Some(hull) = self.hull.clone() {
-            let mut storage = ShaderStorage {
-                stage: ShaderStageFlags::HULL,
-                spirv: hull.0,
-                reflection: hull.1,
-                module: None,
-            };
-            unsafe {
-                storage.compile(factory);
-            }
-            set.shaders.insert(ShaderStageFlags::HULL, storage);
-        }
-
-        if let Some(geometry) = self.geometry.clone() {
-            let mut storage = ShaderStorage {
-                stage: ShaderStageFlags::GEOMETRY,
-                spirv: geometry.0,
-                reflection: geometry.1,
-                module: None,
-            };
-            unsafe {
-                storage.compile(factory);
-            }
-            set.shaders.insert(ShaderStageFlags::GEOMETRY, storage);
-        }
-
-        if let Some(domain) = self.domain.clone() {
-            let mut storage = ShaderStorage {
-                stage: ShaderStageFlags::DOMAIN,
-                spirv: domain.0,
-                reflection: domain.1,
-                module: None,
-            };
-            unsafe {
-                storage.compile(factory);
-            }
-            set.shaders.insert(ShaderStageFlags::DOMAIN, storage);
-        }
-        if let Some(compute) = self.compute.clone() {
-            let mut storage = ShaderStorage {
-                stage: ShaderStageFlags::COMPUTE,
-                spirv: compute.0,
-                reflection: compute.1,
-                module: None,
-            };
-            unsafe {
-                storage.compile(factory);
-            }
-            set.shaders.insert(ShaderStageFlags::COMPUTE, storage);
-        }
-
-
-        Ok(set)
-    }
-
-    pub fn reflect(mut self) -> Result<Self, failure::Error> {
-        if self.vertex.is_none() && self.compute.is_none() {
-            failure::bail!("A vertex or compute shader must be provided");
-        }
-
-        // We need to combine and merge all the reflections into a single SpirvReflection instance
-        let mut reflections = Vec::new();
-        if let Some(vertex) = self.vertex.as_mut() {
-            vertex.1 = SpirvReflection::reflect(&vertex.0)?;
-            reflections.push(&vertex.1);
-        }
-        if let Some(fragment) = self.fragment.as_mut() {
-            fragment.1 = SpirvReflection::reflect(&fragment.0)?;
-            reflections.push(&fragment.1);
-        }
-        if let Some(hull) = self.hull.as_mut() {
-            hull.1 = SpirvReflection::reflect(&hull.0)?;
-            reflections.push(&hull.1);
-        }
-        if let Some(domain) = self.domain.as_mut() {
-            domain.1 = SpirvReflection::reflect(&domain.0)?;
-            reflections.push(&domain.1);
-        }
-        if let Some(compute) = self.compute.as_mut() {
-            compute.1 = SpirvReflection::reflect(&compute.0)?;
-            reflections.push(&compute.1);
-        }
-        self.set_reflection = Some(merge(&reflections)?);
-        self.set_reflection.as_mut().unwrap().compile_cache()?;
-        log::trace!("Merged set reflection: {:?}", self.set_reflection);
-
-        Ok(self)
-    }
-
-    #[inline(always)]
-    fn reflect_shader(
-        &mut self,
-        data: std::borrow::Cow<'_, [u8]>,
-    ) -> Result<SpirvReflection, failure::Error> {
-        Ok(SpirvReflection::reflect(&data)?)
-    }
-
-    #[inline(always)]
-    pub fn with_vertex<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
-        let data = shader.spirv()?;
-        self.vertex = Some((data.to_vec(), self.reflect_shader(data)?));
-        Ok(self)
-    }
-
-    #[inline(always)]
-    pub fn with_fragment<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
-        let data = shader.spirv()?;
-        self.fragment = Some((data.to_vec(), self.reflect_shader(data)?));
-        Ok(self)
-    }
-
-    #[inline(always)]
-    pub fn with_geometry<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
-        let data = shader.spirv()?;
-        self.geometry = Some((data.to_vec(), self.reflect_shader(data)?));
-        Ok(self)
-    }
-
-    #[inline(always)]
-    pub fn with_hull<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
-        let data = shader.spirv()?;
-        self.hull = Some((data.to_vec(), self.reflect_shader(data)?));
-        Ok(self)
-    }
-
-    #[inline(always)]
-    pub fn with_domain<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
-        let data = shader.spirv()?;
-        self.domain = Some((data.to_vec(), self.reflect_shader(data)?));
-        Ok(self)
-    }
-
-    #[inline(always)]
-    pub fn with_compute<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
-        let data = shader.spirv()?;
-        self.compute = Some((data.to_vec(), self.reflect_shader(data)?));
-        Ok(self)
     }
 }
 
 impl SpirvReflectionGenerator for ShaderSetBuilder {
     #[inline(always)]
-    fn attributes_range<R: std::ops::RangeBounds<usize>>(
+    fn attributes_range<R: RangeBounds<usize>>(
         &self,
         range: R,
     ) -> Result<VertexFormat, failure::Error> {
@@ -632,10 +374,7 @@ impl SpirvReflectionGenerator for ShaderSetBuilder {
     }
 
     /// Returns attributes from range
-    fn attributes(
-        &self,
-        names: &[&str],
-    ) -> Result<VertexFormat, failure::Error> {
+    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
         self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch attributes without a set reflection. reflect() must be called first after completing a set build"))?.attributes(names)
     }
 
@@ -646,21 +385,21 @@ impl SpirvReflectionGenerator for ShaderSetBuilder {
 
     #[inline(always)]
     fn stage(&self) -> ShaderStageFlags {
-        unimplemented!()
-        //self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch layout without a set reflection. reflect() must be called first after completing a set build"))?.stage()
+        self.set_reflection
+            .as_ref()
+            .map_or(ShaderStageFlags::empty(), |r| r.stage())
     }
 
     #[inline(always)]
     fn push_constants(
         &self,
-        range: Option<std::ops::Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, std::ops::Range<u32>)>, failure::Error> {
-        unimplemented!()
-        //self.set_reflection.push_constants()
+        range: Option<Range<usize>>,
+    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error> {
+        self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch push constants without a set reflection. reflect() must be called first after completing a set build"))?.push_constants(range)
     }
 }
 
-fn merge(reflections: &[&SpirvReflection]) -> Result<SpirvReflection, failure::Error> {
+pub(crate) fn merge(reflections: &[&SpirvReflection]) -> Result<SpirvReflection, failure::Error> {
     let mut descriptor_sets = Vec::<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>::new();
     let mut set_push_constants = Vec::new();
     let mut set_stage_flags = ShaderStageFlags::empty();
@@ -704,6 +443,7 @@ fn merge(reflections: &[&SpirvReflection]) -> Result<SpirvReflection, failure::E
 
     SpirvReflection::new(
         set_stage_flags,
+        None,
         set_entry_points,
         input_attributes,
         HashMap::new(),
@@ -766,7 +506,6 @@ fn compare_set(
     lhv: &[gfx_hal::pso::DescriptorSetLayoutBinding],
     rhv: &[gfx_hal::pso::DescriptorSetLayoutBinding],
 ) -> SetEquality {
-    use std::collections::HashMap;
     // Bindings may not be in order, so we need to make a copy and index them by binding.
     let mut lhv_bindings = HashMap::new();
     lhv.iter().for_each(|b| {
@@ -806,9 +545,9 @@ fn compare_set(
 
 /// Function copied from range_contains RFC rust implementation in nightly
 fn range_contains<U, R>(range: &R, item: &U) -> bool
-    where
-        U: ?Sized + PartialOrd<U>,
-        R: RangeBounds<U>,
+where
+    U: ?Sized + PartialOrd<U>,
+    R: RangeBounds<U>,
 {
     (match range.start_bound() {
         Bound::Included(ref start) => *start <= item,

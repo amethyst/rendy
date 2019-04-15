@@ -18,12 +18,18 @@ use {
             NodeImage,
         },
         memory::Dynamic,
-        mesh::{AsVertex, PosTex},
+        mesh::PosTex,
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo, SpirvReflectionGenerator},
+        shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
         texture::Texture,
     },
 };
+
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflectionGenerator;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -60,6 +66,13 @@ lazy_static::lazy_static! {
         .reflect().unwrap();
 }
 
+#[cfg(not(feature = "spirv-reflection"))]
+lazy_static::lazy_static! {
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*VERTEX).unwrap()
+        .with_fragment(&*FRAGMENT).unwrap();
+}
+
 #[derive(Debug, Default)]
 struct SpriteGraphicsPipelineDesc;
 
@@ -89,18 +102,10 @@ where
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     )> {
-        vec![
-            SHADERS.attributes(..).unwrap().gfx_vertex_input_desc(0),
-        ]
-    }
-
-    #[cfg(feature = "spirv-reflection")]
-    fn load_shader_set(
-        &self,
-        factory: &mut Factory<B>,
-        _aux: &T,
-    ) -> rendy_shader::ShaderSet<B> {
-        SHADERS.build(factory).unwrap()
+        vec![SHADERS
+            .attributes_range(..)
+            .unwrap()
+            .gfx_vertex_input_desc(0)]
     }
 
     #[cfg(not(feature = "spirv-reflection"))]
@@ -114,36 +119,8 @@ where
         vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
     }
 
-    #[cfg(not(feature = "spirv-reflection"))]
-    fn load_shader_set<'b>(
-        &self,
-        storage: &'b mut Vec<B::ShaderModule>,
-        factory: &mut Factory<B>,
-        _aux: &T,
-    ) -> gfx_hal::pso::GraphicsShaderSet<'b, B> {
-        storage.clear();
-
-        log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(unsafe { VERTEX.module(factory).unwrap() });
-
-        log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
-
-        gfx_hal::pso::GraphicsShaderSet {
-            vertex: gfx_hal::pso::EntryPoint {
-                entry: "main",
-                module: &storage[0],
-                specialization: gfx_hal::pso::Specialization::default(),
-            },
-            fragment: Some(gfx_hal::pso::EntryPoint {
-                entry: "main",
-                module: &storage[1],
-                specialization: gfx_hal::pso::Specialization::default(),
-            }),
-            hull: None,
-            domain: None,
-            geometry: None,
-        }
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+        SHADERS.build(factory).unwrap()
     }
 
     #[cfg(feature = "spirv-reflection")]
@@ -235,16 +212,27 @@ where
             ]);
         }
 
+        #[cfg(feature = "spirv-reflection")]
         let mut vbuf = factory
             .create_buffer(
                 BufferInfo {
-                    size: SHADERS.attributes(..).unwrap().stride as u64 * 6,
+                    size: SHADERS.attributes_range(..).unwrap().stride as u64 * 6,
                     usage: gfx_hal::buffer::Usage::VERTEX,
                 },
                 Dynamic,
             )
             .unwrap();
 
+        #[cfg(not(feature = "spirv-reflection"))]
+        let mut vbuf = factory
+            .create_buffer(
+                BufferInfo {
+                    size: PosTex::VERTEX.stride as u64 * 6,
+                    usage: gfx_hal::buffer::Usage::VERTEX,
+                },
+                Dynamic,
+            )
+            .unwrap();
         unsafe {
             // Fresh buffer.
             factory

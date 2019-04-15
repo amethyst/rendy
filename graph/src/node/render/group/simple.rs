@@ -114,25 +114,14 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Load shader set.
-    /// This function should create required shader modules and fill `GraphicsShaderSet` structure.
+    /// This function should utilize the provided `ShaderSetBuilder` reflection class and return the compiled `ShaderSet`.
     ///
     /// # Parameters
-    ///
-    /// `storage`   - vector where this function can store loaded modules to give them required lifetime.
     ///
     /// `factory`   - factory to create shader modules.
     ///
     /// `aux`       - auxiliary data container. May be anything the implementation desires.
     ///
-    #[cfg(not(feature = "spirv-reflection"))]
-    fn load_shader_set<'a>(
-        &self,
-        storage: &'a mut Vec<B::ShaderModule>,
-        factory: &mut Factory<B>,
-        aux: &T,
-    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B>;
-
-    #[cfg(feature = "spirv-reflection")]
     fn load_shader_set(&self, factory: &mut Factory<B>, aux: &T) -> rendy_shader::ShaderSet<B>;
 
     /// Build pass instance.
@@ -230,110 +219,6 @@ where
         self.inner.depth_stencil().is_some()
     }
 
-    #[cfg(not(feature = "spirv-reflection"))]
-    fn build<'a>(
-        self,
-        ctx: &GraphContext<B>,
-        factory: &mut Factory<B>,
-        queue: QueueId,
-        aux: &T,
-        framebuffer_width: u32,
-        framebuffer_height: u32,
-        subpass: gfx_hal::pass::Subpass<'_, B>,
-        buffers: Vec<NodeBuffer>,
-        images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
-        let mut shaders = Vec::new();
-
-        log::trace!("Load shader sets for A");
-        let shader_set = self.inner.load_shader_set(&mut shaders, factory, aux);
-
-        let pipeline = self.inner.pipeline();
-
-        let set_layouts = pipeline
-            .layout
-            .sets
-            .into_iter()
-            .map(|set| {
-                factory
-                    .create_descriptor_set_layout(set.bindings)
-                    .map(Handle::from)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let pipeline_layout = unsafe {
-            factory.device().create_pipeline_layout(
-                set_layouts.iter().map(|l| l.raw()),
-                pipeline.layout.push_constants,
-            )
-        }?;
-
-        assert_eq!(pipeline.colors.len(), self.inner.colors().len());
-
-        let mut vertex_buffers = Vec::new();
-        let mut attributes = Vec::new();
-
-        for &(ref elemets, stride, rate) in &pipeline.vertices {
-            push_vertex_desc(elemets, stride, rate, &mut vertex_buffers, &mut attributes);
-        }
-
-        let rect = gfx_hal::pso::Rect {
-            x: 0,
-            y: 0,
-            w: framebuffer_width as i16,
-            h: framebuffer_height as i16,
-        };
-
-        let graphics_pipeline = unsafe {
-            factory.device().create_graphics_pipelines(
-                Some(gfx_hal::pso::GraphicsPipelineDesc {
-                    shaders: shader_set,
-                    rasterizer: gfx_hal::pso::Rasterizer::FILL,
-                    vertex_buffers,
-                    attributes,
-                    input_assembler: pipeline.input_assembler_desc,
-                    blender: gfx_hal::pso::BlendDesc {
-                        logic_op: None,
-                        targets: pipeline.colors.clone(),
-                    },
-                    depth_stencil: pipeline.depth_stencil,
-                    multisampling: None,
-                    baked_states: gfx_hal::pso::BakedStates {
-                        viewport: Some(gfx_hal::pso::Viewport {
-                            rect,
-                            depth: 0.0..1.0,
-                        }),
-                        scissor: Some(rect),
-                        blend_color: None,
-                        depth_bounds: None,
-                    },
-                    layout: &pipeline_layout,
-                    subpass,
-                    flags: gfx_hal::pso::PipelineCreationFlags::empty(),
-                    parent: gfx_hal::pso::BasePipeline::None,
-                }),
-                None,
-            )
-        }
-        .remove(0)?;
-
-        let pipeline = self
-            .inner
-            .build(ctx, factory, queue, aux, buffers, images, &set_layouts)?;
-
-        for module in shaders.into_iter() {
-            unsafe { factory.destroy_shader_module(module) };
-        }
-
-        Ok(Box::new(SimpleRenderGroup::<B, _> {
-            set_layouts,
-            pipeline_layout,
-            graphics_pipeline,
-            pipeline,
-        }))
-    }
-
-    #[cfg(feature = "spirv-reflection")]
     fn build<'a>(
         self,
         ctx: &GraphContext<B>,
@@ -394,10 +279,18 @@ where
             h: framebuffer_height as i16,
         };
 
+        let shaders = match shader_set.raw() {
+            Err(e) => {
+                shader_set.manual_drop(factory);
+                return Err(e);
+            }
+            Ok(s) => s,
+        };
+
         let graphics_pipeline = unsafe {
             factory.device().create_graphics_pipelines(
                 Some(gfx_hal::pso::GraphicsPipelineDesc {
-                    shaders: shader_set.raw(factory)?,
+                    shaders,
                     rasterizer: gfx_hal::pso::Rasterizer::FILL,
                     vertex_buffers,
                     attributes,

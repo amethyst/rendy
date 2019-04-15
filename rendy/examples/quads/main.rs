@@ -27,10 +27,16 @@ use rendy::{
     },
     hal::Device as _,
     memory::Dynamic,
-    mesh::{AsVertex, Color},
+    mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
 };
+
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflectionGenerator;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -90,6 +96,23 @@ lazy_static::lazy_static! {
     };
 }
 
+#[cfg(feature = "spirv-reflection")]
+lazy_static::lazy_static! {
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*RENDER_VERTEX).unwrap()
+        .with_fragment(&*RENDER_FRAGMENT).unwrap()
+        .with_compute(&*BOUNCE_COMPUTE).unwrap()
+        .reflect().unwrap();
+}
+
+#[cfg(not(feature = "spirv-reflection"))]
+lazy_static::lazy_static! {
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*RENDER_VERTEX).unwrap()
+        .with_fragment(&*RENDER_FRAGMENT).unwrap()
+        .with_compute(&*BOUNCE_COMPUTE).unwrap();
+}
+
 const QUADS: u32 = 2_000_000;
 const DIVIDE: u32 = 1;
 const PER_CALL: u32 = QUADS / DIVIDE;
@@ -111,6 +134,25 @@ where
 {
     type Pipeline = QuadsRenderPipeline<B>;
 
+    #[cfg(feature = "spirv-reflection")]
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    )> {
+        vec![SHADERS
+            .attributes_range(..)
+            .unwrap()
+            .gfx_vertex_input_desc(0)]
+    }
+
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+        SHADERS.build(factory).unwrap()
+    }
+
+    #[cfg(not(feature = "spirv-reflection"))]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -119,37 +161,6 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         vec![Color::VERTEX.gfx_vertex_input_desc(0)]
-    }
-
-    fn load_shader_set<'a>(
-        &self,
-        storage: &'a mut Vec<B::ShaderModule>,
-        factory: &mut Factory<B>,
-        _aux: &T,
-    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B> {
-        storage.clear();
-
-        log::trace!("Load shader module RENDER_VERTEX");
-        storage.push(unsafe { RENDER_VERTEX.module(factory).unwrap() });
-
-        log::trace!("Load shader module RENDER_FRAGMENT");
-        storage.push(unsafe { RENDER_FRAGMENT.module(factory).unwrap() });
-
-        gfx_hal::pso::GraphicsShaderSet {
-            vertex: gfx_hal::pso::EntryPoint {
-                entry: "main",
-                module: &storage[0],
-                specialization: gfx_hal::pso::Specialization::default(),
-            },
-            fragment: Some(gfx_hal::pso::EntryPoint {
-                entry: "main",
-                module: &storage[1],
-                specialization: gfx_hal::pso::Specialization::default(),
-            }),
-            hull: None,
-            domain: None,
-            geometry: None,
-        }
     }
 
     fn buffers(&self) -> Vec<BufferAccess> {
