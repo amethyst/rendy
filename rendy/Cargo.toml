@@ -19,6 +19,7 @@ vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx
 serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 shader-compiler = ["rendy-shader/shader-compiler"]
+interact-0 = ["rendy-factory/interact-0", "rendy-memory/interact-0"]
 
 command = ["rendy-command"]
 descriptor = ["rendy-descriptor"]
@@ -40,7 +41,7 @@ mesh-obj = ["mesh", "rendy-mesh/obj"]
 texture-image = ["texture", "rendy-texture/image"]
 texture-palette = ["texture", "rendy-texture/palette"]
 
-full = ["base", "mesh-obj", "texture-image", "texture-palette"]
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "interact-0"]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }

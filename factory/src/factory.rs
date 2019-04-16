@@ -77,20 +77,20 @@ where
 /// Manges memory, resources and queue families.
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
+#[cfg_attr(feature = "interact", derive(interact::Interact))]
+#[cfg_attr(feature = "interact", interact(immut_fn(memory_utilization())))]
 pub struct Factory<B: Backend> {
-    descriptor_allocator: ManuallyDrop<parking_lot::Mutex<DescriptorAllocator<B>>>,
-    heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
-    resources: ManuallyDrop<ResourceHub<B>>,
-    epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
-    uploader: Uploader<B>,
-    families_indices: Vec<usize>,
-    #[derivative(Debug = "ignore")]
-    device: Device<B>,
-    #[derivative(Debug = "ignore")]
-    adapter: Adapter<B>,
-    #[derivative(Debug = "ignore")]
-    instance: Instance<B>,
+    #[cfg_attr(feature = "interact", interact(skip))] descriptor_allocator: ManuallyDrop<parking_lot::Mutex<DescriptorAllocator<B>>>,
+    #[cfg_attr(feature = "interact", interact(skip))] heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
+    #[cfg_attr(feature = "interact", interact(skip))] resources: ManuallyDrop<ResourceHub<B>>,
+    #[cfg_attr(feature = "interact", interact(skip))] epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
+    #[cfg_attr(feature = "interact", interact(skip))] uploader: Uploader<B>,
+    #[cfg_attr(feature = "interact", interact(skip))] families_indices: Vec<usize>,
+    #[cfg_attr(feature = "interact", interact(skip))] #[derivative(Debug = "ignore")] device: Device<B>,
+    #[cfg_attr(feature = "interact", interact(skip))] #[derivative(Debug = "ignore")] adapter: Adapter<B>,
+    #[cfg_attr(feature = "interact", interact(skip))] #[derivative(Debug = "ignore")] instance: Instance<B>,
 }
+
 
 #[allow(unused)]
 fn factory_is_send_sync<B: Backend>() {

@@ -150,7 +150,7 @@ where
                 used: self.used,
                 effective: self.effective,
             },
-            properties: self.properties,
+            properties: self.properties.bits(),
             heap_index: self.heap_index,
         }
     }

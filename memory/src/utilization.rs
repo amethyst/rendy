@@ -3,8 +3,9 @@ use {
     gfx_hal::memory::Properties,
 };
 
-/// Memory utilization stats.
+/// Utilization of the memory.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "interact", derive(interact::Interact))]
 pub struct MemoryUtilization {
     /// Total number of bytes allocated.
     pub used: u64,
@@ -12,8 +13,9 @@ pub struct MemoryUtilization {
     pub effective: u64,
 }
 
-/// Memory utilization of one heap.
+/// Utilization of the memory heap.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "interact", derive(interact::Interact))]
 pub struct MemoryHeapUtilization {
     /// Utilization.
     pub utilization: MemoryUtilization,
@@ -22,14 +24,15 @@ pub struct MemoryHeapUtilization {
     pub size: u64,
 }
 
-/// Memory utilization of one type.
+/// Utilization of the memory type.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "interact", derive(interact::Interact))]
 pub struct MemoryTypeUtilization {
     /// Utilization.
     pub utilization: MemoryUtilization,
 
     /// Memory type info.
-    pub properties: Properties,
+    pub properties: u16,
 
     /// Index of heap this memory type uses.
     pub heap_index: usize,
@@ -37,6 +40,7 @@ pub struct MemoryTypeUtilization {
 
 /// Total memory utilization.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "interact", derive(interact::Interact))]
 pub struct TotalMemoryUtilization {
     /// Utilization by types.
     pub types: Vec<MemoryTypeUtilization>,
@@ -80,7 +84,7 @@ impl std::fmt::Display for TotalMemoryUtilization {
             )?;
 
             for ty in self.types.iter().filter(|ty| ty.heap_index == index) {
-                let properties = ty.properties;
+                let properties = Properties::from_bits_truncate(ty.properties);
                 let MemoryUtilization { used, effective } = ty.utilization;
                 let usage_basis_points = used * 10000 / size;
                 let effective_basis_points = if used > 0 {

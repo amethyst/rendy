@@ -11,6 +11,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+
 mod allocator;
 mod block;
 mod heaps;
@@ -29,3 +30,7 @@ pub use crate::{
     usage::*,
     utilization::*,
 };
+
+/// Required by derive macro.
+#[cfg(feature = "interact")]
+use interact;

@@ -22,3 +22,7 @@ mod factory;
 mod upload;
 
 pub use crate::{config::*, factory::*, upload::*};
+
+/// Required by derive macro.
+#[cfg(feature = "interact")]
+use interact;
