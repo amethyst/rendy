@@ -17,7 +17,7 @@ use {
             present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
             NodeImage,
         },
-        memory::{Dynamic},
+        memory::Dynamic,
         mesh::{AsVertex, PosTex},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},

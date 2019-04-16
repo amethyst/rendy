@@ -47,6 +47,13 @@ where
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MipLevel {
+    Auto,
+    Level(u8),
+}
+
 /// Generics-free texture builder.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -60,6 +67,7 @@ pub struct TextureBuilder<'a> {
     data_height: u32,
     sampler_info: gfx_hal::image::SamplerInfo,
     swizzle: Swizzle,
+    mip_level: MipLevel,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -77,6 +85,7 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::WrapMode::Clamp,
             ),
             swizzle: Swizzle::NO,
+            mip_level: MipLevel::Auto,
         }
     }
 
@@ -138,6 +147,18 @@ impl<'a> TextureBuilder<'a> {
     /// Set pixel data height.
     pub fn set_data_height(&mut self, data_height: u32) -> &mut Self {
         self.data_height = data_height;
+        self
+    }
+
+    /// Set number of generated mipmaps.
+    pub fn with_mip_levels(mut self, mip_level: MipLevel) -> Self {
+        self.set_mip_levels(mip_level);
+        self
+    }
+
+    /// Set number of generated mipmaps.
+    pub fn set_mip_levels(&mut self, mip_level: MipLevel) -> &mut Self {
+        self.mip_level = mip_level;
         self
     }
 
@@ -211,11 +232,22 @@ impl<'a> TextureBuilder<'a> {
             _ => gfx_hal::image::ViewCapabilities::empty(),
         };
 
+        let mip_levels = match self.mip_level {
+            MipLevel::Level(val) => val,
+            MipLevel::Auto => match self.kind {
+                gfx_hal::image::Kind::D1(_, _) => 1,
+                gfx_hal::image::Kind::D2(w, h, _, _) => {
+                    (32 - w.max(h).leading_zeros()).max(1) as u8
+                }
+                gfx_hal::image::Kind::D3(_, _, _) => 1,
+            },
+        };
+
         let (info, transform, transform_swizzle) = find_compatible_format(
             factory,
             ImageInfo {
                 kind: self.kind,
-                levels: 1,
+                levels: mip_levels,
                 format: self.format,
                 tiling: gfx_hal::image::Tiling::Optimal,
                 view_caps,
@@ -257,16 +289,20 @@ impl<'a> TextureBuilder<'a> {
                 self.data_width,
                 self.data_height,
                 image::SubresourceLayers {
-                    aspects: self.format.surface_desc().aspects,
+                    aspects: info.format.surface_desc().aspects,
                     level: 0,
-                    layers: 0..self.kind.num_layers(),
+                    layers: 0..info.kind.num_layers(),
                 },
                 image::Offset::ZERO,
-                self.kind.extent(),
+                info.kind.extent(),
                 buffer,
                 image::Layout::Undefined,
                 next_state,
             )?;
+        }
+
+        if mip_levels > 1 {
+            // TODO: generate mipmaps
         }
 
         let view = factory.create_image_view(
@@ -276,9 +312,9 @@ impl<'a> TextureBuilder<'a> {
                 format: info.format,
                 swizzle: double_swizzle(self.swizzle, transform_swizzle),
                 range: image::SubresourceRange {
-                    aspects: self.format.surface_desc().aspects,
-                    levels: 0..1,
-                    layers: 0..self.kind.num_layers(),
+                    aspects: info.format.surface_desc().aspects,
+                    levels: 0..info.levels,
+                    layers: 0..info.kind.num_layers(),
                 },
             },
         )?;
