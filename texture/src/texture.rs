@@ -285,7 +285,7 @@ impl<'a> TextureBuilder<'a> {
         // that here because we just created the image on the same factory right before.
         unsafe {
             factory.upload_image(
-                &image,
+                image.clone(),
                 self.data_width,
                 self.data_height,
                 image::SubresourceLayers {

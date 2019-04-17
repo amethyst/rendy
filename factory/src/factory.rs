@@ -455,7 +455,7 @@ where
     /// that reads content of the image layers the `next` must match image usage state in that operation.
     pub unsafe fn upload_image<T>(
         &self,
-        image: &Image<B>,
+        image: Handle<Image<B>>,
         data_width: u32,
         data_height: u32,
         image_layers: SubresourceLayers,

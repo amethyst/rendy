@@ -1,16 +1,16 @@
-use std::{collections::VecDeque, iter::once, ops::BitOrAssign};
-
 use {
     crate::{
+        barriers::{BufBarrierCollector, ImgBarrierCollector},
         command::{
             CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
             PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
         },
-        resource::{Buffer, Escape, Image},
+        resource::{Buffer, Escape, Handle, Image},
         util::Device,
     },
     gfx_hal::pso::PipelineStage,
     gfx_hal::Device as _,
+    std::{collections::VecDeque, iter::once, ops::BitOrAssign},
 };
 
 /// State of the buffer on device.
@@ -152,12 +152,15 @@ where
                 pending: VecDeque::new(),
                 command_buffers: Vec::new(),
                 barriers_buffers: Vec::new(),
-                before_barriers: (Vec::new(), None),
-                after_barriers: (Vec::new(), None),
-                before_global_buf: None,
-                before_global_img: None,
-                after_global_buf: None,
-                after_global_img: None,
+                img_collector: ImgBarrierCollector::new(
+                    PipelineStage::TRANSFER,
+                    gfx_hal::image::Access::TRANSFER_WRITE,
+                    gfx_hal::image::Layout::TransferDstOptimal,
+                ),
+                buf_collector: BufBarrierCollector::new(
+                    PipelineStage::TRANSFER,
+                    gfx_hal::buffer::Access::TRANSFER_WRITE,
+                ),
             }));
         }
 
@@ -187,9 +190,11 @@ where
             if last.queue != next.queue {
                 unimplemented!("Can't sync resources across queues");
             }
-            family_uploads.add_last_buf_access(last.stage, last.access);
         }
-        family_uploads.add_next_buf_access(next.stage, next.access);
+
+        family_uploads
+            .buf_collector
+            .add_buffer(last.map(|l| (l.stage, l.access)), (next.stage, next.access));
 
         let next_upload = family_uploads.next_upload(device, next.queue.index)?;
         let mut encoder = next_upload.command_buffer.encoder();
@@ -216,7 +221,7 @@ where
     pub(crate) unsafe fn upload_image(
         &self,
         device: &Device<B>,
-        image: &Image<B>,
+        image: Handle<Image<B>>,
         data_width: u32,
         data_height: u32,
         image_layers: gfx_hal::image::SubresourceLayers,
@@ -240,75 +245,40 @@ where
             layers: image_layers.layers.clone(),
         };
 
-        match last.into() {
+        let (last_stage, last_access, last_layout) = match last.into() {
             ImageStateOrLayout::State(last) => {
                 if last.queue != next.queue {
                     unimplemented!("Can't sync resources across queues");
                 }
-
                 let last_layout = if whole_image {
                     gfx_hal::image::Layout::Undefined
                 } else {
                     last.layout
                 };
-
-                if last_layout == gfx_hal::image::Layout::TransferDstOptimal {
-                    family_uploads.add_last_img_access(last.stage, last.access);
-                } else {
-                    family_uploads.add_before_barrier(
-                        last.stage,
-                        gfx_hal::memory::Barrier::Image {
-                            states: (last.access, last_layout)
-                                ..(
-                                    gfx_hal::image::Access::TRANSFER_WRITE,
-                                    gfx_hal::image::Layout::TransferDstOptimal,
-                                ),
-                            target: std::mem::transmute(image.raw()),
-                            families: None,
-                            range: image_range.clone(),
-                        },
-                    );
-                }
+                (last.stage, last.access, last_layout)
             }
             ImageStateOrLayout::Layout(mut last_layout) => {
-                if last_layout != gfx_hal::image::Layout::TransferDstOptimal {
-                    if whole_image {
-                        last_layout = gfx_hal::image::Layout::Undefined;
-                    }
-
-                    family_uploads.add_before_barrier(
-                        PipelineStage::TOP_OF_PIPE,
-                        gfx_hal::memory::Barrier::Image {
-                            states: (gfx_hal::image::Access::empty(), last_layout)
-                                ..(
-                                    gfx_hal::image::Access::TRANSFER_WRITE,
-                                    gfx_hal::image::Layout::TransferDstOptimal,
-                                ),
-                            target: std::mem::transmute(image.raw()),
-                            families: None,
-                            range: image_range.clone(),
-                        },
-                    );
+                if whole_image {
+                    last_layout = gfx_hal::image::Layout::Undefined;
                 }
+                (
+                    PipelineStage::TOP_OF_PIPE,
+                    gfx_hal::image::Access::empty(),
+                    last_layout,
+                )
             }
-        }
+        };
 
-        if next.layout == gfx_hal::image::Layout::TransferDstOptimal {
-            family_uploads.add_next_img_access(next.stage, next.access);
-        } else {
-            family_uploads.add_after_barrier(
-                next.stage,
-                gfx_hal::memory::Barrier::Image {
-                    states: (
-                        gfx_hal::image::Access::TRANSFER_WRITE,
-                        gfx_hal::image::Layout::TransferDstOptimal,
-                    )..(next.access, next.layout),
-                    target: std::mem::transmute(image.raw()),
-                    families: None,
-                    range: image_range.clone(),
-                },
-            )
-        }
+        family_uploads.img_collector.add_image(
+            image.clone(),
+            image_range.clone(),
+            last_stage,
+            last_access,
+            last_layout,
+            next.stage,
+            next.access,
+            next.layout,
+        );
 
         let next_upload = family_uploads.next_upload(device, next.queue.index)?;
         let mut encoder = next_upload.command_buffer.encoder();
@@ -379,18 +349,8 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
     next: Vec<Option<NextUploads<B>>>,
     pending: VecDeque<PendingUploads<B>>,
     fences: Vec<B::Fence>,
-    before_barriers: (
-        Vec<gfx_hal::memory::Barrier<'static, B>>,
-        Option<PipelineStage>,
-    ),
-    after_barriers: (
-        Vec<gfx_hal::memory::Barrier<'static, B>>,
-        Option<PipelineStage>,
-    ),
-    before_global_buf: Option<(gfx_hal::buffer::Access, PipelineStage)>,
-    before_global_img: Option<(gfx_hal::image::Access, PipelineStage)>,
-    after_global_buf: Option<(gfx_hal::buffer::Access, PipelineStage)>,
-    after_global_img: Option<(gfx_hal::image::Access, PipelineStage)>,
+    img_collector: ImgBarrierCollector<B>,
+    buf_collector: BufBarrierCollector,
 }
 
 fn merge_access<A: BitOrAssign, B: BitOrAssign>(opt: &mut Option<(A, B)>, with: (A, B)) {
@@ -424,42 +384,6 @@ impl<B> FamilyUploads<B>
 where
     B: gfx_hal::Backend,
 {
-    fn add_last_img_access(&mut self, stage: PipelineStage, access: gfx_hal::image::Access) {
-        merge_access(&mut self.before_global_img, (access, stage));
-    }
-
-    fn add_next_img_access(&mut self, stage: PipelineStage, access: gfx_hal::image::Access) {
-        merge_access(&mut self.after_global_img, (access, stage));
-    }
-
-    fn add_last_buf_access(&mut self, stage: PipelineStage, access: gfx_hal::buffer::Access) {
-        merge_access(&mut self.before_global_buf, (access, stage));
-    }
-
-    fn add_next_buf_access(&mut self, stage: PipelineStage, access: gfx_hal::buffer::Access) {
-        merge_access(&mut self.after_global_buf, (access, stage));
-    }
-
-    fn add_before_barrier(
-        &mut self,
-        stage: PipelineStage,
-        barrier: gfx_hal::memory::Barrier<'static, B>,
-    ) {
-        let (vec, mut_stage) = &mut self.before_barriers;
-        *mut_stage.get_or_insert(stage) |= stage;
-        vec.push(barrier);
-    }
-
-    fn add_after_barrier(
-        &mut self,
-        stage: PipelineStage,
-        barrier: gfx_hal::memory::Barrier<'static, B>,
-    ) {
-        let (vec, mut_stage) = &mut self.after_barriers;
-        *mut_stage.get_or_insert(stage) |= stage;
-        vec.push(barrier);
-    }
-
     unsafe fn flush(&mut self, family: &mut Family<B>) {
         for (queue, mut next) in self
             .next
@@ -470,56 +394,10 @@ where
             let mut barriers_encoder = next.barriers_buffer.encoder();
             let mut encoder = next.command_buffer.encoder();
 
-            if let Some((access, stage)) = self.before_global_img.take() {
-                barriers_encoder.pipeline_barrier(
-                    stage..PipelineStage::TRANSFER,
-                    gfx_hal::memory::Dependencies::empty(),
-                    Some(gfx_hal::memory::Barrier::AllImages(
-                        access..gfx_hal::image::Access::TRANSFER_WRITE,
-                    )),
-                );
-            }
-            if let Some((access, stage)) = self.before_global_buf.take() {
-                barriers_encoder.pipeline_barrier(
-                    stage..PipelineStage::TRANSFER,
-                    gfx_hal::memory::Dependencies::empty(),
-                    Some(gfx_hal::memory::Barrier::AllBuffers(
-                        access..gfx_hal::buffer::Access::TRANSFER_WRITE,
-                    )),
-                );
-            }
-            if let Some(stage) = self.before_barriers.1.take() {
-                barriers_encoder.pipeline_barrier(
-                    stage..PipelineStage::TRANSFER,
-                    gfx_hal::memory::Dependencies::empty(),
-                    self.after_barriers.0.drain(..),
-                );
-            }
-            if let Some((access, stage)) = self.after_global_img.take() {
-                encoder.pipeline_barrier(
-                    stage..PipelineStage::TRANSFER,
-                    gfx_hal::memory::Dependencies::empty(),
-                    Some(gfx_hal::memory::Barrier::AllImages(
-                        gfx_hal::image::Access::TRANSFER_WRITE..access,
-                    )),
-                );
-            }
-            if let Some((access, stage)) = self.after_global_buf.take() {
-                encoder.pipeline_barrier(
-                    PipelineStage::TRANSFER..stage,
-                    gfx_hal::memory::Dependencies::empty(),
-                    Some(gfx_hal::memory::Barrier::AllBuffers(
-                        gfx_hal::buffer::Access::TRANSFER_WRITE..access,
-                    )),
-                );
-            }
-            if let Some(stage) = self.after_barriers.1.take() {
-                encoder.pipeline_barrier(
-                    PipelineStage::TRANSFER..stage,
-                    gfx_hal::memory::Dependencies::empty(),
-                    self.after_barriers.0.drain(..),
-                );
-            }
+            self.img_collector.encode_before(&mut barriers_encoder);
+            self.buf_collector.encode_before(&mut barriers_encoder);
+            self.img_collector.encode_after(&mut encoder);
+            self.buf_collector.encode_after(&mut encoder);
 
             let (barriers_submit, barriers_buffer) = next.barriers_buffer.finish().submit_once();
             let (submit, command_buffer) = next.command_buffer.finish().submit_once();
