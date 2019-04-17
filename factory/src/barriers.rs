@@ -3,24 +3,21 @@ use {
         command::Encoder,
         resource::{Handle, Image},
     },
-    gfx_hal::{self, pso::PipelineStage, Backend},
-    std::{
-        iter::once,
-        ops::{BitOrAssign, Range},
-    },
+    gfx_hal::{self, buffer, image, pso, Backend},
+    std::{iter::once, ops::Range},
 };
 
+/// A variant of `gfx_hal::image::Barrier` that uses Handle<Image<B>>
 #[derive(Debug)]
 struct ImageBarrier<B: Backend> {
     /// The access flags controlling the image.
-    pub states: Range<gfx_hal::image::State>,
+    pub states: Range<image::State>,
     /// The image the barrier controls.
     pub target: Handle<Image<B>>,
-    /// The source and destination Queue family IDs, for a [queue family ownership transfer](https://www.khronos.org/registry/vulkan/specs/1.0/html/vkspec.html#synchronization-queue-transfers)
-    /// Can be `None` to indicate no ownership transfer.
-    pub families: Option<Range<gfx_hal::queue::QueueFamilyId>>,
     /// A `SubresourceRange` that defines which section of an image the barrier applies to.
-    pub range: gfx_hal::image::SubresourceRange,
+    pub range: image::SubresourceRange,
+    // TODO: support queue transfers
+    // pub families: Option<Range<gfx_hal::queue::QueueFamilyId>>,
 }
 
 impl<B: Backend> ImageBarrier<B> {
@@ -28,214 +25,154 @@ impl<B: Backend> ImageBarrier<B> {
         gfx_hal::memory::Barrier::Image {
             states: self.states.clone(),
             target: self.target.raw(),
-            families: self.families.clone(),
+            families: None,
             range: self.range.clone(),
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct ImgBarrierCollector<B: Backend> {
-    target_stage: PipelineStage,
-    target_access: gfx_hal::image::Access,
-    target_layout: gfx_hal::image::Layout,
-    before_barriers: (Option<PipelineStage>, Vec<ImageBarrier<B>>),
-    after_barriers: (Option<PipelineStage>, Vec<ImageBarrier<B>>),
-    before_global: Option<(PipelineStage, gfx_hal::image::Access)>,
-    after_global: Option<(PipelineStage, gfx_hal::image::Access)>,
+pub struct Barriers<B: Backend> {
+    before_stages: pso::PipelineStage,
+    before_buffer_access: buffer::Access,
+    before_image_access: image::Access,
+    before_image_transitions: Vec<ImageBarrier<B>>,
+    target_stages: pso::PipelineStage,
+    target_buffer_access: buffer::Access,
+    target_image_access: image::Access,
+    after_stages: pso::PipelineStage,
+    after_buffer_access: buffer::Access,
+    after_image_access: image::Access,
+    after_image_transitions: Vec<ImageBarrier<B>>,
 }
 
-impl<B: Backend> ImgBarrierCollector<B> {
+impl<B: Backend> Barriers<B> {
     pub fn new(
-        target_stage: PipelineStage,
-        target_access: gfx_hal::image::Access,
-        target_layout: gfx_hal::image::Layout,
+        target_stages: pso::PipelineStage,
+        target_buffer_access: buffer::Access,
+        target_image_access: image::Access,
     ) -> Self {
         Self {
-            target_stage,
-            target_access,
-            target_layout,
-            before_barriers: (None, Vec::new()),
-            after_barriers: (None, Vec::new()),
-            before_global: None,
-            after_global: None,
+            before_stages: pso::PipelineStage::empty(),
+            before_buffer_access: buffer::Access::empty(),
+            before_image_access: image::Access::empty(),
+            before_image_transitions: Vec::new(),
+            target_stages,
+            target_buffer_access,
+            target_image_access,
+            after_stages: pso::PipelineStage::empty(),
+            after_buffer_access: buffer::Access::empty(),
+            after_image_access: image::Access::empty(),
+            after_image_transitions: Vec::new(),
         }
-    }
-
-    fn add_last_access(&mut self, stage: PipelineStage, access: gfx_hal::image::Access) {
-        merge_opt(&mut self.before_global, (stage, access));
-    }
-
-    fn add_next_access(&mut self, stage: PipelineStage, access: gfx_hal::image::Access) {
-        merge_opt(&mut self.after_global, (stage, access));
-    }
-
-    fn add_before(&mut self, stage: PipelineStage, barrier: ImageBarrier<B>) {
-        let (mut_stage, vec) = &mut self.before_barriers;
-        *mut_stage.get_or_insert(stage) |= stage;
-        vec.push(barrier);
-    }
-
-    fn add_after(&mut self, stage: PipelineStage, barrier: ImageBarrier<B>) {
-        let (mut_stage, vec) = &mut self.after_barriers;
-        *mut_stage.get_or_insert(stage) |= stage;
-        vec.push(barrier);
     }
 
     pub fn add_image(
         &mut self,
         image: Handle<Image<B>>,
         image_range: gfx_hal::image::SubresourceRange,
-        last_stage: PipelineStage,
+        last_stage: pso::PipelineStage,
         last_access: gfx_hal::image::Access,
         last_layout: gfx_hal::image::Layout,
-        next_stage: PipelineStage,
+        target_layout: image::Layout,
+        next_stage: pso::PipelineStage,
         next_access: gfx_hal::image::Access,
         next_layout: gfx_hal::image::Layout,
     ) {
-        if last_layout == self.target_layout {
-            self.add_last_access(last_stage, last_access);
-        } else {
-            self.add_before(
-                last_stage,
-                ImageBarrier {
-                    states: (last_access, last_layout)..(self.target_access, self.target_layout),
-                    target: image.clone(),
-                    families: None,
-                    range: image_range.clone(),
-                },
-            );
+        if last_layout != target_layout {
+            self.before_stages |= last_stage;
+            self.before_image_access |= last_access;
+
+            self.before_image_transitions.push(ImageBarrier {
+                states: (last_access, last_layout)..(self.target_image_access, target_layout),
+                target: image.clone(),
+                range: image_range.clone(),
+            });
+        } else if !last_access.contains(self.target_image_access) {
+            self.before_stages |= last_stage;
+            self.before_image_access |= last_access;
         }
 
-        if next_layout == self.target_layout {
-            self.add_next_access(next_stage, next_access);
-        } else {
-            self.add_after(
-                next_stage,
-                ImageBarrier {
-                    states: (self.target_access, self.target_layout)..(last_access, last_layout),
-                    target: image,
-                    families: None,
-                    range: image_range,
-                },
-            )
-        }
-    }
+        if next_layout != target_layout {
+            self.after_stages |= next_stage;
+            self.after_image_access |= next_access;
 
-    pub fn encode_before<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        let barriers_iter = self.before_barriers.1.iter().map(|b| b.raw());
-
-        if let Some((mut stage, access)) = self.before_global.take() {
-            if let Some(stage2) = self.before_barriers.0.take() {
-                stage |= stage2;
-            }
-            encoder.pipeline_barrier(
-                stage..self.target_stage,
-                gfx_hal::memory::Dependencies::empty(),
-                once(gfx_hal::memory::Barrier::AllImages(
-                    access..self.target_access,
-                ))
-                .chain(barriers_iter),
-            );
-        } else if let Some(stage) = self.before_barriers.0.take() {
-            encoder.pipeline_barrier(
-                stage..self.target_stage,
-                gfx_hal::memory::Dependencies::empty(),
-                barriers_iter,
-            );
-        }
-        self.before_barriers.1.clear();
-    }
-
-    pub fn encode_after<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        let barriers_iter = self.after_barriers.1.iter().map(|b| b.raw());
-
-        if let Some((mut stage, access)) = self.after_global.take() {
-            if let Some(stage2) = self.after_barriers.0.take() {
-                stage |= stage2;
-            }
-            encoder.pipeline_barrier(
-                self.target_stage..stage,
-                gfx_hal::memory::Dependencies::empty(),
-                once(gfx_hal::memory::Barrier::AllImages(
-                    self.target_access..access,
-                ))
-                .chain(barriers_iter),
-            );
-        } else if let Some(stage) = self.after_barriers.0.take() {
-            encoder.pipeline_barrier(
-                self.target_stage..stage,
-                gfx_hal::memory::Dependencies::empty(),
-                barriers_iter,
-            );
-        }
-        self.after_barriers.1.clear();
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct BufBarrierCollector {
-    target_stage: PipelineStage,
-    target_access: gfx_hal::buffer::Access,
-    before_global: Option<(PipelineStage, gfx_hal::buffer::Access)>,
-    after_global: Option<(PipelineStage, gfx_hal::buffer::Access)>,
-}
-
-impl BufBarrierCollector {
-    pub fn new(target_stage: PipelineStage, target_access: gfx_hal::buffer::Access) -> Self {
-        Self {
-            target_stage,
-            target_access,
-            before_global: None,
-            after_global: None,
+            self.after_image_transitions.push(ImageBarrier {
+                states: (self.target_image_access, target_layout)..(last_access, last_layout),
+                target: image,
+                range: image_range,
+            })
+        } else if !(self.target_image_access.contains(next_access)
+            || last_access.contains(next_access))
+        {
+            self.after_stages |= next_stage;
+            self.after_image_access |= next_access;
         }
     }
 
     pub fn add_buffer(
         &mut self,
-        last: Option<(PipelineStage, gfx_hal::buffer::Access)>,
-        next: (PipelineStage, gfx_hal::buffer::Access),
+        last: Option<(pso::PipelineStage, gfx_hal::buffer::Access)>,
+        next: (pso::PipelineStage, gfx_hal::buffer::Access),
     ) {
         if let Some(last) = last {
-            if last.1 != self.target_access {
-                merge_opt(&mut self.before_global, last);
+            if !last.1.contains(self.target_buffer_access) {
+                self.before_stages |= last.0;
+                self.before_buffer_access |= last.1;
             }
-        }
-        if next.1 != self.target_access {
-            merge_opt(&mut self.after_global, next);
-        }
-    }
-
-    pub fn encode_before<B: Backend, C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        if let Some((mut stage, access)) = self.after_global.take() {
-            encoder.pipeline_barrier(
-                stage..self.target_stage,
-                gfx_hal::memory::Dependencies::empty(),
-                once(gfx_hal::memory::Barrier::AllBuffers(
-                    access..self.target_access,
-                )),
-            );
+            if !(self.target_buffer_access.contains(next.1) || last.1.contains(next.1)) {
+                self.after_stages |= next.0;
+                self.after_buffer_access |= next.1;
+            }
+        } else if !(self.target_buffer_access.contains(next.1)) {
+            self.after_stages |= next.0;
+            self.after_buffer_access |= next.1;
         }
     }
 
-    pub fn encode_after<B: Backend, C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        if let Some((mut stage, access)) = self.after_global.take() {
-            encoder.pipeline_barrier(
-                self.target_stage..stage,
-                gfx_hal::memory::Dependencies::empty(),
-                once(gfx_hal::memory::Barrier::AllBuffers(
-                    self.target_access..access,
-                )),
-            );
-        }
-    }
-}
+    pub fn encode_before<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
+        let transitions = self.before_image_transitions.iter().map(|b| b.raw());
+        let all_images = once(gfx_hal::memory::Barrier::AllImages(
+            self.before_image_access..self.target_image_access,
+        ))
+        .filter(|_| self.before_image_access != image::Access::empty());
+        let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
+            self.before_buffer_access..self.target_buffer_access,
+        ))
+        .filter(|_| self.before_buffer_access != buffer::Access::empty());
 
-fn merge_opt<A: BitOrAssign, B: BitOrAssign>(opt: &mut Option<(A, B)>, with: (A, B)) {
-    if let Some((a, b)) = opt {
-        *a |= with.0;
-        *b |= with.1;
-    } else {
-        opt.replace(with);
+        encoder.pipeline_barrier(
+            self.before_stages..self.target_stages,
+            gfx_hal::memory::Dependencies::empty(),
+            transitions.chain(all_images).chain(all_buffers),
+        );
+
+        self.before_stages = pso::PipelineStage::empty();
+        self.before_image_access = image::Access::empty();
+        self.before_buffer_access = buffer::Access::empty();
+        self.before_image_transitions.clear();
+    }
+
+    pub fn encode_after<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
+        let transitions = self.after_image_transitions.iter().map(|b| b.raw());
+        let all_images = once(gfx_hal::memory::Barrier::AllImages(
+            self.target_image_access..self.after_image_access,
+        ))
+        .filter(|_| self.after_image_access != image::Access::empty());
+        let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
+            self.target_buffer_access..self.after_buffer_access,
+        ))
+        .filter(|_| self.after_buffer_access != buffer::Access::empty());
+
+        encoder.pipeline_barrier(
+            self.target_stages..self.after_stages,
+            gfx_hal::memory::Dependencies::empty(),
+            transitions.chain(all_images).chain(all_buffers),
+        );
+
+        self.after_stages = pso::PipelineStage::empty();
+        self.after_image_access = image::Access::empty();
+        self.after_buffer_access = buffer::Access::empty();
+        self.after_image_transitions.clear();
     }
 }

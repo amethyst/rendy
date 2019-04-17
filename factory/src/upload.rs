@@ -1,6 +1,6 @@
 use {
     crate::{
-        barriers::{BufBarrierCollector, ImgBarrierCollector},
+        barriers::Barriers,
         command::{
             CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
             PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
@@ -10,7 +10,7 @@ use {
     },
     gfx_hal::pso::PipelineStage,
     gfx_hal::Device as _,
-    std::{collections::VecDeque, iter::once, ops::BitOrAssign},
+    std::{collections::VecDeque, iter::once},
 };
 
 /// State of the buffer on device.
@@ -152,14 +152,10 @@ where
                 pending: VecDeque::new(),
                 command_buffers: Vec::new(),
                 barriers_buffers: Vec::new(),
-                img_collector: ImgBarrierCollector::new(
-                    PipelineStage::TRANSFER,
-                    gfx_hal::image::Access::TRANSFER_WRITE,
-                    gfx_hal::image::Layout::TransferDstOptimal,
-                ),
-                buf_collector: BufBarrierCollector::new(
+                barriers: Barriers::new(
                     PipelineStage::TRANSFER,
                     gfx_hal::buffer::Access::TRANSFER_WRITE,
+                    gfx_hal::image::Access::TRANSFER_WRITE,
                 ),
             }));
         }
@@ -193,7 +189,7 @@ where
         }
 
         family_uploads
-            .buf_collector
+            .barriers
             .add_buffer(last.map(|l| (l.stage, l.access)), (next.stage, next.access));
 
         let next_upload = family_uploads.next_upload(device, next.queue.index)?;
@@ -269,12 +265,19 @@ where
             }
         };
 
-        family_uploads.img_collector.add_image(
+        let target_layout = match (last_layout, next.layout) {
+            (_, gfx_hal::image::Layout::General) => gfx_hal::image::Layout::General,
+            (gfx_hal::image::Layout::General, _) => gfx_hal::image::Layout::General,
+            _ => gfx_hal::image::Layout::TransferDstOptimal,
+        };
+
+        family_uploads.barriers.add_image(
             image.clone(),
             image_range.clone(),
             last_stage,
             last_access,
             last_layout,
+            target_layout,
             next.stage,
             next.access,
             next.layout,
@@ -285,7 +288,7 @@ where
         encoder.copy_buffer_to_image(
             staging.raw(),
             image.raw(),
-            gfx_hal::image::Layout::TransferDstOptimal,
+            target_layout,
             Some(gfx_hal::command::BufferImageCopy {
                 buffer_offset: 0,
                 buffer_width: data_width,
@@ -349,17 +352,7 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
     next: Vec<Option<NextUploads<B>>>,
     pending: VecDeque<PendingUploads<B>>,
     fences: Vec<B::Fence>,
-    img_collector: ImgBarrierCollector<B>,
-    buf_collector: BufBarrierCollector,
-}
-
-fn merge_access<A: BitOrAssign, B: BitOrAssign>(opt: &mut Option<(A, B)>, with: (A, B)) {
-    if let Some((a, b)) = opt {
-        *a |= with.0;
-        *b |= with.1;
-    } else {
-        opt.replace(with);
-    }
+    barriers: Barriers<B>,
 }
 
 #[derive(Debug)]
@@ -394,10 +387,8 @@ where
             let mut barriers_encoder = next.barriers_buffer.encoder();
             let mut encoder = next.command_buffer.encoder();
 
-            self.img_collector.encode_before(&mut barriers_encoder);
-            self.buf_collector.encode_before(&mut barriers_encoder);
-            self.img_collector.encode_after(&mut encoder);
-            self.buf_collector.encode_after(&mut encoder);
+            self.barriers.encode_before(&mut barriers_encoder);
+            self.barriers.encode_after(&mut encoder);
 
             let (barriers_submit, barriers_buffer) = next.barriers_buffer.finish().submit_once();
             let (submit, command_buffer) = next.command_buffer.finish().submit_once();
