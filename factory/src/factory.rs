@@ -1,5 +1,6 @@
 use {
     crate::{
+        blitter::Blitter,
         command::{
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
@@ -83,6 +84,7 @@ pub struct Factory<B: Backend> {
     resources: ManuallyDrop<ResourceHub<B>>,
     epochs: Vec<parking_lot::RwLock<Vec<u64>>>,
     uploader: Uploader<B>,
+    blitter: Blitter<B>,
     families_indices: Vec<usize>,
     #[derivative(Debug = "ignore")]
     device: Device<B>,
@@ -110,6 +112,8 @@ where
             // Device is idle.
             self.uploader.dispose(&self.device);
             log::trace!("Uploader disposed");
+            self.blitter.dispose(&self.device);
+            log::trace!("Blitter disposed");
             std::ptr::read(&mut *self.resources).dispose(
                 &self.device,
                 self.heaps.get_mut(),
@@ -506,6 +510,11 @@ where
         )
     }
 
+    /// Get blitter instance
+    pub fn blitter(&self) -> &Blitter<B> {
+        &self.blitter
+    }
+
     /// Create rendering surface from window.
     pub fn create_surface(&mut self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
         Surface::new(&self.instance, window)
@@ -796,6 +805,7 @@ where
         let complete = self.complete_epochs();
         unsafe {
             self.uploader.cleanup(&self.device);
+            self.blitter.cleanup(&self.device);
             self.resources.cleanup(
                 &self.device,
                 self.heaps.get_mut(),
@@ -813,9 +823,15 @@ where
         unsafe { self.uploader.flush(families) }
     }
 
+    /// Flush blits
+    pub fn flush_blits(&mut self, families: &mut Families<B>) {
+        unsafe { self.blitter.flush(families) }
+    }
+
     /// Flush uploads and cleanup unused resources.
     pub fn maintain(&mut self, families: &mut Families<B>) {
         self.flush_uploads(families);
+        self.flush_blits(families);
         self.cleanup(families);
     }
 
@@ -1062,6 +1078,7 @@ where
         heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
         resources: ManuallyDrop::new(ResourceHub::default()),
         uploader: unsafe { Uploader::new(&device, &families) }?,
+        blitter: unsafe { Blitter::new(&device, &families) }?,
         families_indices: families.indices().into(),
         epochs,
         device,

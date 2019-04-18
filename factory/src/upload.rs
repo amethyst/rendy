@@ -151,7 +151,7 @@ where
                 next: Vec::new(),
                 pending: VecDeque::new(),
                 command_buffers: Vec::new(),
-                barriers_buffers: Vec::new(),
+                barrier_buffers: Vec::new(),
                 barriers: Barriers::new(
                     PipelineStage::TRANSFER,
                     gfx_hal::buffer::Access::TRANSFER_WRITE,
@@ -347,7 +347,7 @@ where
 #[derive(Debug)]
 pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
     pool: CommandPool<B, Transfer, IndividualReset>,
-    barriers_buffers: Vec<CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>>,
+    barrier_buffers: Vec<CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>>,
     command_buffers: Vec<CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>>,
     next: Vec<Option<NextUploads<B>>>,
     pending: VecDeque<PendingUploads<B>>,
@@ -357,7 +357,7 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
 
 #[derive(Debug)]
 pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
-    barriers_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
+    barrier_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
     command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
     staging_buffers: Vec<Escape<Buffer<B>>>,
     fence: B::Fence,
@@ -365,7 +365,7 @@ pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
 
 #[derive(Debug)]
 struct NextUploads<B: gfx_hal::Backend> {
-    barriers_buffer:
+    barrier_buffer:
         CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
     command_buffer:
         CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
@@ -384,13 +384,13 @@ where
             .enumerate()
             .filter_map(|(i, x)| x.map(|x| (i, x)))
         {
-            let mut barriers_encoder = next.barriers_buffer.encoder();
+            let mut barriers_encoder = next.barrier_buffer.encoder();
             let mut encoder = next.command_buffer.encoder();
 
             self.barriers.encode_before(&mut barriers_encoder);
             self.barriers.encode_after(&mut encoder);
 
-            let (barriers_submit, barriers_buffer) = next.barriers_buffer.finish().submit_once();
+            let (barriers_submit, barrier_buffer) = next.barrier_buffer.finish().submit_once();
             let (submit, command_buffer) = next.command_buffer.finish().submit_once();
 
             family.queue_mut(queue).submit_raw_fence(
@@ -399,7 +399,7 @@ where
             );
 
             self.pending.push_back(PendingUploads {
-                barriers_buffer,
+                barrier_buffer,
                 command_buffer,
                 staging_buffers: next.staging_buffers,
                 fence: next.fence,
@@ -425,8 +425,8 @@ where
                     .command_buffers
                     .pop()
                     .unwrap_or_else(|| pool.allocate_buffers(1).pop().unwrap());
-                let barriers_buffer = self
-                    .barriers_buffers
+                let barrier_buffer = self
+                    .barrier_buffers
                     .pop()
                     .unwrap_or_else(|| pool.allocate_buffers(1).pop().unwrap());
 
@@ -435,7 +435,7 @@ where
                     .pop()
                     .map_or_else(|| device.create_fence(false), Ok)?;
                 *slot = Some(NextUploads {
-                    barriers_buffer: barriers_buffer.begin(OneShot, ()),
+                    barrier_buffer: barrier_buffer.begin(OneShot, ()),
                     command_buffer: command_buffer.begin(OneShot, ()),
                     staging_buffers: Vec::new(),
                     fence,
@@ -466,8 +466,8 @@ where
                     self.fences.push(pending.fence);
                     self.command_buffers
                         .push(pending.command_buffer.mark_complete().reset());
-                    self.barriers_buffers
-                        .push(pending.barriers_buffer.mark_complete().reset());
+                    self.barrier_buffers
+                        .push(pending.barrier_buffer.mark_complete().reset());
                 }
             }
         }
@@ -481,17 +481,18 @@ where
         let pool = &mut self.pool;
         self.pending.drain(..).for_each(|pending| {
             device.destroy_fence(pending.fence);
-            pool.free_buffers(Some(pending.command_buffer.mark_complete()))
+            pool.free_buffers(Some(pending.command_buffer.mark_complete()));
+            pool.free_buffers(Some(pending.barrier_buffer.mark_complete()));
         });
 
         self.fences
             .drain(..)
             .for_each(|fence| device.destroy_fence(fence));
         pool.free_buffers(self.command_buffers.drain(..));
-        pool.free_buffers(self.barriers_buffers.drain(..));
+        pool.free_buffers(self.barrier_buffers.drain(..));
         pool.free_buffers(self.next.drain(..).filter_map(|n| n).flat_map(|next| {
             device.destroy_fence(next.fence);
-            once(next.command_buffer).chain(once(next.barriers_buffer))
+            once(next.command_buffer).chain(once(next.barrier_buffer))
         }));
         drop(pool);
         self.pool.dispose(device);

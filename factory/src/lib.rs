@@ -18,6 +18,7 @@ use rendy_util as util;
 use rendy_wsi as wsi;
 
 mod barriers;
+mod blitter;
 mod config;
 mod factory;
 mod upload;

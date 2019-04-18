@@ -237,7 +237,7 @@ impl<'a> TextureBuilder<'a> {
             MipLevel::Auto => match self.kind {
                 gfx_hal::image::Kind::D1(_, _) => 1,
                 gfx_hal::image::Kind::D2(w, h, _, _) => {
-                    (32 - w.max(h).leading_zeros()).max(1) as u8
+                    ((32 - w.max(h).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL)
                 }
                 gfx_hal::image::Kind::D3(_, _, _) => 1,
             },
@@ -251,7 +251,9 @@ impl<'a> TextureBuilder<'a> {
                 format: self.format,
                 tiling: gfx_hal::image::Tiling::Optimal,
                 view_caps,
-                usage: gfx_hal::image::Usage::SAMPLED | gfx_hal::image::Usage::TRANSFER_DST,
+                usage: gfx_hal::image::Usage::SAMPLED
+                    | gfx_hal::image::Usage::TRANSFER_DST
+                    | gfx_hal::image::Usage::TRANSFER_SRC,
             },
         )
         .ok_or_else(|| {
@@ -280,6 +282,20 @@ impl<'a> TextureBuilder<'a> {
             }
         };
 
+        let mip_state = ImageState {
+            queue: next_state.queue,
+            stage: gfx_hal::pso::PipelineStage::TRANSFER,
+            access: image::Access::TRANSFER_READ,
+            layout: image::Layout::TransferSrcOptimal,
+        };
+
+        let undef_state = ImageState {
+            queue: next_state.queue,
+            stage: gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+            access: image::Access::empty(),
+            layout: image::Layout::Undefined,
+        };
+
         // The reason that factory.upload_image is unsafe is that the image being uploaded
         // must have been created by the same factory and that it is not in use; we guarantee
         // that here because we just created the image on the same factory right before.
@@ -297,12 +313,24 @@ impl<'a> TextureBuilder<'a> {
                 info.kind.extent(),
                 buffer,
                 image::Layout::Undefined,
-                next_state,
+                if mip_levels == 1 {
+                    next_state
+                } else {
+                    mip_state
+                },
             )?;
         }
 
         if mip_levels > 1 {
-            // TODO: generate mipmaps
+            unsafe {
+                factory.blitter().fill_mips(
+                    factory.device(),
+                    image.clone(),
+                    image::Filter::Linear,
+                    std::iter::once(mip_state).chain(std::iter::repeat(undef_state)),
+                    std::iter::repeat(next_state),
+                )?;
+            }
         }
 
         let view = factory.create_image_view(

@@ -79,10 +79,14 @@ impl<B: Backend> Barriers<B> {
         next_access: gfx_hal::image::Access,
         next_layout: gfx_hal::image::Layout,
     ) {
+        log::trace!("Add image");
         if last_layout != target_layout {
             self.before_stages |= last_stage;
             self.before_image_access |= last_access;
-
+            log::trace!(
+                "Transition last: {:?}",
+                (last_access, last_layout)..(self.target_image_access, target_layout)
+            );
             self.before_image_transitions.push(ImageBarrier {
                 states: (last_access, last_layout)..(self.target_image_access, target_layout),
                 target: image.clone(),
@@ -96,15 +100,16 @@ impl<B: Backend> Barriers<B> {
         if next_layout != target_layout {
             self.after_stages |= next_stage;
             self.after_image_access |= next_access;
-
+            log::trace!(
+                "Transition next: {:?}",
+                (self.target_image_access, target_layout)..(next_access, next_layout)
+            );
             self.after_image_transitions.push(ImageBarrier {
-                states: (self.target_image_access, target_layout)..(last_access, last_layout),
+                states: (self.target_image_access, target_layout)..(next_access, next_layout),
                 target: image,
                 range: image_range,
             })
-        } else if !(self.target_image_access.contains(next_access)
-            || last_access.contains(next_access))
-        {
+        } else if !(self.target_image_access.contains(next_access)) {
             self.after_stages |= next_stage;
             self.after_image_access |= next_access;
         }
@@ -120,32 +125,33 @@ impl<B: Backend> Barriers<B> {
                 self.before_stages |= last.0;
                 self.before_buffer_access |= last.1;
             }
-            if !(self.target_buffer_access.contains(next.1) || last.1.contains(next.1)) {
-                self.after_stages |= next.0;
-                self.after_buffer_access |= next.1;
-            }
-        } else if !(self.target_buffer_access.contains(next.1)) {
+        }
+        if !(self.target_buffer_access.contains(next.1)) {
             self.after_stages |= next.0;
             self.after_buffer_access |= next.1;
         }
     }
 
     pub fn encode_before<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        let transitions = self.before_image_transitions.iter().map(|b| b.raw());
-        let all_images = once(gfx_hal::memory::Barrier::AllImages(
-            self.before_image_access..self.target_image_access,
-        ))
-        .filter(|_| self.before_image_access != image::Access::empty());
-        let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
-            self.before_buffer_access..self.target_buffer_access,
-        ))
-        .filter(|_| self.before_buffer_access != buffer::Access::empty());
+        if self.before_stages != pso::PipelineStage::empty() {
+            let transitions = self.before_image_transitions.iter().map(|b| b.raw());
+            let all_images = once(gfx_hal::memory::Barrier::AllImages(
+                self.before_image_access..self.target_image_access,
+            ))
+            .filter(|_| self.before_image_access != image::Access::empty());
+            let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
+                self.before_buffer_access..self.target_buffer_access,
+            ))
+            .filter(|_| self.before_buffer_access != buffer::Access::empty());
 
-        encoder.pipeline_barrier(
-            self.before_stages..self.target_stages,
-            gfx_hal::memory::Dependencies::empty(),
-            transitions.chain(all_images).chain(all_buffers),
-        );
+            encoder.pipeline_barrier(
+                self.before_stages..self.target_stages,
+                gfx_hal::memory::Dependencies::empty(),
+                transitions.chain(all_images).chain(all_buffers),
+            );
+        } else {
+            assert_eq!(self.before_image_transitions.len(), 0);
+        }
 
         self.before_stages = pso::PipelineStage::empty();
         self.before_image_access = image::Access::empty();
@@ -154,21 +160,25 @@ impl<B: Backend> Barriers<B> {
     }
 
     pub fn encode_after<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        let transitions = self.after_image_transitions.iter().map(|b| b.raw());
-        let all_images = once(gfx_hal::memory::Barrier::AllImages(
-            self.target_image_access..self.after_image_access,
-        ))
-        .filter(|_| self.after_image_access != image::Access::empty());
-        let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
-            self.target_buffer_access..self.after_buffer_access,
-        ))
-        .filter(|_| self.after_buffer_access != buffer::Access::empty());
+        if self.target_stages != pso::PipelineStage::empty() {
+            let transitions = self.after_image_transitions.iter().map(|b| b.raw());
+            let all_images = once(gfx_hal::memory::Barrier::AllImages(
+                self.target_image_access..self.after_image_access,
+            ))
+            .filter(|_| self.after_image_access != image::Access::empty());
+            let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
+                self.target_buffer_access..self.after_buffer_access,
+            ))
+            .filter(|_| self.after_buffer_access != buffer::Access::empty());
 
-        encoder.pipeline_barrier(
-            self.target_stages..self.after_stages,
-            gfx_hal::memory::Dependencies::empty(),
-            transitions.chain(all_images).chain(all_buffers),
-        );
+            encoder.pipeline_barrier(
+                self.target_stages..self.after_stages,
+                gfx_hal::memory::Dependencies::empty(),
+                transitions.chain(all_images).chain(all_buffers),
+            );
+        } else {
+            assert_eq!(self.after_image_transitions.len(), 0);
+        }
 
         self.after_stages = pso::PipelineStage::empty();
         self.after_image_access = image::Access::empty();
