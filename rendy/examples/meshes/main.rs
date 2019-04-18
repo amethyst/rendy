@@ -477,7 +477,7 @@ fn main() {
         Mesh::<Backend>::builder()
             .with_indices(&indices[..])
             .with_vertices(&vertices[..])
-            .build(graph.node_queue(pass), &mut factory)
+            .build(graph.node_queue(pass), &factory)
             .unwrap(),
     );
 

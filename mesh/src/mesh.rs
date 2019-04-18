@@ -199,11 +199,7 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new mesh.
-    pub fn build<B>(
-        &self,
-        queue: QueueId,
-        factory: &mut Factory<B>,
-    ) -> Result<Mesh<B>, failure::Error>
+    pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, failure::Error>
     where
         B: gfx_hal::Backend,
     {
