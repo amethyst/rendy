@@ -10,6 +10,7 @@ use {
         util::Device,
     },
     gfx_hal::Device as _,
+    smallvec::SmallVec,
     std::{collections::VecDeque, iter::once, ops::DerefMut, ops::Range},
 };
 
@@ -109,6 +110,7 @@ where
         let transfer = gfx_hal::pso::PipelineStage::TRANSFER;
         let src_optimal = gfx_hal::image::Layout::TransferSrcOptimal;
         let read = gfx_hal::image::Access::TRANSFER_READ;
+        let write = gfx_hal::image::Access::TRANSFER_WRITE;
 
         let mut last_iter = last.into_iter();
         let mut next_iter = next.into_iter();
@@ -123,7 +125,7 @@ where
         {
             assert_eq!(dst_last.queue, dst_next.queue);
 
-            let begin = level == 0;
+            let begin = level == 1;
             let end = level == image.levels() - 1;
 
             let blit = BlitRegion {
@@ -136,7 +138,7 @@ where
                     bounds: gfx_hal::image::Offset::ZERO
                         .into_bounds(&image.kind().level_extent(level - 1)),
                     last_stage: if begin { src_last.stage } else { transfer },
-                    last_access: if begin { src_last.access } else { read },
+                    last_access: if begin { src_last.access } else { write },
                     last_layout: if begin { src_last.layout } else { src_optimal },
                     next_stage: src_next.stage,
                     next_access: src_next.access,
@@ -151,8 +153,8 @@ where
                     bounds: gfx_hal::image::Offset::ZERO
                         .into_bounds(&image.kind().level_extent(level)),
                     last_stage: dst_last.stage,
-                    last_access: dst_last.access,
-                    last_layout: dst_last.layout,
+                    last_access: gfx_hal::image::Access::empty(),
+                    last_layout: gfx_hal::image::Layout::Undefined,
                     next_stage: if end { dst_next.stage } else { transfer },
                     next_access: if end { dst_next.access } else { read },
                     next_layout: if end { dst_next.layout } else { src_optimal },
@@ -235,7 +237,7 @@ where
                     dst_bounds: reg.dst.bounds,
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<SmallVec<[_; 1]>>();
 
         // TODO: synchronize whatever possible on flush.
         // Currently all barriers are inlined due to dependencies between blits.

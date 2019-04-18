@@ -79,10 +79,12 @@ impl<B: Backend> Barriers<B> {
         next_access: gfx_hal::image::Access,
         next_layout: gfx_hal::image::Layout,
     ) {
-        log::trace!("Add image");
+        self.before_stages |= last_stage;
+        self.before_image_access |= last_access;
+        self.after_stages |= next_stage;
+        self.after_image_access |= next_access;
+
         if last_layout != target_layout {
-            self.before_stages |= last_stage;
-            self.before_image_access |= last_access;
             log::trace!(
                 "Transition last: {:?}",
                 (last_access, last_layout)..(self.target_image_access, target_layout)
@@ -92,14 +94,9 @@ impl<B: Backend> Barriers<B> {
                 target: image.clone(),
                 range: image_range.clone(),
             });
-        } else if !last_access.contains(self.target_image_access) {
-            self.before_stages |= last_stage;
-            self.before_image_access |= last_access;
         }
 
         if next_layout != target_layout {
-            self.after_stages |= next_stage;
-            self.after_image_access |= next_access;
             log::trace!(
                 "Transition next: {:?}",
                 (self.target_image_access, target_layout)..(next_access, next_layout)
@@ -109,27 +106,20 @@ impl<B: Backend> Barriers<B> {
                 target: image,
                 range: image_range,
             })
-        } else if !(self.target_image_access.contains(next_access)) {
-            self.after_stages |= next_stage;
-            self.after_image_access |= next_access;
         }
     }
 
     pub fn add_buffer(
         &mut self,
-        last: Option<(pso::PipelineStage, gfx_hal::buffer::Access)>,
-        next: (pso::PipelineStage, gfx_hal::buffer::Access),
+        last_stage: pso::PipelineStage,
+        last_access: gfx_hal::buffer::Access,
+        next_stage: pso::PipelineStage,
+        next_access: gfx_hal::buffer::Access,
     ) {
-        if let Some(last) = last {
-            if !last.1.contains(self.target_buffer_access) {
-                self.before_stages |= last.0;
-                self.before_buffer_access |= last.1;
-            }
-        }
-        if !(self.target_buffer_access.contains(next.1)) {
-            self.after_stages |= next.0;
-            self.after_buffer_access |= next.1;
-        }
+        self.before_stages |= last_stage;
+        self.before_buffer_access |= last_access;
+        self.after_stages |= next_stage;
+        self.after_buffer_access |= next_access;
     }
 
     pub fn encode_before<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {

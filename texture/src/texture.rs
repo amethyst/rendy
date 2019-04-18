@@ -11,6 +11,7 @@ use {
         format::{Component, Format, Swizzle},
         image, Backend,
     },
+    std::num::NonZeroU8,
 };
 
 /// Static image.
@@ -51,7 +52,7 @@ where
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MipLevel {
     Auto,
-    Level(u8),
+    Level(NonZeroU8),
 }
 
 /// Generics-free texture builder.
@@ -85,7 +86,7 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::WrapMode::Clamp,
             ),
             swizzle: Swizzle::NO,
-            mip_level: MipLevel::Auto,
+            mip_level: MipLevel::Level(NonZeroU8::new(1).unwrap()),
         }
     }
 
@@ -233,7 +234,7 @@ impl<'a> TextureBuilder<'a> {
         };
 
         let mip_levels = match self.mip_level {
-            MipLevel::Level(val) => val,
+            MipLevel::Level(val) => val.get(),
             MipLevel::Auto => match self.kind {
                 gfx_hal::image::Kind::D1(_, _) => 1,
                 gfx_hal::image::Kind::D2(w, h, _, _) => {
