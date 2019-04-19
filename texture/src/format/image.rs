@@ -20,49 +20,12 @@ pub enum Repr {
     Srgb,
 }
 
-/// Determines the way layers are being stored in source image.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum LayerLayout {
-    Row,
-    Column,
-}
-
 /// Stores details about how the data is laid out
 struct DataLayout {
     /// distance between lines in texels
-    pub line_stride: u32,
-    /// distance between layers/planes in texels
-    pub layer_stride: u32,
-}
-
-impl LayerLayout {
-    fn layer_width(&self, image_width: u32, layers: u32) -> u32 {
-        match self {
-            LayerLayout::Row => image_width / layers,
-            LayerLayout::Column => image_width,
-        }
-    }
-
-    fn layer_height(&self, image_height: u32, layers: u32) -> u32 {
-        match self {
-            LayerLayout::Row => image_height,
-            LayerLayout::Column => image_height / layers,
-        }
-    }
-
-    fn data_layout(&self, image_width: u32, image_height: u32, layers: u32) -> DataLayout {
-        match self {
-            LayerLayout::Row => DataLayout {
-                line_stride: image_width,
-                layer_stride: image_width / layers,
-            },
-            LayerLayout::Column => DataLayout {
-                line_stride: image_width,
-                layer_stride: image_width * image_height / layers,
-            },
-        }
-    }
+    pub width: u32,
+    /// distance between layers/planes in texel lines
+    pub height: u32,
 }
 
 #[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -80,18 +43,13 @@ pub enum TextureKind {
     D2Array {
         samples: u8,
         layers: u16,
-        layout: LayerLayout,
     },
     D3 {
         depth: u32,
-        layout: LayerLayout,
     },
-    Cube {
-        layout: LayerLayout,
-    },
+    Cube,
     CubeArray {
         layers: u16,
-        layout: LayerLayout,
     },
 }
 
@@ -101,54 +59,53 @@ impl TextureKind {
         match self {
             TextureKind::D1 => (
                 D1(width * height, 1),
-                LayerLayout::Column.data_layout(width * height, 1, 1),
+                DataLayout { width: width * height, height: 1 }
             ),
             TextureKind::D1Array => (
                 D1(width, height as u16),
-                LayerLayout::Column.data_layout(width, 1, height),
+                DataLayout { width, height: 1 }
             ),
             TextureKind::D2 { samples } => (
                 D2(width, height, 1, *samples),
-                LayerLayout::Column.data_layout(width, height, 1),
+                DataLayout { width, height }
             ),
             TextureKind::D2Array {
                 samples,
                 layers,
-                layout,
             } => (
                 D2(
-                    layout.layer_width(width, *layers as u32),
-                    layout.layer_height(height, *layers as u32),
+                    width,
+                    height / *layers as u32,
                     *layers,
                     *samples,
                 ),
-                layout.data_layout(width, height, *layers as u32),
+                DataLayout { width, height: height / *layers as u32 }
             ),
-            TextureKind::D3 { depth, layout } => (
+            TextureKind::D3 { depth } => (
                 D3(
-                    layout.layer_width(width, *depth),
-                    layout.layer_height(height, *depth),
+                    width,
+                    height / *depth,
                     *depth,
                 ),
-                layout.data_layout(width, height, *depth),
+                DataLayout { width, height: height / *depth }
             ),
-            TextureKind::Cube { layout } => (
+            TextureKind::Cube => (
                 D2(
-                    layout.layer_width(width, 6),
-                    layout.layer_height(height, 6),
+                    width,
+                    height / 6,
                     6,
                     1,
                 ),
-                layout.data_layout(width, height, 6),
+                DataLayout { width, height: height / 6 }
             ),
-            TextureKind::CubeArray { layers, layout } => (
+            TextureKind::CubeArray { layers } => (
                 D2(
-                    layout.layer_width(width, *layers as u32 * 6),
-                    layout.layer_height(height, *layers as u32 * 6),
+                    width,
+                    height / (*layers as u32 * 6),
                     layers * 6,
                     1,
                 ),
-                layout.data_layout(width, height, *layers as u32 * 6),
+                DataLayout { width, height: height / (*layers as u32 * 6) }
             ),
         }
     }
@@ -294,8 +251,8 @@ pub fn load_from_image(
     Ok(TextureBuilder::new()
         .with_raw_data(vec, format)
         .with_swizzle(swizzle)
-        .with_data_width(layout.line_stride)
-        .with_data_height(layout.layer_stride)
+        .with_data_width(layout.width)
+        .with_data_height(layout.height)
         .with_kind(kind)
         .with_view_kind(config.kind.view_kind())
         .with_sampler_info(config.sampler_info))
