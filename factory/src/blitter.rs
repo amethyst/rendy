@@ -176,6 +176,7 @@ where
     /// `device` must be the same that was used to create this `Blitter`.
     /// `src` and `dst` must belong to the `device`.
     /// regions' `last_*` states must be valid at the time of command execution (after memory transfers).
+    /// All regions must have distinct subresource layer and level combination.
     ///
     pub unsafe fn blit_image(
         &self,
