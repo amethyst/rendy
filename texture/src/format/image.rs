@@ -20,28 +20,24 @@ pub enum Repr {
     Srgb,
 }
 
-/// Stores details about how the data is laid out
-struct DataLayout {
-    /// distance between lines in texels
-    pub width: u32,
-    /// distance between layers/planes in texel lines
-    pub height: u32,
-}
-
+/// A description how to interpret loaded texture.
+/// Defines the dimensionality and layer count of textures to load.
+///
+/// When loading more than one layer, the loaded image is vertically
+/// divided into mutiple subimages. The layer width is preserved and
+/// it's height is a fraction of image's original height.
+///
+/// 1D arrays are treated as a sequence of rows, each being an array entry.
+/// 1D images are treated as a single sequence of pixels.
 #[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derivative(Default)]
-/// Enumerates the kinds of `Texture`s
 pub enum TextureKind {
     D1,
     D1Array,
     #[derivative(Default)]
-    D2 {
-        #[derivative(Default(value = "1"))]
-        samples: u8,
-    },
+    D2,
     D2Array {
-        samples: u8,
         layers: u16,
     },
     D3 {
@@ -54,59 +50,18 @@ pub enum TextureKind {
 }
 
 impl TextureKind {
-    fn layout_and_kind(&self, width: u32, height: u32) -> (gfx_hal::image::Kind, DataLayout) {
+    fn gfx_kind(&self, width: u32, height: u32) -> gfx_hal::image::Kind {
         use gfx_hal::image::Kind::*;
         match self {
-            TextureKind::D1 => (
-                D1(width * height, 1),
-                DataLayout { width: width * height, height: 1 }
-            ),
-            TextureKind::D1Array => (
-                D1(width, height as u16),
-                DataLayout { width, height: 1 }
-            ),
-            TextureKind::D2 { samples } => (
-                D2(width, height, 1, *samples),
-                DataLayout { width, height }
-            ),
-            TextureKind::D2Array {
-                samples,
-                layers,
-            } => (
-                D2(
-                    width,
-                    height / *layers as u32,
-                    *layers,
-                    *samples,
-                ),
-                DataLayout { width, height: height / *layers as u32 }
-            ),
-            TextureKind::D3 { depth } => (
-                D3(
-                    width,
-                    height / *depth,
-                    *depth,
-                ),
-                DataLayout { width, height: height / *depth }
-            ),
-            TextureKind::Cube => (
-                D2(
-                    width,
-                    height / 6,
-                    6,
-                    1,
-                ),
-                DataLayout { width, height: height / 6 }
-            ),
-            TextureKind::CubeArray { layers } => (
-                D2(
-                    width,
-                    height / (*layers as u32 * 6),
-                    layers * 6,
-                    1,
-                ),
-                DataLayout { width, height: height / (*layers as u32 * 6) }
-            ),
+            TextureKind::D1 => D1(width * height, 1),
+            TextureKind::D1Array => D1(width, height as u16),
+            TextureKind::D2 => D2(width, height, 1, 1),
+            TextureKind::D2Array { layers } => D2(width, height / *layers as u32, *layers, 1),
+            TextureKind::D3 { depth } => D3(width, height / *depth, *depth),
+            TextureKind::Cube => D2(width, height / 6, 6, 1),
+            TextureKind::CubeArray { layers } => {
+                D2(width, height / (*layers as u32 * 6), layers * 6, 1)
+            }
         }
     }
 
@@ -213,7 +168,6 @@ pub fn load_from_image(
     let image = image::load_from_memory_with_format(bytes, image_format)?;
 
     let (w, h) = image.dimensions();
-    let (kind, layout) = config.kind.layout_and_kind(w, h);
 
     let (vec, format, swizzle) = match image {
         DynamicImage::ImageLuma8(img) => (
@@ -248,11 +202,14 @@ pub fn load_from_image(
         ),
     };
 
+    let kind = config.kind.gfx_kind(w, h);
+    let extent = kind.extent();
+
     Ok(TextureBuilder::new()
         .with_raw_data(vec, format)
         .with_swizzle(swizzle)
-        .with_data_width(layout.width)
-        .with_data_height(layout.height)
+        .with_data_width(extent.width)
+        .with_data_height(extent.height)
         .with_kind(kind)
         .with_view_kind(config.kind.view_kind())
         .with_sampler_info(config.sampler_info))

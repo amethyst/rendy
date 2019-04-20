@@ -272,12 +272,11 @@ impl<'a> TextureBuilder<'a> {
             BufferTransform::Intact => &self.data,
             BufferTransform::AddPadding { stride, padding } => {
                 transformed_vec.reserve_exact(self.data.len() / stride * (stride + padding.len()));
-                transformed_vec.extend(self.data.chunks_exact(stride).flat_map(|chunk| {
-                    chunk
-                        .iter()
-                        .cloned()
-                        .chain(padding.iter().cloned())
-                }));
+                transformed_vec.extend(
+                    self.data
+                        .chunks_exact(stride)
+                        .flat_map(|chunk| chunk.iter().cloned().chain(padding.iter().cloned())),
+                );
 
                 &transformed_vec
             }
@@ -360,7 +359,10 @@ impl<'a> TextureBuilder<'a> {
 
 enum BufferTransform {
     Intact,
-    AddPadding { stride: usize, padding: &'static [u8] },
+    AddPadding {
+        stride: usize,
+        padding: &'static [u8],
+    },
 }
 
 fn double_swizzle(src: Swizzle, overlay: Swizzle) -> Swizzle {
@@ -404,7 +406,7 @@ fn find_compatible_format<B: Backend>(
 
 fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Swizzle)> {
     const ONE_F16: u16 = 15360u16;
-    
+
     let t2_u8 = BufferTransform::AddPadding {
         stride: 2,
         padding: &[0u8, std::u8::MAX],
@@ -449,7 +451,7 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
         stride: 12,
         padding: cast_slice(&[std::u32::MAX]),
     };
-    
+
     let t3_f32 = BufferTransform::AddPadding {
         stride: 12,
         padding: cast_slice(&[1.0f32]),

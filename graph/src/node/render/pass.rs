@@ -691,18 +691,19 @@ where
                 .enumerate()
                 .any(|(subpass_index, subpass)| {
                     subpass.groups.iter_mut().fold(false, |record, group| {
-                        record | group
-                            .prepare(
-                                factory,
-                                queue.id(),
-                                index,
-                                gfx_hal::pass::Subpass {
-                                    index: subpass_index,
-                                    main_pass: &render_pass,
-                                },
-                                aux,
-                            )
-                            .force_record()
+                        record
+                            | group
+                                .prepare(
+                                    factory,
+                                    queue.id(),
+                                    index,
+                                    gfx_hal::pass::Subpass {
+                                        index: subpass_index,
+                                        main_pass: &render_pass,
+                                    },
+                                    aux,
+                                )
+                                .force_record()
                     })
                 });
 
