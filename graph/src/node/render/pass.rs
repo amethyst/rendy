@@ -690,8 +690,8 @@ where
                 .iter_mut()
                 .enumerate()
                 .any(|(subpass_index, subpass)| {
-                    subpass.groups.iter_mut().any(|group| {
-                        group
+                    subpass.groups.iter_mut().fold(false, |record, group| {
+                        record | group
                             .prepare(
                                 factory,
                                 queue.id(),
