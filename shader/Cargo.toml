@@ -14,7 +14,7 @@ description = "Rendy's shader compilation tool"
 failure = "0.1"
 gfx-hal = "0.1"
 rendy-factory = { version = "0.1", path = "../factory" }
-shaderc = { version = "0.3", optional = true }
+shaderc = { version = "0.5", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 serde_bytes = { version = "0.10.5", optional = true }
 
