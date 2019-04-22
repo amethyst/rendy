@@ -22,6 +22,10 @@
 
 A rendering engine based on [`gfx-hal`], which mimics the [`Vulkan`] API.
 
+## Building
+
+This library requires standard build tools for the target platforms, except in the case of windows - the spirv-compiler feature requires Ninja to be installed for compilation. https://ninja-build.org
+
 ## Features
 
 Most importantly `rendy` features safer API by checking important states and invariants.
