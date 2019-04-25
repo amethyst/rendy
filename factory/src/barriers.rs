@@ -3,8 +3,8 @@ use {
         command::Encoder,
         resource::{Handle, Image},
     },
-    gfx_hal::{self, buffer, image, pso, Backend},
-    std::{iter::once, ops::Range},
+    gfx_hal::{self, buffer, image, memory::Barrier, pso, Backend},
+    std::ops::Range,
 };
 
 /// A variant of `gfx_hal::image::Barrier` that uses Handle<Image<B>>
@@ -21,8 +21,8 @@ struct ImageBarrier<B: Backend> {
 }
 
 impl<B: Backend> ImageBarrier<B> {
-    fn raw(&self) -> gfx_hal::memory::Barrier<'_, B> {
-        gfx_hal::memory::Barrier::Image {
+    fn raw(&self) -> Barrier<'_, B> {
+        Barrier::Image {
             states: self.states.clone(),
             target: self.target.raw(),
             families: None,
@@ -123,16 +123,16 @@ impl<B: Backend> Barriers<B> {
     }
 
     pub fn encode_before<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        if self.before_stages != pso::PipelineStage::empty() {
+        if !self.before_stages.is_empty() {
             let transitions = self.before_image_transitions.iter().map(|b| b.raw());
-            let all_images = once(gfx_hal::memory::Barrier::AllImages(
+            let all_images = Some(Barrier::AllImages(
                 self.before_image_access..self.target_image_access,
             ))
-            .filter(|_| self.before_image_access != image::Access::empty());
-            let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
+            .filter(|_| !self.before_image_access.is_empty());
+            let all_buffers = Some(Barrier::AllBuffers(
                 self.before_buffer_access..self.target_buffer_access,
             ))
-            .filter(|_| self.before_buffer_access != buffer::Access::empty());
+            .filter(|_| !self.before_buffer_access.is_empty());
 
             encoder.pipeline_barrier(
                 self.before_stages..self.target_stages,
@@ -150,16 +150,16 @@ impl<B: Backend> Barriers<B> {
     }
 
     pub fn encode_after<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
-        if self.target_stages != pso::PipelineStage::empty() {
+        if !self.target_stages.is_empty() {
             let transitions = self.after_image_transitions.iter().map(|b| b.raw());
-            let all_images = once(gfx_hal::memory::Barrier::AllImages(
+            let all_images = Some(Barrier::AllImages(
                 self.target_image_access..self.after_image_access,
             ))
-            .filter(|_| self.after_image_access != image::Access::empty());
-            let all_buffers = once(gfx_hal::memory::Barrier::AllBuffers(
+            .filter(|_| !self.after_image_access.is_empty());
+            let all_buffers = Some(Barrier::AllBuffers(
                 self.target_buffer_access..self.after_buffer_access,
             ))
-            .filter(|_| self.after_buffer_access != buffer::Access::empty());
+            .filter(|_| !self.after_buffer_access.is_empty());
 
             encoder.pipeline_barrier(
                 self.target_stages..self.after_stages,
