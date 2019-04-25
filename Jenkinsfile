@@ -29,10 +29,10 @@ pipeline {
               
                 stage("Test on Linux") {
                     agent {
-			            docker {
-			                image 'amethystrs/builder-linux:stable'
-			                label 'docker'
-			            } 
+			docker {
+				image 'amethystrs/builder-linux:stable'
+				label 'docker'
+			} 
                     }
                     steps {
                         echo 'Beginning tests...'
@@ -40,20 +40,6 @@ pipeline {
                         echo 'Tests done!'
                     }
                 }
-		                 stage("Test on macOS") {
-                     environment {
-                         CARGO_HOME = '/Users/jenkins/.cargo'
-                         RUSTUP_HOME = '/Users/jenkins/.rustup'
-                     }
-                     agent {
-                         label 'mac'
-                     }
-                     steps {
-                         echo 'Beginning tests...'
-                         sh 'cd rendy && /Users/administrator/.cargo/bin/cargo test --all --features "full metal"'
-                         echo 'Tests done!'
-                     }
-                 }
             }
         }
     }
