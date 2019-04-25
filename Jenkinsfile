@@ -36,7 +36,7 @@ pipeline {
                     }
                     steps {
                         echo 'Beginning tests...'
-                        sh 'cargo test --all --features "full vulkan"'
+                        sh 'cd rendy && cargo test --all --features "full vulkan"'
                         echo 'Tests done!'
                     }
                 }
