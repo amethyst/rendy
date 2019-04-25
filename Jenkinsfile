@@ -50,7 +50,7 @@ pipeline {
                      }
                      steps {
                          echo 'Beginning tests...'
-                         sh 'cd rendy && cargo test --all --features "full metal"'
+                         sh 'cd rendy && /Users/administrator/.cargo/bin/cargo test --all --features "full metal"'
                          echo 'Tests done!'
                      }
                  }
