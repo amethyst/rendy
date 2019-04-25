@@ -86,7 +86,7 @@ where
 
         Ok(Blitter { family_ops })
     }
-    /// `dst` should be `None` when blitting from the same image.
+    /// Fill all mip levels from the first level of provided image.
     ///
     /// # Safety
     ///
@@ -169,7 +169,7 @@ where
         Ok(())
     }
 
-    /// `dst` should be `None` when blitting from the same image.
+    /// Blit provided regions of `src_image` to `dst_image`.
     ///
     /// # Safety
     ///
