@@ -1,6 +1,15 @@
 pipeline {
     agent none
     stages {
+        stage("Pull new images") {
+            agent {
+                label 'docker'
+            }
+            steps {
+                sh 'docker pull amethystrs/builder-linux:stable'
+                sh 'docker pull amethystrs/builder-linux:nightly'
+            }
+        }
         stage('Check Formatting') {
             environment {
                 CARGO_HOME = '/home/jenkins/.cargo'
@@ -19,16 +28,15 @@ pipeline {
             parallel {
               
                 stage("Test on Linux") {
-                    environment {
-                        CARGO_HOME = '/home/jenkins/.cargo'
-                        RUSTUP_HOME = '/home/jenkins/.rustup'
-                    }
                     agent {
-                        label 'linux'
+			            docker {
+			                image 'amethystrs/builder-linux:stable'
+			                label 'docker'
+			            } 
                     }
                     steps {
                         echo 'Beginning tests...'
-                        sh 'cargo test --all --features "full vulkan"'
+                        sh 'cargo test --all'
                         echo 'Tests done!'
                     }
                 }
