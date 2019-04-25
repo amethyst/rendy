@@ -40,6 +40,20 @@ pipeline {
                         echo 'Tests done!'
                     }
                 }
+		                 stage("Test on macOS") {
+                     environment {
+                         CARGO_HOME = '/Users/jenkins/.cargo'
+                         RUSTUP_HOME = '/Users/jenkins/.rustup'
+                     }
+                     agent {
+                         label 'mac'
+                     }
+                     steps {
+                         echo 'Beginning tests...'
+                         sh cd rendy && cargo test --all --features "full metal"'
+                         echo 'Tests done!'
+                     }
+                 }
             }
         }
     }
