@@ -5,12 +5,13 @@ use {
         memory::Data,
         pixel::AsPixel,
         resource::{Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler},
-        util::cast_cow,
+        util::{cast_cow, cast_slice},
     },
     gfx_hal::{
         format::{Component, Format, Swizzle},
         image, Backend,
     },
+    std::num::NonZeroU8,
 };
 
 /// Static image.
@@ -47,6 +48,13 @@ where
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MipLevel {
+    Auto,
+    Level(NonZeroU8),
+}
+
 /// Generics-free texture builder.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -60,6 +68,7 @@ pub struct TextureBuilder<'a> {
     data_height: u32,
     sampler_info: gfx_hal::image::SamplerInfo,
     swizzle: Swizzle,
+    mip_level: MipLevel,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -77,6 +86,7 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::WrapMode::Clamp,
             ),
             swizzle: Swizzle::NO,
+            mip_level: MipLevel::Level(NonZeroU8::new(1).unwrap()),
         }
     }
 
@@ -138,6 +148,18 @@ impl<'a> TextureBuilder<'a> {
     /// Set pixel data height.
     pub fn set_data_height(&mut self, data_height: u32) -> &mut Self {
         self.data_height = data_height;
+        self
+    }
+
+    /// Set number of generated mipmaps.
+    pub fn with_mip_levels(mut self, mip_level: MipLevel) -> Self {
+        self.set_mip_levels(mip_level);
+        self
+    }
+
+    /// Set number of generated mipmaps.
+    pub fn set_mip_levels(&mut self, mip_level: MipLevel) -> &mut Self {
+        self.mip_level = mip_level;
         self
     }
 
@@ -211,15 +233,28 @@ impl<'a> TextureBuilder<'a> {
             _ => gfx_hal::image::ViewCapabilities::empty(),
         };
 
+        let mip_levels = match self.mip_level {
+            MipLevel::Level(val) => val.get(),
+            MipLevel::Auto => match self.kind {
+                gfx_hal::image::Kind::D1(_, _) => 1,
+                gfx_hal::image::Kind::D2(w, h, _, _) => {
+                    ((32 - w.max(h).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL)
+                }
+                gfx_hal::image::Kind::D3(_, _, _) => 1,
+            },
+        };
+
         let (info, transform, transform_swizzle) = find_compatible_format(
             factory,
             ImageInfo {
                 kind: self.kind,
-                levels: 1,
+                levels: mip_levels,
                 format: self.format,
                 tiling: gfx_hal::image::Tiling::Optimal,
                 view_caps,
-                usage: gfx_hal::image::Usage::SAMPLED | gfx_hal::image::Usage::TRANSFER_DST,
+                usage: gfx_hal::image::Usage::SAMPLED
+                    | gfx_hal::image::Usage::TRANSFER_DST
+                    | gfx_hal::image::Usage::TRANSFER_SRC,
             },
         )
         .ok_or_else(|| {
@@ -236,16 +271,29 @@ impl<'a> TextureBuilder<'a> {
         let buffer: &[u8] = match transform {
             BufferTransform::Intact => &self.data,
             BufferTransform::AddPadding { stride, padding } => {
-                transformed_vec.reserve_exact(self.data.len() / stride * (stride + padding));
-                transformed_vec.extend(self.data.chunks_exact(stride).flat_map(|chunk| {
-                    chunk
-                        .iter()
-                        .cloned()
-                        .chain(std::iter::repeat(0).take(padding))
-                }));
+                transformed_vec.reserve_exact(self.data.len() / stride * (stride + padding.len()));
+                transformed_vec.extend(
+                    self.data
+                        .chunks_exact(stride)
+                        .flat_map(|chunk| chunk.iter().cloned().chain(padding.iter().cloned())),
+                );
 
                 &transformed_vec
             }
+        };
+
+        let mip_state = ImageState {
+            queue: next_state.queue,
+            stage: gfx_hal::pso::PipelineStage::TRANSFER,
+            access: image::Access::TRANSFER_READ,
+            layout: image::Layout::TransferSrcOptimal,
+        };
+
+        let undef_state = ImageState {
+            queue: next_state.queue,
+            stage: gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+            access: image::Access::empty(),
+            layout: image::Layout::Undefined,
         };
 
         // The reason that factory.upload_image is unsafe is that the image being uploaded
@@ -253,20 +301,36 @@ impl<'a> TextureBuilder<'a> {
         // that here because we just created the image on the same factory right before.
         unsafe {
             factory.upload_image(
-                &image,
+                image.clone(),
                 self.data_width,
                 self.data_height,
                 image::SubresourceLayers {
-                    aspects: self.format.surface_desc().aspects,
+                    aspects: info.format.surface_desc().aspects,
                     level: 0,
-                    layers: 0..self.kind.num_layers(),
+                    layers: 0..info.kind.num_layers(),
                 },
                 image::Offset::ZERO,
-                self.kind.extent(),
+                info.kind.extent(),
                 buffer,
                 image::Layout::Undefined,
-                next_state,
+                if mip_levels == 1 {
+                    next_state
+                } else {
+                    mip_state
+                },
             )?;
+        }
+
+        if mip_levels > 1 {
+            unsafe {
+                factory.blitter().fill_mips(
+                    factory.device(),
+                    image.clone(),
+                    image::Filter::Linear,
+                    std::iter::once(mip_state).chain(std::iter::repeat(undef_state)),
+                    std::iter::repeat(next_state),
+                )?;
+            }
         }
 
         let view = factory.create_image_view(
@@ -276,9 +340,9 @@ impl<'a> TextureBuilder<'a> {
                 format: info.format,
                 swizzle: double_swizzle(self.swizzle, transform_swizzle),
                 range: image::SubresourceRange {
-                    aspects: self.format.surface_desc().aspects,
-                    levels: 0..1,
-                    layers: 0..self.kind.num_layers(),
+                    aspects: info.format.surface_desc().aspects,
+                    levels: 0..info.levels,
+                    layers: 0..info.kind.num_layers(),
                 },
             },
         )?;
@@ -295,7 +359,10 @@ impl<'a> TextureBuilder<'a> {
 
 enum BufferTransform {
     Intact,
-    AddPadding { stride: usize, padding: usize },
+    AddPadding {
+        stride: usize,
+        padding: &'static [u8],
+    },
 }
 
 fn double_swizzle(src: Swizzle, overlay: Swizzle) -> Swizzle {
@@ -338,69 +405,89 @@ fn find_compatible_format<B: Backend>(
 }
 
 fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Swizzle)> {
-    let t2to4_8 = BufferTransform::AddPadding {
+    const ONE_F16: u16 = 15360u16;
+
+    let t2_u8 = BufferTransform::AddPadding {
         stride: 2,
-        padding: 2,
+        padding: &[0u8, std::u8::MAX],
     };
 
-    let t2to4_16 = BufferTransform::AddPadding {
+    let t2_u16 = BufferTransform::AddPadding {
         stride: 4,
-        padding: 4,
+        padding: cast_slice(&[0u16, std::u16::MAX]),
     };
 
-    let t2to4_32 = BufferTransform::AddPadding {
+    let t2_f16 = BufferTransform::AddPadding {
+        stride: 4,
+        padding: cast_slice(&[0u16, ONE_F16]),
+    };
+
+    let t2_u32 = BufferTransform::AddPadding {
         stride: 8,
-        padding: 8,
+        padding: cast_slice(&[0u32, std::u32::MAX]),
     };
 
-    let t3to4_8 = BufferTransform::AddPadding {
+    let t2_f32 = BufferTransform::AddPadding {
+        stride: 8,
+        padding: cast_slice(&[0.0f32, 1.0f32]),
+    };
+
+    let t3_u8 = BufferTransform::AddPadding {
         stride: 3,
-        padding: 1,
+        padding: &[std::u8::MAX],
     };
 
-    let t3to4_16 = BufferTransform::AddPadding {
+    let t3_u16 = BufferTransform::AddPadding {
         stride: 6,
-        padding: 2,
+        padding: cast_slice(&[std::u16::MAX]),
     };
 
-    let t3to4_32 = BufferTransform::AddPadding {
+    let t3_f16 = BufferTransform::AddPadding {
+        stride: 6,
+        padding: cast_slice(&[ONE_F16]),
+    };
+
+    let t3_u32 = BufferTransform::AddPadding {
         stride: 12,
-        padding: 4,
+        padding: cast_slice(&[std::u32::MAX]),
+    };
+
+    let t3_f32 = BufferTransform::AddPadding {
+        stride: 12,
+        padding: cast_slice(&[1.0f32]),
     };
 
     let intact = BufferTransform::Intact;
 
-    let rgzo = Swizzle(Component::R, Component::G, Component::Zero, Component::One);
-    let rgbo = Swizzle(Component::R, Component::G, Component::B, Component::One);
-    let bgro = Swizzle(Component::B, Component::G, Component::R, Component::One);
+    let rgba = Swizzle(Component::R, Component::G, Component::B, Component::A);
     let bgra = Swizzle(Component::B, Component::G, Component::R, Component::A);
 
     Some(match format {
         // Destination formats chosen according to this table
         // https://vulkan.gpuinfo.org/listformats.php
-        Format::Rg8Unorm => (Format::Rgba8Unorm, t2to4_8, rgzo),
-        Format::Rg8Inorm => (Format::Rgba8Inorm, t2to4_8, rgzo),
-        Format::Rg8Uscaled => (Format::Rgba8Uscaled, t2to4_8, rgzo),
-        Format::Rg8Iscaled => (Format::Rgba8Iscaled, t2to4_8, rgzo),
-        Format::Rg8Uint => (Format::Rgba8Uint, t2to4_8, rgzo),
-        Format::Rg8Int => (Format::Rgba8Int, t2to4_8, rgzo),
-        Format::Rg8Srgb => (Format::Rgba8Srgb, t2to4_8, rgzo),
+        Format::Rg8Unorm => (Format::Rgba8Unorm, t2_u8, rgba),
+        Format::Rg8Inorm => (Format::Rgba8Inorm, t2_u8, rgba),
+        Format::Rg8Uscaled => (Format::Rgba8Uscaled, t2_u8, rgba),
+        Format::Rg8Iscaled => (Format::Rgba8Iscaled, t2_u8, rgba),
+        Format::Rg8Uint => (Format::Rgba8Uint, t2_u8, rgba),
+        Format::Rg8Int => (Format::Rgba8Int, t2_u8, rgba),
+        Format::Rg8Srgb => (Format::Rgba8Srgb, t2_u8, rgba),
 
-        Format::Rgb8Unorm => (Format::Rgba8Unorm, t3to4_8, rgbo),
-        Format::Rgb8Inorm => (Format::Rgba8Inorm, t3to4_8, rgbo),
-        Format::Rgb8Uscaled => (Format::Rgba8Uscaled, t3to4_8, rgbo),
-        Format::Rgb8Iscaled => (Format::Rgba8Iscaled, t3to4_8, rgbo),
-        Format::Rgb8Uint => (Format::Rgba8Uint, t3to4_8, rgbo),
-        Format::Rgb8Int => (Format::Rgba8Int, t3to4_8, rgbo),
-        Format::Rgb8Srgb => (Format::Rgba8Srgb, t3to4_8, rgbo),
+        Format::Rgb8Unorm => (Format::Rgba8Unorm, t3_u8, rgba),
+        Format::Rgb8Inorm => (Format::Rgba8Inorm, t3_u8, rgba),
+        Format::Rgb8Uscaled => (Format::Rgba8Uscaled, t3_u8, rgba),
+        Format::Rgb8Iscaled => (Format::Rgba8Iscaled, t3_u8, rgba),
+        Format::Rgb8Uint => (Format::Rgba8Uint, t3_u8, rgba),
+        Format::Rgb8Int => (Format::Rgba8Int, t3_u8, rgba),
+        Format::Rgb8Srgb => (Format::Rgba8Srgb, t3_u8, rgba),
 
-        Format::Bgr8Unorm => (Format::Rgba8Unorm, t3to4_8, bgro),
-        Format::Bgr8Inorm => (Format::Rgba8Inorm, t3to4_8, bgro),
-        Format::Bgr8Uscaled => (Format::Rgba8Uscaled, t3to4_8, bgro),
-        Format::Bgr8Iscaled => (Format::Rgba8Iscaled, t3to4_8, bgro),
-        Format::Bgr8Uint => (Format::Rgba8Uint, t3to4_8, bgro),
-        Format::Bgr8Int => (Format::Rgba8Int, t3to4_8, bgro),
-        Format::Bgr8Srgb => (Format::Rgba8Srgb, t3to4_8, bgro),
+        Format::Bgr8Unorm => (Format::Rgba8Unorm, t3_u8, bgra),
+        Format::Bgr8Inorm => (Format::Rgba8Inorm, t3_u8, bgra),
+        Format::Bgr8Uscaled => (Format::Rgba8Uscaled, t3_u8, bgra),
+        Format::Bgr8Iscaled => (Format::Rgba8Iscaled, t3_u8, bgra),
+        Format::Bgr8Uint => (Format::Rgba8Uint, t3_u8, bgra),
+        Format::Bgr8Int => (Format::Rgba8Int, t3_u8, bgra),
+        Format::Bgr8Srgb => (Format::Rgba8Srgb, t3_u8, bgra),
 
         Format::Bgra8Unorm => (Format::Rgba8Unorm, intact, bgra),
         Format::Bgra8Inorm => (Format::Rgba8Inorm, intact, bgra),
@@ -410,29 +497,29 @@ fn expand_format_channels(format: Format) -> Option<(Format, BufferTransform, Sw
         Format::Bgra8Int => (Format::Rgba8Int, intact, bgra),
         Format::Bgra8Srgb => (Format::Rgba8Srgb, intact, bgra),
 
-        Format::Rg16Unorm => (Format::Rgba16Unorm, t2to4_16, rgzo),
-        Format::Rg16Inorm => (Format::Rgba16Inorm, t2to4_16, rgzo),
-        Format::Rg16Uscaled => (Format::Rgba16Uscaled, t2to4_16, rgzo),
-        Format::Rg16Iscaled => (Format::Rgba16Iscaled, t2to4_16, rgzo),
-        Format::Rg16Uint => (Format::Rgba16Uint, t2to4_16, rgzo),
-        Format::Rg16Int => (Format::Rgba16Int, t2to4_16, rgzo),
-        Format::Rg16Float => (Format::Rgba16Float, t2to4_16, rgzo),
+        Format::Rg16Unorm => (Format::Rgba16Unorm, t2_u16, rgba),
+        Format::Rg16Inorm => (Format::Rgba16Inorm, t2_u16, rgba),
+        Format::Rg16Uscaled => (Format::Rgba16Uscaled, t2_u16, rgba),
+        Format::Rg16Iscaled => (Format::Rgba16Iscaled, t2_u16, rgba),
+        Format::Rg16Uint => (Format::Rgba16Uint, t2_u16, rgba),
+        Format::Rg16Int => (Format::Rgba16Int, t2_u16, rgba),
+        Format::Rg16Float => (Format::Rgba16Float, t2_f16, rgba),
 
-        Format::Rgb16Unorm => (Format::Rgba16Unorm, t3to4_16, rgbo),
-        Format::Rgb16Inorm => (Format::Rgba16Inorm, t3to4_16, rgbo),
-        Format::Rgb16Uscaled => (Format::Rgba16Uscaled, t3to4_16, rgbo),
-        Format::Rgb16Iscaled => (Format::Rgba16Iscaled, t3to4_16, rgbo),
-        Format::Rgb16Uint => (Format::Rgba16Uint, t3to4_16, rgbo),
-        Format::Rgb16Int => (Format::Rgba16Int, t3to4_16, rgbo),
-        Format::Rgb16Float => (Format::Rgba16Float, t3to4_16, rgbo),
+        Format::Rgb16Unorm => (Format::Rgba16Unorm, t3_u16, rgba),
+        Format::Rgb16Inorm => (Format::Rgba16Inorm, t3_u16, rgba),
+        Format::Rgb16Uscaled => (Format::Rgba16Uscaled, t3_u16, rgba),
+        Format::Rgb16Iscaled => (Format::Rgba16Iscaled, t3_u16, rgba),
+        Format::Rgb16Uint => (Format::Rgba16Uint, t3_u16, rgba),
+        Format::Rgb16Int => (Format::Rgba16Int, t3_u16, rgba),
+        Format::Rgb16Float => (Format::Rgba16Float, t3_f16, rgba),
 
-        Format::Rg32Uint => (Format::Rgba32Uint, t2to4_32, rgzo),
-        Format::Rg32Int => (Format::Rgba32Int, t2to4_32, rgzo),
-        Format::Rg32Float => (Format::Rgba32Float, t2to4_32, rgzo),
+        Format::Rg32Uint => (Format::Rgba32Uint, t2_u32, rgba),
+        Format::Rg32Int => (Format::Rgba32Int, t2_u32, rgba),
+        Format::Rg32Float => (Format::Rgba32Float, t2_f32, rgba),
 
-        Format::Rgb32Uint => (Format::Rgba32Uint, t3to4_32, rgbo),
-        Format::Rgb32Int => (Format::Rgba32Int, t3to4_32, rgbo),
-        Format::Rgb32Float => (Format::Rgba32Float, t3to4_32, rgbo),
+        Format::Rgb32Uint => (Format::Rgba32Uint, t3_u32, rgba),
+        Format::Rgb32Int => (Format::Rgba32Int, t3_u32, rgba),
+        Format::Rgb32Float => (Format::Rgba32Float, t3_f32, rgba),
         // TODO: add more conversions
         _ => return None,
     })

@@ -1,15 +1,15 @@
-use std::collections::VecDeque;
-
 use {
     crate::{
+        barriers::Barriers,
         command::{
             CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
             PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
         },
-        resource::{Buffer, Escape, Image},
+        resource::{Buffer, Escape, Handle, Image},
         util::Device,
     },
     gfx_hal::Device as _,
+    std::{collections::VecDeque, iter::once},
 };
 
 /// State of the buffer on device.
@@ -150,6 +150,11 @@ where
                 next: Vec::new(),
                 pending: VecDeque::new(),
                 command_buffers: Vec::new(),
+                barriers: Barriers::new(
+                    gfx_hal::pso::PipelineStage::TRANSFER,
+                    gfx_hal::buffer::Access::TRANSFER_WRITE,
+                    gfx_hal::image::Access::TRANSFER_WRITE,
+                ),
             }));
         }
 
@@ -174,27 +179,22 @@ where
             .as_ref()
             .unwrap()
             .lock();
-        let next_upload = family_uploads.next_upload(device, next.queue.index)?;
-        let mut encoder = next_upload.command_buffer.encoder();
-        let range = Some(offset)..Some(offset + staging.size());
 
         if let Some(last) = last {
             if last.queue != next.queue {
                 unimplemented!("Can't sync resources across queues");
             }
-
-            encoder.pipeline_barrier(
-                last.stage..gfx_hal::pso::PipelineStage::TRANSFER,
-                gfx_hal::memory::Dependencies::empty(),
-                Some(gfx_hal::memory::Barrier::Buffer {
-                    states: last.access..gfx_hal::buffer::Access::TRANSFER_WRITE,
-                    target: buffer.raw(),
-                    families: None,
-                    range: range.clone(),
-                }),
-            );
         }
 
+        family_uploads.barriers.add_buffer(
+            last.map_or(gfx_hal::pso::PipelineStage::empty(), |l| l.stage),
+            gfx_hal::buffer::Access::empty(),
+            next.stage,
+            next.access,
+        );
+
+        let next_upload = family_uploads.next_upload(device, next.queue.index)?;
+        let mut encoder = next_upload.command_buffer.encoder();
         encoder.copy_buffer(
             staging.raw(),
             buffer.raw(),
@@ -202,17 +202,6 @@ where
                 src: 0,
                 dst: offset,
                 size: staging.size(),
-            }),
-        );
-
-        encoder.pipeline_barrier(
-            gfx_hal::pso::PipelineStage::TRANSFER..next.stage,
-            gfx_hal::memory::Dependencies::empty(),
-            Some(gfx_hal::memory::Barrier::Buffer {
-                states: gfx_hal::buffer::Access::TRANSFER_WRITE..next.access,
-                target: buffer.raw(),
-                families: None,
-                range: range.clone(),
             }),
         );
 
@@ -229,7 +218,7 @@ where
     pub(crate) unsafe fn upload_image(
         &self,
         device: &Device<B>,
-        image: &Image<B>,
+        image: Handle<Image<B>>,
         data_width: u32,
         data_height: u32,
         image_layers: gfx_hal::image::SubresourceLayers,
@@ -239,14 +228,21 @@ where
         last: ImageStateOrLayout,
         next: ImageState,
     ) -> Result<(), failure::Error> {
+        use gfx_hal::image::{Access, Layout};
+
         let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
             .unwrap()
             .lock();
-        let next_upload = family_uploads.next_upload(device, next.queue.index)?;
 
-        let whole_image =
-            image_offset == gfx_hal::image::Offset::ZERO && image_extent == image.kind().extent();
+        let whole_extent = if image_layers.level == 0 {
+            image.kind().extent()
+        } else {
+            image.kind().level_extent(image_layers.level)
+        };
+
+        let whole_level =
+            image_offset == gfx_hal::image::Offset::ZERO && image_extent == whole_extent;
 
         let image_range = gfx_hal::image::SubresourceRange {
             aspects: image_layers.aspects,
@@ -254,63 +250,61 @@ where
             layers: image_layers.layers.clone(),
         };
 
-        let mut encoder = next_upload.command_buffer.encoder();
-
-        match last.into() {
+        let (last_stage, mut last_access, last_layout) = match last.into() {
             ImageStateOrLayout::State(last) => {
                 if last.queue != next.queue {
                     unimplemented!("Can't sync resources across queues");
                 }
-
-                let last_layout = if whole_image {
-                    gfx_hal::image::Layout::Undefined
+                (
+                    last.stage,
+                    last.access,
+                    if whole_level {
+                        Layout::Undefined
+                    } else {
+                        last.layout
+                    },
+                )
+            }
+            ImageStateOrLayout::Layout(last_layout) => (
+                gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                Access::empty(),
+                if whole_level {
+                    Layout::Undefined
                 } else {
-                    last.layout
-                };
+                    last_layout
+                },
+            ),
+        };
 
-                encoder.pipeline_barrier(
-                    last.stage..gfx_hal::pso::PipelineStage::TRANSFER,
-                    gfx_hal::memory::Dependencies::empty(),
-                    Some(gfx_hal::memory::Barrier::Image {
-                        states: (last.access, last_layout)
-                            ..(
-                                gfx_hal::image::Access::TRANSFER_WRITE,
-                                gfx_hal::image::Layout::TransferDstOptimal,
-                            ),
-                        target: image.raw(),
-                        families: None,
-                        range: image_range.clone(),
-                    }),
-                );
-            }
-            ImageStateOrLayout::Layout(mut last_layout) => {
-                if last_layout != gfx_hal::image::Layout::TransferDstOptimal {
-                    if whole_image {
-                        last_layout = gfx_hal::image::Layout::Undefined;
-                    }
-                    encoder.pipeline_barrier(
-                        gfx_hal::pso::PipelineStage::TOP_OF_PIPE
-                            ..gfx_hal::pso::PipelineStage::TRANSFER,
-                        gfx_hal::memory::Dependencies::empty(),
-                        Some(gfx_hal::memory::Barrier::Image {
-                            states: (gfx_hal::image::Access::empty(), last_layout)
-                                ..(
-                                    gfx_hal::image::Access::TRANSFER_WRITE,
-                                    gfx_hal::image::Layout::TransferDstOptimal,
-                                ),
-                            target: image.raw(),
-                            families: None,
-                            range: image_range.clone(),
-                        }),
-                    );
-                }
-            }
+        let target_layout = match (last_layout, next.layout) {
+            (Layout::TransferDstOptimal, _) => Layout::TransferDstOptimal,
+            (_, Layout::General) => Layout::General,
+            (Layout::General, _) => Layout::General,
+            _ => Layout::TransferDstOptimal,
+        };
+
+        if last_layout == Layout::Undefined || last_layout == target_layout {
+            last_access = Access::empty();
         }
 
+        family_uploads.barriers.add_image(
+            image.clone(),
+            image_range,
+            last_stage,
+            last_access,
+            last_layout,
+            target_layout,
+            next.stage,
+            next.access,
+            next.layout,
+        );
+
+        let next_upload = family_uploads.next_upload(device, next.queue.index)?;
+        let mut encoder = next_upload.command_buffer.encoder();
         encoder.copy_buffer_to_image(
             staging.raw(),
             image.raw(),
-            gfx_hal::image::Layout::TransferDstOptimal,
+            target_layout,
             Some(gfx_hal::command::BufferImageCopy {
                 buffer_offset: 0,
                 buffer_width: data_width,
@@ -321,23 +315,7 @@ where
             }),
         );
 
-        // TODO: batch barriers.
-        encoder.pipeline_barrier(
-            gfx_hal::pso::PipelineStage::TRANSFER..next.stage,
-            gfx_hal::memory::Dependencies::empty(),
-            Some(gfx_hal::memory::Barrier::Image {
-                states: (
-                    gfx_hal::image::Access::TRANSFER_WRITE,
-                    gfx_hal::image::Layout::TransferDstOptimal,
-                )..(next.access, next.layout),
-                target: image.raw(),
-                families: None,
-                range: image_range.clone(),
-            }),
-        );
-
         next_upload.staging_buffers.push(staging);
-
         Ok(())
     }
 
@@ -385,14 +363,17 @@ where
 #[derive(Debug)]
 pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
     pool: CommandPool<B, Transfer, IndividualReset>,
-    command_buffers: Vec<CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>>,
+    command_buffers:
+        Vec<[CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>; 2]>,
     next: Vec<Option<NextUploads<B>>>,
     pending: VecDeque<PendingUploads<B>>,
     fences: Vec<B::Fence>,
+    barriers: Barriers<B>,
 }
 
 #[derive(Debug)]
 pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
+    barrier_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
     command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
     staging_buffers: Vec<Escape<Buffer<B>>>,
     fence: B::Fence,
@@ -400,6 +381,8 @@ pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
 
 #[derive(Debug)]
 struct NextUploads<B: gfx_hal::Backend> {
+    barrier_buffer:
+        CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
     command_buffer:
         CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
     staging_buffers: Vec<Escape<Buffer<B>>>,
@@ -411,20 +394,28 @@ where
     B: gfx_hal::Backend,
 {
     unsafe fn flush(&mut self, family: &mut Family<B>) {
-        for (queue, next) in self
+        for (queue, mut next) in self
             .next
             .drain(..)
             .enumerate()
             .filter_map(|(i, x)| x.map(|x| (i, x)))
         {
+            let mut barriers_encoder = next.barrier_buffer.encoder();
+            let mut encoder = next.command_buffer.encoder();
+
+            self.barriers.encode_before(&mut barriers_encoder);
+            self.barriers.encode_after(&mut encoder);
+
+            let (barriers_submit, barrier_buffer) = next.barrier_buffer.finish().submit_once();
             let (submit, command_buffer) = next.command_buffer.finish().submit_once();
 
             family.queue_mut(queue).submit_raw_fence(
-                Some(Submission::new().submits(Some(submit))),
+                Some(Submission::new().submits(once(barriers_submit).chain(once(submit)))),
                 Some(&next.fence),
             );
 
             self.pending.push_back(PendingUploads {
+                barrier_buffer,
                 command_buffer,
                 staging_buffers: next.staging_buffers,
                 fence: next.fence,
@@ -446,17 +437,17 @@ where
         match &mut self.next[queue] {
             Some(next) => Ok(next),
             slot @ None => {
-                let buffer = self.command_buffers.pop().map(Ok).unwrap_or_else(
-                    || -> Result<_, failure::Error> { Ok(pool.allocate_buffers(1).pop().unwrap()) },
-                )?;
-
+                let [buf_a, buf_b] = self.command_buffers.pop().unwrap_or_else(|| {
+                    let mut bufs = pool.allocate_buffers(2);
+                    [bufs.remove(1), bufs.remove(0)]
+                });
                 let fence = self
                     .fences
                     .pop()
-                    .map(Ok)
-                    .unwrap_or_else(|| device.create_fence(false))?;
+                    .map_or_else(|| device.create_fence(false), Ok)?;
                 *slot = Some(NextUploads {
-                    command_buffer: buffer.begin(OneShot, ()),
+                    barrier_buffer: buf_a.begin(OneShot, ()),
+                    command_buffer: buf_b.begin(OneShot, ()),
                     staging_buffers: Vec::new(),
                     fence,
                 });
@@ -484,8 +475,10 @@ where
                 }
                 Ok(true) => {
                     self.fences.push(pending.fence);
-                    self.command_buffers
-                        .push(pending.command_buffer.mark_complete().reset());
+                    self.command_buffers.push([
+                        pending.command_buffer.mark_complete().reset(),
+                        pending.barrier_buffer.mark_complete().reset(),
+                    ]);
                 }
             }
         }
@@ -499,19 +492,23 @@ where
         let pool = &mut self.pool;
         self.pending.drain(..).for_each(|pending| {
             device.destroy_fence(pending.fence);
-            pool.free_buffers(Some(pending.command_buffer.mark_complete()))
+            pool.free_buffers(Some(pending.command_buffer.mark_complete()));
+            pool.free_buffers(Some(pending.barrier_buffer.mark_complete()));
         });
 
         self.fences
             .drain(..)
             .for_each(|fence| device.destroy_fence(fence));
-        self.command_buffers
-            .drain(..)
-            .for_each(|command_buffer| pool.free_buffers(Some(command_buffer)));
-        self.next.drain(..).filter_map(|n| n).for_each(|next| {
-            pool.free_buffers(Some(next.command_buffer));
+        pool.free_buffers(
+            self.command_buffers
+                .drain(..)
+                .flat_map(|[a, b]| once(a).chain(once(b))),
+        );
+
+        pool.free_buffers(self.next.drain(..).filter_map(|n| n).flat_map(|next| {
             device.destroy_fence(next.fence);
-        });
+            once(next.command_buffer).chain(once(next.barrier_buffer))
+        }));
         drop(pool);
         self.pool.dispose(device);
     }
