@@ -28,7 +28,7 @@ pipeline {
                     }
                     steps {
                         echo 'Beginning tests...'
-                        sh 'make test'
+                        sh 'cargo test --all --features "full vulkan"'
                         echo 'Tests done!'
                     }
                 }
