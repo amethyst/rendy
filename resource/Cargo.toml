@@ -15,7 +15,7 @@ no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 
 [dependencies]
 gfx-hal = "0.1"
-crossbeam-channel = "0.2"
+crossbeam-channel = "0.3"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"

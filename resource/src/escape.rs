@@ -70,7 +70,12 @@ impl<T> Drop for Escape<T> {
     fn drop(&mut self) {
         unsafe {
             // Read value from `ManuallyDrop` wrapper and send it over the channel.
-            self.sender.send(read(&mut *self.value));
+            match self.sender.send(read(&mut *self.value)) {
+                Ok(_) => {}
+                Err(_) => {
+                    log::error!("`Escape` was dropped after a `Terminal`?");
+                }
+            }
         }
     }
 }
@@ -114,7 +119,7 @@ impl<T> Terminal<T> {
         repeat(()).scan(&mut self.receiver, move |receiver, ()| {
             // trace!("Drain escape");
             if !receiver.is_empty() {
-                receiver.recv()
+                receiver.recv().ok()
             } else {
                 None
             }
@@ -127,8 +132,8 @@ impl<T> Drop for Terminal<T> {
         unsafe {
             ManuallyDrop::drop(&mut self.sender);
             match self.receiver.try_recv() {
-                None => {}
-                Some(_) => {
+                Ok(_) => {}
+                Err(_) => {
                     log::error!("Terminal must be dropped after all `Escape`s");
                 }
             }
