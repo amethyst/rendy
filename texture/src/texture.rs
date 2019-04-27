@@ -50,11 +50,18 @@ where
     }
 }
 
+/// Number of mip levels
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MipLevels {
+    /// Generate mip levels automaticaly from image size, each mip level
+    /// decreasing in resolution by half until 1x1
     GenerateAuto,
+    /// Generate mip levels up to a certain level, each mip level
+    /// decreasing in resolution by half
     GenerateLevels(NonZeroU8),
+    /// Create the image with raw mip levels but without blitting the main
+    /// texture data into them
     RawLevels(NonZeroU8),
 }
 
@@ -156,13 +163,13 @@ impl<'a> TextureBuilder<'a> {
         self
     }
 
-    /// Set number of generated mipmaps.
+    /// Set number of generated or raw mip levels
     pub fn with_mip_levels(mut self, mip_levels: MipLevels) -> Self {
         self.set_mip_levels(mip_levels);
         self
     }
 
-    /// Set number of generated mipmaps.
+    /// Set number of generated or raw mip levels
     pub fn set_mip_levels(&mut self, mip_levels: MipLevels) -> &mut Self {
         self.mip_levels = mip_levels;
         self
@@ -330,7 +337,7 @@ impl<'a> TextureBuilder<'a> {
                 info.kind.extent(),
                 buffer,
                 image::Layout::Undefined,
-                if !generate_mips {
+                if !generate_mips || mip_levels == 1 {
                     next_state
                 } else {
                     mip_state
