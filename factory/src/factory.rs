@@ -514,7 +514,8 @@ where
         let format_desc = image.format().surface_desc();
         let texels_count = (image_extent.width / format_desc.dim.0 as u32) as u64
             * (image_extent.height / format_desc.dim.1 as u32) as u64
-            * image_extent.depth as u64;
+            * image_extent.depth as u64
+            * (image_layers.layers.end - image_layers.layers.start) as u64;
         let total_bytes = (format_desc.bits as u64 / 8) * texels_count;
         assert_eq!(
             total_bytes, content_size,

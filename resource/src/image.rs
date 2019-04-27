@@ -285,6 +285,13 @@ fn match_kind(kind: Kind, view_kind: ViewKind, view_caps: ViewCapabilities) -> b
         },
         Kind::D2(..) => match view_kind {
             ViewKind::D2 | ViewKind::D2Array => true,
+            ViewKind::Cube => {
+                if view_caps.contains(ViewCapabilities::KIND_CUBE) {
+                    true
+                } else {
+                    false
+                }
+            },
             _ => false,
         },
         Kind::D3(..) => {
