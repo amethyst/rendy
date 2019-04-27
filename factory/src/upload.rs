@@ -212,6 +212,60 @@ where
 
     /// # Safety
     ///
+    /// `image` must belong to the `device` that was used to create this Uploader.
+    ///
+    pub(crate) unsafe fn transition_image(
+        &self,
+        image: Handle<Image<B>>,
+        image_range: gfx_hal::image::SubresourceRange,
+        last: ImageStateOrLayout,
+        next: ImageState,
+    ) {
+        use gfx_hal::image::{Access, Layout};
+
+        let mut family_uploads = self.family_uploads[next.queue.family.index]
+            .as_ref()
+            .unwrap()
+            .lock();
+
+        let (last_stage, mut last_access, last_layout) = match last.into() {
+            ImageStateOrLayout::State(last) => {
+                if last.queue != next.queue {
+                    unimplemented!("Can't sync resources across queues");
+                }
+                (
+                    last.stage,
+                    last.access,
+                    last.layout,
+                )
+            }
+            ImageStateOrLayout::Layout(last_layout) => (
+                gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                Access::empty(),
+                last_layout
+            ),
+        };
+
+        if last_layout == Layout::Undefined || last_layout == next.layout {
+            last_access = Access::empty();
+        }
+
+        family_uploads.barriers.add_image(
+            image.clone(),
+            image_range,
+            last_stage,
+            last_access,
+            last_layout,
+            next.layout,
+            next.stage,
+            next.access,
+            next.layout,
+        );
+
+    }
+
+    /// # Safety
+    ///
     /// `device` must be the same that was used to create this `Uploader`.
     /// `image` and `staging` must belong to the `device`.
     ///

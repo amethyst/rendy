@@ -52,9 +52,10 @@ where
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum MipLevel {
-    Auto,
-    Level(NonZeroU8),
+pub enum MipLevels {
+    GenerateAuto,
+    GenerateLevels(NonZeroU8),
+    RawLevels(NonZeroU8),
 }
 
 /// Generics-free texture builder.
@@ -72,7 +73,7 @@ pub struct TextureBuilder<'a> {
     data_height: u32,
     sampler_info: gfx_hal::image::SamplerInfo,
     swizzle: Swizzle,
-    mip_level: MipLevel,
+    mip_levels: MipLevels,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -90,7 +91,7 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::WrapMode::Clamp,
             ),
             swizzle: Swizzle::NO,
-            mip_level: MipLevel::Level(NonZeroU8::new(1).unwrap()),
+            mip_levels: MipLevels::RawLevels(NonZeroU8::new(1).unwrap()),
         }
     }
 
@@ -156,14 +157,14 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// Set number of generated mipmaps.
-    pub fn with_mip_levels(mut self, mip_level: MipLevel) -> Self {
-        self.set_mip_levels(mip_level);
+    pub fn with_mip_levels(mut self, mip_levels: MipLevels) -> Self {
+        self.set_mip_levels(mip_levels);
         self
     }
 
     /// Set number of generated mipmaps.
-    pub fn set_mip_levels(&mut self, mip_level: MipLevel) -> &mut Self {
-        self.mip_level = mip_level;
+    pub fn set_mip_levels(&mut self, mip_levels: MipLevels) -> &mut Self {
+        self.mip_levels = mip_levels;
         self
     }
 
@@ -239,14 +240,15 @@ impl<'a> TextureBuilder<'a> {
             _ => gfx_hal::image::ViewCapabilities::empty(),
         };
 
-        let mip_levels = match self.mip_level {
-            MipLevel::Level(val) => val.get(),
-            MipLevel::Auto => match self.kind {
-                gfx_hal::image::Kind::D1(_, _) => 1,
+        let (mip_levels, generate_mips) = match self.mip_levels {
+            MipLevels::GenerateLevels(val) => (val.get(), true),
+            MipLevels::RawLevels(val) => (val.get(), false),
+            MipLevels::GenerateAuto => match self.kind {
+                gfx_hal::image::Kind::D1(_, _) => (1, false),
                 gfx_hal::image::Kind::D2(w, h, _, _) => {
-                    ((32 - w.max(h).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL)
+                    (((32 - w.max(h).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL), true)
                 }
-                gfx_hal::image::Kind::D3(_, _, _) => 1,
+                gfx_hal::image::Kind::D3(_, _, _) => (1, false),
             },
         };
 
@@ -328,7 +330,7 @@ impl<'a> TextureBuilder<'a> {
                 info.kind.extent(),
                 buffer,
                 image::Layout::Undefined,
-                if mip_levels == 1 {
+                if !generate_mips {
                     next_state
                 } else {
                     mip_state
@@ -336,9 +338,8 @@ impl<'a> TextureBuilder<'a> {
             )?;
         }
 
-        if mip_levels > 1 {
+        if mip_levels > 1 && generate_mips {
             profile_scope!("fill_mips");
-
             unsafe {
                 factory.blitter().fill_mips(
                     factory.device(),
@@ -347,6 +348,19 @@ impl<'a> TextureBuilder<'a> {
                     std::iter::once(mip_state).chain(std::iter::repeat(undef_state)),
                     std::iter::repeat(next_state),
                 )?;
+            }
+        } else if mip_levels > 1 && !generate_mips {
+            unsafe {
+                factory.transition_image(
+                    image.clone(),
+                    image::SubresourceRange {
+                        aspects: info.format.surface_desc().aspects,
+                        levels: 1..mip_levels,
+                        layers: 0..info.kind.num_layers(),
+                    },
+                    image::Layout::Undefined,
+                    next_state,
+                );
             }
         }
 

@@ -1,7 +1,9 @@
 //! Module that turns an image into a `Texture`
 
-use crate::{pixel, TextureBuilder};
+use crate::{pixel, TextureBuilder, MipLevels};
 use derivative::Derivative;
+
+use std::num::NonZeroU8;
 
 // reexport for easy usage in ImageTextureConfig
 pub use image::ImageFormat;
@@ -30,13 +32,6 @@ pub enum Repr {
 ///
 /// 1D arrays are treated as a sequence of rows, each being an array entry.
 /// 1D images are treated as a single sequence of pixels.
-struct DataLayout {
-    /// Width of each data row in texels
-    pub width: u32,
-    /// Height of each layer in texel rows
-    pub height: u32,
-}
-
 #[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derivative(Default)]
@@ -106,6 +101,9 @@ pub struct ImageTextureConfig {
         value = "gfx_hal::image::SamplerInfo::new(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)"
     ))]
     pub sampler_info: gfx_hal::image::SamplerInfo,
+    #[derivative(Default(value = "false"))]
+    /// Automatically generate mipmaps for this image
+    pub generate_mips: bool,
 }
 
 #[cfg(feature = "serde")]
@@ -240,11 +238,18 @@ where
     let kind = config.kind.gfx_kind(w, h);
     let extent = kind.extent();
 
+    let mips = if config.generate_mips {
+        MipLevels::GenerateAuto
+    } else {
+        MipLevels::RawLevels(NonZeroU8::new(1).unwrap())
+    };
+
     Ok(TextureBuilder::new()
         .with_raw_data(vec, format)
         .with_swizzle(swizzle)
         .with_data_width(extent.width)
         .with_data_height(extent.height)
+        .with_mip_levels(mips)
         .with_kind(kind)
         .with_view_kind(config.kind.view_kind())
         .with_sampler_info(config.sampler_info))
