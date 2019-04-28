@@ -69,7 +69,7 @@ env_logger = "0.6"
 failure = "0.1"
 lazy_static = "1.0"
 log = "0.4"
-winit = "0.19"
+winit = "0.18"
 palette = "0.4"
 rand = "0.6"
 
