@@ -65,6 +65,11 @@ pub enum MipLevels {
     RawLevels(NonZeroU8),
 }
 
+/// Calculate the number of mip levels for a 2D image with given dimensions
+pub fn mip_levels_from_dims(width: u32, height: u32) -> u8 {
+    ((32 - width.max(height).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL)
+}
+
 /// Generics-free texture builder.
 #[derive(Clone, Derivative)]
 #[derivative(Debug)]
@@ -253,7 +258,7 @@ impl<'a> TextureBuilder<'a> {
             MipLevels::GenerateAuto => match self.kind {
                 gfx_hal::image::Kind::D1(_, _) => (1, false),
                 gfx_hal::image::Kind::D2(w, h, _, _) => {
-                    (((32 - w.max(h).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL), true)
+                    (mip_levels_from_dims(w, h), true)
                 }
                 gfx_hal::image::Kind::D3(_, _, _) => (1, false),
             },

@@ -14,6 +14,7 @@ use {
     std::{collections::VecDeque, iter::once, ops::DerefMut, ops::Range},
 };
 
+/// Manages blitting images across families and queues.
 #[derive(Debug)]
 pub struct Blitter<B: gfx_hal::Backend> {
     family_ops: Vec<Option<parking_lot::Mutex<FamilyGraphicsOps<B>>>>,
@@ -29,12 +30,103 @@ fn subresource_to_range(
     }
 }
 
+/// A region to be blitted including the source and destination images and states,
 #[derive(Debug, Clone)]
 pub struct BlitRegion {
+    /// Region to blit from
     pub src: BlitImageState,
+    /// Region to blit to
     pub dst: BlitImageState,
 }
 
+impl BlitRegion {
+    /// Get the blit regions needed to fill the mip levels of an image
+    pub fn mip_blits_for_image<B: gfx_hal::Backend>(
+        image: &Handle<Image<B>>,
+        last: impl IntoIterator<Item = ImageState>,
+        next: impl IntoIterator<Item = ImageState>,
+    ) -> (QueueId, Vec<BlitRegion>) {
+        assert!(image.levels() > 1);
+
+        let aspects = image.format().surface_desc().aspects;
+
+        let transfer = gfx_hal::pso::PipelineStage::TRANSFER;
+        let src_optimal = gfx_hal::image::Layout::TransferSrcOptimal;
+        let read = gfx_hal::image::Access::TRANSFER_READ;
+        let write = gfx_hal::image::Access::TRANSFER_WRITE;
+
+        let mut last_iter = last.into_iter();
+        let mut next_iter = next.into_iter();
+
+        let mut src_last = last_iter.next().unwrap();
+        let mut src_next = next_iter.next().unwrap();
+        assert_eq!(src_last.queue, src_next.queue);
+
+        let queue = src_last.queue;
+
+        let mut blits = Vec::with_capacity(image.levels() as usize - 1);
+
+        for (level, (dst_last, dst_next)) in (1..image.levels())
+            .into_iter()
+            .zip(last_iter.zip(next_iter))
+        {
+            assert_eq!(dst_last.queue, dst_next.queue);
+
+            let begin = level == 1;
+            let end = level == image.levels() - 1;
+
+            blits.push(BlitRegion {
+                src: BlitImageState {
+                    subresource: gfx_hal::image::SubresourceLayers {
+                        aspects,
+                        level: level - 1,
+                        layers: 0..image.layers(),
+                    },
+                    bounds: gfx_hal::image::Offset::ZERO
+                        .into_bounds(&image.kind().level_extent(level - 1)),
+                    last_stage: if begin { src_last.stage } else { transfer },
+                    last_access: if begin { src_last.access } else { write },
+                    last_layout: if begin { src_last.layout } else { src_optimal },
+                    next_stage: src_next.stage,
+                    next_access: src_next.access,
+                    next_layout: src_next.layout,
+                },
+                dst: BlitImageState {
+                    subresource: gfx_hal::image::SubresourceLayers {
+                        aspects,
+                        level,
+                        layers: 0..image.layers(),
+                    },
+                    bounds: gfx_hal::image::Offset::ZERO
+                        .into_bounds(&image.kind().level_extent(level)),
+                    last_stage: dst_last.stage,
+                    last_access: gfx_hal::image::Access::empty(),
+                    last_layout: gfx_hal::image::Layout::Undefined,
+                    next_stage: if end { dst_next.stage } else { transfer },
+                    next_access: if end { dst_next.access } else { read },
+                    next_layout: if end { dst_next.layout } else { src_optimal },
+                },
+            });
+
+            src_last = dst_last;
+            src_next = dst_next;
+        }
+
+        (queue, blits)
+    }
+}
+
+impl From<BlitRegion> for gfx_hal::command::ImageBlit {
+    fn from(blit: BlitRegion) -> Self {
+        gfx_hal::command::ImageBlit {
+            src_subresource: blit.src.subresource,
+            src_bounds: blit.src.bounds,
+            dst_subresource: blit.dst.subresource,
+            dst_bounds: blit.dst.bounds,        }
+    }
+}
+
+/// A region and image states for one image in a blit.
 #[derive(Debug, Clone)]
 pub struct BlitImageState {
     subresource: gfx_hal::image::SubresourceLayers,
@@ -103,69 +195,9 @@ where
         last: impl IntoIterator<Item = ImageState>,
         next: impl IntoIterator<Item = ImageState>,
     ) -> Result<(), failure::Error> {
-        assert!(image.levels() > 1);
-
-        let aspects = image.format().surface_desc().aspects;
-
-        let transfer = gfx_hal::pso::PipelineStage::TRANSFER;
-        let src_optimal = gfx_hal::image::Layout::TransferSrcOptimal;
-        let read = gfx_hal::image::Access::TRANSFER_READ;
-        let write = gfx_hal::image::Access::TRANSFER_WRITE;
-
-        let mut last_iter = last.into_iter();
-        let mut next_iter = next.into_iter();
-
-        let mut src_last = last_iter.next().unwrap();
-        let mut src_next = next_iter.next().unwrap();
-        assert_eq!(src_last.queue, src_next.queue);
-
-        for (level, (dst_last, dst_next)) in (1..image.levels())
-            .into_iter()
-            .zip(last_iter.zip(next_iter))
-        {
-            assert_eq!(dst_last.queue, dst_next.queue);
-
-            let begin = level == 1;
-            let end = level == image.levels() - 1;
-
-            let blit = BlitRegion {
-                src: BlitImageState {
-                    subresource: gfx_hal::image::SubresourceLayers {
-                        aspects,
-                        level: level - 1,
-                        layers: 0..image.layers(),
-                    },
-                    bounds: gfx_hal::image::Offset::ZERO
-                        .into_bounds(&image.kind().level_extent(level - 1)),
-                    last_stage: if begin { src_last.stage } else { transfer },
-                    last_access: if begin { src_last.access } else { write },
-                    last_layout: if begin { src_last.layout } else { src_optimal },
-                    next_stage: src_next.stage,
-                    next_access: src_next.access,
-                    next_layout: src_next.layout,
-                },
-                dst: BlitImageState {
-                    subresource: gfx_hal::image::SubresourceLayers {
-                        aspects,
-                        level,
-                        layers: 0..image.layers(),
-                    },
-                    bounds: gfx_hal::image::Offset::ZERO
-                        .into_bounds(&image.kind().level_extent(level)),
-                    last_stage: dst_last.stage,
-                    last_access: gfx_hal::image::Access::empty(),
-                    last_layout: gfx_hal::image::Layout::Undefined,
-                    next_stage: if end { dst_next.stage } else { transfer },
-                    next_access: if end { dst_next.access } else { read },
-                    next_layout: if end { dst_next.layout } else { src_optimal },
-                },
-            };
-
-            log::trace!("Blit: {:#?}", blit);
-            self.blit_image(device, src_last.queue, &image, &image, filter, Some(blit))?;
-            src_last = dst_last;
-            src_next = dst_next;
-        }
+        let (queue, blits) = BlitRegion::mip_blits_for_image(&image, last, next);
+        log::trace!("Blits: {:#?}", blits);
+        self.blit_image(device, queue, &image, &image, filter, blits)?;
         Ok(())
     }
 
@@ -231,12 +263,7 @@ where
                     reg.dst.next_layout,
                 );
 
-                gfx_hal::command::ImageBlit {
-                    src_subresource: reg.src.subresource,
-                    src_bounds: reg.src.bounds,
-                    dst_subresource: reg.dst.subresource,
-                    dst_bounds: reg.dst.bounds,
-                }
+                reg.into()
             })
             .collect::<SmallVec<[_; 1]>>();
 

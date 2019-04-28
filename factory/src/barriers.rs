@@ -31,6 +31,8 @@ impl<B: Backend> ImageBarrier<B> {
     }
 }
 
+/// Handles combining multiple image and buffer barriers that must be
+/// made before and after some target operations.
 #[derive(Debug)]
 pub struct Barriers<B: Backend> {
     before_stages: pso::PipelineStage,
@@ -47,6 +49,7 @@ pub struct Barriers<B: Backend> {
 }
 
 impl<B: Backend> Barriers<B> {
+    /// Create a new Barriers instance with target stages and accesses
     pub fn new(
         target_stages: pso::PipelineStage,
         target_buffer_access: buffer::Access,
@@ -67,6 +70,7 @@ impl<B: Backend> Barriers<B> {
         }
     }
 
+    /// Add an image to the barriers
     pub fn add_image(
         &mut self,
         image: Handle<Image<B>>,
@@ -109,6 +113,7 @@ impl<B: Backend> Barriers<B> {
         }
     }
 
+    /// Add a buffer to the barriers
     pub fn add_buffer(
         &mut self,
         last_stage: pso::PipelineStage,
@@ -122,6 +127,7 @@ impl<B: Backend> Barriers<B> {
         self.after_buffer_access |= next_access;
     }
 
+    /// Encode the barriers that should come before the target operations
     pub fn encode_before<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
         if !self.before_stages.is_empty() {
             let transitions = self.before_image_transitions.iter().map(|b| b.raw());
@@ -149,6 +155,7 @@ impl<B: Backend> Barriers<B> {
         self.before_image_transitions.clear();
     }
 
+    /// Encode the barriers that should come after the target operations
     pub fn encode_after<C, L>(&mut self, encoder: &mut Encoder<'_, B, C, L>) {
         if !self.target_stages.is_empty() {
             let transitions = self.after_image_transitions.iter().map(|b| b.raw());
