@@ -6,12 +6,30 @@ This document gives an overview of the Framegraph system in Rendy.
 
 Let's start at the end for this explanation. What you see on your monitor is the end result of a complicated series of transformations to data as it makes its way from your running application to your monitor.
 
-This series of transformations is often referred to as a _rendering pipeline_. These can be very simple, or they can be very complex. When they are very complex, it can be useful to add a layer of abstraction to make them easier to conceptualize.
+This series of transformations is often referred to as a _rendering pipeline_; note that this is separate from another meaning of _rendering pipeline_ which is used to encompass the GPU hardware pipeline (all shader stages and everything in between). 
+
+These `rendering pipelines_ can be very simple, or they can be very complex. When they are very complex, it can be useful to add a layer of abstraction to make them easier to conceptualize.
 
 One way of doing this is with a _framegraph_ (an alternate name sometimes used is _render graph_). Consider a simple rendering pipeline that looks like this:
 
 ```
-PBR Shader -> Dither -> Lens Flare
+┌────────────┐    ┌────────────┐                                                                            
+│  Previous  │    │  Compute   │                                                                            
+│   Frame    │───▶│  Average   │────────────────────────────────┐                                           
+│            │    │ Brightness │                                │                                           
+└────────────┘    └────────────┘                                │                                           
+                                                                ▼                                           
+┌────────────┐    ┌────────────┐     ┌────────────┐      ┌────────────┐     ┌────────────┐    ┌────────────┐
+│   Depth    │    │            │     │            │      │            │     │            │    │            │
+│  Pre-Pass  │───▶│ PBR Shader │────▶│   Dither   │ ────▶│  Tonemap   │────▶│ Lens Flare │───▶│   Output   │
+│            │    │            │     │            │      │            │     │            │    │            │
+└────────────┘    └────────────┘     └────────────┘      └────────────┘     └────────────┘    └────────────┘
+                         ▲                                                                                  
+┌────────────┐           │                                                                                  
+│ Shadow Map │           │                                                                                  
+│    Pass    │───────────┘                                                                                  
+│            │                                                                                              
+└────────────┘                                                                                              
 ```
 
 This could be applied to one model in your frame. Expand this out to much more complex pipelines, across complex scenes with many models, and you can see how it can get complicated.
@@ -45,6 +63,8 @@ A render group is a collection of pipelines (in the Vulkan sense of the word) th
 ## Subpass
 
 A `Subpass` is a child of a `Pass`. Currently, a `Pass` can have only one `Subpass`. While useful, they are not required. They are an opportunity for performance optimization when the output of one render group is used directly as the input to another one; not sampled, but literally passing the fragment.
+
+An additional benefit to having and using `Subpasses` now is that the API will not require breaking changes to support more than one `Subpass` per `Pass`. 
 
 ## Pass
 
