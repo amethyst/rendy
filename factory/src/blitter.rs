@@ -3,7 +3,8 @@ use {
         barriers::Barriers,
         command::{
             CommandBuffer, CommandPool, Families, Family, Graphics, IndividualReset, InitialState,
-            OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission,
+            OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Encoder,
+            Supports, Level
         },
         resource::{Handle, Image},
         upload::ImageState,
@@ -41,6 +42,12 @@ pub struct BlitRegion {
 
 impl BlitRegion {
     /// Get the blit regions needed to fill the mip levels of an image
+    /// 
+    /// # Safety
+    /// 
+    /// `last` state must be valid for corresponding image layer at the time of command execution (after memory transfers).
+    /// `last` and `next` should contain at least `image.levels()` elements.
+    /// `image.levels()` must be greater than 1
     pub fn mip_blits_for_image<B: gfx_hal::Backend>(
         image: &Handle<Image<B>>,
         last: impl IntoIterator<Item = ImageState>,
@@ -196,8 +203,10 @@ where
         next: impl IntoIterator<Item = ImageState>,
     ) -> Result<(), failure::Error> {
         let (queue, blits) = BlitRegion::mip_blits_for_image(&image, last, next);
-        log::trace!("Blits: {:#?}", blits);
-        self.blit_image(device, queue, &image, &image, filter, blits)?;
+        for blit in blits {
+            log::trace!("Blit: {:#?}", blit);
+            self.blit_image(device, queue, &image, &image, filter, Some(blit))?;
+        }
         Ok(())
     }
 
@@ -228,63 +237,18 @@ where
 
         let FamilyGraphicsOps {
             next,
-            read_barriers,
-            write_barriers,
             ..
         } = family_ops.deref_mut();
 
         let next_ops = next[queue_id.index].as_mut().unwrap();
         let mut encoder = next_ops.command_buffer.encoder();
 
-        let regions = regions
-            .into_iter()
-            .map(|reg| {
-                read_barriers.add_image(
-                    src_image.clone(),
-                    subresource_to_range(&reg.src.subresource),
-                    reg.src.last_stage,
-                    reg.src.last_access,
-                    reg.src.last_layout,
-                    gfx_hal::image::Layout::TransferSrcOptimal,
-                    reg.src.next_stage,
-                    reg.src.next_access,
-                    reg.src.next_layout,
-                );
-
-                write_barriers.add_image(
-                    dst_image.clone(),
-                    subresource_to_range(&reg.dst.subresource),
-                    reg.dst.last_stage,
-                    reg.dst.last_access,
-                    reg.dst.last_layout,
-                    gfx_hal::image::Layout::TransferDstOptimal,
-                    reg.dst.next_stage,
-                    reg.dst.next_access,
-                    reg.dst.next_layout,
-                );
-
-                reg.into()
-            })
-            .collect::<SmallVec<[_; 1]>>();
-
-        // TODO: synchronize whatever possible on flush.
-        // Currently all barriers are inlined due to dependencies between blits.
-
-        read_barriers.encode_before(&mut encoder);
-        write_barriers.encode_before(&mut encoder);
-
-        encoder.blit_image(
-            src_image.raw(),
-            gfx_hal::image::Layout::TransferSrcOptimal,
-            dst_image.raw(),
-            gfx_hal::image::Layout::TransferDstOptimal,
+        blit_image(
+            &mut encoder,
+            src_image,
+            dst_image,
             filter,
-            regions,
-        );
-
-        read_barriers.encode_after(&mut encoder);
-        write_barriers.encode_after(&mut encoder);
-        Ok(())
+            regions)
     }
 
     /// Cleanup pending updates.
@@ -326,6 +290,88 @@ where
             fu.map(|fu| fu.into_inner().dispose(device));
         });
     }
+}
+
+/// Blits one or more regions from src_image into dst_image using
+/// specified Filter
+/// 
+/// # Safety
+/// 
+/// * `src_image` and `dst_image` must have been created from the same `Device`
+/// as `encoder`
+pub unsafe fn blit_image<B, C, L>(
+    encoder: &mut Encoder<'_, B, C, L>,
+    src_image: &Handle<Image<B>>,
+    dst_image: &Handle<Image<B>>,
+    filter: gfx_hal::image::Filter,
+    regions: impl IntoIterator<Item = BlitRegion>,
+) -> Result<(), failure::Error> 
+where
+    B: gfx_hal::Backend,
+    C: Supports<Graphics>,
+    L: Level,
+{
+    let mut read_barriers = Barriers::new(
+        gfx_hal::pso::PipelineStage::TRANSFER,
+        gfx_hal::buffer::Access::TRANSFER_READ,
+        gfx_hal::image::Access::TRANSFER_READ,
+    );
+
+    let mut write_barriers = Barriers::new(
+        gfx_hal::pso::PipelineStage::TRANSFER,
+        gfx_hal::buffer::Access::TRANSFER_WRITE,
+        gfx_hal::image::Access::TRANSFER_WRITE,
+    );
+
+    let regions = regions
+        .into_iter()
+        .map(|reg| {
+            read_barriers.add_image(
+                src_image.clone(),
+                subresource_to_range(&reg.src.subresource),
+                reg.src.last_stage,
+                reg.src.last_access,
+                reg.src.last_layout,
+                gfx_hal::image::Layout::TransferSrcOptimal,
+                reg.src.next_stage,
+                reg.src.next_access,
+                reg.src.next_layout,
+            );
+
+            write_barriers.add_image(
+                dst_image.clone(),
+                subresource_to_range(&reg.dst.subresource),
+                reg.dst.last_stage,
+                reg.dst.last_access,
+                reg.dst.last_layout,
+                gfx_hal::image::Layout::TransferDstOptimal,
+                reg.dst.next_stage,
+                reg.dst.next_access,
+                reg.dst.next_layout,
+            );
+
+            reg.into()
+        })
+        .collect::<SmallVec<[_; 1]>>();
+
+    // TODO: synchronize whatever possible on flush.
+    // Currently all barriers are inlined due to dependencies between blits.
+
+    read_barriers.encode_before(encoder);
+    write_barriers.encode_before(encoder);
+
+    encoder.blit_image(
+        src_image.raw(),
+        gfx_hal::image::Layout::TransferSrcOptimal,
+        dst_image.raw(),
+        gfx_hal::image::Layout::TransferDstOptimal,
+        filter,
+        regions,
+    );
+
+    read_barriers.encode_after(encoder);
+    write_barriers.encode_after(encoder);
+    Ok(())
 }
 
 #[derive(Debug)]

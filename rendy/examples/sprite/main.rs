@@ -20,7 +20,7 @@ use {
         memory::Dynamic,
         mesh::PosTex,
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+        shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
         texture::{Texture, image::ImageTextureConfig},
     },
 };
