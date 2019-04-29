@@ -42,6 +42,14 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Simple graphics pipeline implementation
     type Pipeline: SimpleGraphicsPipeline<B, T>;
 
+    /// Make simple render group builder.
+    fn builder(self) -> DescBuilder<B, T, SimpleRenderGroupDesc<Self>>
+    where
+        Self: Sized,
+    {
+        SimpleRenderGroupDesc { inner: self }.builder()
+    }
+
     /// Get set or buffer resources the node uses.
     fn buffers(&self) -> Vec<BufferAccess> {
         Vec::new()
@@ -149,10 +157,7 @@ pub trait SimpleGraphicsPipeline<B: Backend, T: ?Sized>:
     where
         Self::Desc: Default,
     {
-        SimpleRenderGroupDesc {
-            inner: Self::Desc::default(),
-        }
-        .builder()
+        Self::Desc::default().builder()
     }
 
     /// Prepare to record drawing commands.

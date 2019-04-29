@@ -32,17 +32,25 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         }
     }
 
-    /// Get buffers used by the group
-    fn buffers(&self) -> Vec<BufferAccess>;
+    /// Get buffers used by the group. Empty by default.
+    fn buffers(&self) -> Vec<BufferAccess> {
+        Vec::new()
+    }
 
-    /// Get images used by the group
-    fn images(&self) -> Vec<ImageAccess>;
+    /// Get images used by the group. Empty by default.
+    fn images(&self) -> Vec<ImageAccess> {
+        Vec::new()
+    }
 
-    /// Number of color output images.
-    fn colors(&self) -> usize;
+    /// Number of color output images. One by default.
+    fn colors(&self) -> usize {
+        1
+    }
 
-    /// Is depth image used.
-    fn depth(&self) -> bool;
+    /// Is depth image used. True by default.
+    fn depth(&self) -> bool {
+        true
+    }
 
     /// Build render group.
     fn build<'a>(
