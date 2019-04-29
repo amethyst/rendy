@@ -109,7 +109,7 @@ pub struct ShaderSet<B: Backend> {
 }
 
 impl<B: Backend> ShaderSet<B> {
-    /// This function compiles and loads all shaders into B::ShaderModule objects which must be dropped later with `manual_drop`
+    /// This function compiles and loads all shaders into B::ShaderModule objects which must be dropped later with `dispose`
     pub fn load(
         &mut self,
         factory: &rendy_factory::Factory<B>,
@@ -150,9 +150,9 @@ impl<B: Backend> ShaderSet<B> {
     }
 
     /// Must be called to perform a drop of the Backend ShaderModule object otherwise the shader will never be destroyed in memory.
-    pub fn manual_drop(&mut self, factory: &rendy_factory::Factory<B>) {
+    pub fn dispose(&mut self, factory: &rendy_factory::Factory<B>) {
         for (_, shader) in self.shaders.iter_mut() {
-            shader.manual_drop(factory);
+            shader.dispose(factory);
         }
     }
 }
@@ -430,7 +430,7 @@ impl<B: Backend> ShaderStorage<B> {
         Ok(())
     }
 
-    fn manual_drop(&mut self, factory: &rendy_factory::Factory<B>) {
+    fn dispose(&mut self, factory: &rendy_factory::Factory<B>) {
         use gfx_hal::device::Device;
 
         if let Some(module) = self.module.take() {
@@ -442,9 +442,7 @@ impl<B: Backend> ShaderStorage<B> {
 impl<B: Backend> Drop for ShaderStorage<B> {
     fn drop(&mut self) {
         if self.module.is_some() {
-            panic!(
-                "This shader storage class needs to be manually dropped with manual_drop() first"
-            );
+            panic!("This shader storage class needs to be manually dropped with dispose() first");
         }
     }
 }

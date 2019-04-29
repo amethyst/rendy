@@ -44,9 +44,9 @@ pub trait SpirvReflectionGenerator {
 #[derive(Clone, Debug)]
 pub struct SpirvReflection {
     /// Vec of output variables with names.
-    pub output_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
+    pub output_attributes: HashMap<(String, u8), gfx_hal::pso::AttributeDesc>,
     /// Vec of output variables with names.
-    pub input_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
+    pub input_attributes: HashMap<(String, u8), gfx_hal::pso::AttributeDesc>,
     /// Hashmap of output variables with names.
     pub descriptor_sets: Vec<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>,
     /// Stage flag of this shader
@@ -80,8 +80,8 @@ impl SpirvReflection {
         stage_flag: ShaderStageFlags,
         entrypoint: Option<String>,
         entrypoints: Vec<(ShaderStageFlags, String)>,
-        input_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
-        output_attributes: HashMap<String, gfx_hal::pso::AttributeDesc>,
+        input_attributes: HashMap<(String, u8), gfx_hal::pso::AttributeDesc>,
+        output_attributes: HashMap<(String, u8), gfx_hal::pso::AttributeDesc>,
         descriptor_sets: Vec<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>,
         push_constants: Vec<(ShaderStageFlags, Range<u32>)>,
     ) -> Result<Self, failure::Error> {
@@ -231,15 +231,21 @@ impl SpirvReflectionGenerator for SpirvReflection {
         assert!(names.len() < 64);
         let mut locations = smallvec::SmallVec::<[u32; 64]>::new();
         for name in names {
-            locations.push(
-                self.input_attributes
-                    .get(&name.to_string())
-                    .ok_or(failure::format_err!(
-                        "Attribute named {} does not exist",
-                        name
-                    ))?
-                    .location,
-            );
+            // Does it contain an attribute (or array set) with this name?
+            let interm = self
+                .input_attributes
+                .iter()
+                .filter_map(|(k, v)| match k.0.eq_ignore_ascii_case(name) {
+                    true => Some(v.location),
+                    false => None,
+                })
+                .collect::<Vec<u32>>();
+
+            if interm.len() < 1 {
+                failure::bail!("Attribute named {} does not exist", name);
+            }
+
+            locations.extend_from_slice(&interm);
         }
         locations.sort();
 

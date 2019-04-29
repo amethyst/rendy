@@ -239,18 +239,18 @@ pub(crate) fn convert_stage(stage: ReflectShaderStageFlags) -> gfx_hal::pso::Sha
 
 pub(crate) fn generate_attributes(
     attributes: Vec<ReflectInterfaceVariable>,
-) -> Result<HashMap<String, gfx_hal::pso::AttributeDesc>, failure::Error> {
+) -> Result<HashMap<(String, u8), gfx_hal::pso::AttributeDesc>, failure::Error> {
     let mut out_attributes = HashMap::new();
 
     for attribute in &attributes {
         let reflected: gfx_hal::pso::AttributeDesc = attribute.reflect_into()?;
         if attribute.array.dims.is_empty() {
-            out_attributes.insert(attribute.name.clone(), reflected);
+            out_attributes.insert((attribute.name.clone(), 0), reflected);
         } else {
             for n in 0..attribute.array.dims[0] {
                 let mut clone = reflected.clone();
                 clone.location += n;
-                out_attributes.insert(format!("{}_{}", attribute.name.clone(), n), clone);
+                out_attributes.insert((attribute.name.clone(), n as u8), clone);
             }
         }
     }

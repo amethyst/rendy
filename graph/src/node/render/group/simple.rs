@@ -248,7 +248,7 @@ where
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                shader_set.manual_drop(factory);
+                shader_set.dispose(factory);
                 e
             })?;
 
@@ -259,7 +259,7 @@ where
             )
         }
         .map_err(|e| {
-            shader_set.manual_drop(factory);
+            shader_set.dispose(factory);
             e
         })?;
 
@@ -281,7 +281,7 @@ where
 
         let shaders = match shader_set.raw() {
             Err(e) => {
-                shader_set.manual_drop(factory);
+                shader_set.dispose(factory);
                 return Err(e);
             }
             Ok(s) => s,
@@ -320,7 +320,7 @@ where
         }
         .remove(0)
         .map_err(|e| {
-            shader_set.manual_drop(factory);
+            shader_set.dispose(factory);
             e
         })?;
 
@@ -328,11 +328,11 @@ where
             .inner
             .build(ctx, factory, queue, aux, buffers, images, &set_layouts)
             .map_err(|e| {
-                shader_set.manual_drop(factory);
+                shader_set.dispose(factory);
                 e
             })?;
 
-        shader_set.manual_drop(factory);
+        shader_set.dispose(factory);
 
         Ok(Box::new(SimpleRenderGroup::<B, _> {
             set_layouts,
