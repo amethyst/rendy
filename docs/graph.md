@@ -21,7 +21,7 @@ One way of doing this is with a _framegraph_ (an alternate name sometimes used i
                                                                 ▼                                           
 ┌────────────┐    ┌────────────┐     ┌────────────┐      ┌────────────┐     ┌────────────┐    ┌────────────┐
 │   Depth    │    │            │     │            │      │            │     │            │    │            │
-│  Pre-Pass  │───▶│ PBR Shader │────▶│   Dither   │ ────▶│  Tonemap   │────▶│ Lens Flare │───▶│   Output   │
+│  Pre-Pass  │───▶│ PBR Shader │────▶│   Tonemap  │ ────▶│   Dither   │────▶│ Lens Flare │───▶│   Output   │
 │            │    │            │     │            │      │            │     │            │    │            │
 └────────────┘    └────────────┘     └────────────┘      └────────────┘     └────────────┘    └────────────┘
                          ▲                                                                                  
