@@ -22,14 +22,7 @@ mod reflect;
 pub use self::shaderc::*;
 
 #[cfg(feature = "spirv-reflection")]
-pub use self::reflect::{SpirvReflection, SpirvReflectionGenerator};
-
-#[cfg(not(feature = "spirv-reflection"))]
-#[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
-struct SpirvReflection {
-    entrypoints: Vec<(ShaderStageFlags, String)>,
-    entrypoint: Option<String>,
-}
+pub use self::reflect::SpirvReflection;
 
 use gfx_hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
@@ -105,7 +98,6 @@ impl Shader for SpirvShader {
 #[derivative(Default(bound = ""))]
 pub struct ShaderSet<B: Backend> {
     shaders: HashMap<ShaderStageFlags, ShaderStorage<B>>,
-    set_reflection: SpirvReflection,
 }
 
 impl<B: Backend> ShaderSet<B> {
@@ -162,13 +154,12 @@ impl<B: Backend> ShaderSet<B> {
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ShaderSetBuilder {
-    vertex: Option<(Vec<u8>, SpirvReflection)>,
-    fragment: Option<(Vec<u8>, SpirvReflection)>,
-    geometry: Option<(Vec<u8>, SpirvReflection)>,
-    hull: Option<(Vec<u8>, SpirvReflection)>,
-    domain: Option<(Vec<u8>, SpirvReflection)>,
-    compute: Option<(Vec<u8>, SpirvReflection)>,
-    set_reflection: Option<SpirvReflection>,
+    vertex: Option<(Vec<u8>, String)>,
+    fragment: Option<(Vec<u8>, String)>,
+    geometry: Option<(Vec<u8>, String)>,
+    hull: Option<(Vec<u8>, String)>,
+    domain: Option<(Vec<u8>, String)>,
+    compute: Option<(Vec<u8>, String)>,
 }
 
 impl ShaderSetBuilder {
@@ -190,16 +181,14 @@ impl ShaderSetBuilder {
         }
 
         let create_storage = move |stage,
-                                   shader: (Vec<u8>, SpirvReflection),
+                                   shader: (Vec<u8>, String),
                                    factory|
               -> Result<ShaderStorage<B>, failure::Error> {
-            let entry = shader.1.entrypoint.clone();
             let mut storage = ShaderStorage {
                 stage: stage,
                 spirv: shader.0,
-                reflection: shader.1,
                 module: None,
-                entrypoint: entry.unwrap(),
+                entrypoint: shader.1.clone(),
             };
             unsafe {
                 storage.compile(factory)?;
@@ -256,10 +245,7 @@ impl ShaderSetBuilder {
     #[inline(always)]
     pub fn with_vertex<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
         let data = shader.spirv()?;
-        self.vertex = Some((
-            data.to_vec(),
-            self.reflect_shader(shader.stage(), shader.entry(), data)?,
-        ));
+        self.vertex = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
     }
 
@@ -267,10 +253,7 @@ impl ShaderSetBuilder {
     #[inline(always)]
     pub fn with_fragment<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
         let data = shader.spirv()?;
-        self.fragment = Some((
-            data.to_vec(),
-            self.reflect_shader(shader.stage(), shader.entry(), data)?,
-        ));
+        self.fragment = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
     }
 
@@ -278,10 +261,7 @@ impl ShaderSetBuilder {
     #[inline(always)]
     pub fn with_geometry<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
         let data = shader.spirv()?;
-        self.geometry = Some((
-            data.to_vec(),
-            self.reflect_shader(shader.stage(), shader.entry(), data)?,
-        ));
+        self.geometry = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
     }
 
@@ -289,10 +269,7 @@ impl ShaderSetBuilder {
     #[inline(always)]
     pub fn with_hull<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
         let data = shader.spirv()?;
-        self.hull = Some((
-            data.to_vec(),
-            self.reflect_shader(shader.stage(), shader.entry(), data)?,
-        ));
+        self.hull = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
     }
 
@@ -300,10 +277,7 @@ impl ShaderSetBuilder {
     #[inline(always)]
     pub fn with_domain<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
         let data = shader.spirv()?;
-        self.domain = Some((
-            data.to_vec(),
-            self.reflect_shader(shader.stage(), shader.entry(), data)?,
-        ));
+        self.domain = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
     }
 
@@ -312,77 +286,40 @@ impl ShaderSetBuilder {
     #[inline(always)]
     pub fn with_compute<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
         let data = shader.spirv()?;
-        self.compute = Some((
-            data.to_vec(),
-            self.reflect_shader(shader.stage(), shader.entry(), data)?,
-        ));
+        self.compute = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
-    }
-
-    #[cfg(feature = "spirv-reflection")]
-    #[inline(always)]
-    fn reflect_shader(
-        &mut self,
-        _: ShaderStageFlags,
-        entrypoint: &str,
-        data: std::borrow::Cow<'_, [u8]>,
-    ) -> Result<SpirvReflection, failure::Error> {
-        Ok(SpirvReflection::reflect(&data, Some(entrypoint))?)
-    }
-
-    #[cfg(not(feature = "spirv-reflection"))]
-    #[inline(always)]
-    fn reflect_shader(
-        &mut self,
-        stage: ShaderStageFlags,
-        entrypoint: &str,
-        _: std::borrow::Cow<'_, [u8]>,
-    ) -> Result<SpirvReflection, failure::Error> {
-        Ok(SpirvReflection {
-            entrypoints: vec![(stage, entrypoint.to_string())],
-            entrypoint: Some(entrypoint.to_string()),
-        })
     }
 
     #[cfg(feature = "spirv-reflection")]
     /// This function processes all shaders provided to the builder and computes and stores full reflection information on the shader.
     /// This includes names, attributes, descriptor sets and push constants used by the shaders, as well as compiling local caches for performance.
-    pub fn reflect(mut self) -> Result<Self, failure::Error> {
+    pub fn reflect(&self) -> Result<SpirvReflection, failure::Error> {
         if self.vertex.is_none() && self.compute.is_none() {
             failure::bail!("A vertex or compute shader must be provided");
         }
 
         // We need to combine and merge all the reflections into a single SpirvReflection instance
         let mut reflections = Vec::new();
-        if let Some(vertex) = self.vertex.as_mut() {
-            vertex.1 = SpirvReflection::reflect(&vertex.0, None)?;
-            reflections.push(&vertex.1);
+        if let Some(vertex) = self.vertex.as_ref() {
+            reflections.push(SpirvReflection::reflect(&vertex.0, None)?);
         }
-        if let Some(fragment) = self.fragment.as_mut() {
-            fragment.1 = SpirvReflection::reflect(&fragment.0, None)?;
-            reflections.push(&fragment.1);
+        if let Some(fragment) = self.fragment.as_ref() {
+            reflections.push(SpirvReflection::reflect(&fragment.0, None)?);
         }
-        if let Some(hull) = self.hull.as_mut() {
-            hull.1 = SpirvReflection::reflect(&hull.0, None)?;
-            reflections.push(&hull.1);
+        if let Some(hull) = self.hull.as_ref() {
+            reflections.push(SpirvReflection::reflect(&hull.0, None)?);
         }
-        if let Some(domain) = self.domain.as_mut() {
-            domain.1 = SpirvReflection::reflect(&domain.0, None)?;
-            reflections.push(&domain.1);
+        if let Some(domain) = self.domain.as_ref() {
+            reflections.push(SpirvReflection::reflect(&domain.0, None)?);
         }
-        if let Some(compute) = self.compute.as_mut() {
-            compute.1 = SpirvReflection::reflect(&compute.0, None)?;
-            reflections.push(&compute.1);
+        if let Some(compute) = self.compute.as_ref() {
+            reflections.push(SpirvReflection::reflect(&compute.0, None)?);
         }
-        if let Some(geometry) = self.geometry.as_mut() {
-            geometry.1 = SpirvReflection::reflect(&geometry.0, None)?;
-            reflections.push(&geometry.1);
+        if let Some(geometry) = self.geometry.as_ref() {
+            reflections.push(SpirvReflection::reflect(&geometry.0, None)?);
         }
 
-        self.set_reflection = Some(reflect::merge(&reflections)?);
-        self.set_reflection.as_mut().unwrap().compile_cache()?;
-
-        Ok(self)
+        reflect::merge(&reflections)?.compile_cache()
     }
 }
 
@@ -391,7 +328,6 @@ impl ShaderSetBuilder {
 pub struct ShaderStorage<B: Backend> {
     stage: ShaderStageFlags,
     spirv: Vec<u8>,
-    reflection: SpirvReflection,
     module: Option<B::ShaderModule>,
     entrypoint: String,
 }
@@ -401,17 +337,7 @@ impl<B: Backend> ShaderStorage<B> {
         &'a self,
     ) -> Result<Option<gfx_hal::pso::EntryPoint<'a, B>>, failure::Error> {
         Ok(Some(gfx_hal::pso::EntryPoint {
-            entry: &self
-                .reflection
-                .entrypoints
-                .iter()
-                .find(|e| e.0 == self.stage && e.1 == self.entrypoint)
-                .ok_or(failure::format_err!(
-                    "Shader {:?} missing entry point {}",
-                    self.stage,
-                    self.entrypoint
-                ))?
-                .1,
+            entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
             specialization: gfx_hal::pso::Specialization::default(),
         }))

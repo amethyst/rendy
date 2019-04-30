@@ -25,7 +25,7 @@ use {
 };
 
 #[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflectionGenerator;
+use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
@@ -67,8 +67,9 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
-        .with_fragment(&*FRAGMENT).unwrap()
-        .reflect().unwrap();
+        .with_fragment(&*FRAGMENT).unwrap();
+
+    static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
 }
 
 #[cfg(not(feature = "spirv-reflection"))]
@@ -154,6 +155,11 @@ where
 {
     type Pipeline = MeshRenderPipeline<B>;
 
+    #[cfg(feature = "spirv-reflection")]
+    fn layout(&self) -> Layout {
+        SHADER_REFLECTION.layout().unwrap()
+    }
+
     #[cfg(not(feature = "spirv-reflection"))]
     fn layout(&self) -> Layout {
         Layout {
@@ -171,11 +177,6 @@ where
     }
 
     #[cfg(feature = "spirv-reflection")]
-    fn layout(&self) -> Layout {
-        SHADERS.layout().unwrap()
-    }
-
-    #[cfg(feature = "spirv-reflection")]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -184,11 +185,11 @@ where
         gfx_hal::pso::InstanceRate,
     )> {
         vec![
-            SHADERS
+            SHADER_REFLECTION
                 .attributes(&["pos", "color", "norm"])
                 .unwrap()
                 .gfx_vertex_input_desc(0),
-            SHADERS
+            SHADER_REFLECTION
                 .attributes_range(3..7)
                 .unwrap()
                 .gfx_vertex_input_desc(1),
@@ -362,7 +363,9 @@ where
             .as_ref()
             .unwrap()
             .bind(
-                &[SHADERS.attributes(&["pos", "color", "norm"]).unwrap()],
+                &[SHADER_REFLECTION
+                    .attributes(&["pos", "color", "norm"])
+                    .unwrap()],
                 &mut encoder
             )
             .is_ok());

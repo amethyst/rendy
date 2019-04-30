@@ -1,4 +1,4 @@
-use gfx_hal::{pso::ShaderStageFlags, Backend};
+use gfx_hal::pso::ShaderStageFlags;
 use rendy_util::types::{vertex::VertexFormat, Layout, SetLayout};
 use spirv_reflect::ShaderModule;
 use std::collections::HashMap;
@@ -7,37 +7,10 @@ use std::ops::{Bound, Range, RangeBounds};
 pub(crate) mod types;
 use types::*;
 
-use crate::{ShaderSet, ShaderSetBuilder};
-
 #[derive(Clone, Debug)]
 pub(crate) struct SpirvCachedGfxDescription {
     pub vertices: (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, u32),
     pub layout: Layout,
-}
-
-/// Trait implemented by `ShaderSet`, `ShaderSetBuilder` and `ShaderStorage` for accessing gfx_hal and rendy specific versions of reflected shader information
-pub trait SpirvReflectionGenerator {
-    /// Returns attributes within a given index range in rendy/gfx_hal format in the form of a `VertexFormat`
-    fn attributes_range<R: RangeBounds<usize>>(
-        &self,
-        range: R,
-    ) -> Result<VertexFormat, failure::Error>;
-
-    /// Returns attributes based on their names in rendy/gfx_hal format in the form of a `VertexFormat`. Note that attributes are sorted in their layout location
-    /// order, not in the order provided.
-    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error>;
-
-    /// Returns the merged descriptor set layouts of all shaders in this set in gfx_hal format in the form of a `Layout` structure.
-    fn layout(&self) -> Result<Layout, failure::Error>;
-
-    /// Returns the combined stages of shaders which are in this set in the form of a `ShaderStageFlags` bitflag.
-    fn stage(&self) -> ShaderStageFlags;
-
-    /// Returns the reflected push constants of this shader set in gfx_hal format.
-    fn push_constants(
-        &self,
-        range: Option<Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error>;
 }
 
 /// Contains intermediate structured data of reflected shader information.
@@ -97,7 +70,7 @@ impl SpirvReflection {
         })
     }
 
-    pub(crate) fn compile_cache(&mut self) -> Result<(), failure::Error> {
+    pub(crate) fn compile_cache(mut self) -> Result<Self, failure::Error> {
         let mut stride: u32 = 0;
         let mut vertices = self
             .input_attributes
@@ -142,11 +115,14 @@ impl SpirvReflection {
             layout,
         });
 
-        Ok(())
+        Ok(self)
     }
 
     /// This function performs the actual SPIRV reflection utilizing spirv-reflect-rs, and then converting it into appropriate structures which are then consumed by rendy.
-    pub fn reflect(spirv: &[u8], entrypoint: Option<&str>) -> Result<Self, failure::Error> {
+    pub fn reflect(
+        spirv: &[u8],
+        entrypoint: Option<&str>,
+    ) -> Result<SpirvReflection, failure::Error> {
         match ShaderModule::load_u8_data(spirv) {
             Ok(module) => {
                 let stage_flag = convert_stage(module.get_shader_stage());
@@ -219,10 +195,10 @@ impl SpirvReflection {
             Err(e) => failure::bail!("Failed to reflect data: {}", e),
         }
     }
-}
 
-impl SpirvReflectionGenerator for SpirvReflection {
-    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
+    /// Returns attributes based on their names in rendy/gfx_hal format in the form of a `VertexFormat`. Note that attributes are sorted in their layout location
+    /// order, not in the order provided.
+    pub fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
         if self.cache.is_none() {
             failure::bail!("Cache isn't constructed for shader: {:?}", self.stage());
         }
@@ -266,7 +242,8 @@ impl SpirvReflectionGenerator for SpirvReflection {
         })
     }
 
-    fn attributes_range<R: RangeBounds<usize>>(
+    /// Returns attributes within a given index range in rendy/gfx_hal format in the form of a `VertexFormat`
+    pub fn attributes_range<R: RangeBounds<usize>>(
         &self,
         range: R,
     ) -> Result<VertexFormat, failure::Error> {
@@ -297,8 +274,9 @@ impl SpirvReflectionGenerator for SpirvReflection {
         })
     }
 
+    /// Returns the merged descriptor set layouts of all shaders in this set in gfx_hal format in the form of a `Layout` structure.
     #[inline(always)]
-    fn layout(&self) -> Result<Layout, failure::Error> {
+    pub fn layout(&self) -> Result<Layout, failure::Error> {
         Ok(self
             .cache
             .as_ref()
@@ -309,13 +287,15 @@ impl SpirvReflectionGenerator for SpirvReflection {
             .clone())
     }
 
-    #[inline(always)]
-    fn stage(&self) -> ShaderStageFlags {
+    /// Returns the combined stages of shaders which are in this set in the form of a `ShaderStageFlags` bitflag.
+    #[inline]
+    pub fn stage(&self) -> ShaderStageFlags {
         self.stage_flag
     }
 
-    #[inline(always)]
-    fn push_constants(
+    /// Returns the reflected push constants of this shader set in gfx_hal format.
+    #[inline]
+    pub fn push_constants(
         &self,
         range: Option<Range<usize>>,
     ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error> {
@@ -337,75 +317,7 @@ impl SpirvReflectionGenerator for SpirvReflection {
     }
 }
 
-impl<B: Backend> SpirvReflectionGenerator for ShaderSet<B> {
-    #[inline(always)]
-    fn attributes_range<R: RangeBounds<usize>>(
-        &self,
-        range: R,
-    ) -> Result<VertexFormat, failure::Error> {
-        self.set_reflection.attributes_range(range)
-    }
-
-    #[inline(always)]
-    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
-        self.set_reflection.attributes(names)
-    }
-
-    #[inline(always)]
-    fn layout(&self) -> Result<Layout, failure::Error> {
-        self.set_reflection.layout()
-    }
-
-    #[inline(always)]
-    fn stage(&self) -> ShaderStageFlags {
-        self.set_reflection.stage()
-    }
-
-    #[inline(always)]
-    fn push_constants(
-        &self,
-        range: Option<Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error> {
-        self.set_reflection.push_constants(range)
-    }
-}
-
-impl SpirvReflectionGenerator for ShaderSetBuilder {
-    #[inline(always)]
-    fn attributes_range<R: RangeBounds<usize>>(
-        &self,
-        range: R,
-    ) -> Result<VertexFormat, failure::Error> {
-        self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch attributes without a set reflection. reflect() must be called first after completing a set build"))?.attributes_range(range)
-    }
-
-    /// Returns attributes from range
-    fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
-        self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch attributes without a set reflection. reflect() must be called first after completing a set build"))?.attributes(names)
-    }
-
-    #[inline(always)]
-    fn layout(&self) -> Result<Layout, failure::Error> {
-        self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch layout without a set reflection. reflect() must be called first after completing a set build"))?.layout()
-    }
-
-    #[inline(always)]
-    fn stage(&self) -> ShaderStageFlags {
-        self.set_reflection
-            .as_ref()
-            .map_or(ShaderStageFlags::empty(), |r| r.stage())
-    }
-
-    #[inline(always)]
-    fn push_constants(
-        &self,
-        range: Option<Range<usize>>,
-    ) -> Result<Vec<(ShaderStageFlags, Range<u32>)>, failure::Error> {
-        self.set_reflection.as_ref().ok_or(failure::format_err!("Attempting to fetch push constants without a set reflection. reflect() must be called first after completing a set build"))?.push_constants(range)
-    }
-}
-
-pub(crate) fn merge(reflections: &[&SpirvReflection]) -> Result<SpirvReflection, failure::Error> {
+pub(crate) fn merge(reflections: &[SpirvReflection]) -> Result<SpirvReflection, failure::Error> {
     let mut descriptor_sets = Vec::<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>>::new();
     let mut set_push_constants = Vec::new();
     let mut set_stage_flags = ShaderStageFlags::empty();

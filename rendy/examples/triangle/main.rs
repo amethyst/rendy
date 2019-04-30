@@ -22,7 +22,7 @@ use rendy::{
 };
 
 #[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflectionGenerator;
+use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
@@ -58,8 +58,9 @@ lazy_static::lazy_static! {
 lazy_static::lazy_static! {
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
-        .with_fragment(&*FRAGMENT).unwrap()
-        .reflect().unwrap();
+        .with_fragment(&*FRAGMENT).unwrap();
+
+    static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
 }
 
 #[cfg(not(feature = "spirv-reflection"))]
@@ -96,7 +97,7 @@ where
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     )> {
-        vec![SHADERS
+        vec![SHADER_REFLECTION
             .attributes_range(..)
             .unwrap()
             .gfx_vertex_input_desc(0)]
@@ -155,7 +156,7 @@ where
             let mut vbuf = factory
                 .create_buffer(
                     BufferInfo {
-                        size: SHADERS.attributes_range(..).unwrap().stride as u64 * 3,
+                        size: SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 3,
                         usage: gfx_hal::buffer::Usage::VERTEX,
                     },
                     Dynamic,
