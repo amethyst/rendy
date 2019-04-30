@@ -19,6 +19,7 @@ use rendy::{
     mesh::{AsVertex, PosColor},
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+    wsi::WindowExt,
 };
 
 use winit::{EventsLoop, WindowBuilder};
@@ -253,6 +254,9 @@ fn main() {
     event_loop.poll_events(|_| ());
 
     let surface = factory.create_surface(window.into());
+
+    // Centers the window.
+    surface.window().center();
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 

@@ -21,6 +21,7 @@ use {
         mesh::{AsVertex, Mesh, PosColorNorm, Transform},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+        wsi::WindowExt,
     },
 };
 
@@ -372,6 +373,9 @@ fn main() {
 
     let surface = factory.create_surface(window.into());
     let aspect = surface.aspect();
+
+    // Centers the window.
+    surface.window().center();
 
     let mut graph_builder = GraphBuilder::<Backend, Aux<Backend>>::new();
 

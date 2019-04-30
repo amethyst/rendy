@@ -581,3 +581,48 @@ where
         &self.targets[index].1
     }
 }
+
+pub trait WindowExt {
+    /// Adds window centering functons to the window.
+    /// Centers the window on the current monitor the window lives in.
+    fn center(&self) {}
+
+    /// Centers the window on the specified target monitor, falls back to primary monitor if out range.
+    fn set_center_monitor(&self, monitor_target: usize) {}
+
+    /// Sets the window position to be in the center of the given monitor.
+    fn set_centered(&self, monitor: winit::MonitorId) {}
+}
+
+/// Implements window centering, and monitor positioning.
+impl WindowExt for &winit::Window {
+    fn center(&self) {
+        self.set_centered(self.get_current_monitor())
+    }
+
+    fn set_center_monitor(&self, monitor_target: usize) {
+        if monitor_target < self.get_available_monitors().count() {
+            self.set_centered(self.get_available_monitors().nth(monitor_target).unwrap())
+        } else {
+            self.set_centered(self.get_primary_monitor());
+        }
+    }
+
+    fn set_centered(&self, monitor: winit::MonitorId) {
+        let window_size = match self.get_outer_size() {
+            Some(logical_size) => logical_size,
+            None => return,
+        };
+
+        let monitor_size = monitor.get_dimensions();
+        let monitor_position = monitor.get_position();
+
+        let mut monitor_window_position: winit::dpi::LogicalPosition = (0.0, 0.0).into();
+        monitor_window_position.x =
+            monitor_position.x + (monitor_size.width * 0.5) - (&window_size.width * 0.5);
+        monitor_window_position.y =
+            monitor_position.y + (monitor_size.height * 0.5) - (&window_size.height * 0.5);
+
+        &self.set_position(monitor_window_position);
+    }
+}

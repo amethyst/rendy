@@ -22,6 +22,7 @@ use {
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
         texture::Texture,
+        wsi::WindowExt,
     },
 };
 
@@ -353,6 +354,9 @@ fn main() {
     event_loop.poll_events(|_| ());
 
     let surface = factory.create_surface(window.into());
+
+    // Centers the window.
+    surface.window().center();
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
