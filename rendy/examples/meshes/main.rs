@@ -61,22 +61,13 @@ lazy_static::lazy_static! {
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
-}
 
-#[cfg(feature = "spirv-reflection")]
-lazy_static::lazy_static! {
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
         .with_fragment(&*FRAGMENT).unwrap();
 
+    #[cfg(feature = "spirv-reflection")]
     static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
-}
-
-#[cfg(not(feature = "spirv-reflection"))]
-lazy_static::lazy_static! {
-    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
-        .with_vertex(&*VERTEX).unwrap()
-        .with_fragment(&*FRAGMENT).unwrap();
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -155,14 +146,46 @@ where
 {
     type Pipeline = MeshRenderPipeline<B>;
 
-    #[cfg(feature = "spirv-reflection")]
-    fn layout(&self) -> Layout {
-        SHADER_REFLECTION.layout().unwrap()
+    fn load_shader_set(
+        &self,
+        factory: &mut Factory<B>,
+        _aux: &Aux<B>,
+    ) -> rendy_shader::ShaderSet<B> {
+        SHADERS.build(factory).unwrap()
     }
 
-    #[cfg(not(feature = "spirv-reflection"))]
+    fn vertices(
+        &self,
+    ) -> Vec<(
+        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        gfx_hal::pso::ElemStride,
+        gfx_hal::pso::InstanceRate,
+    )> {
+        #[cfg(feature = "spirv-reflection")]
+        return vec![
+            SHADER_REFLECTION
+                .attributes(&["pos", "color", "norm"])
+                .unwrap()
+                .gfx_vertex_input_desc(0),
+            SHADER_REFLECTION
+                .attributes_range(3..7)
+                .unwrap()
+                .gfx_vertex_input_desc(1),
+        ];
+
+        #[cfg(not(feature = "spirv-reflection"))]
+        return vec![
+            PosColorNorm::VERTEX.gfx_vertex_input_desc(0),
+            Transform::VERTEX.gfx_vertex_input_desc(1),
+        ];
+    }
+
     fn layout(&self) -> Layout {
-        Layout {
+        #[cfg(feature = "spirv-reflection")]
+        return SHADER_REFLECTION.layout().unwrap();
+
+        #[cfg(not(feature = "spirv-reflection"))]
+        return Layout {
             sets: vec![SetLayout {
                 bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
@@ -173,49 +196,7 @@ where
                 }],
             }],
             push_constants: Vec::new(),
-        }
-    }
-
-    #[cfg(feature = "spirv-reflection")]
-    fn vertices(
-        &self,
-    ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
-    )> {
-        vec![
-            SHADER_REFLECTION
-                .attributes(&["pos", "color", "norm"])
-                .unwrap()
-                .gfx_vertex_input_desc(0),
-            SHADER_REFLECTION
-                .attributes_range(3..7)
-                .unwrap()
-                .gfx_vertex_input_desc(1),
-        ]
-    }
-
-    #[cfg(not(feature = "spirv-reflection"))]
-    fn vertices(
-        &self,
-    ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
-    )> {
-        vec![
-            PosColorNorm::VERTEX.gfx_vertex_input_desc(0),
-            Transform::VERTEX.gfx_vertex_input_desc(1),
-        ]
-    }
-
-    fn load_shader_set(
-        &self,
-        factory: &mut Factory<B>,
-        _aux: &Aux<B>,
-    ) -> rendy_shader::ShaderSet<B> {
-        SHADERS.build(factory).unwrap()
+        };
     }
 
     fn build<'a>(
@@ -357,26 +338,19 @@ where
         );
 
         #[cfg(feature = "spirv-reflection")]
-        assert!(aux
-            .scene
-            .object_mesh
-            .as_ref()
-            .unwrap()
-            .bind(
-                &[SHADER_REFLECTION
-                    .attributes(&["pos", "color", "norm"])
-                    .unwrap()],
-                &mut encoder
-            )
-            .is_ok());
+        let vertex = [SHADER_REFLECTION
+            .attributes(&["pos", "color", "norm"])
+            .unwrap()];
 
         #[cfg(not(feature = "spirv-reflection"))]
+        let vertex = [PosColorNorm::VERTEX];
+
         assert!(aux
             .scene
             .object_mesh
             .as_ref()
             .unwrap()
-            .bind(&[PosColorNorm::VERTEX], &mut encoder)
+            .bind(&vertex, &mut encoder)
             .is_ok());
 
         encoder.bind_vertex_buffers(

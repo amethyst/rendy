@@ -52,22 +52,13 @@ lazy_static::lazy_static! {
         SourceLanguage::GLSL,
         "main",
     );
-}
 
-#[cfg(feature = "spirv-reflection")]
-lazy_static::lazy_static! {
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
         .with_fragment(&*FRAGMENT).unwrap();
 
+    #[cfg(feature = "spirv-reflection")]
     static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
-}
-
-#[cfg(not(feature = "spirv-reflection"))]
-lazy_static::lazy_static! {
-    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
-        .with_vertex(&*VERTEX).unwrap()
-        .with_fragment(&*FRAGMENT).unwrap();
 }
 
 #[derive(Debug, Default)]
@@ -89,25 +80,10 @@ where
         None
     }
 
-    #[cfg(feature = "spirv-reflection")]
-    fn vertices(
-        &self,
-    ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
-    )> {
-        vec![SHADER_REFLECTION
-            .attributes_range(..)
-            .unwrap()
-            .gfx_vertex_input_desc(0)]
-    }
-
     fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
         SHADERS.build(factory).unwrap()
     }
 
-    #[cfg(not(feature = "spirv-reflection"))]
     fn vertices(
         &self,
     ) -> Vec<(
@@ -115,7 +91,14 @@ where
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     )> {
-        vec![PosColor::VERTEX.gfx_vertex_input_desc(0)]
+        #[cfg(feature = "spirv-reflection")]
+        return vec![SHADER_REFLECTION
+            .attributes_range(..)
+            .unwrap()
+            .gfx_vertex_input_desc(0)];
+
+        #[cfg(not(feature = "spirv-reflection"))]
+        return vec![PosColor::VERTEX.gfx_vertex_input_desc(0)];
     }
 
     fn build<'a>(
@@ -153,21 +136,15 @@ where
     ) -> PrepareResult {
         if self.vertex.is_none() {
             #[cfg(feature = "spirv-reflection")]
-            let mut vbuf = factory
-                .create_buffer(
-                    BufferInfo {
-                        size: SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 3,
-                        usage: gfx_hal::buffer::Usage::VERTEX,
-                    },
-                    Dynamic,
-                )
-                .unwrap();
+            let vbuf_size = SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 3;
 
             #[cfg(not(feature = "spirv-reflection"))]
+            let vbuf_size = PosColor::VERTEX.stride as u64 * 3;
+
             let mut vbuf = factory
                 .create_buffer(
                     BufferInfo {
-                        size: PosColor::VERTEX.stride as u64 * 3,
+                        size: vbuf_size,
                         usage: gfx_hal::buffer::Usage::VERTEX,
                     },
                     Dynamic,
