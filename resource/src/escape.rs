@@ -4,7 +4,7 @@
 //! Users are encouraged to dispose of the values manually while `Escape` be just a safety net.
 
 use {
-    crossbeam_channel::{Receiver, Sender},
+    crossbeam_channel::{Receiver, Sender, TryRecvError},
     std::{
         iter::repeat,
         mem::ManuallyDrop,
@@ -132,8 +132,8 @@ impl<T> Drop for Terminal<T> {
         unsafe {
             ManuallyDrop::drop(&mut self.sender);
             match self.receiver.try_recv() {
-                Ok(_) => {}
-                Err(_) => {
+                Err(TryRecvError::Disconnected) => {}
+                _ => {
                     log::error!("Terminal must be dropped after all `Escape`s");
                 }
             }
