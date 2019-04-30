@@ -341,7 +341,7 @@ where
     /// `buffer` must contain `draw_count` of [`DrawIndexedCommand`] starting from `offset` with `stride` bytes between each.
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw_indexed
-    /// [`DrawCommand`]: struct.DrawIndexedCommand.html
+    /// [`DrawIndexedCommand`]: struct.DrawIndexedCommand.html
     pub fn draw_indexed_indirect(
         &mut self,
         buffer: &B::Buffer,
