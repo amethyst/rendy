@@ -319,7 +319,7 @@ where
     }
 
     /// Draw indirect.
-    /// Similar to [`draw`] except takes vertices and indices from `buffer` at specified `offset`.
+    /// Similar to [`draw`] except takes vertices and instance data from `buffer` at specified `offset`.
     /// `buffer` must contain `draw_count` of [`DrawCommand`] starting from `offset` with `stride` bytes between each.
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
@@ -336,12 +336,12 @@ where
         }
     }
 
-    /// Draw indirect.
-    /// Similar to [`draw`] except takes vertices and indices from `buffer` at specified `offset`.
-    /// `buffer` must contain `draw_count` of [`DrawCommand`] starting from `offset` with `stride` bytes between each.
+    /// Draw indirect with indices.
+    /// Similar to [`draw_indexed`] except takes vertices, indices and instance data from `buffer` at specified `offset`.
+    /// `buffer` must contain `draw_count` of [`DrawIndexedCommand`] starting from `offset` with `stride` bytes between each.
     ///
-    /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
-    /// [`DrawCommand`]: struct.DrawCommand.html
+    /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw_indexed
+    /// [`DrawIndexedCommand`]: struct.DrawIndexedCommand.html
     pub fn draw_indexed_indirect(
         &mut self,
         buffer: &B::Buffer,
