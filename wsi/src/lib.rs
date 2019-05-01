@@ -582,16 +582,16 @@ where
     }
 }
 
+/// Extends winit::Window and adds window centering functions to the window.
 pub trait WindowExt {
-    /// Adds window centering functons to the window.
     /// Centers the window on the current monitor the window lives in.
     fn center(&self) {}
 
     /// Centers the window on the specified target monitor, falls back to primary monitor if out range.
-    fn set_center_monitor(&self, monitor_target: usize) {}
+    fn set_center_monitor(&self, _monitor_target: usize) {}
 
     /// Sets the window position to be in the center of the given monitor.
-    fn set_centered(&self, monitor: winit::MonitorId) {}
+    fn set_centered(&self, _monitor: winit::MonitorId) {}
 }
 
 /// Implements window centering, and monitor positioning.
