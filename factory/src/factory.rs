@@ -436,6 +436,34 @@ where
             .upload_buffer(&self.device, buffer, offset, staging, last, next)
     }
 
+    /// Update buffer content with provided staging buffer.
+    ///
+    /// Update operation will happen after all operations that was and will be submitted
+    /// before next [`flush_uploads`] or [`maintain`] call for this `Factory`.
+    ///
+    /// Update operation will happen before all operations that will be submitted
+    /// after next [`flush_uploads`] or [`maintain`] call for this `Factory`.
+    ///
+    /// # Safety
+    ///
+    /// If buffer is used by device then `last` state must match the last usage state of the buffer
+    /// before updating happen.
+    /// In order to guarantee that updated content will be made visible to next device operation
+    /// that reads content of the buffer range the `next` must match buffer usage state in that operation.
+    pub unsafe fn upload_from_staging_buffer(
+        &self,
+        buffer: &Buffer<B>,
+        offset: u64,
+        staging: Escape<Buffer<B>>,
+        last: Option<BufferState>,
+        next: BufferState,
+    ) -> Result<(), failure::Error> {
+        assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
+        assert!(staging.info().usage.contains(buffer::Usage::TRANSFER_SRC));
+        self.uploader
+            .upload_buffer(&self.device, buffer, offset, staging, last, next)
+    }
+
     /// Update image layers content with provided data.
     ///
     /// Update operation will happen after all operations that was and will be submitted

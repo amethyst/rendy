@@ -2,22 +2,22 @@
 //! Manage vertex and index buffers of single objects with ease.
 //!
 
-use std::{borrow::Cow, cmp::min, mem::size_of};
-
 use crate::{
-    command::{EncoderCommon, Graphics, QueueId, Supports},
+    command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
     factory::{BufferState, Factory},
-    memory::Data,
+    memory::{Data, Upload, Write},
     resource::{Buffer, BufferInfo, Escape},
     util::cast_cow,
     AsVertex, VertexFormat,
 };
+use gfx_hal::adapter::PhysicalDevice;
+use std::{borrow::Cow, mem::size_of};
 
 /// Vertex buffer with it's format
 #[derive(Debug)]
-pub struct VertexBuffer<B: gfx_hal::Backend> {
-    buffer: Escape<Buffer<B>>,
-    format: VertexFormat<'static>,
+pub struct VertexBufferLayout {
+    offset: u64,
+    format: VertexFormat,
 }
 
 /// Index buffer with it's type
@@ -92,7 +92,7 @@ pub struct MeshBuilder<'a> {
 struct RawVertices<'a> {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     vertices: Cow<'a, [u8]>,
-    format: VertexFormat<'static>,
+    format: VertexFormat,
 }
 
 #[derive(Clone, Debug)]
@@ -101,6 +101,13 @@ struct RawIndices<'a> {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     indices: Cow<'a, [u8]>,
     index_type: gfx_hal::IndexType,
+}
+
+fn index_stride(index_type: gfx_hal::IndexType) -> usize {
+    match index_type {
+        gfx_hal::IndexType::U16 => size_of::<u16>(),
+        gfx_hal::IndexType::U32 => size_of::<u32>(),
+    }
 }
 
 impl<'a> MeshBuilder<'a> {
@@ -179,7 +186,7 @@ impl<'a> MeshBuilder<'a> {
     {
         self.vertices.push(RawVertices {
             vertices: cast_cow(vertices.into()),
-            format: V::VERTEX,
+            format: V::vertex(),
         });
         self
     }
@@ -205,101 +212,129 @@ impl<'a> MeshBuilder<'a> {
     where
         B: gfx_hal::Backend,
     {
-        let mut len = u32::max_value();
-        Ok(Mesh {
-            vbufs: self
-                .vertices
-                .iter()
-                .map(|RawVertices { vertices, format }| {
-                    len = min(len, vertices.len() as u32 / format.stride);
-                    Ok(VertexBuffer {
-                        buffer: {
-                            let mut buffer = factory.create_buffer(
-                                BufferInfo {
-                                    size: vertices.len() as _,
-                                    usage: gfx_hal::buffer::Usage::VERTEX
-                                        | gfx_hal::buffer::Usage::TRANSFER_DST,
-                                },
-                                Data,
-                            )?;
-                            unsafe {
-                                // New buffer can't be touched by device yet.
-                                factory.upload_buffer(
-                                    &mut buffer,
-                                    0,
-                                    vertices,
-                                    None,
-                                    BufferState::new(queue)
-                                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
-                                        .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
-                                )?;
-                            }
-                            buffer
-                        },
-                        format: format.clone(),
-                    })
-                })
-                .collect::<Result<_, failure::Error>>()?,
-            ibuf: match self.indices {
-                None => None,
-                Some(RawIndices {
-                    ref indices,
-                    index_type,
-                }) => {
-                    let stride = match index_type {
-                        gfx_hal::IndexType::U16 => size_of::<u16>(),
-                        gfx_hal::IndexType::U32 => size_of::<u32>(),
-                    };
-                    len = indices.len() as u32 / stride as u32;
-                    Some(IndexBuffer {
-                        buffer: {
-                            let mut buffer = factory.create_buffer(
-                                BufferInfo {
-                                    size: indices.len() as _,
-                                    usage: gfx_hal::buffer::Usage::INDEX
-                                        | gfx_hal::buffer::Usage::TRANSFER_DST,
-                                },
-                                Data,
-                            )?;
-                            unsafe {
-                                // New buffer can't be touched by device yet.
-                                factory.upload_buffer(
-                                    &mut buffer,
-                                    0,
-                                    indices,
-                                    None,
-                                    BufferState::new(queue)
-                                        .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
-                                        .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
-                                )?;
-                            }
-                            buffer
-                        },
-                        index_type,
-                    })
-                }
+        let align = factory.physical().limits().non_coherent_atom_size;
+
+        let mut len = self
+            .vertices
+            .iter()
+            .map(|v| v.vertices.len() as u32 / v.format.stride)
+            .min()
+            .unwrap_or(0);
+
+        let buffer_size = self
+            .vertices
+            .iter()
+            .map(|v| (v.format.stride * len) as usize)
+            .sum();
+
+        let aligned_size = align_by(align, buffer_size) as u64;
+
+        let mut staging = factory.create_buffer(
+            BufferInfo {
+                size: aligned_size,
+                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
             },
+            Upload,
+        )?;
+
+        let mut buffer = factory.create_buffer(
+            BufferInfo {
+                size: buffer_size as _,
+                usage: gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+            },
+            Data,
+        )?;
+
+        let mut mapped = staging.map(factory, 0..aligned_size)?;
+        let mut writer = unsafe { mapped.write(factory, 0..aligned_size)? };
+        let staging_slice = unsafe { writer.slice() };
+
+        let mut offset = 0usize;
+        let mut vertex_layouts: Vec<_> = self
+            .vertices
+            .iter()
+            .map(|RawVertices { vertices, format }| {
+                let size = (format.stride * len) as usize;
+                staging_slice[offset..offset + size].copy_from_slice(&vertices[0..size]);
+                let this_offset = offset as u64;
+                offset += size;
+                Ok(VertexBufferLayout {
+                    offset: this_offset,
+                    format: format.clone(),
+                })
+            })
+            .collect::<Result<_, failure::Error>>()?;
+
+        drop(staging_slice);
+        drop(writer);
+        drop(mapped);
+
+        vertex_layouts.sort_unstable_by(|a, b| a.format.cmp(&b.format));
+
+        let index_buffer = match self.indices {
+            None => None,
+            Some(RawIndices {
+                ref indices,
+                index_type,
+            }) => {
+                len = (indices.len() / index_stride(index_type)) as u32;
+                let mut buffer = factory.create_buffer(
+                    BufferInfo {
+                        size: indices.len() as _,
+                        usage: gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+                    },
+                    Data,
+                )?;
+                unsafe {
+                    // New buffer can't be touched by device yet.
+                    factory.upload_buffer(
+                        &mut buffer,
+                        0,
+                        &indices,
+                        None,
+                        BufferState::new(queue)
+                            .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
+                            .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
+                    )?;
+                }
+
+                Some(IndexBuffer { buffer, index_type })
+            }
+        };
+
+        unsafe {
+            factory.upload_from_staging_buffer(
+                &mut buffer,
+                0,
+                staging,
+                None,
+                BufferState::new(queue)
+                    .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
+                    .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
+            )?;
+        }
+
+        Ok(Mesh {
+            vertex_layouts,
+            index_buffer,
+            vertex_buffer: buffer,
             prim: self.prim,
             len,
         })
     }
 }
 
-impl<'a, V> From<Vec<V>> for MeshBuilder<'a>
-where
-    V: AsVertex + 'a,
-{
-    fn from(vertices: Vec<V>) -> Self {
-        MeshBuilder::new().with_vertices(vertices)
-    }
+fn align_by(align: usize, value: usize) -> usize {
+    ((value + align - 1) / align) * align
 }
 
-/// Single mesh is a collection of buffers that provides available attributes.
-/// Exactly one mesh is used per drawing call in common.
+/// Single mesh is a collection of buffer ranges that provides available attributes.
+/// Usually exactly one mesh is used per draw call.
 #[derive(Debug)]
 pub struct Mesh<B: gfx_hal::Backend> {
-    vbufs: Vec<VertexBuffer<B>>,
-    ibuf: Option<IndexBuffer<B>>,
+    vertex_buffer: Escape<Buffer<B>>,
+    vertex_layouts: Vec<VertexBufferLayout>,
+    index_buffer: Option<IndexBuffer<B>>,
     prim: gfx_hal::Primitive,
     len: u32,
 }
@@ -323,38 +358,79 @@ where
         self.len
     }
 
-    /// Bind buffers to specified attribute locations.
-    pub fn bind<'a, C>(
+    fn get_vertex_iter<'a>(
         &'a self,
-        formats: &[VertexFormat<'_>],
-        encoder: &mut EncoderCommon<'_, B, C>,
-    ) -> Result<u32, Incompatible>
-    where
-        C: Supports<Graphics>,
-    {
-        debug_assert!(is_slice_sorted(formats));
-        debug_assert!(is_slice_sorted_by_key(&self.vbufs, |vbuf| &vbuf.format));
+        formats: &[VertexFormat],
+    ) -> Result<impl IntoIterator<Item = (&'a B::Buffer, u64)>, Incompatible> {
+        debug_assert!(is_slice_sorted(formats), "Formats: {:#?}", formats);
+        debug_assert!(is_slice_sorted_by_key(&self.vertex_layouts, |l| &l.format));
 
         let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
 
         let mut next = 0;
         for format in formats {
-            if let Some(index) = find_compatible_buffer(&self.vbufs[next..], format) {
-                // Ensure buffer is valid
-                vertex.push((self.vbufs[index].buffer.raw(), 0));
-                next = index + 1;
+            if let Some(index) = find_compatible_buffer(&self.vertex_layouts[next..], format) {
+                next += index;
+                vertex.push(self.vertex_layouts[next].offset);
             } else {
                 // Can't bind
-                return Err(Incompatible);
+                return Err(Incompatible {
+                    not_found: format.clone(),
+                    in_formats: self
+                        .vertex_layouts
+                        .iter()
+                        .map(|l| l.format.clone())
+                        .collect(),
+                });
             }
         }
-        match self.ibuf.as_ref() {
-            Some(ibuf) => {
-                encoder.bind_index_buffer(ibuf.buffer.raw(), 0, ibuf.index_type);
-                encoder.bind_vertex_buffers(0, vertex.iter().cloned());
+
+        let buffer = self.vertex_buffer.raw();
+        Ok(vertex.into_iter().map(move |offset| (buffer, offset)))
+    }
+
+    /// Bind buffers to specified attribute locations.
+    pub fn bind<C>(
+        &self,
+        first_binding: u32,
+        formats: &[VertexFormat],
+        encoder: &mut EncoderCommon<'_, B, C>,
+    ) -> Result<u32, Incompatible>
+    where
+        C: Supports<Graphics>,
+    {
+        let vertex_iter = self.get_vertex_iter(formats)?;
+        match self.index_buffer.as_ref() {
+            Some(index_buffer) => {
+                encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                encoder.bind_vertex_buffers(first_binding, vertex_iter);
             }
             None => {
-                encoder.bind_vertex_buffers(0, vertex.iter().cloned());
+                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+            }
+        }
+
+        Ok(self.len)
+    }
+
+    /// Bind buffers to specified attribute locations and issue draw calls with given instance range.
+    pub fn bind_and_draw(
+        &self,
+        first_binding: u32,
+        formats: &[VertexFormat],
+        instance_range: std::ops::Range<u32>,
+        encoder: &mut RenderPassEncoder<'_, B>,
+    ) -> Result<u32, Incompatible> {
+        let vertex_iter = self.get_vertex_iter(formats)?;
+        match self.index_buffer.as_ref() {
+            Some(index_buffer) => {
+                encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                encoder.draw_indexed(0..self.len, 0, instance_range);
+            }
+            None => {
+                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                encoder.draw(0..self.len, instance_range);
             }
         }
 
@@ -363,18 +439,25 @@ where
 }
 
 /// failure::Error type returned by `Mesh::bind` in case of mesh's vertex buffers are incompatible with requested vertex formats.
-#[derive(Clone, Copy, Debug)]
-pub struct Incompatible;
+#[derive(failure::Fail, Clone, Debug)]
+#[fail(
+    display = "Vertex format {:?} is not compatible with any of {:?}.",
+    not_found, in_formats
+)]
+pub struct Incompatible {
+    not_found: VertexFormat,
+    in_formats: Vec<VertexFormat>,
+}
 
 /// Helper function to find buffer with compatible format.
-fn find_compatible_buffer<B>(vbufs: &[VertexBuffer<B>], format: &VertexFormat<'_>) -> Option<usize>
-where
-    B: gfx_hal::Backend,
-{
-    debug_assert!(is_slice_sorted_by_key(&*format.attributes, |a| a.offset));
-    for (i, vbuf) in vbufs.iter().enumerate() {
-        debug_assert!(is_slice_sorted_by_key(&*vbuf.format.attributes, |a| a.offset));
-        if is_compatible(&vbuf.format, format) {
+fn find_compatible_buffer(
+    vertex_layouts: &[VertexBufferLayout],
+    format: &VertexFormat,
+) -> Option<usize> {
+    debug_assert!(is_slice_sorted(&*format.attributes));
+    for (i, layout) in vertex_layouts.iter().enumerate() {
+        debug_assert!(is_slice_sorted(&*layout.format.attributes));
+        if is_compatible(&layout.format, format) {
             return Some(i);
         }
     }
@@ -383,7 +466,7 @@ where
 
 /// Check is vertex format `left` is compatible with `right`.
 /// `left` must have same `stride` and contain all attributes from `right`.
-fn is_compatible(left: &VertexFormat<'_>, right: &VertexFormat<'_>) -> bool {
+fn is_compatible(left: &VertexFormat, right: &VertexFormat) -> bool {
     if left.stride != right.stride {
         return false;
     }
@@ -393,7 +476,7 @@ fn is_compatible(left: &VertexFormat<'_>, right: &VertexFormat<'_>) -> bool {
     right.attributes.iter().all(|r| {
         left.attributes[skip..]
             .iter()
-            .position(|l| *l == *r)
+            .position(|l| l == r)
             .map_or(false, |p| {
                 skip += p;
                 true
@@ -420,3 +503,38 @@ fn is_slice_sorted_by_key<'a, T, K: Ord>(slice: &'a [T], f: impl Fn(&'a T) -> K)
     }
     true
 }
+
+impl<'a, A> From<Vec<A>> for MeshBuilder<'a>
+where
+    A: AsVertex + 'a,
+{
+    fn from(vertices: Vec<A>) -> Self {
+        MeshBuilder::new().with_vertices(vertices)
+    }
+}
+
+macro_rules! impl_builder_from_vec {
+    ($($from:ident),*) => {
+        impl<'a, $($from,)*> From<($(Vec<$from>,)*)> for MeshBuilder<'a>
+        where
+            $($from: AsVertex + 'a,)*
+        {
+            fn from(vertices: ($(Vec<$from>,)*)) -> Self {
+                #[allow(unused_mut)]
+                let mut builder = MeshBuilder::new();
+                #[allow(non_snake_case)]
+                let ($($from,)*) = vertices;
+                $(builder.add_vertices($from);)*
+                builder
+            }
+        }
+
+        impl_builder_from_vec!(@ $($from),*);
+    };
+    (@) => {};
+    (@ $head:ident $(,$tail:ident)*) => {
+        impl_builder_from_vec!($($tail),*);
+    };
+}
+
+impl_builder_from_vec!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);

@@ -9,7 +9,7 @@ use types::*;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SpirvCachedGfxDescription {
-    pub vertices: (Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>, u32),
+    pub vertices: (Vec<(u32, String, u8, gfx_hal::format::Format)>),
     pub layout: Layout,
 }
 
@@ -71,14 +71,6 @@ impl SpirvReflection {
     }
 
     pub(crate) fn compile_cache(mut self) -> Result<Self, failure::Error> {
-        let mut stride: u32 = 0;
-        let mut vertices = self
-            .input_attributes
-            .iter()
-            .map(|(_, e)| e)
-            .collect::<Vec<_>>();
-        vertices.sort_by(|a, b| a.location.cmp(&b.location));
-
         // BBreak apart the sets into the appropriate grouping
 
         let layout = if self.descriptor_sets.len() > 0 {
@@ -99,21 +91,14 @@ impl SpirvReflection {
             }
         };
 
-        self.cache = Some(SpirvCachedGfxDescription {
-            vertices: (
-                vertices
-                    .iter()
-                    .map(|e| {
-                        let mut element = e.element.clone();
-                        element.offset = stride;
-                        stride += element.format.surface_desc().bits as u32 / 8;
-                        element
-                    })
-                    .collect::<Vec<_>>(),
-                stride,
-            ),
-            layout,
-        });
+        let mut vertices = self
+            .input_attributes
+            .iter()
+            .map(|(k, e)| (e.location, k.0.clone(), k.1, e.element.format))
+            .collect::<Vec<_>>();
+        vertices.sort_by(|a, b| a.0.cmp(&b.0));
+
+        self.cache = Some(SpirvCachedGfxDescription { vertices, layout });
 
         Ok(self)
     }
@@ -199,79 +184,53 @@ impl SpirvReflection {
     /// Returns attributes based on their names in rendy/gfx_hal format in the form of a `VertexFormat`. Note that attributes are sorted in their layout location
     /// order, not in the order provided.
     pub fn attributes(&self, names: &[&str]) -> Result<VertexFormat, failure::Error> {
-        if self.cache.is_none() {
-            failure::bail!("Cache isn't constructed for shader: {:?}", self.stage());
-        }
+        let cache = self.cache.as_ref().ok_or(failure::format_err!(
+            "Cache isn't constructed for shader: {:?}",
+            self.stage()
+        ))?;
+        let mut attributes = smallvec::SmallVec::<[_; 64]>::new();
 
-        // Fetch the layout indices of the string names
-        assert!(names.len() < 64);
-        let mut locations = smallvec::SmallVec::<[u32; 64]>::new();
         for name in names {
             // Does it contain an attribute (or array set) with this name?
-            let interm = self
-                .input_attributes
+            let this_name_attributes = cache
+                .vertices
                 .iter()
-                .filter_map(|(k, v)| match k.0.eq_ignore_ascii_case(name) {
-                    true => Some(v.location),
-                    false => None,
-                })
-                .collect::<Vec<u32>>();
-
-            if interm.len() < 1 {
+                .filter(|(_, vert_name, _, _)| name.eq_ignore_ascii_case(vert_name))
+                .cloned();
+            let before = attributes.len();
+            attributes.extend(this_name_attributes);
+            if attributes.len() == before {
                 failure::bail!("Attribute named {} does not exist", name);
             }
-
-            locations.extend_from_slice(&interm);
         }
-        locations.sort();
+        attributes.sort_by_key(|a| a.0);
 
-        let mut stride: u32 = 0;
-        let elements = locations
-            .iter()
-            .filter_map(|n| {
-                let mut element = self.cache.as_ref().unwrap().vertices.0[*n as usize].clone();
-                element.offset = stride;
-                stride += element.format.surface_desc().bits as u32 / 8;
-                return Some(element);
-            })
-            .collect::<Vec<_>>();
-
-        Ok(VertexFormat {
-            attributes: std::borrow::Cow::from(elements),
-            stride,
-        })
+        Ok(VertexFormat::new(
+            attributes
+                .into_iter()
+                .map(|(_, name, _, format)| (format, name))
+                .collect::<Vec<_>>(),
+        ))
     }
 
     /// Returns attributes within a given index range in rendy/gfx_hal format in the form of a `VertexFormat`
-    pub fn attributes_range<R: RangeBounds<usize>>(
+    pub fn attributes_range<R: RangeBounds<u32>>(
         &self,
         range: R,
     ) -> Result<VertexFormat, failure::Error> {
         let cache = self.cache.as_ref().ok_or(failure::format_err!(
-            "SpirvCachedGfxDescription not created for this reflection"
+            "Cache isn't constructed for shader: {:?}",
+            self.stage()
         ))?;
 
-        let mut stride: u32 = 0;
-        let elements = cache
+        let attributes = cache
             .vertices
-            .0
             .iter()
-            .enumerate()
-            .filter_map(|(n, e)| {
-                if range_contains(&range, &n) {
-                    let mut element = e.clone();
-                    element.offset = stride;
-                    stride += e.format.surface_desc().bits as u32 / 8;
-                    return Some(element);
-                }
-                None
-            })
+            .filter(|(loc, _, _, _)| range_contains(&range, loc))
+            .map(|(_, name, _, format)| (*format, name.clone()))
             .collect::<Vec<_>>();
 
-        Ok(VertexFormat {
-            attributes: std::borrow::Cow::from(elements),
-            stride,
-        })
+        Ok(VertexFormat::new(attributes))
     }
 
     /// Returns the merged descriptor set layouts of all shaders in this set in gfx_hal format in the form of a `Layout` structure.
