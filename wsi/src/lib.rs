@@ -150,8 +150,7 @@ where
 
     /// Get surface ideal format.
     pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
-        let (_capabilities, formats, _present_modes, _alpha) =
-            gfx_hal::Surface::compatibility(&self.raw, physical_device);
+        let (_capabilities, formats, _present_modes, _alpha) = self.compatibility(physical_device);
         let formats = formats.unwrap();
 
         *formats

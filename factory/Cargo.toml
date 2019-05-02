@@ -21,6 +21,7 @@ serde-1 = [
     "gfx-hal/serde",
 ]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+profiler = [ "thread_profiler/thread_profiler" ]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }
@@ -45,3 +46,4 @@ relevant = { version = "0.4", features = ["log", "backtrace"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 winit = "0.18"
+thread_profiler = { version = "0.3", optional = true }

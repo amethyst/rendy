@@ -1,6 +1,5 @@
 //! Built-in vertex formats.
 
-use core::borrow::Borrow;
 use derivative::Derivative;
 use gfx_hal::format::Format;
 use std::cmp::Ordering;
