@@ -31,13 +31,20 @@ impl<P, E> SourceShaderInfo<P, E> {
     }
 }
 
-impl<P, E> SourceShaderInfo<P, E> {
+impl<P, E> SourceShaderInfo<P, E>
+where
+    E: AsRef<str>,
+{
     /// Precompile shader source code into Spir-V bytecode.
     pub fn precompile(&self) -> Result<SpirvShader, failure::Error>
     where
         Self: Shader,
     {
-        Ok(SpirvShader::new(self.spirv()?.into_owned()))
+        Ok(SpirvShader::new(
+            self.spirv()?.into_owned(),
+            stage_from_kind(&self.kind),
+            self.entry.as_ref(),
+        ))
     }
 }
 
@@ -63,6 +70,7 @@ where
                         .ok_or_else(|| failure::format_err!("Failed to init Shaderc"))?;
                     ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                     ops.set_source_language(self.lang);
+                    ops.set_generate_debug_info();
                     ops.set_optimization_level(shaderc::OptimizationLevel::Performance);
                     ops
                 })
@@ -71,7 +79,28 @@ where
 
         Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
     }
+
+    fn entry(&self) -> &str {
+        self.entry.as_ref()
+    }
+
+    fn stage(&self) -> gfx_hal::pso::ShaderStageFlags {
+        stage_from_kind(&self.kind)
+    }
 }
 
 /// Shader info with static data.
 pub type StaticShaderInfo = SourceShaderInfo<&'static str, &'static str>;
+
+fn stage_from_kind(kind: &ShaderKind) -> gfx_hal::pso::ShaderStageFlags {
+    use gfx_hal::pso::ShaderStageFlags;
+    match kind {
+        ShaderKind::Vertex => ShaderStageFlags::VERTEX,
+        ShaderKind::Fragment => ShaderStageFlags::FRAGMENT,
+        ShaderKind::Geometry => ShaderStageFlags::GEOMETRY,
+        ShaderKind::TessEvaluation => ShaderStageFlags::HULL,
+        ShaderKind::TessControl => ShaderStageFlags::DOMAIN,
+        ShaderKind::Compute => ShaderStageFlags::COMPUTE,
+        _ => panic!("Invalid shader type specified"),
+    }
+}

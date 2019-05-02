@@ -1,10 +1,7 @@
 //! Loading mesh data from obj format.
 
 use {
-    crate::{
-        mesh::MeshBuilder,
-        vertex::{Normal, PosNormTex, Position, TexCoord},
-    },
+    crate::{mesh::MeshBuilder, Normal, PosNormTex, Position, TexCoord},
     wavefront_obj::obj,
 };
 

@@ -12,22 +12,7 @@ use {
     gfx_hal::{Backend, Device},
 };
 
-/// Set layout
-#[derive(Clone, Debug, Default)]
-pub struct SetLayout {
-    /// Set layout bindings.
-    pub bindings: Vec<gfx_hal::pso::DescriptorSetLayoutBinding>,
-}
-
-/// Pipeline layout
-#[derive(Clone, Debug)]
-pub struct Layout {
-    /// Sets in pipeline layout.
-    pub sets: Vec<SetLayout>,
-
-    /// Push constants in pipeline layout.
-    pub push_constants: Vec<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>,
-}
+pub use crate::util::types::{Layout, SetLayout};
 
 /// Pipeline info
 #[derive(Clone, Debug)]
@@ -137,22 +122,15 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Load shader set.
-    /// This function should create required shader modules and fill `GraphicsShaderSet` structure.
+    /// This function should utilize the provided `ShaderSetBuilder` reflection class and return the compiled `ShaderSet`.
     ///
     /// # Parameters
-    ///
-    /// `storage`   - vector where this function can store loaded modules to give them required lifetime.
     ///
     /// `factory`   - factory to create shader modules.
     ///
     /// `aux`       - auxiliary data container. May be anything the implementation desires.
     ///
-    fn load_shader_set<'a>(
-        &self,
-        storage: &'a mut Vec<B::ShaderModule>,
-        factory: &mut Factory<B>,
-        aux: &T,
-    ) -> gfx_hal::pso::GraphicsShaderSet<'a, B>;
+    fn load_shader_set(&self, factory: &mut Factory<B>, aux: &T) -> rendy_shader::ShaderSet<B>;
 
     /// Build pass instance.
     fn build<'a>(
@@ -258,10 +236,9 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
-        let mut shaders = Vec::new();
-
         log::trace!("Load shader sets for");
-        let shader_set = self.inner.load_shader_set(&mut shaders, factory, aux);
+
+        let mut shader_set = self.inner.load_shader_set(factory, aux);
 
         let pipeline = self.inner.pipeline();
 
@@ -274,14 +251,22 @@ where
                     .create_descriptor_set_layout(set.bindings)
                     .map(Handle::from)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                shader_set.dispose(factory);
+                e
+            })?;
 
         let pipeline_layout = unsafe {
             factory.device().create_pipeline_layout(
                 set_layouts.iter().map(|l| l.raw()),
                 pipeline.layout.push_constants,
             )
-        }?;
+        }
+        .map_err(|e| {
+            shader_set.dispose(factory);
+            e
+        })?;
 
         assert_eq!(pipeline.colors.len(), self.inner.colors().len());
 
@@ -299,10 +284,18 @@ where
             h: framebuffer_height as i16,
         };
 
+        let shaders = match shader_set.raw() {
+            Err(e) => {
+                shader_set.dispose(factory);
+                return Err(e);
+            }
+            Ok(s) => s,
+        };
+
         let graphics_pipeline = unsafe {
             factory.device().create_graphics_pipelines(
                 Some(gfx_hal::pso::GraphicsPipelineDesc {
-                    shaders: shader_set,
+                    shaders,
                     rasterizer: gfx_hal::pso::Rasterizer::FILL,
                     vertex_buffers,
                     attributes,
@@ -330,15 +323,21 @@ where
                 None,
             )
         }
-        .remove(0)?;
+        .remove(0)
+        .map_err(|e| {
+            shader_set.dispose(factory);
+            e
+        })?;
 
         let pipeline = self
             .inner
-            .build(ctx, factory, queue, aux, buffers, images, &set_layouts)?;
+            .build(ctx, factory, queue, aux, buffers, images, &set_layouts)
+            .map_err(|e| {
+                shader_set.dispose(factory);
+                e
+            })?;
 
-        for module in shaders.into_iter() {
-            unsafe { factory.destroy_shader_module(module) };
-        }
+        shader_set.dispose(factory);
 
         Ok(Box::new(SimpleRenderGroup::<B, _> {
             set_layouts,

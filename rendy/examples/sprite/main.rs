@@ -18,12 +18,18 @@ use {
             NodeImage,
         },
         memory::Dynamic,
-        mesh::{AsVertex, PosTex},
+        mesh::PosTex,
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, StaticShaderInfo},
+        shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
         texture::Texture,
     },
 };
+
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflection;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
 
 use winit::{EventsLoop, WindowBuilder};
 
@@ -50,6 +56,13 @@ lazy_static::lazy_static! {
         SourceLanguage::GLSL,
         "main",
     );
+
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*VERTEX).unwrap()
+        .with_fragment(&*FRAGMENT).unwrap();
+
+    #[cfg(feature = "spirv-reflection")]
+    static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
 }
 
 #[derive(Debug, Default)]
@@ -73,6 +86,10 @@ where
         None
     }
 
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+        SHADERS.build(factory).unwrap()
+    }
+
     fn vertices(
         &self,
     ) -> Vec<(
@@ -80,42 +97,22 @@ where
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     )> {
-        vec![PosTex::VERTEX.gfx_vertex_input_desc(0)]
-    }
+        #[cfg(feature = "spirv-reflection")]
+        return vec![SHADER_REFLECTION
+            .attributes_range(..)
+            .unwrap()
+            .gfx_vertex_input_desc(0)];
 
-    fn load_shader_set<'b>(
-        &self,
-        storage: &'b mut Vec<B::ShaderModule>,
-        factory: &mut Factory<B>,
-        _aux: &T,
-    ) -> gfx_hal::pso::GraphicsShaderSet<'b, B> {
-        storage.clear();
-
-        log::trace!("Load shader module '{:#?}'", *VERTEX);
-        storage.push(unsafe { VERTEX.module(factory).unwrap() });
-
-        log::trace!("Load shader module '{:#?}'", *FRAGMENT);
-        storage.push(unsafe { FRAGMENT.module(factory).unwrap() });
-
-        gfx_hal::pso::GraphicsShaderSet {
-            vertex: gfx_hal::pso::EntryPoint {
-                entry: "main",
-                module: &storage[0],
-                specialization: gfx_hal::pso::Specialization::default(),
-            },
-            fragment: Some(gfx_hal::pso::EntryPoint {
-                entry: "main",
-                module: &storage[1],
-                specialization: gfx_hal::pso::Specialization::default(),
-            }),
-            hull: None,
-            domain: None,
-            geometry: None,
-        }
+        #[cfg(not(feature = "spirv-reflection"))]
+        return vec![PosTex::VERTEX.gfx_vertex_input_desc(0)];
     }
 
     fn layout(&self) -> Layout {
-        Layout {
+        #[cfg(feature = "spirv-reflection")]
+        return SHADER_REFLECTION.layout().unwrap();
+
+        #[cfg(not(feature = "spirv-reflection"))]
+        return Layout {
             sets: vec![SetLayout {
                 bindings: vec![
                     gfx_hal::pso::DescriptorSetLayoutBinding {
@@ -135,7 +132,7 @@ where
                 ],
             }],
             push_constants: Vec::new(),
-        }
+        };
     }
 
     fn build<'b>(
@@ -197,10 +194,16 @@ where
             ]);
         }
 
+        #[cfg(feature = "spirv-reflection")]
+        let vbuf_size = SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 6;
+
+        #[cfg(not(feature = "spirv-reflection"))]
+        let vbuf_size = PosTex::VERTEX.stride as u64 * 6;
+
         let mut vbuf = factory
             .create_buffer(
                 BufferInfo {
-                    size: PosTex::VERTEX.stride as u64 * 6,
+                    size: vbuf_size,
                     usage: gfx_hal::buffer::Usage::VERTEX,
                 },
                 Dynamic,
@@ -337,6 +340,8 @@ fn run(
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("sprite", log::LevelFilter::Trace)
+        .filter_module("rendy_shader", log::LevelFilter::Trace)
+        .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();
