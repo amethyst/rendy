@@ -80,7 +80,9 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshBuilder<'a> {
+    #[cfg_attr(feature = "serde", serde(borrow))]
     vertices: smallvec::SmallVec<[RawVertices<'a>; 16]>,
+    #[cfg_attr(feature = "serde", serde(borrow))]
     indices: Option<RawIndices<'a>>,
     prim: gfx_hal::Primitive,
 }
@@ -88,7 +90,7 @@ pub struct MeshBuilder<'a> {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct RawVertices<'a> {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     vertices: Cow<'a, [u8]>,
     format: VertexFormat<'static>,
 }
@@ -96,7 +98,7 @@ struct RawVertices<'a> {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct RawIndices<'a> {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     indices: Cow<'a, [u8]>,
     index_type: gfx_hal::IndexType,
 }
