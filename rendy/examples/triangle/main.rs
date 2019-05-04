@@ -56,8 +56,10 @@ lazy_static::lazy_static! {
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
         .with_fragment(&*FRAGMENT).unwrap();
+}
 
-    #[cfg(feature = "spirv-reflection")]
+#[cfg(feature = "spirv-reflection")]
+lazy_static::lazy_static! {
     static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
 }
 
@@ -98,7 +100,7 @@ where
             .gfx_vertex_input_desc(0)];
 
         #[cfg(not(feature = "spirv-reflection"))]
-        return vec![PosColor::VERTEX.gfx_vertex_input_desc(0)];
+        return vec![PosColor::vertex().gfx_vertex_input_desc(0)];
     }
 
     fn build<'a>(
@@ -139,7 +141,7 @@ where
             let vbuf_size = SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 3;
 
             #[cfg(not(feature = "spirv-reflection"))]
-            let vbuf_size = PosColor::VERTEX.stride as u64 * 3;
+            let vbuf_size = PosColor::vertex().stride as u64 * 3;
 
             let mut vbuf = factory
                 .create_buffer(

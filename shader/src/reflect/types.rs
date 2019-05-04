@@ -243,6 +243,13 @@ pub(crate) fn generate_attributes(
     let mut out_attributes = HashMap::new();
 
     for attribute in &attributes {
+        if attribute
+            .decoration_flags
+            .contains(ReflectDecorationFlags::BUILT_IN)
+        {
+            continue;
+        }
+
         let reflected: gfx_hal::pso::AttributeDesc = attribute.reflect_into()?;
         if attribute.array.dims.is_empty() {
             out_attributes.insert((attribute.name.clone(), 0), reflected);

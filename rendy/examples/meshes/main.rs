@@ -18,7 +18,7 @@ use {
         },
         hal::Device as _,
         memory::Dynamic,
-        mesh::{Mesh, PosColorNorm, Transform},
+        mesh::{Mesh, PosColorNorm, Model},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
     },
@@ -65,8 +65,10 @@ lazy_static::lazy_static! {
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
         .with_fragment(&*FRAGMENT).unwrap();
+}
 
-    #[cfg(feature = "spirv-reflection")]
+#[cfg(feature = "spirv-reflection")]
+lazy_static::lazy_static! {
     static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
 }
 
@@ -112,23 +114,23 @@ struct Aux<B: gfx_hal::Backend> {
 const MAX_LIGHTS: usize = 32;
 const MAX_OBJECTS: usize = 10_000;
 const UNIFORM_SIZE: u64 = size_of::<UniformArgs>() as u64;
-const TRANSFORMS_SIZE: u64 = size_of::<Transform>() as u64 * MAX_OBJECTS as u64;
+const MODELS_SIZE: u64 = size_of::<Model>() as u64 * MAX_OBJECTS as u64;
 const INDIRECT_SIZE: u64 = size_of::<DrawIndexedCommand>() as u64;
 
 const fn buffer_frame_size(align: u64) -> u64 {
-    ((UNIFORM_SIZE + TRANSFORMS_SIZE + INDIRECT_SIZE - 1) / align + 1) * align
+    ((UNIFORM_SIZE + MODELS_SIZE + INDIRECT_SIZE - 1) / align + 1) * align
 }
 
 const fn uniform_offset(index: usize, align: u64) -> u64 {
     buffer_frame_size(align) * index as u64
 }
 
-const fn transforms_offset(index: usize, align: u64) -> u64 {
+const fn models_offset(index: usize, align: u64) -> u64 {
     uniform_offset(index, align) + UNIFORM_SIZE
 }
 
 const fn indirect_offset(index: usize, align: u64) -> u64 {
-    transforms_offset(index, align) + TRANSFORMS_SIZE
+    models_offset(index, align) + MODELS_SIZE
 }
 
 #[derive(Debug, Default)]
@@ -164,7 +166,7 @@ where
         #[cfg(feature = "spirv-reflection")]
         return vec![
             SHADER_REFLECTION
-                .attributes(&["pos", "color", "norm"])
+                .attributes(&["position", "color", "normal"])
                 .unwrap()
                 .gfx_vertex_input_desc(0),
             SHADER_REFLECTION
@@ -175,8 +177,8 @@ where
 
         #[cfg(not(feature = "spirv-reflection"))]
         return vec![
-            PosColorNorm::VERTEX.gfx_vertex_input_desc(0),
-            Transform::VERTEX.gfx_vertex_input_desc(1),
+            PosColorNorm::vertex().gfx_vertex_input_desc(0),
+            Model::vertex().gfx_vertex_input_desc(1),
         ];
     }
 
@@ -313,7 +315,7 @@ where
                 factory
                     .upload_visible_buffer(
                         &mut self.buffer,
-                        transforms_offset(index, align),
+                        models_offset(index, align),
                         &scene.objects[..],
                     )
                     .unwrap()
@@ -339,23 +341,22 @@ where
 
         #[cfg(feature = "spirv-reflection")]
         let vertex = [SHADER_REFLECTION
-            .attributes(&["pos", "color", "norm"])
+            .attributes(&["position", "color", "normal"])
             .unwrap()];
 
         #[cfg(not(feature = "spirv-reflection"))]
-        let vertex = [PosColorNorm::VERTEX];
+        let vertex = [PosColorNorm::vertex()];
 
-        assert!(aux
+        aux
             .scene
             .object_mesh
             .as_ref()
             .unwrap()
-            .bind(&vertex, &mut encoder)
-            .is_ok());
+            .bind(0, &vertex, &mut encoder).unwrap();
 
         encoder.bind_vertex_buffers(
             1,
-            std::iter::once((self.buffer.raw(), transforms_offset(index, aux.align))),
+            std::iter::once((self.buffer.raw(), models_offset(index, aux.align))),
         );
         encoder.draw_indexed_indirect(
             self.buffer.raw(),

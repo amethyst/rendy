@@ -10,7 +10,11 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's node synchronization tool"
 
+[features]
+profiler = [ "thread_profiler/thread_profiler" ]
+
 [dependencies]
 gfx-hal = "0.1"
 fnv = "1.0"
 log = "0.4"
+thread_profiler = "0.3"

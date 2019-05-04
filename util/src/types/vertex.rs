@@ -1,20 +1,48 @@
 //! Built-in vertex formats.
 
+use derivative::Derivative;
+use gfx_hal::format::Format;
+use std::cmp::Ordering;
 use std::{borrow::Cow, fmt::Debug};
-
-/// Vertex attribute type.
-pub type Attribute = gfx_hal::pso::Element<gfx_hal::format::Format>;
 
 /// Trait for vertex attributes to implement
 pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'static {
     /// Name of the attribute
     const NAME: &'static str;
-
-    /// Size of the attribute.
-    const SIZE: u32;
-
     /// Attribute format.
-    const FORMAT: gfx_hal::format::Format;
+    const FORMAT: Format;
+}
+
+/// A unique identifier for vertex attribute of given name, format and array index.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AttrUuid(u16);
+
+lazy_static::lazy_static! {
+    static ref UUID_MAP: parking_lot::RwLock<fnv::FnvHashMap<(Cow<'static, str>, u8, Format), AttrUuid>> =
+        Default::default();
+}
+
+/// Retreive a unique identifier for vertex attribute of given name, format and array index.
+///
+/// Non-array attributes should always use index 0.
+/// Matrices and arrays must be specified as a series of attributes with the same name and consecutive indices.
+pub fn attribute_uuid(name: &str, index: u8, format: Format) -> AttrUuid {
+    let read_map = UUID_MAP.read();
+    if let Some(val) = read_map.get(&(Cow::Borrowed(name), index, format)) {
+        return *val;
+    }
+    drop(read_map);
+
+    let mut write_map = UUID_MAP.write();
+    // First check again if value was not written by previous owner of the lock.
+    if let Some(val) = write_map.get(&(Cow::Borrowed(name), index, format)) {
+        return *val;
+    }
+
+    // uuid 0 is reserved for unused attribute indices
+    let val = AttrUuid(write_map.len() as u16 + 1);
+    write_map.insert((Cow::Owned(name.to_owned()), index, format), val);
+    val
 }
 
 /// Type for position attribute of vertex.
@@ -32,8 +60,7 @@ where
 }
 impl AsAttribute for Position {
     const NAME: &'static str = "position";
-    const SIZE: u32 = 12;
-    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
+    const FORMAT: Format = Format::Rgb32Float;
 }
 
 /// Type for color attribute of vertex
@@ -51,8 +78,7 @@ where
 }
 impl AsAttribute for Color {
     const NAME: &'static str = "color";
-    const SIZE: u32 = 16;
-    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgba32Float;
+    const FORMAT: Format = Format::Rgba32Float;
 }
 
 /// Type for texture coord attribute of vertex
@@ -71,8 +97,7 @@ where
 
 impl AsAttribute for Normal {
     const NAME: &'static str = "normal";
-    const SIZE: u32 = 12;
-    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgb32Float;
+    const FORMAT: Format = Format::Rgb32Float;
 }
 
 /// Type for tangent attribute of vertex. W represents handedness and should always be 1 or -1
@@ -91,8 +116,7 @@ where
 
 impl AsAttribute for Tangent {
     const NAME: &'static str = "tangent";
-    const SIZE: u32 = 16;
-    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rgba32Float;
+    const FORMAT: Format = Format::Rgba32Float;
 }
 
 /// Type for texture coord attribute of vertex
@@ -111,79 +135,321 @@ where
 
 impl AsAttribute for TexCoord {
     const NAME: &'static str = "tex_coord";
-    const SIZE: u32 = 8;
-    const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::Rg32Float;
+    const FORMAT: Format = Format::Rg32Float;
 }
 
 /// Vertex format contains information to initialize graphics pipeline
 /// Attributes must be sorted by offset.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct VertexFormat<'a> {
-    /// Attributes for format.
-    pub attributes: Cow<'a, [Attribute]>,
-
+pub struct VertexFormat {
     /// Size of single vertex.
     pub stride: u32,
+    /// Attributes for format.
+    pub attributes: Vec<Attribute>,
 }
 
-impl<'a> VertexFormat<'a> {
+impl VertexFormat {
+    /// Create new vertex format with specified attributes.
+    /// The max attribute offset and format size is used to calculate the stricde.
+    pub fn new<I: AsAttributes>(attrs: I) -> Self {
+        Self::with_opt_stride(attrs, None)
+    }
+
+    /// Create new vertex format with specified attributes and manually specified stride.
+    pub fn with_stride<I: AsAttributes>(attrs: I, stride: u32) -> Self {
+        Self::with_opt_stride(attrs, Some(stride))
+    }
+
+    fn with_opt_stride<I: AsAttributes>(attrs: I, stride: Option<u32>) -> Self {
+        let mut attributes: Vec<Attribute> = attrs.attributes().collect();
+        attributes.sort_unstable();
+        let stride = stride.unwrap_or_else(|| {
+            attributes
+                .iter()
+                .map(|attr| {
+                    (attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8)
+                })
+                .max()
+                .expect("Vertex format cannot be empty")
+        });
+        Self { stride, attributes }
+    }
+
     /// Convert into gfx digestible type.
     pub fn gfx_vertex_input_desc(
         &self,
         rate: gfx_hal::pso::InstanceRate,
     ) -> (
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
+        Vec<gfx_hal::pso::Element<Format>>,
         gfx_hal::pso::ElemStride,
         gfx_hal::pso::InstanceRate,
     ) {
-        (self.attributes.clone().into_owned(), self.stride, rate)
+        (
+            self.attributes
+                .iter()
+                .map(|attr| attr.element.clone())
+                .collect(),
+            self.stride,
+            rate,
+        )
+    }
+}
+
+/// Represent types that can be interpreted as list of vertex attributes.
+pub trait AsAttributes {
+    /// The iterator type for retreived attributes
+    type Iter: Iterator<Item = Attribute>;
+    /// Retreive a list of vertex attributes with offsets relative to beginning of that list
+    fn attributes(self) -> Self::Iter;
+}
+
+impl AsAttributes for Vec<Attribute> {
+    type Iter = std::vec::IntoIter<Attribute>;
+    fn attributes(self) -> Self::Iter {
+        self.into_iter()
+    }
+}
+
+impl AsAttributes for VertexFormat {
+    type Iter = std::vec::IntoIter<Attribute>;
+    fn attributes(self) -> Self::Iter {
+        self.attributes.into_iter()
+    }
+}
+
+/// An iterator adapter that generates a list of attributes with given formats and names
+#[derive(Debug)]
+pub struct AttrGenIter<N: Into<Cow<'static, str>>, I: Iterator<Item = (Format, N)>> {
+    inner: I,
+    offset: u32,
+    index: u8,
+    prev_name: Option<Cow<'static, str>>,
+}
+
+impl<N: Into<Cow<'static, str>>, I: Iterator<Item = (Format, N)>> AttrGenIter<N, I> {
+    fn new(iter: I) -> Self {
+        AttrGenIter {
+            inner: iter,
+            offset: 0,
+            index: 0,
+            prev_name: None,
+        }
+    }
+}
+
+impl<N: Into<Cow<'static, str>>, I: Iterator<Item = (Format, N)>> Iterator for AttrGenIter<N, I> {
+    type Item = Attribute;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|data| {
+            let (format, name) = data;
+            let name: Cow<'static, str> = name.into();
+            if self.prev_name.as_ref().map(|n| n == &name).unwrap_or(false) {
+                self.index += 1;
+            } else {
+                self.prev_name.replace(name.clone());
+                self.index = 0;
+            }
+            let this_offset = self.offset;
+            self.offset += format.surface_desc().bits as u32 / 8;
+            Attribute::new(
+                name,
+                self.index,
+                AttributeElem {
+                    format,
+                    offset: this_offset,
+                },
+            )
+        })
+    }
+}
+
+impl<N: Into<Cow<'static, str>>> AsAttributes for Vec<(Format, N)> {
+    type Iter = AttrGenIter<N, std::vec::IntoIter<(Format, N)>>;
+    fn attributes(self) -> Self::Iter {
+        AttrGenIter::new(self.into_iter())
+    }
+}
+
+impl<N: Into<Cow<'static, str>>> AsAttributes for Option<(Format, N)> {
+    type Iter = AttrGenIter<N, std::option::IntoIter<(Format, N)>>;
+    fn attributes(self) -> Self::Iter {
+        AttrGenIter::new(self.into_iter())
+    }
+}
+
+impl<N: Into<Cow<'static, str>>> AsAttributes for (Format, N) {
+    type Iter = AttrGenIter<N, std::option::IntoIter<(Format, N)>>;
+    fn attributes(self) -> Self::Iter {
+        AttrGenIter::new(Some(self).into_iter())
+    }
+}
+
+/// raw hal type for vertex attribute
+type AttributeElem = gfx_hal::pso::Element<Format>;
+
+/// Vertex attribute type.
+#[derive(Clone, Debug, Derivative)]
+#[derivative(PartialEq, Eq, Hash)]
+pub struct Attribute {
+    /// globally unique identifier for attribute's semantic
+    uuid: AttrUuid,
+    /// hal type with offset and format
+    element: AttributeElem,
+    /// Attribute array index. Matrix attributes are treated like array of vectors.
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
+    index: u8,
+    /// Attribute name as used in the shader
+    #[derivative(PartialEq = "ignore")]
+    #[derivative(Hash = "ignore")]
+    name: Cow<'static, str>,
+}
+
+impl Attribute {
+    /// globally unique identifier for attribute's semantic
+    pub fn uuid(&self) -> AttrUuid {
+        self.uuid
+    }
+    /// hal type with offset and format
+    pub fn element(&self) -> &AttributeElem {
+        &self.element
+    }
+    /// Attribute array index. Matrix attributes are treated like array of vectors.
+    pub fn index(&self) -> u8 {
+        self.index
+    }
+    /// Attribute name as used in the shader
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl PartialOrd for Attribute {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(
+            self.element
+                .offset
+                .cmp(&other.element.offset)
+                .then_with(|| self.name.cmp(&other.name))
+                .then_with(|| self.index.cmp(&other.index)),
+        )
+    }
+}
+
+impl Ord for Attribute {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+#[cfg(feature = "serde")]
+mod serde_attribute {
+    use serde::{
+        de::{Error, MapAccess, Visitor},
+        ser::SerializeStruct,
+        Deserialize, Deserializer, Serialize, Serializer,
+    };
+
+    impl Serialize for super::Attribute {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let mut s = serializer.serialize_struct("Attribute", 3)?;
+            s.serialize_field("element", &self.element)?;
+            s.serialize_field("index", &self.index)?;
+            s.serialize_field("name", &self.name)?;
+            s.end()
+        }
+    }
+
+    impl<'de> Deserialize<'de> for super::Attribute {
+        fn deserialize<D>(deserializer: D) -> Result<super::Attribute, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            #[derive(Deserialize)]
+            #[serde(field_identifier, rename_all = "lowercase")]
+            enum Field {
+                Element,
+                Index,
+                Name,
+            }
+
+            struct AttributeVisitor;
+            impl<'de> Visitor<'de> for AttributeVisitor {
+                type Value = super::Attribute;
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    formatter.write_str("Attribute struct")
+                }
+                fn visit_map<V: MapAccess<'de>>(
+                    self,
+                    mut map: V,
+                ) -> Result<super::Attribute, V::Error> {
+                    let mut element = None;
+                    let mut index = None;
+                    let mut name: Option<&'de str> = None;
+                    while let Some(key) = map.next_key()? {
+                        match key {
+                            Field::Element => {
+                                if element.is_some() {
+                                    return Err(Error::duplicate_field("element"));
+                                }
+                                element.replace(map.next_value()?);
+                            }
+                            Field::Index => {
+                                if index.is_some() {
+                                    return Err(Error::duplicate_field("index"));
+                                }
+                                index.replace(map.next_value()?);
+                            }
+                            Field::Name => {
+                                if name.is_some() {
+                                    return Err(Error::duplicate_field("name"));
+                                }
+                                name.replace(map.next_value()?);
+                            }
+                        }
+                    }
+                    let element = element.ok_or_else(|| Error::missing_field("element"))?;
+                    let index = index.ok_or_else(|| Error::missing_field("index"))?;
+                    let name = name.ok_or_else(|| Error::missing_field("name"))?;
+                    Ok(super::Attribute::new(String::from(name), index, element))
+                }
+            }
+            deserializer.deserialize_struct(
+                "Attribute",
+                &["element", "index", "name"],
+                AttributeVisitor,
+            )
+        }
+    }
+}
+
+impl Attribute {
+    /// Define new vertex attribute with given name and array index. Use index 0 for non-array attributes.
+    pub fn new(name: impl Into<Cow<'static, str>>, index: u8, element: AttributeElem) -> Self {
+        let name = name.into();
+        Self {
+            uuid: attribute_uuid(&name, index, element.format),
+            element,
+            index,
+            name: name.into(),
+        }
     }
 }
 
 /// Trait implemented by all valid vertex formats.
 pub trait AsVertex: Debug + PartialEq + PartialOrd + Copy + Sized + Send + Sync + 'static {
     /// List of all attributes formats with name and offset.
-    const VERTEX: VertexFormat<'static>;
-
-    /// Returns attribute of vertex by type
-    #[inline]
-    fn attribute<F>() -> Attribute
-    where
-        F: AsAttribute,
-        Self: WithAttribute<F>,
-    {
-        <Self as WithAttribute<F>>::ATTRIBUTE
-    }
+    fn vertex() -> VertexFormat;
 }
 
 impl<T> AsVertex for T
 where
     T: AsAttribute,
 {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[Attribute {
-            format: T::FORMAT,
-            offset: 0,
-        }]),
-        stride: T::SIZE,
-    };
-}
-
-/// Trait implemented by all valid vertex formats for each field
-pub trait WithAttribute<F: AsAttribute>: AsVertex {
-    /// Individual format of the attribute for this vertex format
-    const ATTRIBUTE: Attribute;
-}
-
-impl<T> WithAttribute<T> for T
-where
-    T: AsAttribute,
-{
-    const ATTRIBUTE: Attribute = Attribute {
-        format: T::FORMAT,
-        offset: 0,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new(Some((T::FORMAT, T::NAME)))
+    }
 }
 
 /// Vertex format with position and RGBA8 color attributes.
@@ -198,27 +464,9 @@ pub struct PosColor {
 }
 
 impl AsVertex for PosColor {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            <Self as WithAttribute<Position>>::ATTRIBUTE,
-            <Self as WithAttribute<Color>>::ATTRIBUTE,
-        ]),
-        stride: Position::SIZE + Color::SIZE,
-    };
-}
-
-impl WithAttribute<Position> for PosColor {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: 0,
-        format: Position::FORMAT,
-    };
-}
-
-impl WithAttribute<Color> for PosColor {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE,
-        format: Color::FORMAT,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((Position::vertex(), Color::vertex()))
+    }
 }
 
 /// Vertex format with position and normal attributes.
@@ -233,27 +481,9 @@ pub struct PosNorm {
 }
 
 impl AsVertex for PosNorm {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            <Self as WithAttribute<Position>>::ATTRIBUTE,
-            <Self as WithAttribute<Normal>>::ATTRIBUTE,
-        ]),
-        stride: Position::SIZE + Normal::SIZE,
-    };
-}
-
-impl WithAttribute<Position> for PosNorm {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: 0,
-        format: Position::FORMAT,
-    };
-}
-
-impl WithAttribute<Normal> for PosNorm {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE,
-        format: Normal::FORMAT,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((Position::vertex(), Normal::vertex()))
+    }
 }
 
 /// Vertex format with position, color and normal attributes.
@@ -270,35 +500,9 @@ pub struct PosColorNorm {
 }
 
 impl AsVertex for PosColorNorm {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            <Self as WithAttribute<Position>>::ATTRIBUTE,
-            <Self as WithAttribute<Color>>::ATTRIBUTE,
-            <Self as WithAttribute<Normal>>::ATTRIBUTE,
-        ]),
-        stride: Position::SIZE + Color::SIZE + Normal::SIZE,
-    };
-}
-
-impl WithAttribute<Position> for PosColorNorm {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: 0,
-        format: Position::FORMAT,
-    };
-}
-
-impl WithAttribute<Color> for PosColorNorm {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE,
-        format: Color::FORMAT,
-    };
-}
-
-impl WithAttribute<Normal> for PosColorNorm {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE + Color::SIZE,
-        format: Normal::FORMAT,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((Position::vertex(), Color::vertex(), Normal::vertex()))
+    }
 }
 
 /// Vertex format with position and UV texture coordinate attributes.
@@ -313,27 +517,9 @@ pub struct PosTex {
 }
 
 impl AsVertex for PosTex {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            <Self as WithAttribute<Position>>::ATTRIBUTE,
-            <Self as WithAttribute<TexCoord>>::ATTRIBUTE,
-        ]),
-        stride: Position::SIZE + TexCoord::SIZE,
-    };
-}
-
-impl WithAttribute<Position> for PosTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: 0,
-        format: Position::FORMAT,
-    };
-}
-
-impl WithAttribute<TexCoord> for PosTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE,
-        format: TexCoord::FORMAT,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((Position::vertex(), TexCoord::vertex()))
+    }
 }
 
 /// Vertex format with position, normal and UV texture coordinate attributes.
@@ -350,35 +536,9 @@ pub struct PosNormTex {
 }
 
 impl AsVertex for PosNormTex {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            <Self as WithAttribute<Position>>::ATTRIBUTE,
-            <Self as WithAttribute<Normal>>::ATTRIBUTE,
-            <Self as WithAttribute<TexCoord>>::ATTRIBUTE,
-        ]),
-        stride: Position::SIZE + Normal::SIZE + TexCoord::SIZE,
-    };
-}
-
-impl WithAttribute<Position> for PosNormTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: 0,
-        format: Position::FORMAT,
-    };
-}
-
-impl WithAttribute<Normal> for PosNormTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE,
-        format: Normal::FORMAT,
-    };
-}
-
-impl WithAttribute<TexCoord> for PosNormTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE + Normal::SIZE,
-        format: TexCoord::FORMAT,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((Position::vertex(), Normal::vertex(), TexCoord::vertex()))
+    }
 }
 
 /// Vertex format with position, normal, tangent, and UV texture coordinate attributes.
@@ -397,43 +557,14 @@ pub struct PosNormTangTex {
 }
 
 impl AsVertex for PosNormTangTex {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            <Self as WithAttribute<Position>>::ATTRIBUTE,
-            <Self as WithAttribute<Normal>>::ATTRIBUTE,
-            <Self as WithAttribute<Tangent>>::ATTRIBUTE,
-            <Self as WithAttribute<TexCoord>>::ATTRIBUTE,
-        ]),
-        stride: Position::SIZE + Normal::SIZE + Tangent::SIZE + TexCoord::SIZE,
-    };
-}
-
-impl WithAttribute<Position> for PosNormTangTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: 0,
-        format: Position::FORMAT,
-    };
-}
-
-impl WithAttribute<Normal> for PosNormTangTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE,
-        format: Normal::FORMAT,
-    };
-}
-
-impl WithAttribute<Tangent> for PosNormTangTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE + Normal::SIZE,
-        format: Tangent::FORMAT,
-    };
-}
-
-impl WithAttribute<TexCoord> for PosNormTangTex {
-    const ATTRIBUTE: Attribute = Attribute {
-        offset: Position::SIZE + Normal::SIZE + Tangent::SIZE,
-        format: TexCoord::FORMAT,
-    };
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((
+            (Position::vertex()),
+            (Normal::vertex()),
+            (Tangent::vertex()),
+            (TexCoord::vertex()),
+        ))
+    }
 }
 
 /// Full vertex transformation attribute.
@@ -441,70 +572,56 @@ impl WithAttribute<TexCoord> for PosNormTangTex {
 /// It takes 4 attribute locations.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
-pub struct Transform(pub [[f32; 4]; 4]);
-impl<T> From<T> for Transform
+pub struct Model(pub [[f32; 4]; 4]);
+impl<T> From<T> for Model
 where
     T: Into<[[f32; 4]; 4]>,
 {
     fn from(from: T) -> Self {
-        Transform(from.into())
+        Model(from.into())
     }
 }
 
-/// It should be `AsAttribute` with multiple locations occupied.
-/// But rust doesn't allow constructing static slices with generic size.
-impl AsVertex for Transform {
-    const VERTEX: VertexFormat<'static> = VertexFormat {
-        attributes: Cow::Borrowed(&[
-            Attribute {
-                format: gfx_hal::format::Format::Rgba32Float,
-                offset: 0,
-            },
-            Attribute {
-                format: gfx_hal::format::Format::Rgba32Float,
-                offset: 16,
-            },
-            Attribute {
-                format: gfx_hal::format::Format::Rgba32Float,
-                offset: 32,
-            },
-            Attribute {
-                format: gfx_hal::format::Format::Rgba32Float,
-                offset: 48,
-            },
-        ]),
-        stride: 64,
-    };
+impl AsVertex for Model {
+    fn vertex() -> VertexFormat {
+        VertexFormat::new((
+            (Format::Rgba32Float, "model"),
+            (Format::Rgba32Float, "model"),
+            (Format::Rgba32Float, "model"),
+            (Format::Rgba32Float, "model"),
+        ))
+    }
 }
 
-/// Allows to query specific `Attribute`s of `AsVertex`
-pub trait Query<T>: AsVertex {
-    /// Attributes from tuple `T`
-    const QUERIED_ATTRIBUTES: &'static [(&'static str, Attribute)];
-}
-
-macro_rules! impl_query {
+macro_rules! impl_as_attributes {
     ($($a:ident),*) => {
-        impl<VF $(,$a)*> Query<($($a,)*)> for VF
-            where VF: AsVertex,
-            $(
-                $a: AsAttribute,
-                VF: WithAttribute<$a>,
-            )*
-        {
-            const QUERIED_ATTRIBUTES: &'static [(&'static str, Attribute)] = &[
+        impl<$($a),*> AsAttributes for ($($a,)*) where $($a: AsAttributes),* {
+            type Iter = std::vec::IntoIter<Attribute>;
+            fn attributes(self) -> Self::Iter {
+                let _offset: u32 = 0;
+                let mut _attrs: Vec<Attribute> = Vec::new();
+                #[allow(non_snake_case)]
+                let ($($a,)*) = self;
                 $(
-                    ($a::NAME, <VF as WithAttribute<$a>>::ATTRIBUTE),
+                    let mut next_offset = _offset;
+                    let v = $a.attributes();
+                    _attrs.extend(v.map(|mut attr| {
+                        attr.element.offset += _offset;
+                        next_offset = next_offset.max(attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8);
+                        attr
+                    }));
+                    let _offset = next_offset;
                 )*
-            ];
+                _attrs.into_iter()
+            }
         }
 
-        impl_query!(@ $($a),*);
+        impl_as_attributes!(@ $($a),*);
     };
     (@) => {};
     (@ $head:ident $(,$tail:ident)*) => {
-        impl_query!($($tail),*);
+        impl_as_attributes!($($tail),*);
     };
 }
 
-impl_query!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z);
+impl_as_attributes!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z);

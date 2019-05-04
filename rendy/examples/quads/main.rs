@@ -97,10 +97,11 @@ lazy_static::lazy_static! {
 
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*RENDER_VERTEX).unwrap()
-        .with_fragment(&*RENDER_FRAGMENT).unwrap()
-        .with_compute(&*BOUNCE_COMPUTE).unwrap();
+        .with_fragment(&*RENDER_FRAGMENT).unwrap();
+}
 
-    #[cfg(feature = "spirv-reflection")]
+#[cfg(feature = "spirv-reflection")]
+lazy_static::lazy_static! {
     static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
 }
 
@@ -143,7 +144,7 @@ where
             .gfx_vertex_input_desc(0)];
 
         #[cfg(not(feature = "spirv-reflection"))]
-        return vec![Color::VERTEX.gfx_vertex_input_desc(0)];
+        return vec![Color::vertex().gfx_vertex_input_desc(0)];
     }
 
     fn layout(&self) -> Layout {

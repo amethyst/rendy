@@ -11,6 +11,7 @@ use {
         BufferId, ImageId, NodeId,
     },
     gfx_hal::{queue::QueueFamilyId, Backend},
+    thread_profiler::profile_scope,
 };
 
 #[derive(Debug)]
@@ -48,6 +49,8 @@ impl<B: Backend> GraphContext<B> {
         buffers: impl IntoIterator<Item = &'a BufferInfo>,
         images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     ) -> Result<Self, failure::Error> {
+        profile_scope!("alloc");
+
         log::trace!("Allocate buffers");
         let buffers: Vec<Option<Handle<Buffer<B>>>> = buffers
             .into_iter()
@@ -127,6 +130,8 @@ where
     /// Perform graph execution.
     /// Run every node of the graph and submit resulting command buffers to the queues.
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
+        profile_scope!("run");
+
         self.assert_device_owner(factory.device());
 
         if self.frames.next().index() >= self.inflight as _ {
@@ -224,6 +229,8 @@ where
 
     /// Dispose of the `Graph`.
     pub fn dispose(self, factory: &mut Factory<B>, data: &T) {
+        profile_scope!("dispose");
+
         self.assert_device_owner(factory.device());
 
         assert!(factory.wait_idle().is_ok());
@@ -239,6 +246,11 @@ where
                 factory.destroy_semaphore(semaphore);
             }
         }
+        drop(self.device);
+        drop(self.schedule);
+        drop(self.fences);
+        drop(self.inflight);
+        drop(self.ctx);
     }
 }
 
@@ -268,6 +280,8 @@ where
 
     /// Create new buffer owned by graph.
     pub fn create_buffer(&mut self, size: u64) -> BufferId {
+        profile_scope!("create_buffer");
+
         self.buffers.push(BufferInfo {
             size,
             usage: gfx_hal::buffer::Usage::empty(),
@@ -283,6 +297,8 @@ where
         format: gfx_hal::format::Format,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
+        profile_scope!("create_image");
+
         self.images.push((
             ImageInfo {
                 kind,
@@ -299,6 +315,8 @@ where
 
     /// Add node to the graph.
     pub fn add_node<N: NodeBuilder<B, T> + 'static>(&mut self, builder: N) -> NodeId {
+        profile_scope!("add_node");
+
         self.nodes.push(Box::new(builder));
         NodeId(self.nodes.len() - 1)
     }
@@ -326,13 +344,17 @@ where
         families: &mut Families<B>,
         aux: &T,
     ) -> Result<Graph<B, T>, failure::Error> {
+        profile_scope!("build");
+
         log::trace!("Schedule nodes execution");
-        let chain_nodes: Vec<chain::Node> = self
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(i, b)| make_chain_node(&**b, i, factory, families))
-            .collect();
+        let chain_nodes: Vec<chain::Node> = {
+            profile_scope!("schedule_nodes");
+            self.nodes
+                .iter()
+                .enumerate()
+                .map(|(i, b)| make_chain_node(&**b, i, factory, families))
+                .collect()
+        };
 
         let chains = chain::collect(chain_nodes, |id| {
             families.family_by_index(id.0).as_slice().len()
@@ -342,6 +364,7 @@ where
         let mut ctx = GraphContext::alloc(factory, &chains, &self.buffers, &self.images)?;
 
         log::trace!("Synchronize");
+
         let mut semaphores = 0..;
         let mut schedule = chain::sync(&chains, || {
             let id = semaphores.next().unwrap();
@@ -353,26 +376,31 @@ where
         log::trace!("Build nodes");
         let mut built_nodes: Vec<_> = (0..self.nodes.len()).map(|_| None).collect();
         let mut node_descs: Vec<_> = self.nodes.into_iter().map(Some).collect();
-        for family in schedule.iter() {
-            log::trace!("For family {:#?}", family);
-            for queue in family.iter() {
-                log::trace!("For queue {:#?}", queue.id());
-                for submission in queue.iter() {
-                    log::trace!("For submission {:#?}", submission.id());
-                    let builder = node_descs[submission.node()].take().unwrap();
-                    log::trace!("Build node {:#?}", builder);
-                    let node = build_node(
-                        &mut ctx,
-                        builder,
-                        factory,
-                        families.family_by_index_mut(family.id().0),
-                        queue.id().index(),
-                        aux,
-                        &chains,
-                        &submission,
-                    )?;
-                    log::debug!("Node built: {:#?}", node);
-                    built_nodes[submission.node()] = Some((node, submission.id().queue()));
+
+        {
+            profile_scope!("build_nodes");
+
+            for family in schedule.iter() {
+                log::trace!("For family {:#?}", family);
+                for queue in family.iter() {
+                    log::trace!("For queue {:#?}", queue.id());
+                    for submission in queue.iter() {
+                        log::trace!("For submission {:#?}", submission.id());
+                        let builder = node_descs[submission.node()].take().unwrap();
+                        log::trace!("Build node {:#?}", builder);
+                        let node = build_node(
+                            &mut ctx,
+                            builder,
+                            factory,
+                            families.family_by_index_mut(family.id().0),
+                            queue.id().index(),
+                            aux,
+                            &chains,
+                            &submission,
+                        )?;
+                        log::debug!("Node built: {:#?}", node);
+                        built_nodes[submission.node()] = Some((node, submission.id().queue()));
+                    }
                 }
             }
         }

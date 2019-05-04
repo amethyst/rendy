@@ -12,6 +12,7 @@ use {
         image, Backend,
     },
     std::num::NonZeroU8,
+    thread_profiler::profile_scope,
 };
 
 /// Static image.
@@ -225,6 +226,8 @@ impl<'a> TextureBuilder<'a> {
     where
         B: Backend,
     {
+        profile_scope!("build");
+
         let view_caps = match self.view_kind {
             gfx_hal::image::ViewKind::D2Array => gfx_hal::image::ViewCapabilities::KIND_2D_ARRAY,
             gfx_hal::image::ViewKind::Cube | gfx_hal::image::ViewKind::CubeArray => {
@@ -266,18 +269,25 @@ impl<'a> TextureBuilder<'a> {
 
         let image: Handle<Image<B>> = factory.create_image(info, Data)?.into();
 
-        let mut transformed_vec: Vec<u8> = Vec::new();
+        let mut transformed_vec: Vec<u8>;
 
         let buffer: &[u8] = match transform {
             BufferTransform::Intact => &self.data,
             BufferTransform::AddPadding { stride, padding } => {
-                transformed_vec.reserve_exact(self.data.len() / stride * (stride + padding.len()));
-                transformed_vec.extend(
-                    self.data
-                        .chunks_exact(stride)
-                        .flat_map(|chunk| chunk.iter().cloned().chain(padding.iter().cloned())),
-                );
+                profile_scope!("add_padding");
+                let new_stride = stride + padding.len();
+                let data_len = self.data.len() / stride * new_stride;
 
+                transformed_vec = vec![0; data_len];
+                let dst_slice: &mut [u8] = &mut transformed_vec;
+                for (chunk, dst_chunk) in self
+                    .data
+                    .chunks_exact(stride)
+                    .zip(dst_slice.chunks_exact_mut(new_stride))
+                {
+                    dst_chunk[..stride].copy_from_slice(chunk);
+                    dst_chunk[stride..].copy_from_slice(padding);
+                }
                 &transformed_vec
             }
         };
@@ -300,6 +310,8 @@ impl<'a> TextureBuilder<'a> {
         // must have been created by the same factory and that it is not in use; we guarantee
         // that here because we just created the image on the same factory right before.
         unsafe {
+            profile_scope!("upload_image");
+
             factory.upload_image(
                 image.clone(),
                 self.data_width,
@@ -322,6 +334,8 @@ impl<'a> TextureBuilder<'a> {
         }
 
         if mip_levels > 1 {
+            profile_scope!("fill_mips");
+
             unsafe {
                 factory.blitter().fill_mips(
                     factory.device(),
@@ -333,19 +347,22 @@ impl<'a> TextureBuilder<'a> {
             }
         }
 
-        let view = factory.create_image_view(
-            image.clone(),
-            ImageViewInfo {
-                view_kind: self.view_kind,
-                format: info.format,
-                swizzle: double_swizzle(self.swizzle, transform_swizzle),
-                range: image::SubresourceRange {
-                    aspects: info.format.surface_desc().aspects,
-                    levels: 0..info.levels,
-                    layers: 0..info.kind.num_layers(),
+        let view = {
+            profile_scope!("create_image_view");
+            factory.create_image_view(
+                image.clone(),
+                ImageViewInfo {
+                    view_kind: self.view_kind,
+                    format: info.format,
+                    swizzle: double_swizzle(self.swizzle, transform_swizzle),
+                    range: image::SubresourceRange {
+                        aspects: info.format.surface_desc().aspects,
+                        levels: 0..info.levels,
+                        layers: 0..info.kind.num_layers(),
+                    },
                 },
-            },
-        )?;
+            )?
+        };
 
         let sampler = factory.get_sampler(self.sampler_info.clone())?;
 
@@ -389,6 +406,8 @@ fn find_compatible_format<B: Backend>(
     factory: &Factory<B>,
     info: ImageInfo,
 ) -> Option<(ImageInfo, BufferTransform, Swizzle)> {
+    profile_scope!("find_compatible_format");
+
     if let Some(info) = image_format_supported(factory, info) {
         return Some((info, BufferTransform::Intact, Swizzle::NO));
     }
