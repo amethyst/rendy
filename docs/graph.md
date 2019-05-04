@@ -62,14 +62,18 @@ A render group is a collection of pipelines (in the Vulkan sense of the word) th
 
 ## Subpass
 
-A `Subpass` is a child of a `Pass`. Currently, a `Pass` can have only one `Subpass`. While useful, they are not required. They are an opportunity for performance optimization when the output of one render group is used directly as the input to another one; not sampled, but literally passing the fragment.
+A `Subpass` is a child of a `Pass`. Currently, a `Pass` can have only one `Subpass`. More may be allowed in the future, but one is always required. They are an opportunity for performance optimization when the output of one render group is used directly as the input to another one; not sampled, but literally passing the fragment.
 
 An additional benefit to having and using `Subpasses` now is that the API will not require breaking changes to support more than one `Subpass` per `Pass`. 
 
+## RenderPass
+
+In Rendy, a `RenderPass` is a combination of a `Pass` and a `Node`, described below.
+
 ## Pass
 
-A `Pass` currently can have only one `Subpass`, and a `Pass` will usually belong to a `Node`.
+A `Pass`, currently can have only one `Subpass`, and a `Pass` will usually belong to a `Node`.
 
 ## Node
 
-A `Node` contains 0 or more things that provide a set of self-contained (i.e. internally synchronized) submissions to a queue each frame. This is _usually_ a `Pass`, but does not have to be.
+A `Node` contains 0 or more things that provide a set of self-contained (i.e. internally synchronized) submissions to a queue each frame. This is _usually_ a `RenderPass`, but does not have to be. The intended usage of a `Node` is that it should only consist of one thing, though it can technically contain more.
