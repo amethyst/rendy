@@ -17,4 +17,4 @@ profiler = [ "thread_profiler/thread_profiler" ]
 gfx-hal = "0.1"
 fnv = "1.0"
 log = "0.4"
-thread_profiler = { version = "0.3", optional = true }
+thread_profiler = "0.3"

@@ -208,12 +208,17 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new mesh.
+    ///
+    /// A mesh expects all vertex buffers to have the same number of elements.
+    /// If those are not equal, the length of smallest vertex buffer is selected,
+    /// effectively discaring extra data from larger buffers.
+    ///
+    /// Note that contents of index buffer is not validated.
     pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, failure::Error>
     where
         B: gfx_hal::Backend,
     {
         let align = factory.physical().limits().non_coherent_atom_size;
-
         let mut len = self
             .vertices
             .iter()

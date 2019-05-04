@@ -11,10 +11,8 @@ use {
         BufferId, ImageId, NodeId,
     },
     gfx_hal::{queue::QueueFamilyId, Backend},
+    thread_profiler::profile_scope,
 };
-
-#[cfg(feature = "profiler")]
-use thread_profiler::profile_scope;
 
 #[derive(Debug)]
 struct GraphNode<B: Backend, T: ?Sized> {
@@ -51,7 +49,6 @@ impl<B: Backend> GraphContext<B> {
         buffers: impl IntoIterator<Item = &'a BufferInfo>,
         images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     ) -> Result<Self, failure::Error> {
-        #[cfg(feature = "profiler")]
         profile_scope!("alloc");
 
         log::trace!("Allocate buffers");
@@ -133,7 +130,6 @@ where
     /// Perform graph execution.
     /// Run every node of the graph and submit resulting command buffers to the queues.
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
-        #[cfg(feature = "profiler")]
         profile_scope!("run");
 
         self.assert_device_owner(factory.device());
@@ -233,7 +229,6 @@ where
 
     /// Dispose of the `Graph`.
     pub fn dispose(self, factory: &mut Factory<B>, data: &T) {
-        #[cfg(feature = "profiler")]
         profile_scope!("dispose");
 
         self.assert_device_owner(factory.device());
@@ -285,7 +280,6 @@ where
 
     /// Create new buffer owned by graph.
     pub fn create_buffer(&mut self, size: u64) -> BufferId {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_buffer");
 
         self.buffers.push(BufferInfo {
@@ -303,7 +297,6 @@ where
         format: gfx_hal::format::Format,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> ImageId {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_image");
 
         self.images.push((
@@ -322,7 +315,6 @@ where
 
     /// Add node to the graph.
     pub fn add_node<N: NodeBuilder<B, T> + 'static>(&mut self, builder: N) -> NodeId {
-        #[cfg(feature = "profiler")]
         profile_scope!("add_node");
 
         self.nodes.push(Box::new(builder));
@@ -352,12 +344,10 @@ where
         families: &mut Families<B>,
         aux: &T,
     ) -> Result<Graph<B, T>, failure::Error> {
-        #[cfg(feature = "profiler")]
         profile_scope!("build");
 
         log::trace!("Schedule nodes execution");
         let chain_nodes: Vec<chain::Node> = {
-            #[cfg(feature = "profiler")]
             profile_scope!("schedule_nodes");
             self.nodes
                 .iter()
@@ -388,7 +378,6 @@ where
         let mut node_descs: Vec<_> = self.nodes.into_iter().map(Some).collect();
 
         {
-            #[cfg(feature = "profiler")]
             profile_scope!("build_nodes");
 
             for family in schedule.iter() {

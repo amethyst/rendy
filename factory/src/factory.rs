@@ -19,10 +19,8 @@ use {
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
+    thread_profiler::profile_scope,
 };
-
-#[cfg(feature = "profiler")]
-use thread_profiler::profile_scope;
 
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Default(bound = ""))]
@@ -152,7 +150,6 @@ where
     /// This function is very heavy and
     /// usually used only for teardown.
     pub fn wait_idle(&self) -> Result<(), HostExecutionError> {
-        #[cfg(feature = "profiler")]
         profile_scope!("wait_idle");
 
         log::debug!("Wait device idle");
@@ -172,7 +169,6 @@ where
         info: BufferInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Buffer<B>, failure::Error> {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_relevant_buffer");
 
         unsafe { Buffer::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
@@ -217,7 +213,6 @@ where
         info: ImageInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Image<B>, failure::Error> {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_relevant_image");
 
         unsafe { Image::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
@@ -557,7 +552,6 @@ where
 
     /// Create rendering surface from window.
     pub fn create_surface(&mut self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_surface");
 
         Surface::new(&self.instance, window)
@@ -577,7 +571,6 @@ where
         Vec<gfx_hal::PresentMode>,
         Vec<gfx_hal::CompositeAlpha>,
     ) {
-        #[cfg(feature = "profiler")]
         profile_scope!("get_surface_compatibility");
 
         surface.assert_instance_owner(&self.instance);
@@ -590,7 +583,6 @@ where
     ///
     /// Panics if `surface` was not created by this `Factory`
     pub fn get_surface_format(&self, surface: &Surface<B>) -> format::Format {
-        #[cfg(feature = "profiler")]
         profile_scope!("get_surface_format");
 
         surface.assert_instance_owner(&self.instance);
@@ -622,7 +614,6 @@ where
         present_mode: gfx_hal::PresentMode,
         usage: image::Usage,
     ) -> Result<Target<B>, failure::Error> {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_target");
 
         unsafe {
@@ -665,7 +656,6 @@ where
 
     /// Create new semaphore.
     pub fn create_semaphore(&self) -> Result<B::Semaphore, OutOfMemory> {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_semaphore");
 
         self.device.create_semaphore()
@@ -721,7 +711,6 @@ where
         fence: &mut Fence<B>,
         timeout_ns: u64,
     ) -> Result<bool, OomOrDeviceLost> {
-        #[cfg(feature = "profiler")]
         profile_scope!("wait_for_fence");
 
         fence.assert_device_owner(&self.device);
@@ -746,7 +735,6 @@ where
         wait_for: WaitFor,
         timeout_ns: u64,
     ) -> Result<bool, OomOrDeviceLost> {
-        #[cfg(feature = "profiler")]
         profile_scope!("wait_for_fences");
 
         let fences = fences
@@ -825,7 +813,6 @@ where
     where
         R: Reset,
     {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_command_pool");
 
         family.create_pool(&self.device)
@@ -865,7 +852,6 @@ where
 
     /// Cleanup unused resources
     pub fn cleanup(&mut self, families: &Families<B>) {
-        #[cfg(feature = "profiler")]
         profile_scope!("cleanup");
 
         let next = self.next_epochs(families);
@@ -953,7 +939,6 @@ where
     where
         T: std::iter::FromIterator<Escape<DescriptorSet<B>>>,
     {
-        #[cfg(feature = "profiler")]
         profile_scope!("create_descriptor_sets");
 
         let mut result = SmallVec::<[_; 32]>::new();
@@ -1003,7 +988,6 @@ macro_rules! init_for_backend {
                 #[$feature]
                 _B::$backend => {
                     if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
-                        #[cfg(feature = "profiler")]
                         profile_scope!(concat!("init_", stringify!($backend)));
 
                         let instance = $backend::Instance::create("Rendy", 1);

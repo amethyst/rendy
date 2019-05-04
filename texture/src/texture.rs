@@ -12,10 +12,8 @@ use {
         image, Backend,
     },
     std::num::NonZeroU8,
+    thread_profiler::profile_scope,
 };
-
-#[cfg(feature = "profiler")]
-use thread_profiler::profile_scope;
 
 /// Static image.
 /// Can be loaded from various of formats.
@@ -228,7 +226,6 @@ impl<'a> TextureBuilder<'a> {
     where
         B: Backend,
     {
-        #[cfg(feature = "profiler")]
         profile_scope!("build");
 
         let view_caps = match self.view_kind {
@@ -277,7 +274,6 @@ impl<'a> TextureBuilder<'a> {
         let buffer: &[u8] = match transform {
             BufferTransform::Intact => &self.data,
             BufferTransform::AddPadding { stride, padding } => {
-                #[cfg(feature = "profiler")]
                 profile_scope!("add_padding");
                 let new_stride = stride + padding.len();
                 let data_len = self.data.len() / stride * new_stride;
@@ -314,7 +310,6 @@ impl<'a> TextureBuilder<'a> {
         // must have been created by the same factory and that it is not in use; we guarantee
         // that here because we just created the image on the same factory right before.
         unsafe {
-            #[cfg(feature = "profiler")]
             profile_scope!("upload_image");
 
             factory.upload_image(
@@ -339,7 +334,6 @@ impl<'a> TextureBuilder<'a> {
         }
 
         if mip_levels > 1 {
-            #[cfg(feature = "profiler")]
             profile_scope!("fill_mips");
 
             unsafe {
@@ -354,7 +348,6 @@ impl<'a> TextureBuilder<'a> {
         }
 
         let view = {
-            #[cfg(feature = "profiler")]
             profile_scope!("create_image_view");
             factory.create_image_view(
                 image.clone(),
@@ -413,7 +406,6 @@ fn find_compatible_format<B: Backend>(
     factory: &Factory<B>,
     info: ImageInfo,
 ) -> Option<(ImageInfo, BufferTransform, Swizzle)> {
-    #[cfg(feature = "profiler")]
     profile_scope!("find_compatible_format");
 
     if let Some(info) = image_format_supported(factory, info) {
