@@ -83,7 +83,7 @@ Rendy can help to send data between device and host.
 * Memory mapping will be used if device local memory happens to be cpu-visible.
 * Relatively small data will be uploaded directly to buffers.
 * Staging buffer will be used for bigger uploads or any image uploads.
-`Factoy` will automatically insert synchronization commands according to user request.
+`Factory` will automatically insert synchronization commands according to user request.
 
 ### GPU-CPU data flow - **Not yet implemented**
 
