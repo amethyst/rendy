@@ -1,4 +1,8 @@
-use std::{collections::HashMap, ops::Range, ptr::NonNull};
+use std::{
+    collections::{BTreeSet, HashMap},
+    ops::Range,
+    ptr::NonNull,
+};
 
 use {
     crate::{
@@ -9,18 +13,18 @@ use {
         util::*,
     },
     gfx_hal::{Backend, Device as _},
+    hibitset::{BitSet, BitSetLike as _},
 };
 
 /// Memory block allocated from `DynamicAllocator`
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct DynamicBlock<B: Backend> {
-    index: u32,
-    // #[derivative(Debug(format_with = "super::memory_ptr_fmt"))]
+    block_index: u32,
+    chunk_index: u32,
+    count: u32,
     memory: *const Memory<B>,
     ptr: Option<NonNull<u8>>,
     range: Range<u64>,
-    #[derivative(Debug = "ignore")]
     relevant: relevant::Relevant,
 }
 
@@ -98,27 +102,20 @@ where
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DynamicConfig {
-    /// Number of blocks per chunk.
-    /// It is advised to keep this equal to bits count in `usize`.
-    pub blocks_per_chunk: u32,
-
     /// All requests are rounded up to multiple of this value.
     pub block_size_granularity: u64,
-
-    /// Maximum block size.
-    /// For any request larger than this won't be allocated with this allocator.
-    pub max_block_size: u64,
 
     /// Maximum chunk of blocks size.
     /// Actual chunk size is `min(max_chunk_size, block_size * blocks_per_chunk)`
     pub max_chunk_size: u64,
+
+    /// Minimum size of device allocation.
+    pub min_device_allocation: u64,
 }
 
-/// Low-fragmentation allocator.
+/// No-fragmentation allocator.
 /// Suitable for any type of small allocations.
-/// Have up to `block_size_granularity - 1` memory overhead.
-/// Every freed block can be recycled independently.
-/// Memory objects can be returned to the system if whole memory object become unused (not implemented yet).
+/// Every freed block can be reused.
 #[derive(Debug)]
 pub struct DynamicAllocator<B: Backend> {
     /// Memory type that this allocator allocates.
@@ -127,69 +124,64 @@ pub struct DynamicAllocator<B: Backend> {
     /// Memory properties of the memory type.
     memory_properties: gfx_hal::memory::Properties,
 
-    /// Number of blocks per chunk.
-    _blocks_per_chunk: u32,
-
     /// All requests are rounded up to multiple of this value.
     block_size_granularity: u64,
 
-    /// Maximum block size.
-    /// For any request larger than this won't be allocated with this allocator.
-    max_block_size: u64,
-
     /// Maximum chunk of blocks size.
-    /// Actual chunk size is `min(max_chunk_size, block_size * blocks_per_chunk)`
     max_chunk_size: u64,
 
-    /// List of chunk lists.
-    /// Each index corresponds to `block_size_granularity * index` size.
-    sizes: HashMap<u64, Size<B>>,
+    /// Minimum size of device allocation.
+    min_device_allocation: u64,
+
+    /// Chunk lists.
+    sizes: HashMap<u64, SizeEntry<B>>,
+
+    /// Ordered set of sizes that have allocated chunks.
+    chunks: BTreeSet<u64>,
 }
 
-/// List of chunks
+unsafe impl<B> Send for DynamicAllocator<B> where B: Backend {}
+unsafe impl<B> Sync for DynamicAllocator<B> where B: Backend {}
+
 #[derive(Debug)]
-struct Size<B: Backend> {
+struct SizeEntry<B: Backend> {
+    /// Total count of allocated blocks with size corresponding to this entry.
+    total_blocks: u64,
+
+    /// Bits per ready (non-exhausted) chunks with free blocks.
+    ready_chunks: BitSet,
+
     /// List of chunks.
-    chunks: veclist::VecList<Chunk<B>>,
-
-    /// Total chunks count.
-    total_chunks: u32,
-
-    /// Bits per free blocks.
-    blocks: hibitset::BitSet,
+    chunks: slab::Slab<Chunk<B>>,
 }
 
-impl<B> Default for Size<B>
+impl<B> Default for SizeEntry<B>
 where
     B: Backend,
 {
     fn default() -> Self {
-        Size {
+        SizeEntry {
             chunks: Default::default(),
-            total_chunks: 0,
-            blocks: Default::default(),
+            total_blocks: 0,
+            ready_chunks: Default::default(),
         }
     }
 }
 
-const MAX_BLOCKS_PER_CHUNK: u32 = std::mem::size_of::<usize>() as u32 * 8;
+const MAX_BLOCKS_PER_CHUNK: u32 = 64;
+const MIN_BLOCKS_PER_CHUNK: u32 = 8;
 
 impl<B> DynamicAllocator<B>
 where
     B: Backend,
 {
-    /// Maximum allocation size.
-    pub fn max_allocation(&self) -> u64 {
-        self.max_block_size
-    }
-
     /// Create new `DynamicAllocator`
     /// for `memory_type` with `memory_properties` specified,
     /// with `DynamicConfig` provided.
     pub fn new(
         memory_type: gfx_hal::MemoryTypeId,
         memory_properties: gfx_hal::memory::Properties,
-        mut config: DynamicConfig,
+        config: DynamicConfig,
     ) -> Self {
         log::info!(
             "Create new allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
@@ -198,105 +190,244 @@ where
             config
         );
 
-        // This is hack to simplify implementation of chunk cleaning.
-        config.blocks_per_chunk = config.blocks_per_chunk.min(MAX_BLOCKS_PER_CHUNK);
-
         assert!(
             config.block_size_granularity.is_power_of_two(),
             "Allocation granularity must be power of two"
         );
 
-        let max_chunk_size = config
-            .max_block_size
-            .checked_mul(config.blocks_per_chunk.into())
-            .expect("Max chunk size must fit u64 to allocate it from Vulkan")
-            .min(config.max_chunk_size)
-            .next_power_of_two()
-            / 2;
+        assert!(
+            config.max_chunk_size.is_power_of_two(),
+            "Max chunk size must be power of two"
+        );
+
+        assert!(
+            config.min_device_allocation.is_power_of_two(),
+            "Min device allocation must be power of two"
+        );
+
+        assert!(
+            config.min_device_allocation <= config.max_chunk_size,
+            "Min device allocation must be less than or equalt to max chunk size"
+        );
+
         if memory_properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
             debug_assert!(
-                fits_usize(max_chunk_size),
+                fits_usize(config.max_chunk_size),
                 "Max chunk size must fit usize for mapping"
             );
         }
-        assert_eq!(
-            config.max_block_size % config.block_size_granularity,
-            0,
-            "Max block size must be multiple of granularity"
-        );
 
         DynamicAllocator {
             memory_type,
             memory_properties,
             block_size_granularity: config.block_size_granularity,
-            _blocks_per_chunk: config.blocks_per_chunk,
-            max_block_size: config.max_block_size,
             max_chunk_size: config.max_chunk_size,
+            min_device_allocation: config.min_device_allocation,
             sizes: HashMap::new(),
+            chunks: BTreeSet::new(),
         }
     }
 
-    fn chunk_size(&self, size: u64) -> u64 {
-        debug_assert_eq!(size % self.block_size_granularity, 0);
-        let chunk_size = (size * self._blocks_per_chunk as u64 / 2).next_power_of_two();
-        self.max_chunk_size.min(chunk_size)
+    /// Maximum allocation size.
+    pub fn max_allocation(&self) -> u64 {
+        self.max_chunk_size / MIN_BLOCKS_PER_CHUNK as u64
     }
 
-    fn blocks_per_chunk(&self, size: u64) -> u32 {
-        debug_assert_eq!(size % self.block_size_granularity, 0);
-        (self.chunk_size(size) / size) as u32
+    /// Allocate memory chunk from device.
+    fn alloc_chunk_from_device(
+        &self,
+        device: &B::Device,
+        block_size: u64,
+        chunk_size: u64,
+    ) -> Result<Chunk<B>, gfx_hal::device::AllocationError> {
+        log::trace!(
+            "Allocate chunk of size: {} for blocks of size {} from device",
+            chunk_size,
+            block_size
+        );
+
+        // Allocate from device.
+        let (memory, mapping) = unsafe {
+            // Valid memory type specified.
+            let raw = device.allocate_memory(self.memory_type, chunk_size)?;
+
+            let mapping = if self
+                .memory_properties
+                .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
+            {
+                log::trace!("Map new memory object");
+                match device.map_memory(&raw, 0..chunk_size) {
+                    Ok(mapping) => Some(NonNull::new_unchecked(mapping)),
+                    Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
+                        device.free_memory(raw);
+                        return Err(error.into());
+                    }
+                    Err(_) => panic!("Unexpected mapping failure"),
+                }
+            } else {
+                None
+            };
+            let memory = Memory::from_raw(raw, chunk_size, self.memory_properties);
+            (memory, mapping)
+        };
+        Ok(Chunk::from_memory(block_size, memory, mapping))
     }
 
-    fn max_chunks_per_size(&self, size: u64) -> u32 {
-        max_blocks_per_size() / self.blocks_per_chunk(size)
-    }
-
-    /// Allocate super-block to use as chunk memory.
+    /// Allocate memory chunk for given block size.
     fn alloc_chunk(
         &mut self,
         device: &B::Device,
-        size: u64,
+        block_size: u64,
+        total_blocks: u64,
     ) -> Result<(Chunk<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!("Allocate new chunk: size: {}", size);
-        if size > self.max_block_size {
-            // Allocate from device.
-            let (memory, mapping) = unsafe {
-                // Valid memory type specified.
-                let raw = device.allocate_memory(self.memory_type, size)?;
+        log::trace!(
+            "Allocate chunk for blocks of size {} ({} total blocks allocated)",
+            block_size,
+            total_blocks
+        );
 
-                let mapping = if self
-                    .memory_properties
-                    .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-                {
-                    log::trace!("Map new memory object");
-                    match device.map_memory(&raw, 0..size) {
-                        Ok(mapping) => Some(NonNull::new_unchecked(mapping)),
-                        Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
-                            device.free_memory(raw);
-                            return Err(error.into());
-                        }
-                        Err(_) => panic!("Unexpected mapping failure"),
-                    }
-                } else {
-                    None
-                };
-                let memory = Memory::from_raw(raw, size, self.memory_properties);
-                (memory, mapping)
-            };
-            Ok((Chunk::Dedicated(Box::new(memory), mapping), size))
+        let min_chunk_size = MIN_BLOCKS_PER_CHUNK as u64 * block_size;
+        let min_size = min_chunk_size.min(total_blocks * block_size);
+        let max_chunk_size = MAX_BLOCKS_PER_CHUNK as u64 * block_size;
+
+        // If smallest possible chunk size is larger then this allocator max allocation
+        if min_size > self.max_allocation()
+            || (total_blocks < MIN_BLOCKS_PER_CHUNK as u64 && min_size >= self.min_device_allocation)
+        {
+            // Allocate memory block from device.
+            let chunk = self.alloc_chunk_from_device(device, block_size, min_size)?;
+            return Ok((chunk, min_size));
+        }
+
+        if let Some(&chunk_size) = self
+            .chunks
+            .range(min_chunk_size..=max_chunk_size)
+            .next_back()
+        {
+            // Allocate block for the chunk.
+            let (block, allocated) = self.alloc_from_entry(device, chunk_size, 1)?;
+            Ok((Chunk::from_block(block_size, block), allocated))
         } else {
-            // Allocate from larger chunks.
-            let (dynamic_block, allocated) = self.alloc_from_chunk(device, size)?;
-            Ok((Chunk::Dynamic(dynamic_block), allocated))
+            let total_blocks = self.sizes[&block_size].total_blocks;
+            let chunk_size =
+                (max_chunk_size.min(min_chunk_size.max(total_blocks * block_size)) / 2 + 1).next_power_of_two();
+            let (block, allocated) = self.alloc_block(device, chunk_size)?;
+            Ok((Chunk::from_block(block_size, block), allocated))
         }
     }
 
-    /// Allocate super-block to use as chunk memory.
-    #[warn(dead_code)]
-    fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>) -> u64 {
+    /// Allocate blocks from particular chunk.
+    fn alloc_from_chunk(
+        chunks: &mut slab::Slab<Chunk<B>>,
+        chunk_index: u32,
+        block_size: u64,
+        count: u32,
+    ) -> Option<DynamicBlock<B>> {
+        log::trace!(
+            "Allocate {} consecutive blocks of size {} from chunk {}",
+            count,
+            block_size,
+            chunk_index
+        );
+
+        let ref mut chunk = chunks[chunk_index as usize];
+        let block_index = chunk.acquire_blocks(count)?;
+        let block_range = chunk.blocks_range(block_size, block_index, count);
+        debug_assert_eq!((block_range.end - block_range.start) % count as u64, 0);
+
+        Some(DynamicBlock {
+            range: block_range.clone(),
+            memory: chunk.shared_memory(),
+            block_index,
+            chunk_index,
+            count,
+            ptr: chunk.mapping_ptr().map(|ptr| {
+                mapped_fitting_range(ptr, chunk.range(), block_range)
+                    .expect("Block must be sub-range of chunk")
+            }),
+            relevant: relevant::Relevant,
+        })
+    }
+
+    /// Allocate blocks from size entry.
+    fn alloc_from_entry(
+        &mut self,
+        device: &B::Device,
+        block_size: u64,
+        count: u32,
+    ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
+        log::trace!(
+            "Allocate {} consecutive blocks for size {} from the entry",
+            count,
+            block_size
+        );
+
+        debug_assert!(count < MIN_BLOCKS_PER_CHUNK);
+        let size_entry = self.sizes.entry(block_size).or_default();
+
+        for chunk_index in (&size_entry.ready_chunks).iter() {
+            if let Some(block) =
+                Self::alloc_from_chunk(&mut size_entry.chunks, chunk_index, block_size, count)
+            {
+                return Ok((block, 0));
+            }
+        }
+
+        if size_entry.chunks.vacant_entry().key() > max_chunks_per_size() {
+            return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
+        }
+
+        let total_blocks = size_entry.total_blocks;
+        let (chunk, allocated) = self.alloc_chunk(device, block_size, total_blocks)?;
+        let size_entry = self.sizes.entry(block_size).or_default();
+        let chunk_index = size_entry.chunks.insert(chunk) as u32;
+
+        let block = Self::alloc_from_chunk(&mut size_entry.chunks, chunk_index, block_size, count)
+            .expect("New chunk should yield blocks");
+
+        if !size_entry.chunks[chunk_index as usize].is_exhausted() {
+            size_entry.ready_chunks.add(chunk_index);
+        }
+
+        Ok((block, allocated))
+    }
+
+    /// Allocate block.
+    fn alloc_block(
+        &mut self,
+        device: &B::Device,
+        block_size: u64,
+    ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
+        log::trace!("Allocate block of size {}", block_size);
+
+        debug_assert_eq!(block_size % self.block_size_granularity, 0);
+        let size_entry = self.sizes.entry(block_size).or_default();
+        size_entry.total_blocks += 1;
+
+        let overhead = (MIN_BLOCKS_PER_CHUNK as u64 - 1) / size_entry.total_blocks;
+
+        if overhead >= 1 {
+            if let Some(&size) = self
+                .chunks
+                .range(block_size / 4..block_size * overhead)
+                .next()
+            {
+                return self.alloc_from_entry(device, size, ((block_size - 1) / size + 1) as u32);
+            }
+        }
+
+        if size_entry.total_blocks == MIN_BLOCKS_PER_CHUNK as u64 {
+            self.chunks.insert(block_size);
+        }
+
+        self.alloc_from_entry(device, block_size, 1)
+    }
+
+    fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>, block_size: u64) -> u64 {
         log::trace!("Free chunk: {:#?}", chunk);
-        match chunk {
-            Chunk::Dedicated(boxed, _) => {
+        assert!(chunk.is_unused(block_size));
+        match chunk.flavor {
+            ChunkFlavor::Dedicated(boxed, _) => {
                 let size = boxed.size();
                 unsafe {
                     if self
@@ -310,76 +441,38 @@ where
                 }
                 size
             }
-            Chunk::Dynamic(dynamic_block) => self.free(device, dynamic_block),
+            ChunkFlavor::Dynamic(dynamic_block) => self.free(device, dynamic_block),
         }
     }
 
-    /// Allocate from chunk.
-    fn alloc_from_chunk(
-        &mut self,
-        device: &B::Device,
-        size: u64,
-    ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!("Allocate from chunk. size: {}", size);
-        let max_chunks = self.max_chunks_per_size(size);
-        let blocks_per_chunk = self.blocks_per_chunk(size);
-        let mut size_entry = self.sizes.entry(size).or_default();
-        let (block_index, allocated) = match hibitset::BitSetLike::iter(&size_entry.blocks).next() {
-            Some(block_index) => {
-                let old = size_entry.blocks.remove(block_index);
-                debug_assert!(old);
-                (block_index, 0)
-            }
-            None => {
-                if size_entry.total_chunks == max_chunks {
-                    return Err(gfx_hal::device::OutOfMemory::OutOfHostMemory.into());
-                }
-                let chunk_size = self.chunk_size(size);
-                let (chunk, allocated) = self.alloc_chunk(device, chunk_size)?;
-                size_entry = self
-                    .sizes
-                    .get_mut(&size)
-                    .expect("Was initialized at the function beginning");
-                let chunk_index = size_entry.chunks.push(chunk) as u32;
-                size_entry.total_chunks += 1;
-                let block_index_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
-                let block_index_end = block_index_start + blocks_per_chunk;
-                for block_index in block_index_start + 1..block_index_end {
-                    let old = size_entry.blocks.add(block_index);
-                    debug_assert!(!old);
-                }
-                (block_index_start, allocated)
-            }
-        };
+    fn free_block(&mut self, device: &B::Device, block: DynamicBlock<B>) -> u64 {
+        log::trace!("Free block: {:#?}", block);
 
-        let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
-
-        let ref chunk = size_entry.chunks[chunk_index as usize];
-        let chunk_range = chunk.range();
-        let block_offset = chunk_range.start + (block_index % MAX_BLOCKS_PER_CHUNK) as u64 * size;
-        let block_range = block_offset..block_offset + size;
-
-        debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < blocks_per_chunk);
-
-        Ok((
-            DynamicBlock {
-                range: block_range.clone(),
-                memory: chunk.shared_memory(),
-                index: block_index,
-                ptr: chunk.ptr().map(|ptr| {
-                    mapped_fitting_range(ptr, chunk.range(), block_range)
-                        .expect("Block must be sub-range of chunk")
-                }),
-                relevant: relevant::Relevant,
-            },
-            allocated,
-        ))
+        let block_size = block.size() / block.count as u64;
+        let ref mut size_entry = self
+            .sizes
+            .get_mut(&block_size)
+            .expect("Unable to get size entry from which block was allocated");
+        let chunk_index = block.chunk_index;
+        let ref mut chunk = size_entry.chunks[chunk_index as usize];
+        let block_index = block.block_index;
+        let count = block.count;
+        block.dispose();
+        chunk.release_blocks(block_index, count);
+        if chunk.is_unused(block_size) {
+            size_entry.ready_chunks.remove(chunk_index);
+            let chunk = size_entry.chunks.remove(chunk_index as usize);
+            self.free_chunk(device, chunk, block_size)
+        } else {
+            size_entry.ready_chunks.add(chunk_index);
+            0
+        }
     }
 
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(self) {
         for (index, size) in self.sizes {
-            assert_eq!(size.total_chunks, 0, "Size({}) is still used", index);
+            assert_eq!(size.chunks.len(), 0, "SizeEntry({}) is still used", index);
         }
     }
 }
@@ -400,7 +493,8 @@ where
         size: u64,
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        assert!(align.is_power_of_two());
+        debug_assert!(size <= self.max_allocation());
+        debug_assert!(align.is_power_of_two());
         let aligned_size = ((size - 1) | (align - 1) | (self.block_size_granularity - 1)) + 1;
 
         log::trace!(
@@ -411,51 +505,17 @@ where
             self.memory_type.0
         );
 
-        debug_assert!(size <= self.max_block_size);
-        self.alloc_from_chunk(device, aligned_size)
+        self.alloc_block(device, aligned_size)
     }
 
     fn free(&mut self, device: &B::Device, block: DynamicBlock<B>) -> u64 {
-        log::trace!("Free block: {:#?}", block);
-        let size = block.size();
-        let block_index = block.index;
-        block.dispose();
-
-        let blocks_per_chunk = self.blocks_per_chunk(size);
-
-        debug_assert!(block_index % MAX_BLOCKS_PER_CHUNK < blocks_per_chunk);
-
-        let size_entry = self
-            .sizes
-            .get_mut(&size)
-            .expect("Block was allocated so size entry must be initialized");
-        let old = size_entry.blocks.add(block_index);
-        debug_assert!(!old);
-
-        let chunk_index = block_index / MAX_BLOCKS_PER_CHUNK;
-        let chunk_start = chunk_index * MAX_BLOCKS_PER_CHUNK;
-        let chunk_end = chunk_start + blocks_per_chunk;
-
-        if check_bit_range_set(&size_entry.blocks, chunk_start..chunk_end) {
-            for index in chunk_start..chunk_end {
-                let old = size_entry.blocks.remove(index);
-                debug_assert!(old);
-            }
-            let chunk = size_entry
-                .chunks
-                .pop(chunk_index as usize)
-                .expect("Chunk must exist");
-            size_entry.total_chunks -= 1;
-            self.free_chunk(device, chunk)
-        } else {
-            0
-        }
+        self.free_block(device, block)
     }
 }
 
 /// Block allocated for chunk.
 #[derive(Debug)]
-enum Chunk<B: Backend> {
+enum ChunkFlavor<B: Backend> {
     /// Allocated from device.
     Dedicated(Box<Memory<B>>, Option<NonNull<u8>>),
 
@@ -463,60 +523,117 @@ enum Chunk<B: Backend> {
     Dynamic(DynamicBlock<B>),
 }
 
-unsafe impl<B> Send for Chunk<B> where B: Backend {}
-unsafe impl<B> Sync for Chunk<B> where B: Backend {}
+#[derive(Debug)]
+struct Chunk<B: Backend> {
+    flavor: ChunkFlavor<B>,
+    blocks: u64,
+}
 
 impl<B> Chunk<B>
 where
     B: Backend,
 {
+    fn from_memory(block_size: u64, memory: Memory<B>, mapping: Option<NonNull<u8>>) -> Self {
+        let blocks = memory.size() / block_size;
+        debug_assert!(blocks < MAX_BLOCKS_PER_CHUNK.into());
+
+        let high_bit = 1 << (blocks - 1);
+
+        Chunk {
+            flavor: ChunkFlavor::Dedicated(Box::new(memory), mapping),
+            blocks: (high_bit - 1) | high_bit,
+        }
+    }
+
+    fn from_block(block_size: u64, chunk_block: DynamicBlock<B>) -> Self {
+        let blocks = chunk_block.size() / block_size;
+        debug_assert!(blocks < MAX_BLOCKS_PER_CHUNK as u64);
+
+        let high_bit = 1 << (blocks - 1);
+
+        Chunk {
+            flavor: ChunkFlavor::Dynamic(chunk_block),
+            blocks: (high_bit - 1) | high_bit,
+        }
+    }
+
     fn shared_memory(&self) -> &Memory<B> {
-        match self {
-            Chunk::Dedicated(boxed, _) => &*boxed,
-            Chunk::Dynamic(chunk_block) => chunk_block.shared_memory(),
+        match &self.flavor {
+            ChunkFlavor::Dedicated(boxed, _) => &*boxed,
+            ChunkFlavor::Dynamic(chunk_block) => chunk_block.shared_memory(),
         }
     }
 
     fn range(&self) -> Range<u64> {
-        match self {
-            Chunk::Dedicated(boxed, _) => 0..boxed.size(),
-            Chunk::Dynamic(chunk_block) => chunk_block.range(),
+        match &self.flavor {
+            ChunkFlavor::Dedicated(boxed, _) => 0..boxed.size(),
+            ChunkFlavor::Dynamic(chunk_block) => chunk_block.range(),
         }
     }
 
-    fn ptr(&self) -> Option<NonNull<u8>> {
-        match self {
-            Chunk::Dedicated(_, ptr) => *ptr,
-            Chunk::Dynamic(chunk_block) => chunk_block.ptr,
+    fn size(&self) -> u64 {
+        let range = self.range();
+        range.end - range.start
+    }
+
+    // Get block bytes range
+    fn blocks_range(&self, block_size: u64, block_index: u32, count: u32) -> Range<u64> {
+        let range = self.range();
+        let start = range.start + block_size * block_index as u64;
+        let end = start + block_size * count as u64;
+        debug_assert!(end <= range.end);
+        start..end
+    }
+
+    /// Check if there are free blocks.
+    fn is_unused(&self, block_size: u64) -> bool {
+        let blocks = (self.size() / block_size) as u32;
+        debug_assert!(blocks <= MAX_BLOCKS_PER_CHUNK);
+
+        let high_bit = 1 << (blocks - 1);
+        let mask = (high_bit - 1) | high_bit;
+
+        debug_assert!(self.blocks <= mask);
+        self.blocks == mask
+    }
+
+    /// Check if there are free blocks.
+    fn is_exhausted(&self) -> bool {
+        self.blocks == 0
+    }
+
+    fn acquire_blocks(&mut self, count: u32) -> Option<u32> {
+        debug_assert!(count > 0 && count <= MAX_BLOCKS_PER_CHUNK);
+        let mut blocks = !0;
+        for i in 0..count {
+            blocks &= self.blocks >> i;
+        }
+        let index = blocks.trailing_zeros();
+        if index == MAX_BLOCKS_PER_CHUNK {
+            None
+        } else {
+            let mask = ((1 << count) - 1) << index;
+            self.blocks &= !mask;
+            Some(index)
+        }
+    }
+
+    fn release_blocks(&mut self, index: u32, count: u32) {
+        let mask = ((1 << count) - 1) << index;
+        debug_assert_eq!(self.blocks & mask, 0);
+        self.blocks |= mask;
+    }
+
+    fn mapping_ptr(&self) -> Option<NonNull<u8>> {
+        match &self.flavor {
+            ChunkFlavor::Dedicated(_, ptr) => *ptr,
+            ChunkFlavor::Dynamic(chunk_block) => chunk_block.ptr,
         }
     }
 }
 
-fn max_blocks_per_size() -> u32 {
+fn max_chunks_per_size() -> usize {
     let value = (std::mem::size_of::<usize>() * 8).pow(4);
     debug_assert!(fits_u32(value));
-    value as u32
-}
-
-fn check_bit_range_set(bitset: &hibitset::BitSet, range: Range<u32>) -> bool {
-    debug_assert!(range.start < range.end);
-
-    assert_eq!(
-        range.start % MAX_BLOCKS_PER_CHUNK,
-        0,
-        "Hack. Can be removed after this function works without this assert"
-    );
-    debug_assert!(
-        range.end <= range.start + MAX_BLOCKS_PER_CHUNK,
-        "Hack. Can be removed after this function works without this assert"
-    );
-
-    let count = range.end - range.start;
-    let clean = if count == MAX_BLOCKS_PER_CHUNK {
-        !0usize
-    } else {
-        (1usize << count) - 1
-    };
-    let bits = hibitset::BitSetLike::layer0(&bitset, (range.start / MAX_BLOCKS_PER_CHUNK) as usize);
-    bits == clean
+    value
 }

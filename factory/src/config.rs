@@ -156,8 +156,9 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
         self,
         properties: &gfx_hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps) {
-        let _16mb = 16 * 1024 * 1024;
-        let _256mb = 256 * 1024 * 1024;
+        let _1mb = 1024 * 1024;
+        let _32mb = 32 * _1mb;
+        let _128mb = 128 * _1mb;
 
         let types = properties
             .memory_types
@@ -169,24 +170,18 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                         .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
                     {
                         Some(LinearConfig {
-                            linear_size: min(_256mb, properties.memory_heaps[mt.heap_index] / 8),
+                            linear_size: min(_128mb, properties.memory_heaps[mt.heap_index] / 16),
                         })
                     } else {
                         None
                     },
                     dynamic: Some(DynamicConfig {
-                        max_block_size: min(
-                            _16mb,
-                            (properties.memory_heaps[mt.heap_index] / 32 - 1).next_power_of_two(),
+                        block_size_granularity: 256.min(
+                            (properties.memory_heaps[mt.heap_index] / 4096 - 1).next_power_of_two(),
                         ),
-                        block_size_granularity: min(
-                            256,
-                            (properties.memory_heaps[mt.heap_index] / 1024 - 1).next_power_of_two(),
-                        ),
-                        blocks_per_chunk: 64,
-                        max_chunk_size: min(
-                            _256mb,
-                            (properties.memory_heaps[mt.heap_index] / 8 - 1).next_power_of_two(),
+                        min_device_allocation: _1mb.min(properties.memory_heaps[mt.heap_index] / 1048 - 1).next_power_of_two(),
+                        max_chunk_size: _32mb.min(
+                            (properties.memory_heaps[mt.heap_index] / 128 - 1).next_power_of_two(),
                         ),
                     }),
                 };
