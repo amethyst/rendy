@@ -92,6 +92,9 @@ where
 /// Shader info with static data.
 pub type StaticShaderInfo = SourceShaderInfo<&'static str, &'static str>;
 
+/// Shader info with a PathBuf for the path and static string for entry
+pub type PathBufShaderInfo = SourceShaderInfo<std::path::PathBuf, &'static str>;
+
 fn stage_from_kind(kind: &ShaderKind) -> gfx_hal::pso::ShaderStageFlags {
     use gfx_hal::pso::ShaderStageFlags;
     match kind {

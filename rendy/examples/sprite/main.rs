@@ -21,7 +21,7 @@ use {
         mesh::PosTex,
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
-        texture::Texture,
+        texture::{Texture, image::ImageTextureConfig},
     },
 };
 
@@ -32,6 +32,8 @@ use rendy::shader::SpirvReflection;
 use rendy::mesh::AsVertex;
 
 use winit::{EventsLoop, WindowBuilder};
+
+use std::{io::BufReader, fs::File};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -152,13 +154,19 @@ where
         assert_eq!(set_layouts.len(), 1);
 
         // This is how we can load an image and create a new texture.
-        let image_bytes = include_bytes!(concat!(
+        let image_reader = BufReader::new(File::open(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/examples/sprite/logo.png"
-        ));
+        ))?);
 
         let texture_builder =
-            rendy::texture::image::load_from_image(image_bytes, Default::default())?;
+            rendy::texture::image::load_from_image(
+                image_reader,
+                ImageTextureConfig {
+                    generate_mips: true,
+                    ..Default::default()
+                }
+            )?;
 
         let texture = texture_builder
             .build(

@@ -183,18 +183,20 @@ where
     }
 }
 
-// Image view info
+/// Image view info
 #[derive(Clone, Debug)]
-#[doc(hidden)]
 pub struct ImageViewInfo {
+    /// View kind
     pub view_kind: ViewKind,
+    /// Format for this view
     pub format: format::Format,
+    /// Swizzle operator for this view
     pub swizzle: format::Swizzle,
+    /// Range of full image to view
     pub range: SubresourceRange,
 }
 
 /// Generic image view resource wrapper.
-#[doc(hidden)]
 #[derive(Debug)]
 pub struct ImageView<B: Backend> {
     raw: B::ImageView,
@@ -283,6 +285,13 @@ fn match_kind(kind: Kind, view_kind: ViewKind, view_caps: ViewCapabilities) -> b
         },
         Kind::D2(..) => match view_kind {
             ViewKind::D2 | ViewKind::D2Array => true,
+            ViewKind::Cube => {
+                if view_caps.contains(ViewCapabilities::KIND_CUBE) {
+                    true
+                } else {
+                    false
+                }
+            },
             _ => false,
         },
         Kind::D3(..) => {

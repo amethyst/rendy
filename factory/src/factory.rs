@@ -399,11 +399,11 @@ where
 
     /// Update buffer range content with provided data.
     ///
-    /// Update operation will happen after all operations that was and will be submitted
-    /// before next [`flush_uploads`] or [`maintain`] call for this `Factory`.
-    ///
-    /// Update operation will happen before all operations that will be submitted
-    /// after next [`flush_uploads`] or [`maintain`] call for this `Factory`.
+    /// Update operation will actually be submitted to the graphics device queue
+    /// upon next [`flush_uploads`] or [`maintain`] call to this `Factory`, and
+    /// is guaranteed to take place after all previous operations that have been
+    /// submitted to the same graphics queue on this `Factory` since last
+    /// [`flush_uploads`] or [`maintain`] call
     ///
     /// Note that buffer range will receive `content` as raw bytes.
     /// And interpretation will depend solely on device operation.
@@ -445,11 +445,11 @@ where
 
     /// Update buffer content with provided staging buffer.
     ///
-    /// Update operation will happen after all operations that was and will be submitted
-    /// before next [`flush_uploads`] or [`maintain`] call for this `Factory`.
-    ///
-    /// Update operation will happen before all operations that will be submitted
-    /// after next [`flush_uploads`] or [`maintain`] call for this `Factory`.
+    /// Update operation will actually be submitted to the graphics device queue
+    /// upon next [`flush_uploads`] or [`maintain`] call to this `Factory`, and
+    /// is guaranteed to take place after all previous operations that have been
+    /// submitted to the same graphics queue on this `Factory` since last
+    /// [`flush_uploads`] or [`maintain`] call
     ///
     /// # Safety
     ///
@@ -472,12 +472,36 @@ where
     }
 
     /// Update image layers content with provided data.
+    /// Transition part of image from one state to another.
     ///
-    /// Update operation will happen after all operations that was and will be submitted
-    /// before next [`flush_uploads`] or [`maintain`] call for this `Factory`.
+    /// Update operation will actually be submitted to the graphics device queue
+    /// upon next [`flush_uploads`] or [`maintain`] call to this `Factory`, and
+    /// is guaranteed to take place after all previous operations that have been
+    /// submitted to the same graphics queue on this `Factory` since last
+    /// [`flush_uploads`] or [`maintain`] call
     ///
-    /// Update operation will happen before all operations that will be submitted
-    /// after next [`flush_uploads`] or [`maintain`] call for this `Factory`.
+    /// # Safety
+    ///
+    /// Image must be created by this `Factory`.
+    /// If image is used by device then `last` state must match the last usage state of the image
+    /// before transition.
+    pub unsafe fn transition_image(
+        &self,
+        image: Handle<Image<B>>,
+        image_range: SubresourceRange,
+        last: impl Into<ImageStateOrLayout>,
+        next: ImageState,
+    ) {
+        self.uploader.transition_image(image, image_range, last.into(), next);
+    }
+
+    /// Update image layers content with provided data.
+    ///
+    /// Update operation will actually be submitted to the graphics device queue
+    /// upon next [`flush_uploads`] or [`maintain`] call to this `Factory`, and
+    /// is guaranteed to take place after all previous operations that have been
+    /// submitted to the same graphics queue on this `Factory` since last
+    /// [`flush_uploads`] or [`maintain`] call
     ///
     /// Note that image layers will receive `content` as raw bytes.
     /// And interpretation will depend solely on device operation.
@@ -514,7 +538,8 @@ where
         let format_desc = image.format().surface_desc();
         let texels_count = (image_extent.width / format_desc.dim.0 as u32) as u64
             * (image_extent.height / format_desc.dim.1 as u32) as u64
-            * image_extent.depth as u64;
+            * image_extent.depth as u64
+            * (image_layers.layers.end - image_layers.layers.start) as u64;
         let total_bytes = (format_desc.bits as u64 / 8) * texels_count;
         assert_eq!(
             total_bytes, content_size,
@@ -964,7 +989,6 @@ where
     }
 }
 
-#[doc(hidden)]
 impl<B> std::ops::Deref for Factory<B>
 where
     B: Backend,

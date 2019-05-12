@@ -23,4 +23,4 @@ mod config;
 mod factory;
 mod upload;
 
-pub use crate::{config::*, factory::*, upload::*};
+pub use crate::{config::*, factory::*, upload::*, blitter::*, barriers::*};
