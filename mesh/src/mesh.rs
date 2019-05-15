@@ -358,7 +358,11 @@ where
         self.prim
     }
 
-    /// Get number of vertices in mesh.
+    /// Returns the number of vertices that will be drawn
+    /// in the mesh.  For a mesh with no index buffer,
+    /// this is the same as the number of vertices, or for
+    /// a mesh with indices, this is the same as the number
+    /// of indices.
     pub fn len(&self) -> u32 {
         self.len
     }
