@@ -149,6 +149,17 @@ impl<B: Backend> ShaderSet<B> {
     }
 }
 
+/// A set of Specialization constants for a certain shader set.
+#[derive(Debug, Default, Clone)]
+pub struct SpecConstantSet {
+    vertex: Option<gfx_hal::pso::Specialization<'static>>,
+    fragment: Option<gfx_hal::pso::Specialization<'static>>,
+    geometry: Option<gfx_hal::pso::Specialization<'static>>,
+    hull: Option<gfx_hal::pso::Specialization<'static>>,
+    domain: Option<gfx_hal::pso::Specialization<'static>>,
+    compute: Option<gfx_hal::pso::Specialization<'static>>,
+}
+
 /// Builder class which is used to begin the reflection and shader set construction process for a shader set. Provides all the functionality needed to
 /// build a shader set with provided shaders and then reflect appropriate gfx-hal and generic shader information.
 #[derive(Clone, Debug, Default)]
@@ -173,6 +184,7 @@ impl ShaderSetBuilder {
     pub fn build<B: Backend>(
         &self,
         factory: &rendy_factory::Factory<B>,
+        spec_constants: SpecConstantSet,
     ) -> Result<ShaderSet<B>, failure::Error> {
         let mut set = ShaderSet::<B>::default();
 
@@ -181,7 +193,7 @@ impl ShaderSetBuilder {
         }
 
         let create_storage = move |stage,
-                                   shader: (Vec<u8>, String),
+                                   shader: (Vec<u8>, String, Option<gfx_hal::pso::Specialization<'static>>),
                                    factory|
               -> Result<ShaderStorage<B>, failure::Error> {
             let mut storage = ShaderStorage {
@@ -189,6 +201,7 @@ impl ShaderSetBuilder {
                 spirv: shader.0,
                 module: None,
                 entrypoint: shader.1.clone(),
+                specialization: shader.2,
             };
             unsafe {
                 storage.compile(factory)?;
@@ -199,42 +212,42 @@ impl ShaderSetBuilder {
         if let Some(shader) = self.vertex.clone() {
             set.shaders.insert(
                 ShaderStageFlags::VERTEX,
-                create_storage(ShaderStageFlags::VERTEX, shader, factory)?,
+                create_storage(ShaderStageFlags::VERTEX, (shader.0, shader.1, spec_constants.vertex), factory)?,
             );
         }
 
         if let Some(shader) = self.fragment.clone() {
             set.shaders.insert(
                 ShaderStageFlags::FRAGMENT,
-                create_storage(ShaderStageFlags::FRAGMENT, shader, factory)?,
+                create_storage(ShaderStageFlags::FRAGMENT, (shader.0, shader.1, spec_constants.fragment), factory)?,
             );
         }
 
         if let Some(shader) = self.compute.clone() {
             set.shaders.insert(
                 ShaderStageFlags::COMPUTE,
-                create_storage(ShaderStageFlags::COMPUTE, shader, factory)?,
+                create_storage(ShaderStageFlags::COMPUTE, (shader.0, shader.1, spec_constants.compute), factory)?,
             );
         }
 
         if let Some(shader) = self.domain.clone() {
             set.shaders.insert(
                 ShaderStageFlags::DOMAIN,
-                create_storage(ShaderStageFlags::DOMAIN, shader, factory)?,
+                create_storage(ShaderStageFlags::DOMAIN, (shader.0, shader.1, spec_constants.domain), factory)?,
             );
         }
 
         if let Some(shader) = self.hull.clone() {
             set.shaders.insert(
                 ShaderStageFlags::HULL,
-                create_storage(ShaderStageFlags::HULL, shader, factory)?,
+                create_storage(ShaderStageFlags::HULL, (shader.0, shader.1, spec_constants.hull), factory)?,
             );
         }
 
         if let Some(shader) = self.geometry.clone() {
             set.shaders.insert(
                 ShaderStageFlags::GEOMETRY,
-                create_storage(ShaderStageFlags::GEOMETRY, shader, factory)?,
+                create_storage(ShaderStageFlags::GEOMETRY, (shader.0, shader.1, spec_constants.geometry), factory)?,
             );
         }
 
@@ -330,6 +343,7 @@ pub struct ShaderStorage<B: Backend> {
     spirv: Vec<u8>,
     module: Option<B::ShaderModule>,
     entrypoint: String,
+    specialization: Option<gfx_hal::pso::Specialization<'static>>,
 }
 impl<B: Backend> ShaderStorage<B> {
     /// Builds the `EntryPoint` structure used by gfx_hal to determine how to utilize this shader
@@ -339,7 +353,7 @@ impl<B: Backend> ShaderStorage<B> {
         Ok(Some(gfx_hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
-            specialization: gfx_hal::pso::Specialization::default(),
+            specialization: self.specialization.unwrap_or(gfx_hal::pso::Specialization::default()),
         }))
     }
 

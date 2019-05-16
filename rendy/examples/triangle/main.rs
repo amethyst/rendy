@@ -83,7 +83,7 @@ where
     }
 
     fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
-        SHADERS.build(factory).unwrap()
+        SHADERS.build(factory, Default::default()).unwrap()
     }
 
     fn vertices(

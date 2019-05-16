@@ -153,7 +153,7 @@ where
         factory: &mut Factory<B>,
         _aux: &Aux<B>,
     ) -> rendy_shader::ShaderSet<B> {
-        SHADERS.build(factory).unwrap()
+        SHADERS.build(factory, Default::default()).unwrap()
     }
 
     fn vertices(
