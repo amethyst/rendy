@@ -151,13 +151,20 @@ impl<B: Backend> ShaderSet<B> {
 
 /// A set of Specialization constants for a certain shader set.
 #[derive(Debug, Default, Clone)]
+#[allow(missing_copy_implementations)]
 pub struct SpecConstantSet {
-    vertex: Option<gfx_hal::pso::Specialization<'static>>,
-    fragment: Option<gfx_hal::pso::Specialization<'static>>,
-    geometry: Option<gfx_hal::pso::Specialization<'static>>,
-    hull: Option<gfx_hal::pso::Specialization<'static>>,
-    domain: Option<gfx_hal::pso::Specialization<'static>>,
-    compute: Option<gfx_hal::pso::Specialization<'static>>,
+    /// Vertex specialization
+    pub vertex: Option<gfx_hal::pso::Specialization<'static>>,
+    /// Fragment specialization
+    pub fragment: Option<gfx_hal::pso::Specialization<'static>>,
+    /// Geometry specialization
+    pub geometry: Option<gfx_hal::pso::Specialization<'static>>,
+    /// Hull specialization
+    pub hull: Option<gfx_hal::pso::Specialization<'static>>,
+    /// Domain specialization
+    pub domain: Option<gfx_hal::pso::Specialization<'static>>,
+    /// Compute specialization
+    pub compute: Option<gfx_hal::pso::Specialization<'static>>,
 }
 
 /// Builder class which is used to begin the reflection and shader set construction process for a shader set. Provides all the functionality needed to
@@ -353,7 +360,7 @@ impl<B: Backend> ShaderStorage<B> {
         Ok(Some(gfx_hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
-            specialization: self.specialization.unwrap_or(gfx_hal::pso::Specialization::default()),
+            specialization: self.specialization.clone().unwrap_or(gfx_hal::pso::Specialization::default()),
         }))
     }
 
