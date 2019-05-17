@@ -43,7 +43,7 @@ fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Opt
                     }
                 });
             // We can't use the vertices directly because we have per face normals and not per vertex normals in most obj files
-            // TODO: Do dedup and create own indeces into our positions
+            // TODO: Compress duplicates and return indices for indexbuffer.
             let positions = indices
                 .iter()
                 .map(|index| {
