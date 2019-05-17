@@ -233,16 +233,12 @@ where
                 if last.queue != next.queue {
                     unimplemented!("Can't sync resources across queues");
                 }
-                (
-                    last.stage,
-                    last.access,
-                    last.layout,
-                )
+                (last.stage, last.access, last.layout)
             }
             ImageStateOrLayout::Layout(last_layout) => (
                 gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
                 Access::empty(),
-                last_layout
+                last_layout,
             ),
         };
 
@@ -261,7 +257,6 @@ where
             next.access,
             next.layout,
         );
-
     }
 
     /// # Safety
@@ -528,6 +523,9 @@ where
                     panic!("Device lost error is not handled yet");
                 }
                 Ok(true) => {
+                    device
+                        .reset_fence(&pending.fence)
+                        .expect("Can always reset signalled fence");
                     self.fences.push(pending.fence);
                     self.command_buffers.push([
                         pending.command_buffer.mark_complete().reset(),
