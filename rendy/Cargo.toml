@@ -36,7 +36,7 @@ util = ["rendy-util"]
 wsi = ["rendy-wsi"]
 
 base = [ "shader-compiler", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
-default = [ "base", "spirv-reflection" ]
+default = [ "base", "spirv-reflection", "rendy-factory/wsi-winit" ]
 
 mesh-obj = ["mesh", "rendy-mesh/obj"]
 texture-image = ["texture", "rendy-texture/image"]

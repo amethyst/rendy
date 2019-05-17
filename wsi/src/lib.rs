@@ -19,16 +19,18 @@ use {
 
 #[cfg(feature = "empty")]
 mod gfx_backend_empty {
+    #[cfg(feature = "winit")]
     pub(super) fn create_surface(
         _instance: &gfx_backend_empty::Instance,
         _window: &winit::Window,
-    ) -> <gfx_backend_empty::Backend as gfx_hal::Backend>::Surface {
-        unimplemented!()
+    ) -> gfx_backend_empty::Surface {
+        gfx_backend_empty::Surface
     }
 }
 
 #[cfg(feature = "metal")]
 mod gfx_backend_metal {
+    #[cfg(feature = "winit")]
     pub(super) fn create_surface(
         instance: &gfx_backend_metal::Instance,
         window: &winit::Window,
@@ -39,6 +41,7 @@ mod gfx_backend_metal {
 
 #[cfg(feature = "vulkan")]
 mod gfx_backend_vulkan {
+    #[cfg(feature = "winit")]
     pub(super) fn create_surface(
         instance: &gfx_backend_vulkan::Instance,
         window: &winit::Window,
@@ -49,6 +52,7 @@ mod gfx_backend_vulkan {
 
 #[cfg(feature = "dx12")]
 mod gfx_backend_dx12 {
+    #[cfg(feature = "winit")]
     pub(super) fn create_surface(
         instance: &gfx_backend_dx12::Instance,
         window: &winit::Window,
@@ -57,6 +61,7 @@ mod gfx_backend_dx12 {
     }
 }
 
+#[cfg(feature = "winit")]
 macro_rules! create_surface_for_backend {
     (match $instance:ident, $window:ident $(| $backend:ident @ $feature:meta)+) => {{
         #[allow(non_camel_case_types)]
@@ -93,6 +98,7 @@ macro_rules! create_surface_for_backend {
     }};
 }
 
+#[cfg(feature = "winit")]
 #[allow(unused_variables)]
 fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) -> B::Surface {
     create_surface_for_backend!(instance, window);
@@ -100,7 +106,6 @@ fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) ->
 
 /// Rendering target bound to window.
 pub struct Surface<B: Backend> {
-    window: std::sync::Arc<winit::Window>,
     raw: B::Surface,
     instance: InstanceId,
 }
@@ -110,8 +115,8 @@ where
     B: Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Target")
-            .field("window", &self.window.id())
+        fmt.debug_struct("Surface")
+            .field("instance", &self.instance)
             .finish()
     }
 }
@@ -123,29 +128,47 @@ where
     B: Backend,
 {
     /// Create surface for the window.
-    pub fn new(instance: &Instance<B>, window: std::sync::Arc<winit::Window>) -> Self {
+    #[cfg(feature = "winit")]
+    pub fn new(instance: &Instance<B>, window: &winit::Window) -> Self {
         let raw = create_surface::<B>(instance, &window);
         Surface {
-            window,
             raw,
             instance: instance.id(),
         }
     }
 
+    /// Create surface from `instance`.
+    ///
+    /// # Safety
+    ///
+    /// Closure must return surface object created from raw instance provided as closure argument.
+    pub unsafe fn create<T>(instance: &Instance<B>, f: impl FnOnce(&T) -> B::Surface) -> Self
+    where
+        T: gfx_hal::Instance<Backend = B>,
+    {
+        Surface {
+            raw: f(instance.raw_typed().expect("Wrong instance type")),
+            instance: instance.id(),
+        }
+    }
+}
+
+impl<B> Surface<B>
+where
+    B: Backend,
+{
     /// Get raw `B::Surface` reference
     pub fn raw(&self) -> &B::Surface {
         &self.raw
     }
 
-    /// Get surface image kind.
-    pub fn kind(&self) -> gfx_hal::image::Kind {
-        gfx_hal::Surface::kind(&self.raw)
-    }
-
-    /// Get width to hight ratio.
-    pub fn aspect(&self) -> f32 {
-        let extent = gfx_hal::Surface::kind(&self.raw).extent();
-        extent.width as f32 / extent.height as f32
+    /// Get current extent of the surface.
+    pub unsafe fn extent(
+        &self,
+        physical_device: &B::PhysicalDevice,
+    ) -> Option<gfx_hal::window::Extent2D> {
+        let (capabilities, _formats, _present_modes, _alpha) = self.compatibility(physical_device);
+        capabilities.current_extent
     }
 
     /// Get surface ideal format.
@@ -164,7 +187,7 @@ where
                     desc.bits,
                 )
             })
-            .unwrap()
+            .expect("At least one format must be supported by the surface")
     }
 
     /// Get surface compatibility
@@ -188,6 +211,7 @@ where
         mut self,
         physical_device: &B::PhysicalDevice,
         device: &Device<B>,
+        extent: gfx_hal::window::Extent2D,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
@@ -202,6 +226,7 @@ where
             &mut self,
             physical_device,
             device,
+            extent,
             image_count,
             present_mode,
             usage,
@@ -217,17 +242,13 @@ where
             usage,
         })
     }
-
-    /// Get a reference to the internal window.
-    pub fn window(&self) -> &winit::Window {
-        &self.window
-    }
 }
 
 unsafe fn create_swapchain<B: Backend>(
     surface: &mut Surface<B>,
     physical_device: &B::PhysicalDevice,
     device: &Device<B>,
+    extent: gfx_hal::window::Extent2D,
     image_count: u32,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
@@ -286,21 +307,15 @@ unsafe fn create_swapchain<B: Backend>(
         "Surface supports {:?}, but {:?} was requested"
     );
 
-    let extent = capabilities.current_extent.unwrap_or({
-        let hidpi_factor = surface.window.get_hidpi_factor();
-        let start = capabilities.extents.start;
-        let end = capabilities.extents.end;
-        let (window_width, window_height) = surface
-            .window
-            .get_inner_size()
-            .unwrap()
-            .to_physical(hidpi_factor)
-            .into();
-        gfx_hal::window::Extent2D {
-            width: end.width.min(start.width.max(window_width)),
-            height: end.height.min(start.height.max(window_height)),
+    if let Some(current_extent) = capabilities.current_extent {
+        if current_extent != extent {
+            log::warn!(
+                "Surface's current extent is {:#?} but swapchain will be created with {:#?}",
+                current_extent,
+                extent
+            );
         }
-    });
+    }
 
     let (swapchain, backbuffer) = device.create_swapchain(
         &mut surface.raw,
@@ -402,7 +417,6 @@ where
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Target")
-            .field("window", &self.surface.window().id())
             .field("backbuffer", &self.backbuffer)
             .finish()
     }
@@ -452,6 +466,7 @@ where
         &mut self,
         physical_device: &B::PhysicalDevice,
         device: &Device<B>,
+        extent: gfx_hal::window::Extent2D,
     ) -> Result<(), failure::Error> {
         self.assert_device_owner(device);
 
@@ -473,6 +488,7 @@ where
             &mut self.surface,
             physical_device,
             device,
+            extent,
             image_count as u32,
             self.present_mode,
             self.usage,
@@ -517,11 +533,6 @@ where
         Ok(NextImages {
             targets: std::iter::once((&*self, index)).collect(),
         })
-    }
-
-    /// Get a reference to the internal window.
-    pub fn window(&self) -> &winit::Window {
-        &self.surface.window()
     }
 }
 

@@ -542,7 +542,7 @@ fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    window: std::sync::Arc<winit::Window>,
+    window: &winit::Window,
 ) -> Result<(), failure::Error> {
     let mut graph = build_graph(factory, families, window.clone());
 
@@ -576,7 +576,7 @@ fn run(
         graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(1, 0) {
+        if elapsed >= std::time::Duration::new(5, 0) {
             break;
         }
     }
@@ -609,12 +609,11 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
-        .unwrap()
-        .into();
+        .unwrap();
 
     event_loop.poll_events(|_| ());
 
-    run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+    run(&mut event_loop, &mut factory, &mut families, &window).unwrap();
     log::debug!("Done");
 
     log::debug!("Drop families");
@@ -624,19 +623,26 @@ fn main() {
     drop(factory);
 }
 
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn build_graph(
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    window: std::sync::Arc<winit::Window>,
+    window: &winit::Window,
 ) -> Graph<Backend, ()> {
-    let surface = factory.create_surface(window.clone());
+    let surface = factory.create_surface(window);
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+    let window_kind = gfx_hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
         factory.get_surface_format(&surface),
         Some(gfx_hal::command::ClearValue::Color(
@@ -645,7 +651,7 @@ fn build_graph(
     );
 
     let depth = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
         gfx_hal::format::Format::D16Unorm,
         Some(gfx_hal::command::ClearValue::DepthStencil(

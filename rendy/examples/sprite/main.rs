@@ -21,7 +21,7 @@ use {
         mesh::PosTex,
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
-        texture::{Texture, image::ImageTextureConfig},
+        texture::{image::ImageTextureConfig, Texture},
     },
 };
 
@@ -33,7 +33,7 @@ use rendy::mesh::AsVertex;
 
 use winit::{EventsLoop, WindowBuilder};
 
-use std::{io::BufReader, fs::File};
+use std::{fs::File, io::BufReader};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -159,14 +159,13 @@ where
             "/examples/sprite/logo.png"
         ))?);
 
-        let texture_builder =
-            rendy::texture::image::load_from_image(
-                image_reader,
-                ImageTextureConfig {
-                    generate_mips: true,
-                    ..Default::default()
-                }
-            )?;
+        let texture_builder = rendy::texture::image::load_from_image(
+            image_reader,
+            ImageTextureConfig {
+                generate_mips: true,
+                ..Default::default()
+            },
+        )?;
 
         let texture = texture_builder
             .build(
@@ -371,8 +370,13 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        gfx_hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
         1,
         factory.get_surface_format(&surface),
         Some(gfx_hal::command::ClearValue::Color(

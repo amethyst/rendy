@@ -108,7 +108,10 @@ where
     }
 
     /// Get reference to typed raw instance.
-    pub fn raw_typed<T: gfx_hal::Instance>(&self) -> Option<&T> {
+    pub fn raw_typed<T>(&self) -> Option<&T>
+    where
+        T: gfx_hal::Instance,
+    {
         if std::any::TypeId::of::<T::Backend>() == std::any::TypeId::of::<B>() {
             Some(
                 self.instance
@@ -121,7 +124,10 @@ where
     }
 
     /// Get mutable reference to typed raw instance.
-    pub fn raw_typed_mut<T: gfx_hal::Instance>(&mut self) -> Option<&mut T> {
+    pub fn raw_typed_mut<T>(&mut self) -> Option<&mut T>
+    where
+        T: gfx_hal::Instance,
+    {
         if std::any::TypeId::of::<T::Backend>() == std::any::TypeId::of::<B>() {
             Some(
                 self.instance

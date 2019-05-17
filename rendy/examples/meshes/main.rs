@@ -18,7 +18,7 @@ use {
         },
         hal::Device as _,
         memory::Dynamic,
-        mesh::{Mesh, PosColorNorm, Model},
+        mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
     },
@@ -347,12 +347,12 @@ where
         #[cfg(not(feature = "spirv-reflection"))]
         let vertex = [PosColorNorm::vertex()];
 
-        aux
-            .scene
+        aux.scene
             .object_mesh
             .as_ref()
             .unwrap()
-            .bind(0, &vertex, &mut encoder).unwrap();
+            .bind(0, &vertex, &mut encoder)
+            .unwrap();
 
         encoder.bind_vertex_buffers(
             1,
@@ -388,13 +388,19 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
-    let aspect = surface.aspect();
+    let surface = factory.create_surface(&window);
 
     let mut graph_builder = GraphBuilder::<Backend, Aux<Backend>>::new();
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+    let window_kind = gfx_hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
+    let aspect = size.width / size.height;
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
         factory.get_surface_format(&surface),
         Some(gfx_hal::command::ClearValue::Color(
@@ -403,7 +409,7 @@ fn main() {
     );
 
     let depth = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
         gfx_hal::format::Format::D16Unorm,
         Some(gfx_hal::command::ClearValue::DepthStencil(
@@ -427,7 +433,7 @@ fn main() {
 
     let scene = Scene {
         camera: Camera {
-            proj: nalgebra::Perspective3::new(aspect, 3.1415 / 4.0, 1.0, 200.0),
+            proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
             view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
         },
         object_mesh: None,

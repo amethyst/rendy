@@ -14,8 +14,8 @@ use {
     },
     gfx_hal::{
         buffer, device::*, error::HostExecutionError, format, image,
-        pso::DescriptorSetLayoutBinding, Adapter, Backend, Device as _, Features, Gpu, Limits,
-        PhysicalDevice, Surface as GfxSurface,
+        pso::DescriptorSetLayoutBinding, window::Extent2D, Adapter, Backend, Device as _, Features,
+        Gpu, Limits, PhysicalDevice, Surface as GfxSurface,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -492,7 +492,8 @@ where
         last: impl Into<ImageStateOrLayout>,
         next: ImageState,
     ) {
-        self.uploader.transition_image(image, image_range, last.into(), next);
+        self.uploader
+            .transition_image(image, image_range, last.into(), next);
     }
 
     /// Update image layers content with provided data.
@@ -576,10 +577,23 @@ where
     }
 
     /// Create rendering surface from window.
-    pub fn create_surface(&mut self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
+    #[cfg(feature = "winit")]
+    pub fn create_surface(&mut self, window: &winit::Window) -> Surface<B> {
         profile_scope!("create_surface");
-
         Surface::new(&self.instance, window)
+    }
+
+    /// Create rendering surface from window.
+    ///
+    /// # Safety
+    ///
+    /// Closure must return surface object created from raw instance provided as closure argument.
+    pub unsafe fn create_surface_with<T>(&mut self, f: impl FnOnce(&T) -> B::Surface) -> Surface<B>
+    where
+        T: gfx_hal::Instance<Backend = B>,
+    {
+        profile_scope!("create_surface");
+        Surface::create(&self.instance, f)
     }
 
     /// Get compatibility of Surface
@@ -635,6 +649,7 @@ where
     pub fn create_target(
         &self,
         surface: Surface<B>,
+        extent: Extent2D,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: image::Usage,
@@ -645,6 +660,7 @@ where
             surface.into_target(
                 &self.adapter.physical_device,
                 &self.device,
+                extent,
                 image_count,
                 present_mode,
                 usage,
