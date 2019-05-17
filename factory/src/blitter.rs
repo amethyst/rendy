@@ -2,9 +2,9 @@ use {
     crate::{
         barriers::Barriers,
         command::{
-            CommandBuffer, CommandPool, Families, Family, Graphics, IndividualReset, InitialState,
-            OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Encoder,
-            Supports, Level
+            CommandBuffer, CommandPool, Encoder, Families, Family, Graphics, IndividualReset,
+            InitialState, Level, OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState,
+            Submission, Supports,
         },
         resource::{Handle, Image},
         upload::ImageState,
@@ -42,9 +42,9 @@ pub struct BlitRegion {
 
 impl BlitRegion {
     /// Get the blit regions needed to fill the mip levels of an image
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// `last` state must be valid for corresponding image layer at the time of command execution (after memory transfers).
     /// `last` and `next` should contain at least `image.levels()` elements.
     /// `image.levels()` must be greater than 1
@@ -129,7 +129,8 @@ impl From<BlitRegion> for gfx_hal::command::ImageBlit {
             src_subresource: blit.src.subresource,
             src_bounds: blit.src.bounds,
             dst_subresource: blit.dst.subresource,
-            dst_bounds: blit.dst.bounds,        }
+            dst_bounds: blit.dst.bounds,
+        }
     }
 }
 
@@ -235,20 +236,12 @@ where
 
         family_ops.next_ops(device, queue_id.index)?;
 
-        let FamilyGraphicsOps {
-            next,
-            ..
-        } = family_ops.deref_mut();
+        let FamilyGraphicsOps { next, .. } = family_ops.deref_mut();
 
         let next_ops = next[queue_id.index].as_mut().unwrap();
         let mut encoder = next_ops.command_buffer.encoder();
 
-        blit_image(
-            &mut encoder,
-            src_image,
-            dst_image,
-            filter,
-            regions)
+        blit_image(&mut encoder, src_image, dst_image, filter, regions)
     }
 
     /// Cleanup pending updates.
@@ -294,9 +287,9 @@ where
 
 /// Blits one or more regions from src_image into dst_image using
 /// specified Filter
-/// 
+///
 /// # Safety
-/// 
+///
 /// * `src_image` and `dst_image` must have been created from the same `Device`
 /// as `encoder`
 pub unsafe fn blit_image<B, C, L>(
@@ -305,7 +298,7 @@ pub unsafe fn blit_image<B, C, L>(
     dst_image: &Handle<Image<B>>,
     filter: gfx_hal::image::Filter,
     regions: impl IntoIterator<Item = BlitRegion>,
-) -> Result<(), failure::Error> 
+) -> Result<(), failure::Error>
 where
     B: gfx_hal::Backend,
     C: Supports<Graphics>,
@@ -467,10 +460,15 @@ where
                 Err(gfx_hal::device::DeviceLost) => {
                     panic!("Device lost error is not handled yet");
                 }
-                Ok(true) => self.initial.push(GraphicsOps {
-                    command_buffer: pending.command_buffer.mark_complete().reset(),
-                    fence: pending.fence,
-                }),
+                Ok(true) => {
+                    device
+                        .reset_fence(&pending.fence)
+                        .expect("Can always reset signalled fence");
+                    self.initial.push(GraphicsOps {
+                        command_buffer: pending.command_buffer.mark_complete().reset(),
+                        fence: pending.fence,
+                    })
+                }
             }
         }
     }
