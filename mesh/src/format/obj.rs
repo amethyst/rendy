@@ -1,7 +1,7 @@
 //! Loading mesh data from obj format.
 
 use {
-    crate::{mesh::MeshBuilder, Normal, PosNormTex, Position, TexCoord},
+    crate::{mesh::MeshBuilder, Normal, Position, TexCoord},
     wavefront_obj::obj,
 };
 use log::trace;
@@ -37,15 +37,17 @@ fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Opt
                 .iter()
                 .for_each(|shape| {
                     if let obj::Primitive::Triangle(v1, v2, v3) = shape.primitive {
-                        indices.push(v1);
-                        indices.push(v2);
                         indices.push(v3);
+                        indices.push(v2);
+                        indices.push(v1);
                     }
                 });
-
-            let positions = object.vertices
+            // We can't use the vertices directly because we have per face normals and not per vertex normals in most obj files
+            // TODO: Do dedup and create own indeces into our positions
+            let positions = indices
                 .iter()
-                .map(|vertex| {
+                .map(|index| {
+                    let vertex: obj::Normal = object.vertices[index.0];
                     Position([vertex.x as f32, vertex.y as f32, vertex.z as f32])
                 })
                 .collect::<Vec<_>>();
@@ -73,10 +75,10 @@ fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Opt
                 )
                 .collect::<Vec<_>>();
 
-            {
-                let indices2 : Vec<u16> = indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>();
-                builder.set_indices(indices2);
-            }
+            // builder.set_indices(indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>());
+
+            debug_assert!(&normals.len() == &positions.len());
+            debug_assert!(&tex_coords.len() == &positions.len());
 
             builder.add_vertices(positions);
             builder.add_vertices(normals);
@@ -96,13 +98,28 @@ mod test {
 
     #[test]
     fn test_load_from_obj() {
-        let tetra = b"v 1.000000 1.000000 1.000000\nv 2.000000 1.000000 1.000000\n
-v 1.000000 2.000000 1.000000\nv 1.000000 1.000000 2.000000\n
-vt 0.500000 0.500000\nvt 0.000000 1.000000\nvt 1.000000 1.000000\n
-vn 0.000000 0.000000 1.000000\nvn 0.000000 1.000000 0.000000\nvn 0.000000 0.000000 -1.000000\nvn 0.000000 0.000000 -1.000000\n
-s 1\nf 1/1/1 3/3/3 2/3/2\nf 1/1/1 4/2/4 2/3/2\nf 1/1/1 2/2/2 4/3/4\nf 2/1/2 3/2/2 4/3/4\n";
-        let result = load_from_obj(tetra).ok().unwrap();
+        let quad = b"v -1.000000 -1.000000 1.000000\nv 1.000000 -1.000000 1.000000\nv -1.000000 1.000000 1.000000\nv 1.000000 1.000000 1.000000\nv -1.000000 1.000000 -1.000000\nv 1.000000 1.000000 -1.000000\nv -1.000000 -1.000000 -1.000000\nv 1.000000 -1.000000 -1.000000\n
+vt 0.000000 0.000000\nvt 1.000000 0.000000\nvt 0.000000 1.000000\nvt 1.000000 1.000000\n
+vn 0.000000 0.000000 1.000000\nvn 0.000000 1.000000 0.000000\nvn 0.000000 0.000000 -1.000000\nvn 0.000000 -1.000000 0.000000\nvn 1.000000 0.000000 0.000000\nvn -1.000000 0.000000 0.000000\n
+s 1
+f 1/1/1 2/2/1 3/3/1\nf 3/3/1 2/2/1 4/4/1
+s 2
+f 3/1/2 4/2/2 5/3/2\nf 5/3/2 4/2/2 6/4/2
+s 3
+f 5/4/3 6/3/3 7/2/3\nf 7/2/3 6/3/3 8/1/3
+s 4
+f 7/1/4 8/2/4 1/3/4\nf 1/3/4 8/2/4 2/4/4
+s 5
+f 2/1/5 8/2/5 4/3/5\nf 4/3/5 8/2/5 6/4/5
+s 6
+f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
+";
+        let result = load_from_obj(quad).ok().unwrap();
+        // dbg!(& result);
         assert_eq!(result.len(), 1);
-        
+
+
+        // When compressed into unique vertices there should be 4 vertices per side of the quad
+        // assert!() 
     }
 }
