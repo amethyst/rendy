@@ -37,9 +37,9 @@ fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Opt
                 .iter()
                 .for_each(|shape| {
                     if let obj::Primitive::Triangle(v1, v2, v3) = shape.primitive {
-                        indices.push(v3);
-                        indices.push(v2);
                         indices.push(v1);
+                        indices.push(v2);
+                        indices.push(v3);
                     }
                 });
             // We can't use the vertices directly because we have per face normals and not per vertex normals in most obj files
