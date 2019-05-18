@@ -9,19 +9,22 @@
     allow(unused)
 )]
 use {
-    gfx_hal::PhysicalDevice as _,
+    genmesh::generators::{IndexedPolygon, SharedVertex},
+    rand::distributions::{Distribution, Uniform},
     rendy::{
         command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
         factory::{Config, Factory},
         graph::{
             present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
         },
-        hal::Device as _,
+        hal::{self, Device as _, PhysicalDevice as _},
         memory::Dynamic,
-        mesh::{Mesh, PosColorNorm, Model},
+        mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+        wsi::winit::{Event, EventsLoop, WindowBuilder, WindowEvent},
     },
+    std::{cmp::min, mem::size_of, time},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -29,14 +32,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-use std::{cmp::min, mem::size_of, time};
-
-use genmesh::generators::{IndexedPolygon, SharedVertex};
-
-use rand::distributions::{Distribution, Uniform};
-
-use winit::{Event, EventsLoop, WindowBuilder, WindowEvent};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -97,7 +92,7 @@ struct Camera {
 }
 
 #[derive(Debug)]
-struct Scene<B: gfx_hal::Backend> {
+struct Scene<B: hal::Backend> {
     camera: Camera,
     object_mesh: Option<Mesh<B>>,
     objects: Vec<nalgebra::Transform3<f32>>,
@@ -105,7 +100,7 @@ struct Scene<B: gfx_hal::Backend> {
 }
 
 #[derive(Debug)]
-struct Aux<B: gfx_hal::Backend> {
+struct Aux<B: hal::Backend> {
     frames: usize,
     align: u64,
     scene: Scene<B>,
@@ -137,14 +132,14 @@ const fn indirect_offset(index: usize, align: u64) -> u64 {
 struct MeshRenderPipelineDesc;
 
 #[derive(Debug)]
-struct MeshRenderPipeline<B: gfx_hal::Backend> {
+struct MeshRenderPipeline<B: hal::Backend> {
     buffer: Escape<Buffer<B>>,
     sets: Vec<Escape<DescriptorSet<B>>>,
 }
 
 impl<B> SimpleGraphicsPipelineDesc<B, Aux<B>> for MeshRenderPipelineDesc
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
 {
     type Pipeline = MeshRenderPipeline<B>;
 
@@ -159,26 +154,26 @@ where
     fn vertices(
         &self,
     ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::VertexInputRate,
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::VertexInputRate,
     )> {
         #[cfg(feature = "spirv-reflection")]
         return vec![
             SHADER_REFLECTION
                 .attributes(&["position", "color", "normal"])
                 .unwrap()
-                .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex),
+                .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex),
             SHADER_REFLECTION
                 .attributes_range(3..7)
                 .unwrap()
-                .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Instance(1)),
+                .gfx_vertex_input_desc(hal::pso::VertexInputRate::Instance(1)),
         ];
 
         #[cfg(not(feature = "spirv-reflection"))]
         return vec![
-            PosColorNorm::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex),
-            Model::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Instance(1)),
+            PosColorNorm::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex),
+            Model::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Instance(1)),
         ];
     }
 
@@ -189,11 +184,11 @@ where
         #[cfg(not(feature = "spirv-reflection"))]
         return Layout {
             sets: vec![SetLayout {
-                bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
+                bindings: vec![hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: gfx_hal::pso::DescriptorType::UniformBuffer,
+                    ty: hal::pso::DescriptorType::UniformBuffer,
                     count: 1,
-                    stage_flags: gfx_hal::pso::ShaderStageFlags::GRAPHICS,
+                    stage_flags: hal::pso::ShaderStageFlags::GRAPHICS,
                     immutable_samplers: false,
                 }],
             }],
@@ -221,9 +216,9 @@ where
             .create_buffer(
                 BufferInfo {
                     size: buffer_frame_size(align) * frames as u64,
-                    usage: gfx_hal::buffer::Usage::UNIFORM
-                        | gfx_hal::buffer::Usage::INDIRECT
-                        | gfx_hal::buffer::Usage::VERTEX,
+                    usage: hal::buffer::Usage::UNIFORM
+                        | hal::buffer::Usage::INDIRECT
+                        | hal::buffer::Usage::VERTEX,
                 },
                 Dynamic,
             )
@@ -235,11 +230,11 @@ where
                 let set = factory
                     .create_descriptor_set(set_layouts[0].clone())
                     .unwrap();
-                factory.write_descriptor_sets(Some(gfx_hal::pso::DescriptorSetWrite {
+                factory.write_descriptor_sets(Some(hal::pso::DescriptorSetWrite {
                     set: set.raw(),
                     binding: 0,
                     array_offset: 0,
-                    descriptors: Some(gfx_hal::pso::Descriptor::Buffer(
+                    descriptors: Some(hal::pso::Descriptor::Buffer(
                         buffer.raw(),
                         Some(uniform_offset(index, align))
                             ..Some(uniform_offset(index, align) + UNIFORM_SIZE),
@@ -255,7 +250,7 @@ where
 
 impl<B> SimpleGraphicsPipeline<B, Aux<B>> for MeshRenderPipeline<B>
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
 {
     type Desc = MeshRenderPipelineDesc;
 
@@ -347,12 +342,12 @@ where
         #[cfg(not(feature = "spirv-reflection"))]
         let vertex = [PosColorNorm::vertex()];
 
-        aux
-            .scene
+        aux.scene
             .object_mesh
             .as_ref()
             .unwrap()
-            .bind(0, &vertex, &mut encoder).unwrap();
+            .bind(0, &vertex, &mut encoder)
+            .unwrap();
 
         encoder.bind_vertex_buffers(
             1,
@@ -388,26 +383,30 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
-    let aspect = surface.aspect();
+    let surface = factory.create_surface(&window);
 
     let mut graph_builder = GraphBuilder::<Backend, Aux<Backend>>::new();
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+    let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
+    let aspect = size.width / size.height;
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
         factory.get_surface_format(&surface),
-        Some(gfx_hal::command::ClearValue::Color(
-            [1.0, 1.0, 1.0, 1.0].into(),
-        )),
+        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
     let depth = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
-        gfx_hal::format::Format::D16Unorm,
-        Some(gfx_hal::command::ClearValue::DepthStencil(
-            gfx_hal::command::ClearDepthStencil(1.0, 0),
+        hal::format::Format::D16Unorm,
+        Some(hal::command::ClearValue::DepthStencil(
+            hal::command::ClearDepthStencil(1.0, 0),
         )),
     );
 
@@ -427,7 +426,7 @@ fn main() {
 
     let scene = Scene {
         camera: Camera {
-            proj: nalgebra::Perspective3::new(aspect, 3.1415 / 4.0, 1.0, 200.0),
+            proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
             view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
         },
         object_mesh: None,

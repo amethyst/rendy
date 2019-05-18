@@ -12,9 +12,9 @@ categories = ["rendering"]
 readme = "README.md"
 
 [features]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 obj = ["wavefront_obj"]
 serde-1 = ["serde", "serde_bytes", "gfx-hal/serde", "smallvec/serde", "rendy-factory/serde-1"]
+no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command" }
@@ -23,7 +23,7 @@ rendy-resource = { version = "0.1.0", path = "../resource" }
 rendy-factory = { version = "0.1.0", path = "../factory" }
 rendy-util = { version = "0.1.0", path = "../util" }
 
-gfx-hal = { version = "0.2" }
+gfx-hal = "0.2"
 
 failure = "0.1"
 serde = { version = "1.0", optional = true, features = ["derive"] }

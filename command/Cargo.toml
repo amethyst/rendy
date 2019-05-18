@@ -12,11 +12,13 @@ description = "Rendy's queues and commands tools"
 
 [features]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-gfx-hal = { version = "0.2" }
+gfx-hal = "0.2"
 derivative = "1.0"
 failure = "0.1"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
 rendy-util = { version = "0.1", path = "../util" }
+thread_profiler = "0.3"

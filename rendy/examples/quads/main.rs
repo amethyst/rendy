@@ -25,11 +25,12 @@ use rendy::{
         BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
         NodeSubmittable,
     },
-    hal::Device as _,
+    hal::{self, Device as _},
     memory::Dynamic,
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+    wsi::winit::{EventsLoop, Window, WindowBuilder},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -37,8 +38,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-use winit::{EventsLoop, WindowBuilder};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -113,7 +112,7 @@ const PER_CALL: u32 = QUADS / DIVIDE;
 struct QuadsRenderPipelineDesc;
 
 #[derive(Debug)]
-struct QuadsRenderPipeline<B: gfx_hal::Backend> {
+struct QuadsRenderPipeline<B: hal::Backend> {
     indirect: Escape<Buffer<B>>,
     vertices: Escape<Buffer<B>>,
     descriptor_set: Escape<DescriptorSet<B>>,
@@ -121,7 +120,7 @@ struct QuadsRenderPipeline<B: gfx_hal::Backend> {
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for QuadsRenderPipelineDesc
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Pipeline = QuadsRenderPipeline<B>;
@@ -133,18 +132,18 @@ where
     fn vertices(
         &self,
     ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::VertexInputRate,
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::VertexInputRate,
     )> {
         #[cfg(feature = "spirv-reflection")]
         return vec![SHADER_REFLECTION
             .attributes_range(..)
             .unwrap()
-            .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex)];
+            .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex)];
 
         #[cfg(not(feature = "spirv-reflection"))]
-        return vec![Color::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex)];
+        return vec![Color::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex)];
     }
 
     fn layout(&self) -> Layout {
@@ -154,11 +153,11 @@ where
         #[cfg(not(feature = "spirv-reflection"))]
         return Layout {
             sets: vec![rendy::graph::render::SetLayout {
-                bindings: vec![gfx_hal::pso::DescriptorSetLayoutBinding {
+                bindings: vec![hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: gfx_hal::pso::DescriptorType::StorageBuffer,
+                    ty: hal::pso::DescriptorType::StorageBuffer,
                     count: 1,
-                    stage_flags: gfx_hal::pso::ShaderStageFlags::VERTEX,
+                    stage_flags: hal::pso::ShaderStageFlags::VERTEX,
                     immutable_samplers: false,
                 }],
             }],
@@ -168,9 +167,9 @@ where
 
     fn buffers(&self) -> Vec<BufferAccess> {
         vec![BufferAccess {
-            access: gfx_hal::buffer::Access::SHADER_READ,
-            stages: gfx_hal::pso::PipelineStage::VERTEX_SHADER,
-            usage: gfx_hal::buffer::Usage::STORAGE,
+            access: hal::buffer::Access::SHADER_READ,
+            stages: hal::pso::PipelineStage::VERTEX_SHADER,
+            usage: hal::buffer::Usage::STORAGE,
         }]
     }
 
@@ -193,7 +192,7 @@ where
             .create_buffer(
                 BufferInfo {
                     size: std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
-                    usage: gfx_hal::buffer::Usage::INDIRECT,
+                    usage: hal::buffer::Usage::INDIRECT,
                 },
                 Dynamic,
             )
@@ -220,7 +219,7 @@ where
             .create_buffer(
                 BufferInfo {
                     size: std::mem::size_of::<Color>() as u64 * 6,
-                    usage: gfx_hal::buffer::Usage::VERTEX,
+                    usage: hal::buffer::Usage::VERTEX,
                 },
                 Dynamic,
             )
@@ -274,17 +273,17 @@ where
             .unwrap();
 
         unsafe {
-            factory.device().write_descriptor_sets(std::iter::once(
-                gfx_hal::pso::DescriptorSetWrite {
+            factory
+                .device()
+                .write_descriptor_sets(std::iter::once(hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
-                    descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(
+                    descriptors: std::iter::once(hal::pso::Descriptor::Buffer(
                         posvelbuff.raw(),
                         Some(0)..Some(posvelbuff.size() as u64),
                     )),
-                },
-            ))
+                }))
         }
 
         Ok(QuadsRenderPipeline {
@@ -297,7 +296,7 @@ where
 
 impl<B, T> SimpleGraphicsPipeline<B, T> for QuadsRenderPipeline<B>
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Desc = QuadsRenderPipelineDesc;
@@ -339,7 +338,7 @@ where
 }
 
 #[derive(Debug)]
-struct GravBounce<B: gfx_hal::Backend> {
+struct GravBounce<B: hal::Backend> {
     set_layout: Handle<DescriptorSetLayout<B>>,
     pipeline_layout: B::PipelineLayout,
     pipeline: B::ComputePipeline,
@@ -354,7 +353,7 @@ struct GravBounce<B: gfx_hal::Backend> {
 
 impl<'a, B> NodeSubmittable<'a, B> for GravBounce<B>
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
 {
     type Submittable = &'a Submit<B, SimultaneousUse>;
     type Submittables = &'a [Submit<B, SimultaneousUse>];
@@ -362,7 +361,7 @@ where
 
 impl<B, T> Node<B, T> for GravBounce<B>
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Capability = Compute;
@@ -394,16 +393,16 @@ struct GravBounceDesc;
 
 impl<B, T> NodeDesc<B, T> for GravBounceDesc
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Node = GravBounce<B>;
 
     fn buffers(&self) -> Vec<BufferAccess> {
         vec![BufferAccess {
-            access: gfx_hal::buffer::Access::SHADER_READ | gfx_hal::buffer::Access::SHADER_WRITE,
-            stages: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
-            usage: gfx_hal::buffer::Usage::STORAGE | gfx_hal::buffer::Usage::TRANSFER_DST,
+            access: hal::buffer::Access::SHADER_READ | hal::buffer::Access::SHADER_WRITE,
+            stages: hal::pso::PipelineStage::COMPUTE_SHADER,
+            usage: hal::buffer::Usage::STORAGE | hal::buffer::Usage::TRANSFER_DST,
         }]
     }
 
@@ -433,9 +432,8 @@ where
                         index: queue,
                         family: family.id(),
                     },
-                    stage: gfx_hal::pso::PipelineStage::COMPUTE_SHADER,
-                    access: gfx_hal::buffer::Access::SHADER_WRITE
-                        | gfx_hal::buffer::Access::SHADER_READ,
+                    stage: hal::pso::PipelineStage::COMPUTE_SHADER,
+                    access: hal::buffer::Access::SHADER_WRITE | hal::buffer::Access::SHADER_READ,
                 },
             )
         }?;
@@ -444,11 +442,11 @@ where
         let module = unsafe { BOUNCE_COMPUTE.module(factory) }?;
 
         let set_layout = Handle::from(factory.create_descriptor_set_layout(vec![
-            gfx_hal::pso::DescriptorSetLayoutBinding {
+            hal::pso::DescriptorSetLayoutBinding {
                 binding: 0,
-                ty: gfx_hal::pso::DescriptorType::StorageBuffer,
+                ty: hal::pso::DescriptorType::StorageBuffer,
                 count: 1,
-                stage_flags: gfx_hal::pso::ShaderStageFlags::COMPUTE,
+                stage_flags: hal::pso::ShaderStageFlags::COMPUTE,
                 immutable_samplers: false,
             },
         ])?);
@@ -456,21 +454,21 @@ where
         let pipeline_layout = unsafe {
             factory.device().create_pipeline_layout(
                 std::iter::once(set_layout.raw()),
-                std::iter::empty::<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
+                std::iter::empty::<(hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
             )
         }?;
 
         let pipeline = unsafe {
             factory.device().create_compute_pipeline(
-                &gfx_hal::pso::ComputePipelineDesc {
-                    shader: gfx_hal::pso::EntryPoint {
+                &hal::pso::ComputePipelineDesc {
+                    shader: hal::pso::EntryPoint {
                         entry: "main",
                         module: &module,
-                        specialization: gfx_hal::pso::Specialization::default(),
+                        specialization: hal::pso::Specialization::default(),
                     },
                     layout: &pipeline_layout,
-                    flags: gfx_hal::pso::PipelineCreationFlags::empty(),
-                    parent: gfx_hal::pso::BasePipeline::None,
+                    flags: hal::pso::PipelineCreationFlags::empty(),
+                    parent: hal::pso::BasePipeline::None,
                 },
                 None,
             )
@@ -481,17 +479,17 @@ where
         let descriptor_set = factory.create_descriptor_set(set_layout.clone())?;
 
         unsafe {
-            factory.device().write_descriptor_sets(std::iter::once(
-                gfx_hal::pso::DescriptorSetWrite {
+            factory
+                .device()
+                .write_descriptor_sets(std::iter::once(hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
-                    descriptors: std::iter::once(gfx_hal::pso::Descriptor::Buffer(
+                    descriptors: std::iter::once(hal::pso::Descriptor::Buffer(
                         posvelbuff.raw(),
                         Some(0)..Some(posvelbuff.size()),
                     )),
-                },
-            ));
+                }));
         }
 
         let mut command_pool = factory
@@ -512,14 +510,14 @@ where
         {
             let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
             log::info!("Acquire {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
+            encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
         }
         encoder.dispatch(QUADS, 1, 1);
 
         {
             let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
             log::info!("Release {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(stages, gfx_hal::memory::Dependencies::empty(), barriers);
+            encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
         }
 
         let (submit, command_buffer) = recording.finish().submit();
@@ -542,7 +540,7 @@ fn run(
     event_loop: &mut EventsLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    window: std::sync::Arc<winit::Window>,
+    window: &Window,
 ) -> Result<(), failure::Error> {
     let mut graph = build_graph(factory, families, window.clone());
 
@@ -576,7 +574,7 @@ fn run(
         graph.run(factory, families, &());
 
         elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(1, 0) {
+        if elapsed >= std::time::Duration::new(5, 0) {
             break;
         }
     }
@@ -609,12 +607,11 @@ fn main() {
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
-        .unwrap()
-        .into();
+        .unwrap();
 
     event_loop.poll_events(|_| ());
 
-    run(&mut event_loop, &mut factory, &mut families, window).unwrap();
+    run(&mut event_loop, &mut factory, &mut families, &window).unwrap();
     log::debug!("Done");
 
     log::debug!("Drop families");
@@ -624,32 +621,37 @@ fn main() {
     drop(factory);
 }
 
+#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn build_graph(
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
-    window: std::sync::Arc<winit::Window>,
+    window: &Window,
 ) -> Graph<Backend, ()> {
-    let surface = factory.create_surface(window.clone());
+    let surface = factory.create_surface(window);
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+    let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
         factory.get_surface_format(&surface),
-        Some(gfx_hal::command::ClearValue::Color(
-            [1.0, 1.0, 1.0, 1.0].into(),
-        )),
+        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
     let depth = graph_builder.create_image(
-        surface.kind(),
+        window_kind,
         1,
-        gfx_hal::format::Format::D16Unorm,
-        Some(gfx_hal::command::ClearValue::DepthStencil(
-            gfx_hal::command::ClearDepthStencil(1.0, 0),
+        hal::format::Format::D16Unorm,
+        Some(hal::command::ClearValue::DepthStencil(
+            hal::command::ClearDepthStencil(1.0, 0),
         )),
     );
 

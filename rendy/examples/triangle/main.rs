@@ -15,10 +15,12 @@ use rendy::{
     graph::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
+    hal,
     memory::Dynamic,
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
+    wsi::winit::{EventsLoop, WindowBuilder},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -26,8 +28,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-use winit::{EventsLoop, WindowBuilder};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -67,18 +67,18 @@ lazy_static::lazy_static! {
 struct TriangleRenderPipelineDesc;
 
 #[derive(Debug)]
-struct TriangleRenderPipeline<B: gfx_hal::Backend> {
+struct TriangleRenderPipeline<B: hal::Backend> {
     vertex: Option<Escape<Buffer<B>>>,
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for TriangleRenderPipelineDesc
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Pipeline = TriangleRenderPipeline<B>;
 
-    fn depth_stencil(&self) -> Option<gfx_hal::pso::DepthStencilDesc> {
+    fn depth_stencil(&self) -> Option<hal::pso::DepthStencilDesc> {
         None
     }
 
@@ -89,18 +89,18 @@ where
     fn vertices(
         &self,
     ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::VertexInputRate,
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::VertexInputRate,
     )> {
         #[cfg(feature = "spirv-reflection")]
         return vec![SHADER_REFLECTION
             .attributes_range(..)
             .unwrap()
-            .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex)];
+            .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex)];
 
         #[cfg(not(feature = "spirv-reflection"))]
-        return vec![PosColor::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex)];
+        return vec![PosColor::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex)];
     }
 
     fn build<'a>(
@@ -123,7 +123,7 @@ where
 
 impl<B, T> SimpleGraphicsPipeline<B, T> for TriangleRenderPipeline<B>
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Desc = TriangleRenderPipelineDesc;
@@ -147,7 +147,7 @@ where
                 .create_buffer(
                     BufferInfo {
                         size: vbuf_size,
-                        usage: gfx_hal::buffer::Usage::VERTEX,
+                        usage: hal::buffer::Usage::VERTEX,
                     },
                     Dynamic,
                 )
@@ -253,17 +253,20 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
+    let surface = factory.create_surface(&window);
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
         1,
         factory.get_surface_format(&surface),
-        Some(gfx_hal::command::ClearValue::Color(
-            [1.0, 1.0, 1.0, 1.0].into(),
-        )),
+        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
     let pass = graph_builder.add_node(

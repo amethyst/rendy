@@ -11,75 +11,23 @@
     unused_qualifications
 )]
 
-mod casts;
-mod slow;
-mod wrap;
-
-#[doc(inline)]
-pub mod types;
-
 pub use crate::{casts::*, slow::*, wrap::*};
 
-/// Implement ownership checking for value with `device: DeviceId` field.
-#[macro_export]
-macro_rules! device_owned {
-    ($type:ident<B $(, $arg:ident $(: $(?$sized:ident)* $($bound:path)|*)*)*> @ $getter:expr) => {
-        #[allow(unused_qualifications)]
-        impl<B $(, $arg)*> $type<B $(, $arg)*>
-        where
-            B: gfx_hal::Backend,
-            $(
-                $($arg: $(?$sized)* $($bound)*,)*
-            )*
-        {
-            /// Get owned id.
-            pub fn device_id(&self) -> $crate::DeviceId {
-                ($getter)(self)
-            }
+#[cfg(feature = "gfx-backend-empty")]
+pub use gfx_backend_empty as empty;
 
-            /// Assert specified device is owner.
-            pub fn assert_device_owner(&self, device: &$crate::Device<B>) {
-                assert_eq!(self.device_id(), device.id(), "Resource is not owned by specified device");
-            }
+#[cfg(feature = "gfx-backend-dx12")]
+pub use gfx_backend_dx12 as dx12;
 
-            /// Get owned id.
-            pub fn instance_id(&self) -> $crate::InstanceId {
-                self.device_id().instance
-            }
+#[cfg(feature = "gfx-backend-metal")]
+pub use gfx_backend_metal as metal;
 
-            /// Assert specified instance is owner.
-            pub fn assert_instance_owner(&self, instance: &$crate::Instance<B>) {
-                assert_eq!(self.instance_id(), instance.id(), "Resource is not owned by specified instance");
-            }
-        }
-    };
+#[cfg(feature = "gfx-backend-vulkan")]
+pub use gfx_backend_vulkan as vulkan;
 
-    ($type:ident<B $(, $arg:ident $(: $(?$sized:ident)* $($bound:path)|*)*)*>) => {
-        device_owned!($type<B $(, $arg $(: $(?$sized)* $($bound)|*)*)*> @ (|s: &Self| {s.device}));
-    };
-}
-
-/// Implement ownership checking for value with `instance: InstanceId` field.
-#[macro_export]
-macro_rules! instance_owned {
-    ($type:ident<B $(, $arg:ident)*>) => {
-        #[allow(unused_qualifications)]
-        impl<B $(, $arg)*> $type<B $(, $arg)*>
-        where
-            B: gfx_hal::Backend,
-            $(
-                $($arg: $bound)*,
-            )*
-        {
-            /// Get owned id.
-            pub fn instance_id(&self) -> $crate::InstanceId {
-                self.instance
-            }
-
-            /// Assert specified instance is owner.
-            pub fn assert_instance_owner(&self, instance: &Instance<B>) {
-                assert_eq!(self.instance_id(), instance.id());
-            }
-        }
-    };
-}
+#[macro_use]
+mod features;
+mod casts;
+mod slow;
+pub mod types;
+mod wrap;

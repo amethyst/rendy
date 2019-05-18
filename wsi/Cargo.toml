@@ -11,10 +11,10 @@ categories = ["rendering"]
 description = "Rendy's windowing support"
 
 [features]
-empty = ["gfx-backend-empty", "rendy-util/empty"]
-dx12 = ["gfx-backend-dx12", "rendy-util/dx12"]
-metal = ["gfx-backend-metal", "rendy-util/metal"]
-vulkan = ["gfx-backend-vulkan", "rendy-util/vulkan"]
+empty = ["rendy-util/empty"]
+dx12 = ["rendy-util/dx12"]
+metal = ["rendy-util/metal"]
+vulkan = ["rendy-util/vulkan"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 
 [dependencies]
@@ -22,15 +22,10 @@ rendy-memory = { version = "0.1.0", path = "../memory" }
 rendy-resource = { version = "0.1.0", path = "../resource" }
 rendy-util = { version = "0.1.0", path = "../util" }
 
-gfx-hal = { version = "0.2" }
-gfx-backend-empty = { version = "0.2", optional = true }
-gfx-backend-dx12  = { version = "0.2", optional = true }
-gfx-backend-metal = { version = "0.2", optional = true }
-gfx-backend-vulkan = { version = "0.2", optional = true }
-
+gfx-hal = "0.2"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
-winit = "0.19"
+winit = { version = "0.19", optional = true }

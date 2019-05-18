@@ -12,7 +12,7 @@ description = "Rendy's descriptor allocator"
 
 [dependencies]
 derivative = "1.0"
-gfx-hal = { version = "0.2" }
+gfx-hal = "0.2"
 failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }

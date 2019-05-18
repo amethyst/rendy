@@ -391,9 +391,21 @@ where
         assert_eq!(images.len(), 1);
 
         let input_image = images.into_iter().next().unwrap();
+        let extent = factory
+            .get_surface_compatibility(&self.surface)
+            .0
+            .current_extent
+            .unwrap_or_else(|| {
+                ctx.get_image(input_image.id)
+                    .expect("Context must contain node's image")
+                    .kind()
+                    .extent()
+                    .into()
+            });
 
         let target = factory.create_target(
             self.surface,
+            extent,
             self.image_count,
             self.present_mode,
             gfx_hal::image::Usage::TRANSFER_DST,
@@ -483,8 +495,20 @@ where
             // TODO: use retired swapchains once available in hal and remove that wait
             factory.wait_idle().unwrap();
 
+            let extent = factory
+                .get_surface_compatibility(self.target.surface())
+                .0
+                .current_extent
+                .unwrap_or_else(|| {
+                    ctx.get_image(self.input_image.id)
+                        .expect("Context must contain node's image")
+                        .kind()
+                        .extent()
+                        .into()
+                });
+
             self.target
-                .recreate(factory.physical(), factory.device())
+                .recreate(factory.physical(), factory.device(), extent)
                 .expect("Failed recreating swapchain");
 
             for data in self.per_image.drain(..) {

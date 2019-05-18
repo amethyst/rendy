@@ -8,21 +8,19 @@
     allow(unused)
 )]
 
-use {
-    gfx_hal::Device as _,
-    rendy::{
-        command::{Families, QueueId, RenderPassEncoder},
-        factory::{Config, Factory, ImageState},
-        graph::{
-            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
-            NodeImage,
-        },
-        memory::Dynamic,
-        mesh::PosTex,
-        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
-        texture::{Texture, image::ImageTextureConfig},
+use rendy::{
+    command::{Families, QueueId, RenderPassEncoder},
+    factory::{Config, Factory, ImageState},
+    graph::{
+        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
+    hal::{self, Device as _},
+    memory::Dynamic,
+    mesh::PosTex,
+    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+    shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
+    texture::{image::ImageTextureConfig, Texture},
+    wsi::winit::{EventsLoop, WindowBuilder},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -31,9 +29,7 @@ use rendy::shader::SpirvReflection;
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
 
-use winit::{EventsLoop, WindowBuilder};
-
-use std::{io::BufReader, fs::File};
+use std::{fs::File, io::BufReader};
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
@@ -73,7 +69,7 @@ lazy_static::lazy_static! {
 struct SpriteGraphicsPipelineDesc;
 
 #[derive(Debug)]
-struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
+struct SpriteGraphicsPipeline<B: hal::Backend> {
     texture: Texture<B>,
     vbuf: Escape<Buffer<B>>,
     descriptor_set: Escape<DescriptorSet<B>>,
@@ -81,12 +77,12 @@ struct SpriteGraphicsPipeline<B: gfx_hal::Backend> {
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for SpriteGraphicsPipelineDesc
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Pipeline = SpriteGraphicsPipeline<B>;
 
-    fn depth_stencil(&self) -> Option<gfx_hal::pso::DepthStencilDesc> {
+    fn depth_stencil(&self) -> Option<hal::pso::DepthStencilDesc> {
         None
     }
 
@@ -97,18 +93,18 @@ where
     fn vertices(
         &self,
     ) -> Vec<(
-        Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::VertexInputRate,
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::VertexInputRate,
     )> {
         #[cfg(feature = "spirv-reflection")]
         return vec![SHADER_REFLECTION
             .attributes_range(..)
             .unwrap()
-            .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex)];
+            .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex)];
 
         #[cfg(not(feature = "spirv-reflection"))]
-        return vec![PosTex::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex)];
+        return vec![PosTex::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex)];
     }
 
     fn layout(&self) -> Layout {
@@ -119,18 +115,18 @@ where
         return Layout {
             sets: vec![SetLayout {
                 bindings: vec![
-                    gfx_hal::pso::DescriptorSetLayoutBinding {
+                    hal::pso::DescriptorSetLayoutBinding {
                         binding: 0,
-                        ty: gfx_hal::pso::DescriptorType::SampledImage,
+                        ty: hal::pso::DescriptorType::SampledImage,
                         count: 1,
-                        stage_flags: gfx_hal::pso::ShaderStageFlags::FRAGMENT,
+                        stage_flags: hal::pso::ShaderStageFlags::FRAGMENT,
                         immutable_samplers: false,
                     },
-                    gfx_hal::pso::DescriptorSetLayoutBinding {
+                    hal::pso::DescriptorSetLayoutBinding {
                         binding: 1,
-                        ty: gfx_hal::pso::DescriptorType::Sampler,
+                        ty: hal::pso::DescriptorType::Sampler,
                         count: 1,
-                        stage_flags: gfx_hal::pso::ShaderStageFlags::FRAGMENT,
+                        stage_flags: hal::pso::ShaderStageFlags::FRAGMENT,
                         immutable_samplers: false,
                     },
                 ],
@@ -159,22 +155,21 @@ where
             "/examples/sprite/logo.png"
         ))?);
 
-        let texture_builder =
-            rendy::texture::image::load_from_image(
-                image_reader,
-                ImageTextureConfig {
-                    generate_mips: true,
-                    ..Default::default()
-                }
-            )?;
+        let texture_builder = rendy::texture::image::load_from_image(
+            image_reader,
+            ImageTextureConfig {
+                generate_mips: true,
+                ..Default::default()
+            },
+        )?;
 
         let texture = texture_builder
             .build(
                 ImageState {
                     queue,
-                    stage: gfx_hal::pso::PipelineStage::FRAGMENT_SHADER,
-                    access: gfx_hal::image::Access::SHADER_READ,
-                    layout: gfx_hal::image::Layout::ShaderReadOnlyOptimal,
+                    stage: hal::pso::PipelineStage::FRAGMENT_SHADER,
+                    access: hal::image::Access::SHADER_READ,
+                    layout: hal::image::Layout::ShaderReadOnlyOptimal,
                 },
                 factory,
             )
@@ -186,20 +181,20 @@ where
 
         unsafe {
             factory.device().write_descriptor_sets(vec![
-                gfx_hal::pso::DescriptorSetWrite {
+                hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 0,
                     array_offset: 0,
-                    descriptors: vec![gfx_hal::pso::Descriptor::Image(
+                    descriptors: vec![hal::pso::Descriptor::Image(
                         texture.view().raw(),
-                        gfx_hal::image::Layout::ShaderReadOnlyOptimal,
+                        hal::image::Layout::ShaderReadOnlyOptimal,
                     )],
                 },
-                gfx_hal::pso::DescriptorSetWrite {
+                hal::pso::DescriptorSetWrite {
                     set: descriptor_set.raw(),
                     binding: 1,
                     array_offset: 0,
-                    descriptors: vec![gfx_hal::pso::Descriptor::Sampler(texture.sampler().raw())],
+                    descriptors: vec![hal::pso::Descriptor::Sampler(texture.sampler().raw())],
                 },
             ]);
         }
@@ -214,7 +209,7 @@ where
             .create_buffer(
                 BufferInfo {
                     size: vbuf_size,
-                    usage: gfx_hal::buffer::Usage::VERTEX,
+                    usage: hal::buffer::Usage::VERTEX,
                 },
                 Dynamic,
             )
@@ -266,7 +261,7 @@ where
 
 impl<B, T> SimpleGraphicsPipeline<B, T> for SpriteGraphicsPipeline<B>
 where
-    B: gfx_hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     type Desc = SpriteGraphicsPipelineDesc;
@@ -350,8 +345,6 @@ fn run(
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("sprite", log::LevelFilter::Trace)
-        .filter_module("rendy_shader", log::LevelFilter::Trace)
-        .filter_module("rendy_graph", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();
@@ -367,17 +360,20 @@ fn main() {
 
     event_loop.poll_events(|_| ());
 
-    let surface = factory.create_surface(window.into());
+    let surface = factory.create_surface(&window);
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
+    let size = window
+        .get_inner_size()
+        .unwrap()
+        .to_physical(window.get_hidpi_factor());
+
     let color = graph_builder.create_image(
-        surface.kind(),
+        hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
         1,
         factory.get_surface_format(&surface),
-        Some(gfx_hal::command::ClearValue::Color(
-            [1.0, 1.0, 1.0, 1.0].into(),
-        )),
+        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
     );
 
     let pass = graph_builder.add_node(
