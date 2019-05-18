@@ -2,7 +2,7 @@ use {
     crate::ranges::*,
     gfx_hal::{
         device::OutOfMemory,
-        pso::{AllocationError, DescriptorPool as _},
+        pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
         Backend, Device,
     },
     smallvec::{smallvec, SmallVec},
@@ -195,7 +195,11 @@ where
                 size,
                 pool_ranges,
             );
-            let raw = device.create_descriptor_pool(size as usize, &pool_ranges)?;
+            let raw = device.create_descriptor_pool(
+                size as usize,
+                &pool_ranges,
+                DescriptorPoolCreateFlags::empty(),
+            )?;
             let allocate = size.min(count);
 
             self.pools.push_back(DescriptorPool {

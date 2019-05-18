@@ -161,24 +161,24 @@ where
     ) -> Vec<(
         Vec<gfx_hal::pso::Element<gfx_hal::format::Format>>,
         gfx_hal::pso::ElemStride,
-        gfx_hal::pso::InstanceRate,
+        gfx_hal::pso::VertexInputRate,
     )> {
         #[cfg(feature = "spirv-reflection")]
         return vec![
             SHADER_REFLECTION
                 .attributes(&["position", "color", "normal"])
                 .unwrap()
-                .gfx_vertex_input_desc(0),
+                .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex),
             SHADER_REFLECTION
                 .attributes_range(3..7)
                 .unwrap()
-                .gfx_vertex_input_desc(1),
+                .gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Instance(1)),
         ];
 
         #[cfg(not(feature = "spirv-reflection"))]
         return vec![
-            PosColorNorm::vertex().gfx_vertex_input_desc(0),
-            Model::vertex().gfx_vertex_input_desc(1),
+            PosColorNorm::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Vertex),
+            Model::vertex().gfx_vertex_input_desc(gfx_hal::pso::VertexInputRate::Instance(1)),
         ];
     }
 
