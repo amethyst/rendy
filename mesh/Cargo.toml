@@ -1,6 +1,6 @@
 [package]
 name = "rendy-mesh"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -17,11 +17,11 @@ serde-1 = ["serde", "serde_bytes", "gfx-hal/serde", "smallvec/serde", "rendy-fac
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 
 [dependencies]
-rendy-command = { version = "0.1.0", path = "../command" }
-rendy-memory = { version = "0.1.0", path = "../memory" }
-rendy-resource = { version = "0.1.0", path = "../resource" }
-rendy-factory = { version = "0.1.0", path = "../factory" }
-rendy-util = { version = "0.1.0", path = "../util" }
+rendy-command = { version = "0.2.0", path = "../command" }
+rendy-memory = { version = "0.2.0", path = "../memory" }
+rendy-resource = { version = "0.2.0", path = "../resource" }
+rendy-factory = { version = "0.2.0", path = "../factory" }
+rendy-util = { version = "0.2.0", path = "../util" }
 
 gfx-hal = "0.2"
 

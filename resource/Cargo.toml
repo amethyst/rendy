@@ -1,6 +1,6 @@
 [package]
 name = "rendy-resource"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -20,7 +20,7 @@ derivative = "1.0"
 failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
-rendy-descriptor = { version = "0.1.0", path = "../descriptor" }
-rendy-memory = { version = "0.1.0", path = "../memory" }
-rendy-util = { version = "0.1.0", path = "../util" }
+rendy-descriptor = { version = "0.2.0", path = "../descriptor" }
+rendy-memory = { version = "0.2.0", path = "../memory" }
+rendy-util = { version = "0.2.0", path = "../util" }
 smallvec = "0.6"
