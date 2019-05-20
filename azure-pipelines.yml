@@ -1,0 +1,22 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: 'macOS-10.14'
+
+steps:
+
+- script: |
+    echo Installing rust...
+    curl https://sh.rustup.rs -sSf | sh -s -- -y
+    echo Rust installed
+  displayName: 'Install Rust'
+
+- script: |
+    cd rendy && cargo test --all --features "full metal"
+  displayName: 'Run cargo tests'
