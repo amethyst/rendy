@@ -12,7 +12,7 @@
 )]
 
 use {
-    gfx_hal::{Backend, Device as _, window::Extent2D},
+    gfx_hal::{window::Extent2D, Backend, Device as _},
     rendy_resource::{Image, ImageInfo},
     rendy_util::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
@@ -156,10 +156,7 @@ where
     }
 
     /// Get current extent of the surface.
-    pub unsafe fn extent(
-        &self,
-        physical_device: &B::PhysicalDevice,
-    ) -> Option<Extent2D> {
+    pub unsafe fn extent(&self, physical_device: &B::PhysicalDevice) -> Option<Extent2D> {
         let (capabilities, _formats, _present_modes) = self.compatibility(physical_device);
         capabilities.current_extent
     }
@@ -412,7 +409,7 @@ where
     /// Recreate swapchain.
     ///
     /// #Safety
-    /// 
+    ///
     /// Current swapchain must be not in use.
     pub unsafe fn recreate(
         &mut self,

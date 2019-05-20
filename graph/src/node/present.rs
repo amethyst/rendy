@@ -391,11 +391,12 @@ where
         assert_eq!(images.len(), 1);
 
         let input_image = images.into_iter().next().unwrap();
-        let extent = ctx.get_image(input_image.id)
-                    .expect("Context must contain node's image")
-                    .kind()
-                    .extent()
-                    .into();
+        let extent = ctx
+            .get_image(input_image.id)
+            .expect("Context must contain node's image")
+            .kind()
+            .extent()
+            .into();
 
         let target = factory.create_target(
             self.surface,
@@ -489,11 +490,12 @@ where
             // TODO: use retired swapchains once available in hal and remove that wait
             factory.wait_idle().unwrap();
 
-            let extent = ctx.get_image(self.input_image.id)
-                        .expect("Context must contain node's image")
-                        .kind()
-                        .extent()
-                        .into();
+            let extent = ctx
+                .get_image(self.input_image.id)
+                .expect("Context must contain node's image")
+                .kind()
+                .extent()
+                .into();
 
             self.target
                 .recreate(factory.physical(), factory.device(), extent)
