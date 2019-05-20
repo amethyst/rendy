@@ -12,7 +12,7 @@
 )]
 
 use {
-    gfx_hal::{Backend, Device as _},
+    gfx_hal::{Backend, Device as _, window::Extent2D},
     rendy_resource::{Image, ImageInfo},
     rendy_util::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
@@ -159,7 +159,7 @@ where
     pub unsafe fn extent(
         &self,
         physical_device: &B::PhysicalDevice,
-    ) -> Option<gfx_hal::window::Extent2D> {
+    ) -> Option<Extent2D> {
         let (capabilities, _formats, _present_modes) = self.compatibility(physical_device);
         capabilities.current_extent
     }
@@ -204,7 +204,7 @@ where
         mut self,
         physical_device: &B::PhysicalDevice,
         device: &Device<B>,
-        extent: gfx_hal::window::Extent2D,
+        suggest_extent: Extent2D,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
@@ -215,11 +215,11 @@ where
             "Resource is not owned by specified instance"
         );
 
-        let (swapchain, backbuffer) = create_swapchain(
+        let (swapchain, backbuffer, extent) = create_swapchain(
             &mut self,
             physical_device,
             device,
-            extent,
+            suggest_extent,
             image_count,
             present_mode,
             usage,
@@ -231,6 +231,7 @@ where
             surface: self,
             swapchain: Some(swapchain),
             backbuffer: Some(backbuffer),
+            extent,
             present_mode,
             usage,
         })
@@ -241,11 +242,11 @@ unsafe fn create_swapchain<B: Backend>(
     surface: &mut Surface<B>,
     physical_device: &B::PhysicalDevice,
     device: &Device<B>,
-    extent: gfx_hal::window::Extent2D,
+    suggest_extent: Extent2D,
     image_count: u32,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
-) -> Result<(B::Swapchain, Vec<Image<B>>), failure::Error> {
+) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), failure::Error> {
     let (capabilities, formats, present_modes) = surface.compatibility(physical_device);
 
     if !present_modes.contains(&present_mode) {
@@ -300,15 +301,7 @@ unsafe fn create_swapchain<B: Backend>(
         "Surface supports {:?}, but {:?} was requested"
     );
 
-    if let Some(current_extent) = capabilities.current_extent {
-        if current_extent != extent {
-            log::warn!(
-                "Surface's current extent is {:#?} but swapchain will be created with {:#?}",
-                current_extent,
-                extent
-            );
-        }
-    }
+    let extent = capabilities.current_extent.unwrap_or(suggest_extent);
 
     let (swapchain, images) = device.create_swapchain(
         &mut surface.raw,
@@ -351,7 +344,7 @@ unsafe fn create_swapchain<B: Backend>(
         })
         .collect();
 
-    Ok((swapchain, backbuffer))
+    Ok((swapchain, backbuffer, extent))
 }
 
 /// Rendering target bound to window.
@@ -361,6 +354,7 @@ pub struct Target<B: Backend> {
     surface: Surface<B>,
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Vec<Image<B>>>,
+    extent: Extent2D,
     present_mode: gfx_hal::PresentMode,
     usage: gfx_hal::image::Usage,
     relevant: relevant::Relevant,
@@ -418,12 +412,13 @@ where
     /// Recreate swapchain.
     ///
     /// #Safety
+    /// 
     /// Current swapchain must be not in use.
     pub unsafe fn recreate(
         &mut self,
         physical_device: &B::PhysicalDevice,
         device: &Device<B>,
-        extent: gfx_hal::window::Extent2D,
+        suggest_extent: Extent2D,
     ) -> Result<(), failure::Error> {
         self.assert_device_owner(device);
 
@@ -440,11 +435,11 @@ where
 
         self.swapchain.take().map(|s| device.destroy_swapchain(s));
 
-        let (swapchain, backbuffer) = create_swapchain(
+        let (swapchain, backbuffer, extent) = create_swapchain(
             &mut self.surface,
             physical_device,
             device,
-            extent,
+            suggest_extent,
             image_count as u32,
             self.present_mode,
             self.usage,
@@ -452,6 +447,7 @@ where
 
         self.swapchain.replace(swapchain);
         self.backbuffer.replace(backbuffer);
+        self.extent = extent;
 
         Ok(())
     }
@@ -470,6 +466,16 @@ where
         self.backbuffer
             .as_ref()
             .expect("Swapchain already disposed")
+    }
+
+    /// Get render target size.
+    pub fn extent(&self) -> Extent2D {
+        self.extent
+    }
+
+    /// Get image usage flags.
+    pub fn usage(&self) -> gfx_hal::image::Usage {
+        self.usage
     }
 
     /// Acquire next image.
