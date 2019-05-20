@@ -10,6 +10,7 @@ use {
         factory::Factory,
         frame::Frames,
         graph::GraphContext,
+        util::{rendy_with_metal_backend, rendy_without_metal_backend},
         BufferId, ImageId, NodeId,
     },
     gfx_hal::{queue::QueueFamilyId, Backend},
@@ -537,14 +538,16 @@ pub fn gfx_release_barriers<'a, B: Backend>(
     (bstart | istart..bend | iend, barriers)
 }
 
-/// Check if backend is metal.
-#[cfg(feature = "metal")]
-pub fn is_metal<B: Backend>() -> bool {
-    std::any::TypeId::of::<B>() == std::any::TypeId::of::<gfx_backend_metal::Backend>()
+rendy_with_metal_backend! {
+    /// Check if backend is metal.
+    pub fn is_metal<B: Backend>() -> bool {
+        std::any::TypeId::of::<B>() == std::any::TypeId::of::<rendy_util::metal::Backend>()
+    }
 }
 
-/// Check if backend is metal.
-#[cfg(not(feature = "metal"))]
-pub fn is_metal<B: Backend>() -> bool {
-    false
+rendy_without_metal_backend! {
+    /// Check if backend is metal.
+    pub fn is_metal<B: Backend>() -> bool {
+        false
+    }
 }

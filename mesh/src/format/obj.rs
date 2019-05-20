@@ -1,13 +1,15 @@
 //! Loading mesh data from obj format.
 
+use log::trace;
 use {
     crate::{mesh::MeshBuilder, Normal, Position, TexCoord},
     wavefront_obj::obj,
 };
-use log::trace;
 
 /// Load mesh data from obj.
-pub fn load_from_obj(bytes: &[u8]) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
+pub fn load_from_obj(
+    bytes: &[u8],
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
     let string = std::str::from_utf8(bytes)?;
     let set = obj::parse(string).map_err(|e| {
         failure::format_err!(
@@ -19,9 +21,11 @@ pub fn load_from_obj(bytes: &[u8]) -> Result<Vec<(MeshBuilder<'static>, Option<S
     load_from_data(set)
 }
 
-fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
+fn load_from_data(
+    obj_set: obj::ObjSet,
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
     // Takes a list of objects that contain geometries that contain shapes that contain
-    // vertex/texture/normal indices into the main list of vertices, and converts to 
+    // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.
     trace!("Loading mesh");
     let mut objects = vec![];
@@ -32,16 +36,13 @@ fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Opt
 
             let mut indices = Vec::new();
 
-            geometry
-                .shapes
-                .iter()
-                .for_each(|shape| {
-                    if let obj::Primitive::Triangle(v1, v2, v3) = shape.primitive {
-                        indices.push(v1);
-                        indices.push(v2);
-                        indices.push(v3);
-                    }
-                });
+            geometry.shapes.iter().for_each(|shape| {
+                if let obj::Primitive::Triangle(v1, v2, v3) = shape.primitive {
+                    indices.push(v1);
+                    indices.push(v2);
+                    indices.push(v3);
+                }
+            });
             // We can't use the vertices directly because we have per face normals and not per vertex normals in most obj files
             // TODO: Compress duplicates and return indices for indexbuffer.
             let positions = indices
@@ -55,24 +56,28 @@ fn load_from_data(obj_set: obj::ObjSet) -> Result<Vec<(MeshBuilder<'static>, Opt
             trace!("Loading normals");
             let normals = indices
                 .iter()
-                .map(|index| index.2
-                    .map(|i| {
-                        let normal: obj::Normal = object.normals[i];
-                        Normal([normal.x as f32, normal.y as f32, normal.z as f32])
-                    })
-                    .unwrap_or(Normal([0.0, 0.0, 0.0]))
-                )
+                .map(|index| {
+                    index
+                        .2
+                        .map(|i| {
+                            let normal: obj::Normal = object.normals[i];
+                            Normal([normal.x as f32, normal.y as f32, normal.z as f32])
+                        })
+                        .unwrap_or(Normal([0.0, 0.0, 0.0]))
+                })
                 .collect::<Vec<_>>();
 
             let tex_coords = indices
                 .iter()
-                .map(|index| index.1
-                    .map(|i| {
-                        let tvertex: obj::TVertex = object.tex_vertices[i];
-                        TexCoord([tvertex.u as f32, tvertex.v as f32])
-                    })
-                    .unwrap_or(TexCoord([0.0, 0.0]))
-                )
+                .map(|index| {
+                    index
+                        .1
+                        .map(|i| {
+                            let tvertex: obj::TVertex = object.tex_vertices[i];
+                            TexCoord([tvertex.u as f32, tvertex.v as f32])
+                        })
+                        .unwrap_or(TexCoord([0.0, 0.0]))
+                })
                 .collect::<Vec<_>>();
 
             // builder.set_indices(indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>());
@@ -118,8 +123,7 @@ f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
         // dbg!(& result);
         assert_eq!(result.len(), 1);
 
-
         // When compressed into unique vertices there should be 4 vertices per side of the quad
-        // assert!() 
+        // assert!()
     }
 }

@@ -257,9 +257,7 @@ impl<'a> TextureBuilder<'a> {
             MipLevels::RawLevels(val) => (val.get(), false),
             MipLevels::GenerateAuto => match self.kind {
                 gfx_hal::image::Kind::D1(_, _) => (1, false),
-                gfx_hal::image::Kind::D2(w, h, _, _) => {
-                    (mip_levels_from_dims(w, h), true)
-                }
+                gfx_hal::image::Kind::D2(w, h, _, _) => (mip_levels_from_dims(w, h), true),
                 gfx_hal::image::Kind::D3(_, _, _) => (1, false),
             },
         };

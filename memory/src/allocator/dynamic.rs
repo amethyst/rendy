@@ -292,7 +292,8 @@ where
 
         // If smallest possible chunk size is larger then this allocator max allocation
         if min_size > self.max_allocation()
-            || (total_blocks < MIN_BLOCKS_PER_CHUNK as u64 && min_size >= self.min_device_allocation)
+            || (total_blocks < MIN_BLOCKS_PER_CHUNK as u64
+                && min_size >= self.min_device_allocation)
         {
             // Allocate memory block from device.
             let chunk = self.alloc_chunk_from_device(device, block_size, min_size)?;
@@ -310,7 +311,8 @@ where
         } else {
             let total_blocks = self.sizes[&block_size].total_blocks;
             let chunk_size =
-                (max_chunk_size.min(min_chunk_size.max(total_blocks * block_size)) / 2 + 1).next_power_of_two();
+                (max_chunk_size.min(min_chunk_size.max(total_blocks * block_size)) / 2 + 1)
+                    .next_power_of_two();
             let (block, allocated) = self.alloc_block(device, chunk_size)?;
             Ok((Chunk::from_block(block_size, block), allocated))
         }

@@ -179,7 +179,9 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                         block_size_granularity: 256.min(
                             (properties.memory_heaps[mt.heap_index] / 4096).next_power_of_two(),
                         ),
-                        min_device_allocation: _1mb.min(properties.memory_heaps[mt.heap_index] / 1048).next_power_of_two(),
+                        min_device_allocation: _1mb
+                            .min(properties.memory_heaps[mt.heap_index] / 1048)
+                            .next_power_of_two(),
                         max_chunk_size: _32mb.min(
                             (properties.memory_heaps[mt.heap_index] / 128).next_power_of_two(),
                         ),

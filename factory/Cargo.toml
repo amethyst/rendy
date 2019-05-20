@@ -11,17 +11,17 @@ categories = ["rendering"]
 description = "Rendy's factory tool"
 
 [features]
-empty = ["gfx-backend-empty", "rendy-wsi/gfx-backend-empty", "rendy-util/empty"]
-dx12 = ["gfx-backend-dx12", "rendy-wsi/gfx-backend-dx12", "rendy-util/dx12"]
-metal = ["gfx-backend-metal", "rendy-wsi/gfx-backend-metal", "rendy-util/metal"]
-vulkan = ["gfx-backend-vulkan", "rendy-wsi/gfx-backend-vulkan", "rendy-util/vulkan"]
 serde-1 = [
     "serde",
     "rendy-memory/serde-1",
     "gfx-hal/serde",
 ]
+empty = ["rendy-util/gfx-backend-empty"]
+dx12 = ["rendy-util/gfx-backend-dx12"]
+metal = ["rendy-util/gfx-backend-metal"]
+vulkan = ["rendy-util/gfx-backend-vulkan"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
-profiler = [ "thread_profiler/thread_profiler" ]
+profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
 rendy-memory = { version = "0.1", path = "../memory" }
@@ -31,12 +31,7 @@ rendy-descriptor = { version = "0.1", path = "../descriptor" }
 rendy-wsi = { version = "0.1", path = "../wsi" }
 rendy-util = { version = "0.1", path = "../util" }
 
-gfx-hal = { version = "0.2" }
-gfx-backend-empty = { version = "0.2", optional = true }
-gfx-backend-dx12  = { version = "0.2", optional = true }
-gfx-backend-metal = { version = "0.2", optional = true }
-gfx-backend-vulkan = { version = "0.2", optional = true }
-
+gfx-hal = "0.2"
 derivative = "1.0"
 either = "1.0"
 failure = "0.1"
@@ -45,5 +40,4 @@ parking_lot = "0.7"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
-winit = "0.19"
 thread_profiler = "0.3"

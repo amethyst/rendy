@@ -1,6 +1,6 @@
 //! Module that turns an image into a `Texture`
 
-use crate::{pixel, TextureBuilder, MipLevels};
+use crate::{pixel, MipLevels, TextureBuilder};
 use derivative::Derivative;
 
 use std::num::NonZeroU8;
@@ -167,21 +167,22 @@ pub fn load_from_image<R>(
     config: ImageTextureConfig,
 ) -> Result<TextureBuilder<'static>, failure::Error>
 where
-    R: std::io::BufRead + std::io::Seek
+    R: std::io::BufRead + std::io::Seek,
 {
     use gfx_hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
 
-    let image_format = config
-        .format
-        .map_or_else(|| {
+    let image_format = config.format.map_or_else(
+        || {
             let r = reader.by_ref();
             // Longest size of image crate supported magic bytes
             let mut format_magic_bytes = [0u8; 10];
             r.read_exact(&mut format_magic_bytes)?;
             r.seek(std::io::SeekFrom::Current(-10))?;
             image::guess_format(&format_magic_bytes)
-        }, |f| Ok(f))?;
+        },
+        |f| Ok(f),
+    )?;
 
     let (w, h, vec, format, swizzle) = match (image_format, config.repr) {
         (image::ImageFormat::HDR, Repr::Float) => {
@@ -193,13 +194,13 @@ where
             let vec = crate::util::cast_vec(decoder.read_image_hdr()?);
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)
-        },
+        }
         _ => {
             let image = image::load(reader, image_format)?;
 
             let (w, h) = image.dimensions();
 
-             let (vec, format, swizzle) = match image {
+            let (vec, format, swizzle) = match image {
                 DynamicImage::ImageLuma8(img) => (
                     img.into_vec(),
                     dyn_format!(R, _8, config.repr),

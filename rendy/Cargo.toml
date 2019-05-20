@@ -12,37 +12,45 @@ categories = ["rendering"]
 readme = "../README.md"
 
 [features]
-empty = ["rendy-factory/empty", "rendy-graph/empty", "rendy-wsi/empty", "gfx-backend-empty", "rendy-util/empty"]
-dx12 = ["rendy-factory/dx12", "rendy-graph/dx12", "rendy-wsi/dx12", "gfx-backend-dx12", "rendy-util/dx12"]
-metal = ["rendy-factory/metal", "rendy-graph/metal", "rendy-wsi/metal", "gfx-backend-metal", "rendy-util/metal"]
-vulkan = ["rendy-factory/vulkan", "rendy-graph/vulkan", "rendy-wsi/vulkan", "gfx-backend-vulkan", "rendy-util/vulkan"]
-serde-1 = ["gfx-hal/serde", "rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-util/serde-1"]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks", "rendy-factory/no-slow-safety-checks"]
-shader-compiler = ["rendy-shader/shader-compiler"]
-spirv-reflection = ["rendy-shader/spirv-reflection" ]
-profiler = [ "rendy-texture/profiler", "rendy-graph/profiler", "rendy-factory/profiler" ]
+serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-util/serde-1"]
 
+# Rendy subcrates
 command = ["rendy-command"]
 descriptor = ["rendy-descriptor"]
 factory = ["rendy-factory", "command", "descriptor", "resource", "wsi"]
 frame = ["rendy-frame", "factory"]
 graph = ["rendy-graph", "frame"]
 memory = ["rendy-memory"]
-mesh = ["rendy-mesh", "factory", "util"]
+mesh = ["rendy-mesh", "factory"]
 shader = ["rendy-shader", "factory"]
 resource = ["rendy-resource", "memory"]
-texture = ["rendy-texture", "factory", "util"]
-util = ["rendy-util"]
+texture = ["rendy-texture", "factory"]
 wsi = ["rendy-wsi"]
 
-base = [ "shader-compiler", "command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "util", "wsi"]
-default = [ "base", "spirv-reflection" ]
+# Common util features
+empty = ["rendy-util/gfx-backend-empty"]
+dx12 = ["rendy-util/gfx-backend-dx12"]
+metal = ["rendy-util/gfx-backend-metal"]
+vulkan = ["rendy-util/gfx-backend-vulkan"]
+no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+profiler = ["thread_profiler/thread_profiler"]
 
+# Base feature enables all subcrates
+base = ["command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "wsi"]
+
+# Subcrate features relay.
 mesh-obj = ["mesh", "rendy-mesh/obj"]
 texture-image = ["texture", "rendy-texture/image"]
 texture-palette = ["texture", "rendy-texture/palette"]
+shader-compiler = ["rendy-shader/shader-compiler"]
+spirv-reflection = ["rendy-shader/spirv-reflection" ]
+wsi-winit = ["rendy-wsi/winit"]
 
-full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection" ]
+# Full feature set - all listed features except rendy-util's.
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit"]
+
+# Default feature set includes all subcrates and few commonly used features.
+default = [ "base", "shader-compiler", "spirv-reflection", "wsi-winit" ]
 
 [dependencies]
 rendy-command = { version = "0.1.0", path = "../command", optional = true }
@@ -55,26 +63,34 @@ rendy-mesh = { version = "0.1.0", path = "../mesh", optional = true }
 rendy-shader = { version = "0.1.0", path = "../shader", optional = true }
 rendy-resource = { version = "0.1.0", path = "../resource", optional = true }
 rendy-texture = { version = "0.1.0", path = "../texture", optional = true }
-rendy-util = { version = "0.1.0", path = "../util", optional = true }
+rendy-util = { version = "0.1.0", path = "../util" }
 rendy-wsi = { version = "0.1.0", path = "../wsi", optional = true }
 
-gfx-hal = { version = "0.2" }
-gfx-backend-empty = { version = "0.2", optional = true }
-gfx-backend-dx12  = { version = "0.2", optional = true }
-gfx-backend-metal = { version = "0.2", optional = true }
-gfx-backend-vulkan = { version = "0.2", optional = true }
+failure = "0.1"
+gfx-hal = "0.2"
+thread_profiler = "0.3"
 
 [dev-dependencies]
 genmesh = "0.6"
 nalgebra = "0.18"
 env_logger = "0.6"
-failure = "0.1"
 lazy_static = "1.0"
 log = "0.4"
-winit = "0.19"
 palette = "0.4"
 rand = "0.6"
 
 [[example]]
+name = "triangle"
+required-features = ["base", "wsi-winit"]
+
+[[example]]
 name = "sprite"
-required-features = ["texture-image"]
+required-features = ["base", "texture-image", "wsi-winit"]
+
+[[example]]
+name = "meshes"
+required-features = ["base", "wsi-winit"]
+
+[[example]]
+name = "quads"
+required-features = ["base", "wsi-winit"]

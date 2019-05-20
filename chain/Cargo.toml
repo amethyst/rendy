@@ -11,10 +11,11 @@ categories = ["rendering"]
 description = "Rendy's node synchronization tool"
 
 [features]
-profiler = [ "thread_profiler/thread_profiler" ]
+profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-gfx-hal = { version = "0.2" }
+gfx-hal = "0.2"
+rendy-util = { version = "0.1", path = "../util" }
 fnv = "1.0"
 log = "0.4"
 thread_profiler = "0.3"

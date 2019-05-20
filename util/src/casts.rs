@@ -1,5 +1,5 @@
 //! Contains functions for casting
-use std::borrow::Cow;
+use std::{any::TypeId, borrow::Cow};
 
 /// Cast vec of some arbitrary type into vec of bytes.
 /// Can lead to UB if allocator changes. Use with caution.
@@ -26,5 +26,36 @@ pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
     match cow {
         Cow::Borrowed(slice) => Cow::Borrowed(cast_slice(slice)),
         Cow::Owned(vec) => Cow::Owned(cast_vec(vec)),
+    }
+}
+
+/// Casts identical types.
+/// Useful in generic environment where caller knows that two types are the same
+/// but Rust is not convinced.
+///
+/// # Panics
+///
+/// Panics if types are actually different.
+///
+/// # Example
+///
+/// ```
+/// # extern crate rendy_util;
+/// # use rendy_util::identical_cast;
+/// # use std::any::TypeId;
+/// # fn foo<T: 'static>() {
+/// if TypeId::of::<T>() == TypeId::of::<u32>() {
+///     let value: T = identical_cast(42u32);
+/// }
+/// # }
+///
+/// ```
+pub fn identical_cast<T: 'static, U: 'static>(value: T) -> U {
+    assert_eq!(TypeId::of::<T>(), TypeId::of::<U>());
+    unsafe {
+        // We know types are the same.
+        let mut value = std::mem::ManuallyDrop::new(value);
+        let ptr: *mut T = &mut *value;
+        std::ptr::read(ptr as *mut U)
     }
 }

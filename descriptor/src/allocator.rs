@@ -122,13 +122,8 @@ where
     fn new_pool_size(&self, count: u32) -> u32 {
         MIN_SETS // at least MIN_SETS
             .max(count) // at least enough for allocation
-            .max(if self.total < MAX_SETS as u64 {
-                self.total as u32 // at least as much as was allocated so far
-            } else {
-                MAX_SETS
-            })
-            .next_power_of_two() // rounded up to 2^N
-            .min(MAX_SETS) // capped to MAX_SETS
+            .max(self.total.min(MAX_SETS as u64) as u32) // at least as much as was allocated so far capped to MAX_SETS
+            .next_power_of_two() // rounded up to nearest 2^N
     }
 
     unsafe fn dispose(mut self, device: &B::Device) {

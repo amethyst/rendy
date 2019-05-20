@@ -9,13 +9,16 @@ use {
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        util::{Device, DeviceId, Instance},
+        util::{
+            identical_cast, rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId,
+            Instance,
+        },
         wsi::{Surface, Target},
     },
     gfx_hal::{
         buffer, device::*, error::HostExecutionError, format, image,
-        pso::DescriptorSetLayoutBinding, Adapter, Backend, Device as _, Features, Gpu, Limits,
-        PhysicalDevice, Surface as GfxSurface,
+        pso::DescriptorSetLayoutBinding, window::Extent2D, Adapter, Backend, Device as _, Features,
+        Gpu, Limits, PhysicalDevice, Surface as GfxSurface,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -492,7 +495,8 @@ where
         last: impl Into<ImageStateOrLayout>,
         next: ImageState,
     ) {
-        self.uploader.transition_image(image, image_range, last.into(), next);
+        self.uploader
+            .transition_image(image, image_range, last.into(), next);
     }
 
     /// Update image layers content with provided data.
@@ -576,10 +580,16 @@ where
     }
 
     /// Create rendering surface from window.
-    pub fn create_surface(&mut self, window: std::sync::Arc<winit::Window>) -> Surface<B> {
+    ///
+    /// # Safety
+    ///
+    /// Closure must return surface object created from raw instance provided as closure argument.
+    pub unsafe fn create_surface_with<T>(&mut self, f: impl FnOnce(&T) -> B::Surface) -> Surface<B>
+    where
+        T: gfx_hal::Instance<Backend = B>,
+    {
         profile_scope!("create_surface");
-
-        Surface::new(&self.instance, window)
+        Surface::create(&self.instance, f)
     }
 
     /// Get compatibility of Surface
@@ -634,6 +644,7 @@ where
     pub fn create_target(
         &self,
         surface: Surface<B>,
+        extent: Extent2D,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: image::Usage,
@@ -644,6 +655,7 @@ where
             surface.into_target(
                 &self.adapter.physical_device,
                 &self.device,
+                extent,
                 image_count,
                 present_mode,
                 usage,
@@ -999,52 +1011,6 @@ where
     }
 }
 
-macro_rules! init_for_backend {
-    (match $target:ident, $config:ident $(| $backend:ident @ $feature:meta)+) => {{
-        #[allow(non_camel_case_types)]
-        enum _B {$(
-            $backend,
-        )+}
-
-        for b in [$(_B::$backend),+].iter() {
-            match b {$(
-                #[$feature]
-                _B::$backend => {
-                    if std::any::TypeId::of::<$backend::Backend>() == std::any::TypeId::of::<$target>() {
-                        profile_scope!(concat!("init_", stringify!($backend)));
-
-                        let instance = $backend::Instance::create("Rendy", 1);
-
-                        let (factory, families) = init_with_instance(instance, $config)?;
-
-                        let factory: Box<dyn std::any::Any> = Box::new(factory);
-                        let families: Box<dyn std::any::Any> = Box::new(families);
-                        return Ok((
-                            *factory.downcast::<Factory<$target>>().unwrap(),
-                            *families.downcast::<Families<$target>>().unwrap(),
-                        ));
-                    }
-                })+
-                _ => continue,
-            }
-        }
-        panic!("
-            Undefined backend requested.
-            Make sure feature for required backend is enabled.
-            Try to add `--features=vulkan` or if on macos `--features=metal`.
-        ")
-    }};
-
-    ($target:ident, $config:ident) => {{
-        init_for_backend!(match $target, $config
-            | gfx_backend_empty @ cfg(feature = "empty")
-            | gfx_backend_dx12 @ cfg(feature = "dx12")
-            | gfx_backend_metal @ cfg(feature = "metal")
-            | gfx_backend_vulkan @ cfg(feature = "vulkan")
-        );
-    }};
-}
-
 /// Initialize `Factory` and Queue `Families` associated with Device.
 #[allow(unused_variables)]
 pub fn init<B>(
@@ -1054,7 +1020,11 @@ where
     B: Backend,
 {
     log::debug!("Creating factory");
-    init_for_backend!(B, config)
+    rendy_backend_match!(B as backend => {
+        profile_scope!(concat!("init_factory"));
+        let instance = backend::Instance::create("Rendy", 1);
+        Ok(identical_cast(init_with_instance(instance, config)?))
+    });
 }
 
 /// Initialize `Factory` and Queue `Families` associated with Device
@@ -1066,8 +1036,9 @@ pub fn init_with_instance<B>(
 where
     B: Backend,
 {
-    #[cfg(not(feature = "no-slow-safety-checks"))]
-    log::warn!("Slow safety checks are enabled! Disable them in production by enabling the 'no-slow-safety-checks' feature!");
+    rendy_with_slow_safety_checks!(
+        log::warn!("Slow safety checks are enabled! Disable them in production by enabling the 'no-slow-safety-checks' feature!")
+    );
     let mut adapters = instance.enumerate_adapters();
 
     if adapters.is_empty() {
@@ -1171,4 +1142,17 @@ where
     };
 
     Ok((factory, families))
+}
+
+rendy_wsi::with_winit! {
+    impl<B> Factory<B>
+    where
+        B: Backend,
+    {
+        /// Create rendering surface from window.
+        pub fn create_surface(&mut self, window: &rendy_wsi::winit::Window) -> Surface<B> {
+            profile_scope!("create_surface");
+            Surface::new(&self.instance, window)
+        }
+    }
 }

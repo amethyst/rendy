@@ -291,7 +291,7 @@ fn match_kind(kind: Kind, view_kind: ViewKind, view_caps: ViewCapabilities) -> b
                 } else {
                     false
                 }
-            },
+            }
             _ => false,
         },
         Kind::D3(..) => {
