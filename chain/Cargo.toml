@@ -1,6 +1,6 @@
 [package]
 name = "rendy-chain"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -15,7 +15,7 @@ profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
 gfx-hal = "0.2"
-rendy-util = { version = "0.1", path = "../util" }
+rendy-util = { version = "0.2.0", path = "../util" }
 fnv = "1.0"
 log = "0.4"
 thread_profiler = "0.3"
