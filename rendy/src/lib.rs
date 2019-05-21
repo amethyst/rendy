@@ -13,7 +13,7 @@
 )]
 
 #[doc(inline)]
-pub use rendy_util;
+pub use rendy_util as util;
 
 pub use gfx_hal as hal;
 
