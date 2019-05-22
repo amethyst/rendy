@@ -779,6 +779,10 @@ where
             .inspect(|f| f.assert_device_owner(&self.device))
             .collect::<SmallVec<[_; 32]>>();
 
+        if fences.is_empty() {
+            return Ok(true);
+        }
+
         let timeout = !unsafe {
             self.device
                 .wait_for_fences(fences.iter().map(|f| f.raw()), wait_for, timeout_ns)
