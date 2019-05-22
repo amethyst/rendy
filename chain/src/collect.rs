@@ -85,7 +85,7 @@ struct QueueData {
 }
 
 /// Calculate automatic `Chains` for nodes.
-/// This function tries to find most appropriate schedule for nodes execution.
+/// This function tries to find the most appropriate schedule for nodes execution.
 pub fn collect<Q>(nodes: Vec<Node>, max_queues: Q) -> Chains
 where
     Q: Fn(gfx_hal::queue::QueueFamilyId) -> usize,

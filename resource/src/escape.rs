@@ -1,7 +1,15 @@
-//! Module provides wrapper for types that cannot be dropped silently.
-//! Usually such types are required to be returned to their creator.
-//! `Escape` wrapper help the user to do so by sending underlying value to the `Terminal` when it is dropped.
-//! Users are encouraged to dispose of the values manually while `Escape` be just a safety net.
+//! This module provides wrapper for types that cannot be dropped silently.
+//! Usually such types are required to be returned to their creator,
+//! for example many Vulkan resources must be destroyed by the same
+//! Vulkan instance that created them.  Because they need some outside
+//! context to be destroyed, Rust's `Drop` trait alone cannot handle them.
+//! The `Escape` wrapper helps the user handle these values by sending the 
+//! underlying value to a `Terminal` when it is dropped.  The user can 
+//! then remove those values from the `Terminal` elsewhere in the program 
+//! and destroy them however necessary.
+//! 
+//! Users are encouraged to dispose of values manually while using `Escape` 
+//! as just a safety net.
 
 use {
     crossbeam_channel::{Receiver, Sender, TryRecvError},

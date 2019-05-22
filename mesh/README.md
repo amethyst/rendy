@@ -5,8 +5,9 @@ Helper crate for `gfx-hal` to create and use meshes with vertex semantics.
 
 # Vertex semantics
 
-Vertex formats usually has semantics attached to field names.
-This crate provides traits and types to have semantics explicitly defined on the type level.
+Vertex formats usually have semantics attached to field names.  A common example is for a
+vertex to be composed of a position, normal, color and texture coordinate field.
+This crate provides traits and types to have semantics explicitly defined for a vertex at the type level.
 
 `Position`, `Normal`, `TexCoord` etc. are attributes that have unambiguous semantics.
 Users can define their own attribute types by implementing the `Attribute` trait.
@@ -20,8 +21,7 @@ The `Query` trait allows to get formatting info for several attributes at once.
 
 To define a custom vertex format type, the `AsVertexFormat` trait must be implemented providing a `VertexFormat` associated constant.
 
-`WithAttribute` can be implemented also for all attributes and `VertexFormat` associated constant in `AsVertexFormat` can be defined more clearly utilizing `WithAttribute` implementation.
-`Query` is automatically implemented.
+`WithAttribute` can be implemented also for all attributes and the `VertexFormat` associated constant in `AsVertexFormat` can be defined more clearly by utilizing the `WithAttribute` implementation.  `Query` is automatically implemented.
 
 # Mesh
 
