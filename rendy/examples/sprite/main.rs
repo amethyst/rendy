@@ -18,7 +18,7 @@ use rendy::{
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{ShaderKind, SourceLanguage, StaticShaderInfo},
+    shader::{PathBufShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
     wsi::winit::{EventsLoop, WindowBuilder},
 };
@@ -41,19 +41,19 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.vert"),
+    static ref VERTEX: SpirvShader = PathBufShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
-    static ref FRAGMENT: StaticShaderInfo = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.frag"),
+    static ref FRAGMENT: SpirvShader = PathBufShaderInfo::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
-    );
+    ).precompile().unwrap();
 
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
