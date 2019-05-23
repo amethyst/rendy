@@ -34,21 +34,21 @@ It checks invariants statically using marker types and dynamically with stored v
 ### Capability
 
 Queue family capability defines what operation queues of the family supports.
-`rendy` provides simple mechanism to prevent recording unsupported commands.
-Capability level can be stored statically by marking `Family` type with one of capability types: `Transfer`, `Graphics`, `Compute` or `General` (`Graphics` and `Compute` combined).
-Alternatively `Capability` type can be used instead of marker type, this way actual capability level can be checked dynamically.
+`rendy` provides simple mechanisms to prevent recording unsupported commands.
+A queue's capability level can be stored statically by marking the `Family` type with one of capability types: `Transfer`, `Graphics`, `Compute` or `General` (`Graphics` and `Compute` combined).
+Alternatively the `Capability` type can be used instead of the marker type, this way actual capability level can be checked dynamically.
 
 ### Command buffer
 
-`rendy` provides handy wrapper named `CommandBuffer`. In contrast to its raw counterpart this wrapper
-encodes crutial information about its state directly into type level.
-This means user can't accidentally:
-* record command unsupported by queue family it belongs to.
-* record command when command buffer is not in recording state.
-* record render pass command outside renderpass.
-* forget to finish recording buffer before submitting.
-* resubmit command buffer which was created for one time use.
-* record execution of primary buffer into secondary buffer.
+`rendy` provides a handy wrapper named `CommandBuffer`. In contrast to its raw counterpart this wrapper
+encodes crucial information about its state directly into the type.
+This means users can't accidentally:
+* record commands unsupported by queue family it belongs to.
+* record commands when a command buffer is not in recording state.
+* record render pass commands outside renderpass.
+* forget to finish recording a buffer before submitting.
+* resubmit a command buffer which was created for one time use.
+* record execution of a primary buffer into a secondary buffer.
 * etc
 
 ### Memory manager
@@ -60,10 +60,13 @@ This means user can't accidentally:
 ### Rendergraph
 
 `rendy`'s rendergraph allows writing rendering code in simple modular style.
-Making it much easier to compose a complex frame from simple parts.
-User defines nodes which declare buffers and images it reads and writes.
-Rendergraph takes responsibility for transient resource allocation and execution synchronization.
-User is responsible only for intra-node synchronization.
+Note that this is not a scene graph offered by high-level graphics libraries, where nodes in
+the graph correspond to complex objects in the world.  Instead it is a graph of render passes
+with different properties.
+This makes it much easier to compose a complex frame from simple parts.
+A ser defines nodes which declare which buffers and images it reads and writes and
+the rendergraph takes responsibility for transient resource allocation and execution synchronization.
+The user is responsible only for intra-node synchronization.
 
 `DynNode` implementation - `RenderPassNode` can be constructed from `RenderGroup`s collected into subpasses.
 `RenderPassNode` will do all work for render pass creating and inter-subpass synchronization.
@@ -79,7 +82,7 @@ and gives access to the unused copy.
 ### CPU-GPU data flow
 
 Rendy can help to send data between device and host.
-`Factory` can upload data to the device local memory choosing most appropriate technique for that.
+The `Factory` type can upload data to the device local memory choosing most appropriate technique for that.
 * Memory mapping will be used if device local memory happens to be cpu-visible.
 * Relatively small data will be uploaded directly to buffers.
 * Staging buffer will be used for bigger uploads or any image uploads.
@@ -97,10 +100,10 @@ Current *WIP* implementation will use `specs::World` as scene to render.
 ### Declarative pipelines - ***Planned***
 
 Pipelines and descriptor sets has declarative nature and it is much easier to define them declaratively.
-`rendy` provides `DescriptorSet` trait.
+`rendy` provides a trait for this called `DescriptorSet`.
 Deriving it will automatically generate code necessary for set creation, writing and binding.
-Deriving `GraphicsPipeline` trait will generate code for graphics pipeline creation and usage.
-Similar `ComputePipeline` trait exists for compute pipelines.
+Deriving the `GraphicsPipeline` trait will generate code for graphics pipeline creation and usage.
+A similar `ComputePipeline` trait exists for compute pipelines.
 
 #### Example
 
@@ -118,8 +121,8 @@ struct Example {
     texture: Texture,
 
     /// Raw `gfx-hal` objects can be used as well.
-    /// But this field will make binding of `Set<Example>` to command buffer to require unsafe operation
-    /// since it is user job to ensure that this raw image view is valid during command buffer execution.
+    /// But this field will make binding `Set<Example>` to a command buffer an unsafe operation
+    /// since it is the user's job to ensure that this raw image view is valid during command buffer execution.
     #[descriptor(unsafe, SampledImage)]
     foo: RawImageView,
 }
@@ -127,9 +130,10 @@ struct Example {
 
 ### Modularity
 
-Most of the features provided by rendy can be used independently from others.
+Most of the features provided by rendy can be used independently from each other
 This helps to keep API clean and hopefuly sound.
-Top-level umbrella crate `rendy` has feature for each subcrates so that they could be enabled separately (subcrate will also enable its depenencies).
+The top-level umbrella crate `rendy` has features for each subcrate so that they could be
+enabled separately (enabling a subcrate will also enable its depenencies).
 
 ## Who is using it?
 
