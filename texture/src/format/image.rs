@@ -104,6 +104,11 @@ pub struct ImageTextureConfig {
     #[derivative(Default(value = "false"))]
     /// Automatically generate mipmaps for this image
     pub generate_mips: bool,
+    #[derivative(Default(value = "false"))]
+    /// Premultiply the alpha channel of the image, if there is one. Note that this
+    /// means an image stored with non-premultiplied alpha will become premultiplied,
+    /// rather than indicating that the supplied image is premultiplied to begin with.
+    pub premultiply_alpha: bool,
 }
 
 #[cfg(feature = "serde")]
@@ -161,6 +166,16 @@ macro_rules! dyn_format {
     }};
 }
 
+/// pixel.channel_count() must be 4
+fn premultiply_alpha<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) 
+{
+    let channels_mut = pixel.channels_mut();
+    let alpha = channels_mut[3] as f32 / 255.0;
+    channels_mut[0] = (channels_mut[0] as f32 * alpha).min(255.0).max(0.0) as u8;
+    channels_mut[1] = (channels_mut[1] as f32 * alpha).min(255.0).max(0.0) as u8;
+    channels_mut[2] = (channels_mut[2] as f32 * alpha).min(255.0).max(0.0) as u8;
+}
+
 /// Attempts to load a Texture from an image.
 pub fn load_from_image<R>(
     mut reader: R,
@@ -216,21 +231,35 @@ where
                     dyn_format!(Rgb, _8, config.repr),
                     Swizzle::NO,
                 ),
-                DynamicImage::ImageRgba8(img) => (
-                    img.into_vec(),
-                    dyn_format!(Rgba, _8, config.repr),
-                    Swizzle::NO,
-                ),
+                DynamicImage::ImageRgba8(mut img) => {
+                    if config.premultiply_alpha {
+                        for pixel in img.pixels_mut() {
+                            premultiply_alpha(pixel);
+                        }
+                    }
+                    (
+                        img.into_vec(),
+                        dyn_format!(Rgba, _8, config.repr),
+                        Swizzle::NO,
+                    )
+                },
                 DynamicImage::ImageBgr8(img) => (
                     img.into_vec(),
                     dyn_format!(Bgr, _8, config.repr),
                     Swizzle::NO,
                 ),
-                DynamicImage::ImageBgra8(img) => (
-                    img.into_vec(),
-                    dyn_format!(Bgra, _8, config.repr),
-                    Swizzle::NO,
-                ),
+                DynamicImage::ImageBgra8(mut img) => {
+                    if config.premultiply_alpha {
+                        for pixel in img.pixels_mut() {
+                            premultiply_alpha(pixel);
+                        }
+                    }
+                    (
+                        img.into_vec(),
+                        dyn_format!(Bgra, _8, config.repr),
+                        Swizzle::NO,
+                    )
+                },
             };
             (w, h, vec, format, swizzle)
         }
