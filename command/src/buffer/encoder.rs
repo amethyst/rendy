@@ -87,7 +87,7 @@ where
     /// Note that `draw*` commands available only inside renderpass.
     ///
     /// [`draw_indexed`]: ../struct.RenderPassEncoder.html#method.draw_indexed
-    pub fn bind_index_buffer<'b>(
+    pub unsafe fn bind_index_buffer<'b>(
         &mut self,
         buffer: &'b B::Buffer,
         offset: u64,
@@ -96,8 +96,6 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-
-        unsafe {
             gfx_hal::command::RawCommandBuffer::bind_index_buffer(
                 self.raw,
                 gfx_hal::buffer::IndexBufferView {
@@ -106,7 +104,6 @@ where
                     index_type,
                 },
             )
-        }
     }
 
     /// Bind vertex buffers.
@@ -116,7 +113,7 @@ where
     ///
     /// [`draw`]: ../struct.RenderPassEncoder.html#method.draw
     /// [`draw_indexed`]: ../struct.RenderPassEncoder.html#method.draw_indexed
-    pub fn bind_vertex_buffers<'b>(
+    pub unsafe fn bind_vertex_buffers<'b>(
         &mut self,
         first_binding: u32,
         buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
@@ -124,14 +121,11 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-
-        unsafe {
             gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
                 self.raw,
                 first_binding,
                 buffers,
             )
-        }
     }
 
     /// Bind graphics pipeline.
@@ -152,7 +146,7 @@ where
     }
 
     /// Bind descriptor sets to graphics pipeline.
-    pub fn bind_graphics_descriptor_sets<'b>(
+    pub unsafe fn bind_graphics_descriptor_sets<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
@@ -163,31 +157,27 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
+        gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
                 self.raw,
                 layout,
                 first_set as _,
                 sets,
                 offsets,
             );
-        }
     }
 
     /// Bind graphics pipeline.
-    pub fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
+    pub unsafe fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
     where
         C: Supports<Compute>,
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_compute_pipeline(self.raw, pipeline);
-        }
+        gfx_hal::command::RawCommandBuffer::bind_compute_pipeline(self.raw, pipeline);
     }
 
     /// Bind descriptor sets to compute pipeline.
-    pub fn bind_compute_descriptor_sets<'b>(
+    pub unsafe fn bind_compute_descriptor_sets<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
@@ -198,15 +188,13 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_compute_descriptor_sets(
+        gfx_hal::command::RawCommandBuffer::bind_compute_descriptor_sets(
                 self.raw,
                 layout,
                 first_set as usize,
                 sets,
                 offsets,
             );
-        }
     }
 
     /// Insert pipeline barrier.
@@ -227,7 +215,7 @@ where
     }
 
     /// Push graphics constants.
-    pub fn push_constants<'b>(
+    pub unsafe fn push_constants<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         stages: gfx_hal::pso::ShaderStageFlags,
@@ -242,7 +230,7 @@ where
     }
 
     /// Set scissors
-    pub fn set_scissors<'b>(
+    pub unsafe fn set_scissors<'b>(
         &mut self,
         first_scissor: u32,
         rects: impl IntoIterator<Item = &'b gfx_hal::pso::Rect>,
@@ -297,12 +285,12 @@ where
     B: gfx_hal::Backend,
 {
     /// Draw.
-    pub fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
+    pub unsafe fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
         unsafe { gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances) }
     }
 
     /// Draw indexed.
-    pub fn draw_indexed(
+    pub unsafe fn draw_indexed(
         &mut self,
         indices: std::ops::Range<u32>,
         base_vertex: i32,
@@ -324,7 +312,7 @@ where
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
     /// [`DrawCommand`]: struct.DrawCommand.html
-    pub fn draw_indirect(&mut self, buffer: &B::Buffer, offset: u64, draw_count: u32, stride: u32) {
+    pub unsafe fn draw_indirect(&mut self, buffer: &B::Buffer, offset: u64, draw_count: u32, stride: u32) {
         unsafe {
             gfx_hal::command::RawCommandBuffer::draw_indirect(
                 self.inner.raw,
@@ -342,7 +330,7 @@ where
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw_indexed
     /// [`DrawIndexedCommand`]: struct.DrawIndexedCommand.html
-    pub fn draw_indexed_indirect(
+    pub unsafe fn draw_indexed_indirect(
         &mut self,
         buffer: &B::Buffer,
         offset: u64,
@@ -634,7 +622,7 @@ where
     /// `src` and `dst` can be the same buffer or alias in memory.
     /// But regions must not overlap.
     /// Otherwise resulting values are undefined.
-    pub fn copy_buffer(
+    pub unsafe fn copy_buffer(
         &mut self,
         src: &B::Buffer,
         dst: &B::Buffer,
@@ -650,7 +638,7 @@ where
     }
 
     /// Copy buffer region to image subresource range.
-    pub fn copy_buffer_to_image(
+    pub unsafe fn copy_buffer_to_image(
         &mut self,
         src: &B::Buffer,
         dst: &B::Image,
@@ -673,7 +661,7 @@ where
     }
 
     /// Copy image regions.
-    pub fn copy_image(
+    pub unsafe fn copy_image(
         &mut self,
         src: &B::Image,
         src_layout: gfx_hal::image::Layout,
@@ -698,7 +686,7 @@ where
     }
 
     /// Blit image regions, potentially using specified filter when resize is necessary.
-    pub fn blit_image(
+    pub unsafe fn blit_image(
         &mut self,
         src: &B::Image,
         src_layout: gfx_hal::image::Layout,
@@ -725,7 +713,7 @@ where
     }
 
     /// Dispatch compute.
-    pub fn dispatch(&mut self, x: u32, y: u32, z: u32)
+    pub unsafe fn dispatch(&mut self, x: u32, y: u32, z: u32)
     where
         C: Supports<Compute>,
     {
@@ -740,7 +728,7 @@ where
     ///
     /// [`dispatch`]: trait.Encoder.html#tymethod.dispatch
     /// [`DispatchCommand`]: struct.DispatchCommand.html
-    pub fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
+    pub unsafe fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
     where
         C: Supports<Compute>,
     {
