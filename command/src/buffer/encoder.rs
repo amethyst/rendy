@@ -87,6 +87,9 @@ where
     /// Note that `draw*` commands available only inside renderpass.
     ///
     /// [`draw_indexed`]: ../struct.RenderPassEncoder.html#method.draw_indexed
+    ///
+    /// # Safety
+    /// `offset` must not be greater than the size of `buffer`.
     pub unsafe fn bind_index_buffer<'b>(
         &mut self,
         buffer: &'b B::Buffer,
@@ -113,6 +116,10 @@ where
     ///
     /// [`draw`]: ../struct.RenderPassEncoder.html#method.draw
     /// [`draw_indexed`]: ../struct.RenderPassEncoder.html#method.draw_indexed
+    ///
+    /// # Safety
+    /// Vulkan backend: `first_binding + buffers.count()` must less than the `maxVertexInputBindings`
+    /// device limit.
     pub unsafe fn bind_vertex_buffers<'b>(
         &mut self,
         first_binding: u32,
@@ -121,11 +128,11 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-            gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
-                self.raw,
-                first_binding,
-                buffers,
-            )
+        gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
+            self.raw,
+            first_binding,
+            buffers,
+        )
     }
 
     /// Bind graphics pipeline.
@@ -146,6 +153,9 @@ where
     }
 
     /// Bind descriptor sets to graphics pipeline.
+    ///
+    /// # Safety
+    /// TODO: Figure this out.
     pub unsafe fn bind_graphics_descriptor_sets<'b>(
         &mut self,
         layout: &B::PipelineLayout,
@@ -167,6 +177,8 @@ where
     }
 
     /// Bind graphics pipeline.
+    /// # Safety
+    /// TODO: Figure this out, might actually be ok.
     pub unsafe fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
     where
         C: Supports<Compute>,
@@ -177,6 +189,8 @@ where
     }
 
     /// Bind descriptor sets to compute pipeline.
+    /// # Safety
+    /// TODO: Figure this out, might actually be ok.
     pub unsafe fn bind_compute_descriptor_sets<'b>(
         &mut self,
         layout: &B::PipelineLayout,
@@ -215,6 +229,10 @@ where
     }
 
     /// Push graphics constants.
+    ///
+    /// # Safety
+    /// Vulkan backend: `constants.len()` in bytes, and `offset`, must both be less than the
+    /// `maxPushConstantsSize` device limit.
     pub unsafe fn push_constants<'b>(
         &mut self,
         layout: &B::PipelineLayout,
@@ -222,14 +240,16 @@ where
         offset: u32,
         constants: &[u32],
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::push_graphics_constants(
-                self.raw, layout, stages, offset, constants,
-            );
-        }
+        gfx_hal::command::RawCommandBuffer::push_graphics_constants(
+            self.raw, layout, stages, offset, constants,
+        );
     }
 
     /// Set scissors
+    ///
+    /// # Safety
+    /// Vulkan backend: `first_scissor + rects.count()` must be less than the
+    /// `maxViewports` device limit.
     pub unsafe fn set_scissors<'b>(
         &mut self,
         first_scissor: u32,
@@ -238,7 +258,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        unsafe { gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects) }
+        gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects)
     }
 
     /// Reborrow encoder.
@@ -285,25 +305,33 @@ where
     B: gfx_hal::Backend,
 {
     /// Draw.
+    ///
+    /// # Safety
+    /// The range of `vertices` must not exceed the size of the currently bound vertex buffer,
+    /// and the range of `instances` must not exceed the size of the currently bound instance
+    /// buffer.
     pub unsafe fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
-        unsafe { gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances) }
+        gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances)
     }
 
-    /// Draw indexed.
+    /// Draw indexed, with `base_vertex` specifying an offset that is treated as
+    /// vertex number 0.
+    ///
+    /// # Safety
+    /// Same as `draw()`, plus the value of `base_vertex`.  So, `base_vertex + indices.end`
+    /// must not be larger than the currently bound vertex buffer.
     pub unsafe fn draw_indexed(
         &mut self,
         indices: std::ops::Range<u32>,
         base_vertex: i32,
         instances: std::ops::Range<u32>,
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::draw_indexed(
-                self.inner.raw,
-                indices,
-                base_vertex,
-                instances,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::draw_indexed(
+            self.inner.raw,
+            indices,
+            base_vertex,
+            instances,
+        )
     }
 
     /// Draw indirect.
@@ -312,16 +340,17 @@ where
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
     /// [`DrawCommand`]: struct.DrawCommand.html
+    ///
+    /// # Safety
+    /// Similar to `draw()`.
     pub unsafe fn draw_indirect(&mut self, buffer: &B::Buffer, offset: u64, draw_count: u32, stride: u32) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::draw_indirect(
-                self.inner.raw,
-                buffer,
-                offset,
-                draw_count,
-                stride,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::draw_indirect(
+            self.inner.raw,
+            buffer,
+            offset,
+            draw_count,
+            stride,
+        )
     }
 
     /// Draw indirect with indices.
@@ -330,6 +359,9 @@ where
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw_indexed
     /// [`DrawIndexedCommand`]: struct.DrawIndexedCommand.html
+    ///
+    /// # Safety
+    /// Similar to `draw_indexed()`
     pub unsafe fn draw_indexed_indirect(
         &mut self,
         buffer: &B::Buffer,
@@ -337,15 +369,13 @@ where
         draw_count: u32,
         stride: u32,
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
-                self.inner.raw,
-                buffer,
-                offset,
-                draw_count,
-                stride,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
+            self.inner.raw,
+            buffer,
+            offset,
+            draw_count,
+            stride,
+        )
     }
 
     /// Reborrow encoder.
@@ -470,9 +500,7 @@ where
                 self.inner.raw,
                 gfx_hal::command::SubpassContents::Inline,
             );
-        }
 
-        unsafe {
             let next = RenderPassInlineEncoder {
                 inner: RenderPassEncoder {
                     inner: std::ptr::read(&self.inner),
@@ -622,6 +650,10 @@ where
     /// `src` and `dst` can be the same buffer or alias in memory.
     /// But regions must not overlap.
     /// Otherwise resulting values are undefined.
+    ///
+    /// # Safety
+    /// The size of the copy region in any `regions` must not exceed the
+    /// length of the corresponding buffer.
     pub unsafe fn copy_buffer(
         &mut self,
         src: &B::Buffer,
@@ -632,12 +664,13 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
-        }
+        gfx_hal::command::RawCommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
     }
 
     /// Copy buffer region to image subresource range.
+    ///
+    /// # Safety
+    /// Same as `copy_buffer()`
     pub unsafe fn copy_buffer_to_image(
         &mut self,
         src: &B::Buffer,
@@ -649,18 +682,19 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_buffer_to_image(
-                self.inner.raw,
-                src,
-                dst,
-                dst_layout,
-                regions,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::copy_buffer_to_image(
+            self.inner.raw,
+            src,
+            dst,
+            dst_layout,
+            regions,
+        )
     }
 
     /// Copy image regions.
+    ///
+    /// # Safety
+    /// Same as `copy_buffer()`
     pub unsafe fn copy_image(
         &mut self,
         src: &B::Image,
@@ -673,19 +707,20 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_image(
-                self.inner.raw,
-                src,
-                src_layout,
-                dst,
-                dst_layout,
-                regions,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::copy_image(
+            self.inner.raw,
+            src,
+            src_layout,
+            dst,
+            dst_layout,
+            regions,
+        )
     }
 
     /// Blit image regions, potentially using specified filter when resize is necessary.
+    ///
+    /// # Safety
+    /// Same as `copy_buffer()`
     pub unsafe fn blit_image(
         &mut self,
         src: &B::Image,
@@ -699,27 +734,28 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::blit_image(
-                self.inner.raw,
-                src,
-                src_layout,
-                dst,
-                dst_layout,
-                filter,
-                regions,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::blit_image(
+            self.inner.raw,
+            src,
+            src_layout,
+            dst,
+            dst_layout,
+            filter,
+            regions,
+        )
     }
 
     /// Dispatch compute.
+    ///
+    /// # Safety
+    /// TODO: Investigate constraints
     pub unsafe fn dispatch(&mut self, x: u32, y: u32, z: u32)
     where
         C: Supports<Compute>,
     {
         self.capability.assert();
 
-        unsafe { gfx_hal::command::RawCommandBuffer::dispatch(self.inner.raw, [x, y, z]) }
+        gfx_hal::command::RawCommandBuffer::dispatch(self.inner.raw, [x, y, z])
     }
 
     /// Dispatch indirect.
@@ -734,9 +770,7 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
-        }
+        gfx_hal::command::RawCommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
     }
 }
 
