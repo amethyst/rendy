@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     ops::Range,
     ptr::NonNull,
+    thread,
 };
 
 use {
@@ -473,8 +474,16 @@ where
 
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(self) {
-        for (index, size) in self.sizes {
-            assert_eq!(size.chunks.len(), 0, "SizeEntry({}) is still used", index);
+        if !thread::panicking() {
+            for (index, size) in self.sizes {
+                assert_eq!(size.chunks.len(), 0, "SizeEntry({}) is still used", index);
+            }
+        } else {
+            for (index, size) in self.sizes {
+                if size.chunks.len() != 0 {
+                    log::error!("Memory leak: SizeEntry({}) is still used", index);
+                }
+            }
         }
     }
 }
