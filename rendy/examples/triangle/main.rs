@@ -215,7 +215,7 @@ fn run(
     for _ in &mut frames {
         factory.maintain(families);
         event_loop.poll_events(|_| ());
-        graph.run(factory, families, &mut ());
+        graph.run(factory, families, &());
 
         elapsed = started.elapsed();
         if elapsed >= std::time::Duration::new(5, 0) {
@@ -232,7 +232,7 @@ fn run(
         frames.start * 1_000_000_000 / elapsed_ns
     );
 
-    graph.dispose(factory, &mut ());
+    graph.dispose(factory, &());
     Ok(())
 }
 
@@ -281,7 +281,7 @@ fn main() {
     graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
     let graph = graph_builder
-        .build(&mut factory, &mut families, &mut ())
+        .build(&mut factory, &mut families, &())
         .unwrap();
 
     run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
