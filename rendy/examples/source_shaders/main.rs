@@ -19,7 +19,7 @@ use rendy::{
     memory::Dynamic,
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
-    shader::{SourceShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
+    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     wsi::winit::{EventsLoop, WindowBuilder},
 };
 
@@ -40,16 +40,40 @@ type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
+    "
+    #version 450
+    #extension GL_ARB_separate_shader_objects : enable
+
+    layout(location = 0) in vec3 pos;
+    layout(location = 1) in vec4 color;
+    layout(location = 0) out vec4 frag_color;
+
+    void main() {
+        frag_color = color;
+        gl_Position = vec4(pos, 1.0);
+    }
+    ",
+        "triangle.vert",
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
     static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
+    "
+    #version 450
+    #extension GL_ARB_separate_shader_objects : enable
+
+    layout(early_fragment_tests) in;
+
+    layout(location = 0) in vec4 frag_color;
+    layout(location = 0) out vec4 color;
+
+    void main() {
+        color = frag_color;
+    }
+    ",
+        "triangle.frag",
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",

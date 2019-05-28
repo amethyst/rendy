@@ -94,3 +94,7 @@ required-features = ["base", "wsi-winit"]
 [[example]]
 name = "quads"
 required-features = ["base", "wsi-winit"]
+
+[[example]]
+name = "source_shaders"
+required-features = ["base", "wsi-winit"]

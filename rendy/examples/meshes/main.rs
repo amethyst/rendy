@@ -21,7 +21,7 @@ use {
         memory::Dynamic,
         mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
         wsi::winit::{Event, EventsLoop, WindowBuilder, WindowEvent},
     },
     std::{cmp::min, mem::size_of, time},
@@ -43,15 +43,17 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: SpirvShader = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert"),
+    static ref VERTEX: SpirvShader = SourceShaderInfo::new(
+        include_str!("shader.vert"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref FRAGMENT: SpirvShader = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag"),
+    static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
+        include_str!("shader.frag"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",

@@ -29,7 +29,7 @@ use rendy::{
     memory::Dynamic,
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{Shader, ShaderKind, SourceLanguage, SpirvShader, StaticShaderInfo},
+    shader::{SourceShaderInfo, Shader, ShaderKind, SourceLanguage, SpirvShader},
     wsi::winit::{EventsLoop, Window, WindowBuilder},
 };
 
@@ -56,22 +56,25 @@ struct PosVel {
 }
 
 lazy_static::lazy_static! {
-    static ref RENDER_VERTEX: SpirvShader = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
+    static ref RENDER_VERTEX: SpirvShader = SourceShaderInfo::new(
+        include_str!("render.vert"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref RENDER_FRAGMENT: SpirvShader = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
+    static ref RENDER_FRAGMENT: SpirvShader = SourceShaderInfo::new(
+        include_str!("render.frag"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref BOUNCE_COMPUTE: SpirvShader = StaticShaderInfo::new(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
+    static ref BOUNCE_COMPUTE: SpirvShader = SourceShaderInfo::new(
+        include_str!("bounce.comp"),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp").into(),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
         "main",
