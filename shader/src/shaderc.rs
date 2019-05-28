@@ -174,7 +174,7 @@ impl<P, E, S> Shader for SourceCodeShaderInfo<P, E, S>
 pub type SourceShaderInfo = SourceCodeShaderInfo<&'static str, &'static str, &'static str>;
 
 /// DEPRECATED. USE `PathBufShaderInfo` INSTEAD!
-#[deprecated(since = "2.0", note = "StaticShaderInfo will be removed in favor of PathBufShaderInfo soon. Please move to that implementation.")]
+#[deprecated(since = "0.2.1", note = "StaticShaderInfo will be removed in favor of PathBufShaderInfo soon. Please move to that implementation.")]
 pub type StaticShaderInfo = FileShaderInfo<&'static str, &'static str>;
 
 /// Shader info with a PathBuf for the path and static string for entry

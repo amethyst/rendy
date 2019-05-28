@@ -18,7 +18,7 @@ use rendy::{
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{PathBufShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
+    shader::{SourceShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
     wsi::winit::{EventsLoop, WindowBuilder},
 };
@@ -41,14 +41,16 @@ type Backend = rendy::metal::Backend;
 type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
-    static ref VERTEX: SpirvShader = PathBufShaderInfo::new(
+    static ref VERTEX: SpirvShader = SourceShaderInfo::new(
+        include_str!("shader.vert"),
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
-    static ref FRAGMENT: SpirvShader = PathBufShaderInfo::new(
+    static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
+        include_str!("shader.frag"),
         concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
