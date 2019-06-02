@@ -40,6 +40,8 @@ device_owned!(Graph<B, T: ?Sized>);
 pub struct GraphContext<B: Backend> {
     buffers: Vec<Option<Handle<Buffer<B>>>>,
     images: Vec<Option<(Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
+    /// Number of potential frames in flight
+    pub frames_in_flight: u32,
 }
 
 impl<B: Backend> GraphContext<B> {
@@ -48,6 +50,7 @@ impl<B: Backend> GraphContext<B> {
         chains: &chain::Chains,
         buffers: impl IntoIterator<Item = &'a BufferInfo>,
         images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
+        frames_in_flight: u32,
     ) -> Result<Self, failure::Error> {
         profile_scope!("alloc");
 
@@ -97,7 +100,7 @@ impl<B: Backend> GraphContext<B> {
             })
             .collect::<Result<_, _>>()?;
 
-        Ok(Self { buffers, images })
+        Ok(Self { buffers, images, frames_in_flight })
     }
 
     /// Get reference to transient image by id.
@@ -361,7 +364,13 @@ where
         });
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
-        let mut ctx = GraphContext::alloc(factory, &chains, &self.buffers, &self.images)?;
+        let mut ctx = GraphContext::alloc(
+            factory,
+            &chains,
+            &self.buffers,
+            &self.images,
+            self.frames_in_flight,
+        )?;
 
         log::trace!("Synchronize");
 

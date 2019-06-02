@@ -101,13 +101,6 @@ struct Scene<B: hal::Backend> {
     lights: Vec<Light>,
 }
 
-#[derive(Debug)]
-struct Aux<B: hal::Backend> {
-    frames: usize,
-    align: u64,
-    scene: Scene<B>,
-}
-
 const MAX_LIGHTS: usize = 32;
 const MAX_OBJECTS: usize = 10_000;
 const UNIFORM_SIZE: u64 = size_of::<UniformArgs>() as u64;
@@ -135,11 +128,12 @@ struct MeshRenderPipelineDesc;
 
 #[derive(Debug)]
 struct MeshRenderPipeline<B: hal::Backend> {
+    align: u64,
     buffer: Escape<Buffer<B>>,
     sets: Vec<Escape<DescriptorSet<B>>>,
 }
 
-impl<B> SimpleGraphicsPipelineDesc<B, Aux<B>> for MeshRenderPipelineDesc
+impl<B> SimpleGraphicsPipelineDesc<B, Scene<B>> for MeshRenderPipelineDesc
 where
     B: hal::Backend,
 {
@@ -148,7 +142,7 @@ where
     fn load_shader_set(
         &self,
         factory: &mut Factory<B>,
-        _aux: &Aux<B>,
+        _scene: &Scene<B>,
     ) -> rendy_shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
@@ -200,10 +194,10 @@ where
 
     fn build<'a>(
         self,
-        _ctx: &GraphContext<B>,
+        ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
         _queue: QueueId,
-        aux: &Aux<B>,
+        _scene: &Scene<B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
@@ -212,7 +206,11 @@ where
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
 
-        let (frames, align) = (aux.frames, aux.align);
+        let frames = ctx.frames_in_flight as _;
+        let align = factory
+            .physical()
+            .limits()
+            .min_uniform_buffer_offset_alignment;
 
         let buffer = factory
             .create_buffer(
@@ -246,11 +244,11 @@ where
             }
         }
 
-        Ok(MeshRenderPipeline { buffer, sets })
+        Ok(MeshRenderPipeline { align, buffer, sets })
     }
 }
 
-impl<B> SimpleGraphicsPipeline<B, Aux<B>> for MeshRenderPipeline<B>
+impl<B> SimpleGraphicsPipeline<B, Scene<B>> for MeshRenderPipeline<B>
 where
     B: hal::Backend,
 {
@@ -262,15 +260,13 @@ where
         _queue: QueueId,
         _set_layouts: &[Handle<DescriptorSetLayout<B>>],
         index: usize,
-        aux: &Aux<B>,
+        scene: &Scene<B>,
     ) -> PrepareResult {
-        let (scene, align) = (&aux.scene, aux.align);
-
         unsafe {
             factory
                 .upload_visible_buffer(
                     &mut self.buffer,
-                    uniform_offset(index, align),
+                    uniform_offset(index, self.align),
                     &[UniformArgs {
                         pad: [0, 0, 0],
                         proj: scene.camera.proj.to_homogeneous(),
@@ -295,7 +291,7 @@ where
             factory
                 .upload_visible_buffer(
                     &mut self.buffer,
-                    indirect_offset(index, align),
+                    indirect_offset(index, self.align),
                     &[DrawIndexedCommand {
                         index_count: scene.object_mesh.as_ref().unwrap().len(),
                         instance_count: scene.objects.len() as u32,
@@ -312,7 +308,7 @@ where
                 factory
                     .upload_visible_buffer(
                         &mut self.buffer,
-                        models_offset(index, align),
+                        models_offset(index, self.align),
                         &scene.objects[..],
                     )
                     .unwrap()
@@ -327,7 +323,7 @@ where
         layout: &B::PipelineLayout,
         mut encoder: RenderPassEncoder<'_, B>,
         index: usize,
-        aux: &Aux<B>,
+        scene: &Scene<B>,
     ) {
         encoder.bind_graphics_descriptor_sets(
             layout,
@@ -344,7 +340,7 @@ where
         #[cfg(not(feature = "spirv-reflection"))]
         let vertex = [PosColorNorm::vertex()];
 
-        aux.scene
+        scene
             .object_mesh
             .as_ref()
             .unwrap()
@@ -353,17 +349,17 @@ where
 
         encoder.bind_vertex_buffers(
             1,
-            std::iter::once((self.buffer.raw(), models_offset(index, aux.align))),
+            std::iter::once((self.buffer.raw(), models_offset(index, self.align))),
         );
         encoder.draw_indexed_indirect(
             self.buffer.raw(),
-            indirect_offset(index, aux.align),
+            indirect_offset(index, self.align),
             1,
             INDIRECT_SIZE as u32,
         );
     }
 
-    fn dispose(self, _factory: &mut Factory<B>, _aux: &Aux<B>) {}
+    fn dispose(self, _factory: &mut Factory<B>, _scene: &Scene<B>) {}
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
@@ -387,7 +383,7 @@ fn main() {
 
     let surface = factory.create_surface(&window);
 
-    let mut graph_builder = GraphBuilder::<Backend, Aux<Backend>>::new();
+    let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
 
     let size = window
         .get_inner_size()
@@ -426,7 +422,7 @@ fn main() {
 
     graph_builder.add_node(present_builder);
 
-    let scene = Scene {
+    let mut scene = Scene {
         camera: Camera {
             proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
             view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
@@ -457,20 +453,11 @@ fn main() {
         ],
     };
 
-    let mut aux = Aux {
-        frames: frames as _,
-        align: factory
-            .physical()
-            .limits()
-            .min_uniform_buffer_offset_alignment,
-        scene,
-    };
-
-    log::info!("{:#?}", aux.scene);
+    log::info!("{:#?}", scene);
 
     let mut graph = graph_builder
         .with_frames_in_flight(frames)
-        .build(&mut factory, &mut families, &aux)
+        .build(&mut factory, &mut families, &scene)
         .unwrap();
 
     let icosphere = genmesh::generators::IcoSphere::subdivide(4);
@@ -492,7 +479,7 @@ fn main() {
         })
         .collect();
 
-    aux.scene.object_mesh = Some(
+    scene.object_mesh = Some(
         Mesh::<Backend>::builder()
             .with_indices(&indices[..])
             .with_vertices(&vertices[..])
@@ -511,9 +498,9 @@ fn main() {
     let mut checkpoint = started;
     let mut should_close = false;
 
-    while !should_close && aux.scene.objects.len() < MAX_OBJECTS {
+    while !should_close && scene.objects.len() < MAX_OBJECTS {
         let start = frames.start;
-        let from = aux.scene.objects.len();
+        let from = scene.objects.len();
         for _ in &mut frames {
             factory.maintain(&mut families);
             event_loop.poll_events(|event| match event {
@@ -523,12 +510,12 @@ fn main() {
                 } => should_close = true,
                 _ => (),
             });
-            graph.run(&mut factory, &mut families, &aux);
+            graph.run(&mut factory, &mut families, &scene);
 
             let elapsed = checkpoint.elapsed();
 
-            if aux.scene.objects.len() < MAX_OBJECTS {
-                aux.scene.objects.push({
+            if scene.objects.len() < MAX_OBJECTS {
+                scene.objects.push({
                     let z = rz.sample(&mut rng);
                     nalgebra::Transform3::identity()
                         * nalgebra::Translation3::new(
@@ -541,13 +528,13 @@ fn main() {
 
             if should_close
                 || elapsed > std::time::Duration::new(5, 0)
-                || aux.scene.objects.len() == MAX_OBJECTS
+                || scene.objects.len() == MAX_OBJECTS
             {
                 let frames = frames.start - start;
                 let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
                 fpss.push((
                     frames * 1_000_000_000 / nanos,
-                    from..aux.scene.objects.len(),
+                    from..scene.objects.len(),
                 ));
                 checkpoint += elapsed;
                 break;
@@ -557,7 +544,7 @@ fn main() {
 
     log::info!("FPS: {:#?}", fpss);
 
-    graph.dispose(&mut factory, &aux);
+    graph.dispose(&mut factory, &scene);
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
