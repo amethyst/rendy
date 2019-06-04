@@ -588,8 +588,7 @@ where
 
     /// Check if there are free blocks.
     fn is_unused(&self, block_size: u64) -> bool {
-        let blocks = (self.size() / block_size) as u32;
-        debug_assert!(blocks <= MAX_BLOCKS_PER_CHUNK);
+        let blocks = (self.size() / block_size).min(MAX_BLOCKS_PER_CHUNK as u64);
 
         let high_bit = 1 << (blocks - 1);
         let mask = (high_bit - 1) | high_bit;
