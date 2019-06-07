@@ -26,18 +26,37 @@ pipeline {
         }
         stage('Run Tests') {
             parallel {
-              
                 stage("Test on Linux") {
                     agent {
-			docker {
-				image 'amethystrs/builder-linux:stable'
-				label 'docker'
-			} 
+                        docker {
+                            image 'amethystrs/builder-linux:stable'
+                            label 'docker'
+                        }
                     }
                     steps {
                         echo 'Beginning tests...'
                         sh 'cd rendy && cargo test --all --features "full vulkan"'
                         echo 'Tests done!'
+                    }
+                }
+                stage('Coverage') {
+                    agent {
+                        docker {
+                            image 'amethystrs/builder-linux:stable'
+                            args '--privileged'
+                            label 'docker'
+                        }
+                    }
+                    steps {
+                        withCredentials([string(credentialsId: 'codecov_token', variable: 'CODECOV_TOKEN')]) {
+                            echo 'Building to calculate coverage'
+                            sh 'cargo test --all'
+                            echo 'Calculating code coverage...'
+                            sh 'for file in target/debug/rendy*[^\\.d]; do mkdir -p \"target/cov/$(basename $file)\"; kcov --exclude-pattern=/.cargo,/usr/lib --verify \"target/cov/$(basename $file)\" \"$file\" || true; done'
+                            echo "Uploading coverage..."
+                            sh "curl -s https://codecov.io/bash | bash -s - -t $CODECOV_TOKEN"
+                            echo "Uploaded code coverage!"
+                        }
                     }
                 }
             }
