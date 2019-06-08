@@ -93,7 +93,7 @@ The `Factory` type can upload data to the device local memory choosing most appr
 ### Data driven pipelines - **WIP**
 
 We think it is possible in many common cases to feed GPU with data in semi-automatic mode.
-`rendy::graph::node::render::RenderGroup` implementation will use `spirv-relfect` (or similiar crate) to read layout information directly from shaders
+`rendy::graph::node::render::RenderGroup` implementation will use `spirv-reflect` (or similar crate) to read layout information directly from shaders
 and use it to automatically populate descriptors and set index/vertex buffers based on registered data encoders and provided scene instance.
 Current *WIP* implementation will use `specs::World` as scene to render.
 
@@ -108,7 +108,7 @@ A similar `ComputePipeline` trait exists for compute pipelines.
 #### Example
 
 ```rust
-#[derive(DescritorSet)]
+#[derive(DescriptorSet)]
 struct Example {
     /// This field will be associated with binding 1 of type `VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER`.
     /// Actual `Buffer` will be allocated and kept updated by `Set<Example>`.
@@ -131,9 +131,9 @@ struct Example {
 ### Modularity
 
 Most of the features provided by rendy can be used independently from each other
-This helps to keep API clean and hopefuly sound.
+This helps to keep API clean and hopefully sound.
 The top-level umbrella crate `rendy` has features for each subcrate so that they could be
-enabled separately (enabling a subcrate will also enable its depenencies).
+enabled separately (enabling a subcrate will also enable its dependencies).
 
 ## Who is using it?
 
