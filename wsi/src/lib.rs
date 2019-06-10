@@ -255,7 +255,7 @@ unsafe fn create_swapchain<B: Backend>(
         failure::bail!("Present mode not supported.");
     }
 
-    log::info!(
+    log::trace!(
         "Surface present modes: {:#?}. Pick {:#?}",
         present_modes,
         present_mode
@@ -276,7 +276,7 @@ unsafe fn create_swapchain<B: Backend>(
         })
         .unwrap();
 
-    log::info!("Surface formats: {:#?}. Pick {:#?}", formats, format);
+    log::trace!("Surface formats: {:#?}. Pick {:#?}", formats, format);
 
     if image_count < capabilities.image_count.start || image_count > capabilities.image_count.end {
         log::warn!(
@@ -287,7 +287,7 @@ unsafe fn create_swapchain<B: Backend>(
         failure::bail!("Image count not supported.")
     }
 
-    log::info!(
+    log::trace!(
         "Surface capabilities: {:#?}. Pick {} images",
         capabilities.image_count,
         image_count

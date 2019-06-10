@@ -1049,7 +1049,7 @@ where
         failure::bail!("No physical devices found");
     }
 
-    log::info!(
+    log::debug!(
         "Physical devices:\n{:#?}",
         adapters
             .iter()
@@ -1070,7 +1070,7 @@ where
         limits: Limits,
     }
 
-    log::info!(
+    log::debug!(
         "Physical device picked: {:#?}",
         PhysicalDeviceInfo {
             name: &adapter.info.name,
@@ -1098,7 +1098,7 @@ where
             })
             .unzip();
 
-        log::info!("Queues: {:#?}", get_queues);
+        log::debug!("Queues: {:#?}", get_queues);
 
         let Gpu { device, mut queues } = unsafe {
             adapter
@@ -1120,7 +1120,7 @@ where
     let heaps = heaps.into_iter().collect::<SmallVec<[_; 16]>>();
     let types = types.into_iter().collect::<SmallVec<[_; 32]>>();
 
-    log::info!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
+    log::debug!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
 
     let heaps = unsafe { Heaps::new(types, heaps) };
 

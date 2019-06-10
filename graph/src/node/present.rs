@@ -131,7 +131,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                     layers: 0..1,
                 },
             });
-            log::info!("Acquire {:?} : {:#?}", stages, barriers);
+            log::trace!("Acquire {:?} : {:#?}", stages, barriers);
             encoder.pipeline_barrier(
                 stages,
                 gfx_hal::memory::Dependencies::empty(),
@@ -224,7 +224,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                     },
                 });
 
-                log::info!("Release {:?} : {:#?}", stages, barriers);
+                log::trace!("Release {:?} : {:#?}", stages, barriers);
                 encoder.pipeline_barrier(
                     stages,
                     gfx_hal::memory::Dependencies::empty(),

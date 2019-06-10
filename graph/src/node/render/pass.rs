@@ -474,7 +474,7 @@ where
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
                 let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
-                log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                log::trace!("Acquire {:?} : {:#?}", stages, barriers);
                 recording.encoder().pipeline_barrier(
                     stages,
                     gfx_hal::memory::Dependencies::empty(),
@@ -499,7 +499,7 @@ where
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
                 let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
-                log::info!("Release {:?} : {:#?}", stages, barriers);
+                log::trace!("Release {:?} : {:#?}", stages, barriers);
                 recording.encoder().pipeline_barrier(
                     stages,
                     gfx_hal::memory::Dependencies::empty(),
