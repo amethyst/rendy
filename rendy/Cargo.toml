@@ -98,3 +98,6 @@ required-features = ["base", "wsi-winit"]
 [[example]]
 name = "source_shaders"
 required-features = ["base", "wsi-winit"]
+
+[package.metadata.docs.rs]
+features = ["base", "mesh-obj", "serde-1", "texture-image", "texture-palette", "spirv-reflection", "wsi-winit"]
