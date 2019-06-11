@@ -35,6 +35,12 @@ impl DescriptorRanges {
         }
     }
 
+    /// Add a single layout binding.
+    /// Useful when created with `DescriptorRanges::zero()`.
+    pub fn add_binding(&mut self, binding: DescriptorSetLayoutBinding) {
+        self.counts[binding.ty as usize] += binding.count as u32;
+    }
+
     /// Iterate through ranges yelding
     /// descriptor types and their amount.
     pub fn iter(&self) -> DescriptorRangesIter<'_> {
@@ -56,9 +62,21 @@ impl DescriptorRanges {
 
     /// Calculate ranges from bindings.
     pub fn from_bindings(bindings: &[DescriptorSetLayoutBinding]) -> Self {
-        let mut descs = DescriptorRanges {
-            counts: [0; DESCPTOR_TYPES_COUNT],
-        };
+        let mut descs = Self::zero();
+
+        for binding in bindings {
+            descs.counts[binding.ty as usize] += binding.count as u32;
+        }
+
+        descs
+    }
+
+    /// Calculate ranges from bindings, specified with an iterator.
+    pub fn from_binding_iter<I>(bindings: I) -> Self
+    where
+        I: Iterator<Item = DescriptorSetLayoutBinding>
+    {
+        let mut descs = Self::zero();
 
         for binding in bindings {
             descs.counts[binding.ty as usize] += binding.count as u32;
