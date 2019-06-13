@@ -380,7 +380,7 @@ where
             (id, id)
         });
         schedule.build_order();
-        log::info!("Schedule: {:#?}", schedule);
+        log::trace!("Schedule: {:#?}", schedule);
 
         log::trace!("Build nodes");
         let mut built_nodes: Vec<_> = (0..self.nodes.len()).map(|_| None).collect();

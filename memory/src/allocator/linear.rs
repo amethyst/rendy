@@ -154,7 +154,7 @@ where
         memory_properties: gfx_hal::memory::Properties,
         config: LinearConfig,
     ) -> Self {
-        log::info!(
+        log::trace!(
             "Create new 'linear' allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
             memory_type,
             memory_properties,

@@ -184,7 +184,7 @@ where
         memory_properties: gfx_hal::memory::Properties,
         config: DynamicConfig,
     ) -> Self {
-        log::info!(
+        log::trace!(
             "Create new allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
             memory_type,
             memory_properties,
