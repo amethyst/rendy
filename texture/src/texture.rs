@@ -23,6 +23,7 @@ pub struct Texture<B: Backend> {
     image: Handle<Image<B>>,
     view: Escape<ImageView<B>>,
     sampler: Handle<Sampler<B>>,
+    premultiplied: bool,
 }
 
 impl<B> Texture<B>
@@ -47,6 +48,11 @@ where
     /// Get mutable reference to image view.
     pub fn view_mut(&mut self) -> &mut ImageView<B> {
         &mut self.view
+    }
+
+    /// Get whether texture has premultiplied alpha
+    pub fn premultiplied_alpha(&self) -> bool {
+        self.premultiplied
     }
 }
 
@@ -86,6 +92,7 @@ pub struct TextureBuilder<'a> {
     sampler_info: gfx_hal::image::SamplerInfo,
     swizzle: Swizzle,
     mip_levels: MipLevels,
+    premultiplied: bool,
 }
 
 impl<'a> TextureBuilder<'a> {
@@ -104,7 +111,20 @@ impl<'a> TextureBuilder<'a> {
             ),
             swizzle: Swizzle::NO,
             mip_levels: MipLevels::RawLevels(NonZeroU8::new(1).unwrap()),
+            premultiplied: false,
         }
+    }
+
+    /// Set whether the image has premultiplied alpha
+    pub fn set_premultiplied_alpha(&mut self, premultiplied: bool) -> &mut Self {
+        self.premultiplied = premultiplied;
+        self
+    }
+
+    /// Set whether the image has premultiplied alpha
+    pub fn with_premultiplied_alpha(mut self, premultiplied: bool) -> Self {
+        self.set_premultiplied_alpha(premultiplied);
+        self
     }
 
     /// Set pixel data.
@@ -397,6 +417,7 @@ impl<'a> TextureBuilder<'a> {
             image,
             view,
             sampler,
+            premultiplied: self.premultiplied,
         })
     }
 }
