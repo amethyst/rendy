@@ -370,7 +370,7 @@ where
         attachments.sort();
         attachments.dedup();
 
-        let find_attachment_node_image = |id: ImageId| {
+        let find_attachment_node_image = |id: ImageId| -> &NodeImage {
             images
                 .iter()
                 .find(|a| a.id == id)
@@ -522,7 +522,14 @@ where
                         .map(|&i| {
                             (
                                 attachments.iter().position(|&a| a == i).unwrap(),
-                                gfx_hal::image::Layout::General,
+                                match i {
+                                    Either::Left(image_id) => {
+                                        find_attachment_node_image(image_id).layout
+                                    }
+                                    Either::Right(RenderPassSurface) => {
+                                        gfx_hal::image::Layout::ShaderReadOnlyOptimal
+                                    }
+                                },
                             )
                         })
                         .collect(),
@@ -532,14 +539,28 @@ where
                         .map(|&c| {
                             (
                                 attachments.iter().position(|&a| a == c).unwrap(),
-                                gfx_hal::image::Layout::ColorAttachmentOptimal,
+                                match c {
+                                    Either::Left(image_id) => {
+                                        find_attachment_node_image(image_id).layout
+                                    }
+                                    Either::Right(RenderPassSurface) => {
+                                        gfx_hal::image::Layout::ColorAttachmentOptimal
+                                    }
+                                },
                             )
                         })
                         .collect(),
                     depth_stencil: subpass.depth_stencil.map(|ds| {
                         (
                             attachments.iter().position(|&a| a == ds).unwrap(),
-                            gfx_hal::image::Layout::General,
+                            match ds {
+                                Either::Left(image_id) => {
+                                    find_attachment_node_image(image_id).layout
+                                }
+                                Either::Right(RenderPassSurface) => {
+                                    gfx_hal::image::Layout::DepthStencilAttachmentOptimal
+                                }
+                            },
                         )
                     }),
                 })
