@@ -12,14 +12,12 @@
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
-    graph::{
-        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
-    },
+    graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal,
     memory::Dynamic,
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
-    shader::{SourceShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
+    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     wsi::winit::{EventsLoop, WindowBuilder},
 };
 
@@ -259,26 +257,16 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let size = window
-        .get_inner_size()
-        .unwrap()
-        .to_physical(window.get_hidpi_factor());
-
-    let color = graph_builder.create_image(
-        hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
-        1,
-        factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-    );
-
-    let pass = graph_builder.add_node(
+    graph_builder.add_node(
         TriangleRenderPipeline::builder()
             .into_subpass()
-            .with_color(color)
-            .into_pass(),
+            .with_color_surface()
+            .into_pass()
+            .with_surface(
+                surface,
+                Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
+            ),
     );
-
-    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
     let graph = graph_builder
         .build(&mut factory, &mut families, &())
