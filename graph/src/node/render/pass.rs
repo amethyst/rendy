@@ -981,26 +981,29 @@ where
             if let Some(next) = &next {
                 let ref mut for_image = per_image[next[0] as usize];
 
-                let force_record =
-                    subpasses
-                        .iter_mut()
-                        .enumerate()
-                        .any(|(subpass_index, subpass)| {
-                            subpass.groups.iter_mut().any(|group| {
-                                group
-                                    .prepare(
-                                        factory,
-                                        queue.id(),
-                                        index,
-                                        gfx_hal::pass::Subpass {
-                                            index: subpass_index,
-                                            main_pass: &render_pass,
-                                        },
-                                        aux,
-                                    )
-                                    .force_record()
+                let force_record = subpasses.iter_mut().enumerate().fold(
+                    false,
+                    |force_record, (subpass_index, subpass)| {
+                        subpass
+                            .groups
+                            .iter_mut()
+                            .fold(force_record, |force_record, group| {
+                                force_record
+                                    || group
+                                        .prepare(
+                                            factory,
+                                            queue.id(),
+                                            index,
+                                            gfx_hal::pass::Subpass {
+                                                index: subpass_index,
+                                                main_pass: &render_pass,
+                                            },
+                                            aux,
+                                        )
+                                        .force_record()
                             })
-                        });
+                    },
+                );
 
                 if force_record || for_image.index != index {
                     for_image.index = index;
@@ -1149,25 +1152,29 @@ where
         let submit = command_cirque.encode(frames, command_pool, |mut cbuf| {
             let index = cbuf.index();
 
-            let force_record = subpasses
-                .iter_mut()
-                .enumerate()
-                .any(|(subpass_index, subpass)| {
-                    subpass.groups.iter_mut().any(|group| {
-                        group
-                            .prepare(
-                                factory,
-                                queue.id(),
-                                index,
-                                gfx_hal::pass::Subpass {
-                                    index: subpass_index,
-                                    main_pass: &render_pass,
-                                },
-                                aux,
-                            )
-                            .force_record()
-                    })
-                });
+            let force_record = subpasses.iter_mut().enumerate().fold(
+                false,
+                |force_record, (subpass_index, subpass)| {
+                    subpass
+                        .groups
+                        .iter_mut()
+                        .fold(force_record, |force_record, group| {
+                            force_record
+                                || group
+                                    .prepare(
+                                        factory,
+                                        queue.id(),
+                                        index,
+                                        gfx_hal::pass::Subpass {
+                                            index: subpass_index,
+                                            main_pass: &render_pass,
+                                        },
+                                        aux,
+                                    )
+                                    .force_record()
+                        })
+                },
+            );
 
             if force_record {
                 cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
