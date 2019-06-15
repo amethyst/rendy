@@ -31,7 +31,6 @@ gfx-backend-dx12 = { version = "0.2", optional = true }
 gfx-backend-metal = { version = "0.2", optional = true }
 gfx-backend-vulkan = { version = "0.2", optional = true }
 derivative = "1.0"
-fnv = "1.0"
 lazy_static = "1.0"
 log = "0.4"
 parking_lot = "0.7"

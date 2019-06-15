@@ -1,6 +1,7 @@
 //! This module provide functions for find all required synchronizations (barriers and semaphores).
 //!
 
+use std::collections::HashMap;
 use std::ops::{Range, RangeFrom, RangeTo};
 
 use crate::{
@@ -138,7 +139,7 @@ where
 }
 
 /// Map of barriers by resource id.
-pub type Barriers<R> = fnv::FnvHashMap<Id, Barrier<R>>;
+pub type Barriers<R> = HashMap<Id, Barrier<R>>;
 
 /// Map of barriers by buffer id.
 pub type BufferBarriers = Barriers<Buffer>;
@@ -159,8 +160,8 @@ pub struct Guard {
 impl Guard {
     fn new() -> Self {
         Guard {
-            buffers: fnv::FnvHashMap::default(),
-            images: fnv::FnvHashMap::default(),
+            buffers: HashMap::default(),
+            images: HashMap::default(),
         }
     }
 
@@ -249,7 +250,7 @@ impl<S, W> SyncData<S, W> {
     }
 }
 
-struct SyncTemp(fnv::FnvHashMap<SubmissionId, SyncData<Semaphore, Semaphore>>);
+struct SyncTemp(HashMap<SubmissionId, SyncData<Semaphore, Semaphore>>);
 impl SyncTemp {
     fn get_sync(&mut self, sid: SubmissionId) -> &mut SyncData<Semaphore, Semaphore> {
         self.0.entry(sid).or_insert_with(|| SyncData::new())
@@ -265,7 +266,7 @@ where
     let ref buffers = chains.buffers;
     let ref images = chains.images;
 
-    let mut sync = SyncTemp(fnv::FnvHashMap::default());
+    let mut sync = SyncTemp(HashMap::default());
     for (&id, chain) in buffers {
         sync_chain(id, chain, schedule, &mut sync);
     }
@@ -277,8 +278,8 @@ where
     }
 
     let mut result = Schedule::new();
-    let mut signals: fnv::FnvHashMap<Semaphore, Option<S>> = fnv::FnvHashMap::default();
-    let mut waits: fnv::FnvHashMap<Semaphore, Option<W>> = fnv::FnvHashMap::default();
+    let mut signals: HashMap<Semaphore, Option<S>> = HashMap::default();
+    let mut waits: HashMap<Semaphore, Option<W>> = HashMap::default();
 
     for queue in schedule.iter().flat_map(|family| family.iter()) {
         let mut new_queue = Queue::new(queue.id());
@@ -459,7 +460,7 @@ where
 
 fn optimize_submission(
     sid: SubmissionId,
-    found: &mut fnv::FnvHashMap<QueueId, usize>,
+    found: &mut HashMap<QueueId, usize>,
     sync: &mut SyncTemp,
 ) {
     let mut to_remove = Vec::new();
@@ -498,7 +499,7 @@ fn optimize_submission(
 
 fn optimize<S>(schedule: &Schedule<S>, sync: &mut SyncTemp) {
     for queue in schedule.iter().flat_map(|family| family.iter()) {
-        let mut found = fnv::FnvHashMap::default();
+        let mut found = HashMap::default();
         for submission in queue.iter() {
             optimize_submission(submission.id(), &mut found, sync);
         }
