@@ -1,6 +1,6 @@
 [package]
 name = "rendy-frame"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -15,11 +15,11 @@ no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-rendy-command = { version = "0.2.0", path = "../command" }
-rendy-factory = { version = "0.2.0", path = "../factory" }
-rendy-memory = { version = "0.2.0", path = "../memory" }
-rendy-resource = { version = "0.2.0", path = "../resource" }
-rendy-util = { version = "0.2.0", path = "../util" }
+rendy-command = { version = "0.3.0", path = "../command" }
+rendy-factory = { version = "0.3.0", path = "../factory" }
+rendy-memory = { version = "0.3.0", path = "../memory" }
+rendy-resource = { version = "0.3.0", path = "../resource" }
+rendy-util = { version = "0.3.0", path = "../util" }
 
 derivative = "1.0"
 either = "1.5"

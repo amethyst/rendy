@@ -1,6 +1,6 @@
 [package]
 name = "rendy-texture"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -16,10 +16,10 @@ serde-1 = ["serde", "gfx-hal/serde"]
 profile = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-rendy-memory = { version = "0.2.0", path = "../memory" }
-rendy-resource = { version = "0.2.0", path = "../resource" }
-rendy-factory = { version = "0.2.0", path = "../factory" }
-rendy-util = { version = "0.2.0", path = "../util" }
+rendy-memory = { version = "0.3.0", path = "../memory" }
+rendy-resource = { version = "0.3.0", path = "../resource" }
+rendy-factory = { version = "0.3.0", path = "../factory" }
+rendy-util = { version = "0.3.0", path = "../util" }
 
 gfx-hal = "0.2"
 
