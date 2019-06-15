@@ -286,14 +286,16 @@ where
         _index: usize,
         _aux: &T,
     ) {
-        encoder.bind_graphics_descriptor_sets(
-            layout,
-            0,
-            std::iter::once(self.descriptor_set.raw()),
-            std::iter::empty::<u32>(),
-        );
-        encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));
-        encoder.draw(0..6, 0..1);
+        unsafe {
+            encoder.bind_graphics_descriptor_sets(
+                layout,
+                0,
+                std::iter::once(self.descriptor_set.raw()),
+                std::iter::empty::<u32>(),
+            );
+            encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));
+            encoder.draw(0..6, 0..1);
+        }
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}

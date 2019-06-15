@@ -325,38 +325,40 @@ where
         index: usize,
         scene: &Scene<B>,
     ) {
-        encoder.bind_graphics_descriptor_sets(
-            layout,
-            0,
-            Some(self.sets[index].raw()),
-            std::iter::empty(),
-        );
+        unsafe {
+            encoder.bind_graphics_descriptor_sets(
+                layout,
+                0,
+                Some(self.sets[index].raw()),
+                std::iter::empty(),
+            );
 
-        #[cfg(feature = "spirv-reflection")]
-        let vertex = [SHADER_REFLECTION
-            .attributes(&["position", "color", "normal"])
-            .unwrap()];
+            #[cfg(feature = "spirv-reflection")]
+            let vertex = [SHADER_REFLECTION
+                .attributes(&["position", "color", "normal"])
+                .unwrap()];
 
-        #[cfg(not(feature = "spirv-reflection"))]
-        let vertex = [PosColorNorm::vertex()];
+            #[cfg(not(feature = "spirv-reflection"))]
+            let vertex = [PosColorNorm::vertex()];
 
-        scene
-            .object_mesh
-            .as_ref()
-            .unwrap()
-            .bind(0, &vertex, &mut encoder)
-            .unwrap();
+            scene
+                .object_mesh
+                .as_ref()
+                .unwrap()
+                .bind(0, &vertex, &mut encoder)
+                .unwrap();
 
-        encoder.bind_vertex_buffers(
-            1,
-            std::iter::once((self.buffer.raw(), models_offset(index, self.align))),
-        );
-        encoder.draw_indexed_indirect(
-            self.buffer.raw(),
-            indirect_offset(index, self.align),
-            1,
-            INDIRECT_SIZE as u32,
-        );
+            encoder.bind_vertex_buffers(
+                1,
+                std::iter::once((self.buffer.raw(), models_offset(index, self.align))),
+            );
+            encoder.draw_indexed_indirect(
+                self.buffer.raw(),
+                indirect_offset(index, self.align),
+                1,
+                INDIRECT_SIZE as u32,
+            );
+        }
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _scene: &Scene<B>) {}
