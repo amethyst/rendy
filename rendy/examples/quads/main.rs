@@ -322,19 +322,21 @@ where
         _index: usize,
         _aux: &T,
     ) {
-        encoder.bind_graphics_descriptor_sets(
-            layout,
-            0,
-            std::iter::once(self.descriptor_set.raw()),
-            std::iter::empty::<u32>(),
-        );
-        encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
-        encoder.draw_indirect(
-            self.indirect.raw(),
-            0,
-            DIVIDE,
-            std::mem::size_of::<DrawCommand>() as u32,
-        );
+        unsafe {
+            encoder.bind_graphics_descriptor_sets(
+                layout,
+                0,
+                std::iter::once(self.descriptor_set.raw()),
+                std::iter::empty::<u32>(),
+            );
+            encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
+            encoder.draw_indirect(
+                self.indirect.raw(),
+                0,
+                DIVIDE,
+                std::mem::size_of::<DrawCommand>() as u32,
+            );
+        }
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
@@ -503,24 +505,26 @@ where
         let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
         let mut encoder = recording.encoder();
         encoder.bind_compute_pipeline(&pipeline);
-        encoder.bind_compute_descriptor_sets(
-            &pipeline_layout,
-            0,
-            std::iter::once(descriptor_set.raw()),
-            std::iter::empty::<u32>(),
-        );
+        unsafe {
+            encoder.bind_compute_descriptor_sets(
+                &pipeline_layout,
+                0,
+                std::iter::once(descriptor_set.raw()),
+                std::iter::empty::<u32>(),
+            );
 
-        {
-            let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
-            log::info!("Acquire {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
-        }
-        encoder.dispatch(QUADS, 1, 1);
+            {
+                let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
+                log::info!("Acquire {:?} : {:#?}", stages, barriers);
+                encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
+            }
+            encoder.dispatch(QUADS, 1, 1);
 
-        {
-            let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
-            log::info!("Release {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
+            {
+                let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
+                log::info!("Release {:?} : {:#?}", stages, barriers);
+                encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
+            }
         }
 
         let (submit, command_buffer) = recording.finish().submit();

@@ -411,11 +411,15 @@ where
         let vertex_iter = self.get_vertex_iter(formats)?;
         match self.index_buffer.as_ref() {
             Some(index_buffer) => {
-                encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
-                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                unsafe {
+                    encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                    encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                }
             }
             None => {
-                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                unsafe {
+                    encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                }
             }
         }
 
@@ -431,15 +435,17 @@ where
         encoder: &mut RenderPassEncoder<'_, B>,
     ) -> Result<u32, Incompatible> {
         let vertex_iter = self.get_vertex_iter(formats)?;
-        match self.index_buffer.as_ref() {
-            Some(index_buffer) => {
-                encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
-                encoder.bind_vertex_buffers(first_binding, vertex_iter);
-                encoder.draw_indexed(0..self.len, 0, instance_range);
-            }
-            None => {
-                encoder.bind_vertex_buffers(first_binding, vertex_iter);
-                encoder.draw(0..self.len, instance_range);
+        unsafe {
+            match self.index_buffer.as_ref() {
+                Some(index_buffer) => {
+                    encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                    encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                    encoder.draw_indexed(0..self.len, 0, instance_range);
+                }
+                None => {
+                    encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                    encoder.draw(0..self.len, instance_range);
+                }
             }
         }
 

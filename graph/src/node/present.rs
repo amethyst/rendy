@@ -132,11 +132,13 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 },
             });
             log::trace!("Acquire {:?} : {:#?}", stages, barriers);
-            encoder.pipeline_barrier(
-                stages,
-                gfx_hal::memory::Dependencies::empty(),
-                barriers,
-            );
+            unsafe {
+                encoder.pipeline_barrier(
+                    stages,
+                    gfx_hal::memory::Dependencies::empty(),
+                    barriers,
+                );
+            }
 
             let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
             let formats_differ = target_image.format() != input_image_res.format();
@@ -149,56 +151,60 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 if extents_differ {
                     log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
                 }
-                encoder.blit_image(
-                    input_image_res.raw(),
-                    input_image.layout,
-                    target_image.raw(),
-                    gfx_hal::image::Layout::TransferDstOptimal,
-                    blit_filter,
-                    Some(gfx_hal::command::ImageBlit {
-                        src_subresource: gfx_hal::image::SubresourceLayers {
-                            aspects: input_image.range.aspects,
-                            level: 0,
-                            layers: input_image.range.layers.start..input_image.range.layers.start + 1,
-                        },
-                        src_bounds: gfx_hal::image::Offset::ZERO
-                            .into_bounds(&input_image_res.kind().extent()),
-                        dst_subresource: gfx_hal::image::SubresourceLayers {
-                            aspects: gfx_hal::format::Aspects::COLOR,
-                            level: 0,
-                            layers: 0..1,
-                        },
-                        dst_bounds: gfx_hal::image::Offset::ZERO
-                            .into_bounds(&target_image.kind().extent()),
-                    }),
-                );
+                unsafe {
+                    encoder.blit_image(
+                        input_image_res.raw(),
+                        input_image.layout,
+                        target_image.raw(),
+                        gfx_hal::image::Layout::TransferDstOptimal,
+                        blit_filter,
+                        Some(gfx_hal::command::ImageBlit {
+                            src_subresource: gfx_hal::image::SubresourceLayers {
+                                aspects: input_image.range.aspects,
+                                level: 0,
+                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                            },
+                            src_bounds: gfx_hal::image::Offset::ZERO
+                                .into_bounds(&input_image_res.kind().extent()),
+                            dst_subresource: gfx_hal::image::SubresourceLayers {
+                                aspects: gfx_hal::format::Aspects::COLOR,
+                                level: 0,
+                                layers: 0..1,
+                            },
+                            dst_bounds: gfx_hal::image::Offset::ZERO
+                                .into_bounds(&target_image.kind().extent()),
+                        }),
+                    );
+                }
             } else {
                 log::debug!("Present node is copying");
-                encoder.copy_image(
-                    input_image_res.raw(),
-                    input_image.layout,
-                    target_image.raw(),
-                    gfx_hal::image::Layout::TransferDstOptimal,
-                    Some(gfx_hal::command::ImageCopy {
-                        src_subresource: gfx_hal::image::SubresourceLayers {
-                            aspects: input_image.range.aspects,
-                            level: 0,
-                            layers: input_image.range.layers.start..input_image.range.layers.start + 1,
-                        },
-                        src_offset: gfx_hal::image::Offset::ZERO,
-                        dst_subresource: gfx_hal::image::SubresourceLayers {
-                            aspects: gfx_hal::format::Aspects::COLOR,
-                            level: 0,
-                            layers: 0..1,
-                        },
-                        dst_offset: gfx_hal::image::Offset::ZERO,
-                        extent: gfx_hal::image::Extent {
-                            width: target_image.kind().extent().width,
-                            height: target_image.kind().extent().height,
-                            depth: 1,
-                        },
-                    }),
-                );
+                unsafe {
+                    encoder.copy_image(
+                        input_image_res.raw(),
+                        input_image.layout,
+                        target_image.raw(),
+                        gfx_hal::image::Layout::TransferDstOptimal,
+                        Some(gfx_hal::command::ImageCopy {
+                            src_subresource: gfx_hal::image::SubresourceLayers {
+                                aspects: input_image.range.aspects,
+                                level: 0,
+                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                            },
+                            src_offset: gfx_hal::image::Offset::ZERO,
+                            dst_subresource: gfx_hal::image::SubresourceLayers {
+                                aspects: gfx_hal::format::Aspects::COLOR,
+                                level: 0,
+                                layers: 0..1,
+                            },
+                            dst_offset: gfx_hal::image::Offset::ZERO,
+                            extent: gfx_hal::image::Extent {
+                                width: target_image.kind().extent().width,
+                                height: target_image.kind().extent().height,
+                                depth: 1,
+                            },
+                        }),
+                    );
+                }
             }
 
             {
@@ -225,11 +231,13 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 });
 
                 log::trace!("Release {:?} : {:#?}", stages, barriers);
-                encoder.pipeline_barrier(
-                    stages,
-                    gfx_hal::memory::Dependencies::empty(),
-                    barriers,
-                );
+                unsafe {
+                    encoder.pipeline_barrier(
+                        stages,
+                        gfx_hal::memory::Dependencies::empty(),
+                        barriers,
+                    );
+                }
             }
 
             let (submit, buffer) = buf_recording.finish().submit();

@@ -38,3 +38,45 @@ sprite:
 
 meshes:
 	cd rendy && cargo run --features "full $(RENDY_BACKEND)" --example meshes
+
+publish-chain:
+	cd chain && cargo publish
+
+publish-command: publish-util
+	cd command && cargo publish
+
+publish-descriptor:
+	cd descriptor && cargo publish
+
+publish-factory: publish-command publish-descriptor publish-memory publish-resource publish-util publish-wsi
+	cd factory && cargo publish
+
+publish-frame: publish-command publish-factory publish-memory publish-resource publish-util
+	cd frame && cargo publish
+
+publish-graph: publish-chain publish-command publish-descriptor publish-factory publish-frame publish-memory publish-resource publish-shader publish-util publish-wsi
+	cd graph && cargo publish
+
+publish-memory:
+	cd memory && cargo publish
+
+publish-mesh: publish-command publish-memory publish-resource publish-factory publish-util
+	cd mesh && cargo publish
+
+publish-resource: publish-descriptor publish-memory publish-util
+	cd resource && cargo publish
+
+publish-shader: publish-factory publish-util
+	cd shader && cargo publish
+
+publish-texture: publish-memory publish-resource publish-factory publish-util
+	cd texture && cargo publish
+
+publish-util:
+	cd util && cargo publish
+
+publish-wsi: publish-memory publish-resource publish-util
+	cd wsi && cargo publish
+
+publish-rendy: publish-chain publish-command publish-descriptor publish-factory publish-frame publish-graph publish-memory publish-mesh publish-resource publish-shader publish-texture publish-util publish-wsi
+	

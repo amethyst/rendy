@@ -140,11 +140,13 @@ impl<B: Backend> Barriers<B> {
             ))
             .filter(|_| !self.before_buffer_access.is_empty());
 
-            encoder.pipeline_barrier(
-                self.before_stages..self.target_stages,
-                gfx_hal::memory::Dependencies::empty(),
-                transitions.chain(all_images).chain(all_buffers),
-            );
+            unsafe {
+                encoder.pipeline_barrier(
+                    self.before_stages..self.target_stages,
+                    gfx_hal::memory::Dependencies::empty(),
+                    transitions.chain(all_images).chain(all_buffers),
+                );
+            }
         } else {
             assert_eq!(self.before_image_transitions.len(), 0);
         }
@@ -168,11 +170,13 @@ impl<B: Backend> Barriers<B> {
             ))
             .filter(|_| !self.after_buffer_access.is_empty());
 
-            encoder.pipeline_barrier(
-                self.target_stages..self.after_stages,
-                gfx_hal::memory::Dependencies::empty(),
-                transitions.chain(all_images).chain(all_buffers),
-            );
+            unsafe {
+                encoder.pipeline_barrier(
+                    self.target_stages..self.after_stages,
+                    gfx_hal::memory::Dependencies::empty(),
+                    transitions.chain(all_images).chain(all_buffers),
+                );
+            }
         } else {
             assert_eq!(self.after_image_transitions.len(), 0);
         }

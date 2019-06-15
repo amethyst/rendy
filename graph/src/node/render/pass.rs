@@ -648,11 +648,13 @@ where
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
                 let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
                 log::debug!("Acquire {:?} : {:#?}", stages, barriers);
-                recording.encoder().pipeline_barrier(
-                    stages,
-                    gfx_hal::memory::Dependencies::empty(),
-                    barriers,
-                );
+                unsafe {
+                    recording.encoder().pipeline_barrier(
+                        stages,
+                        gfx_hal::memory::Dependencies::empty(),
+                        barriers,
+                    );
+                }
                 let (acquire_submit, acquire_buffer) = recording.finish().submit();
                 Some(BarriersCommands {
                     buffer: acquire_buffer,
@@ -672,11 +674,13 @@ where
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
                 let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
                 log::debug!("Release {:?} : {:#?}", stages, barriers);
-                recording.encoder().pipeline_barrier(
-                    stages,
-                    gfx_hal::memory::Dependencies::empty(),
-                    barriers,
-                );
+                unsafe {
+                    recording.encoder().pipeline_barrier(
+                        stages,
+                        gfx_hal::memory::Dependencies::empty(),
+                        barriers,
+                    );
+                }
                 let (release_submit, release_buffer) = recording.finish().submit();
                 Some(BarriersCommands {
                     buffer: release_buffer,

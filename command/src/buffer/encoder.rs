@@ -87,7 +87,15 @@ where
     /// Note that `draw*` commands available only inside renderpass.
     ///
     /// [`draw_indexed`]: ../struct.RenderPassEncoder.html#method.draw_indexed
-    pub fn bind_index_buffer<'b>(
+    ///
+    /// # Safety
+    ///
+    /// `offset` must not be greater than the size of `buffer`.
+    /// Sum of `offset` and starting address of the `buffer` must be
+    /// multiple of index size indicated by `index_type`.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindIndexBuffer.html
+    pub unsafe fn bind_index_buffer<'b>(
         &mut self,
         buffer: &'b B::Buffer,
         offset: u64,
@@ -96,17 +104,14 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_index_buffer(
-                self.raw,
-                gfx_hal::buffer::IndexBufferView {
-                    buffer: buffer,
-                    offset,
-                    index_type,
-                },
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::bind_index_buffer(
+            self.raw,
+            gfx_hal::buffer::IndexBufferView {
+                buffer: buffer,
+                offset,
+                index_type,
+            },
+        )
     }
 
     /// Bind vertex buffers.
@@ -116,7 +121,14 @@ where
     ///
     /// [`draw`]: ../struct.RenderPassEncoder.html#method.draw
     /// [`draw_indexed`]: ../struct.RenderPassEncoder.html#method.draw_indexed
-    pub fn bind_vertex_buffers<'b>(
+    ///
+    /// # Safety
+    ///
+    /// `first_binding + buffers.into_iter().count()` must less than or equal to the `maxVertexInputBindings`
+    /// device limit.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindVertexBuffers.html
+    pub unsafe fn bind_vertex_buffers<'b>(
         &mut self,
         first_binding: u32,
         buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
@@ -124,14 +136,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(
-                self.raw,
-                first_binding,
-                buffers,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(self.raw, first_binding, buffers)
     }
 
     /// Bind graphics pipeline.
@@ -152,7 +157,11 @@ where
     }
 
     /// Bind descriptor sets to graphics pipeline.
-    pub fn bind_graphics_descriptor_sets<'b>(
+    ///
+    /// # Safety
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindDescriptorSets.html
+    pub unsafe fn bind_graphics_descriptor_sets<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
@@ -163,18 +172,16 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
-                self.raw,
-                layout,
-                first_set as _,
-                sets,
-                offsets,
-            );
-        }
+        gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
+            self.raw,
+            layout,
+            first_set as _,
+            sets,
+            offsets,
+        );
     }
 
-    /// Bind graphics pipeline.
+    /// Bind compute pipeline.
     pub fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
     where
         C: Supports<Compute>,
@@ -187,7 +194,11 @@ where
     }
 
     /// Bind descriptor sets to compute pipeline.
-    pub fn bind_compute_descriptor_sets<'b>(
+    ///
+    /// # Safety
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindDescriptorSets.html
+    pub unsafe fn bind_compute_descriptor_sets<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
@@ -198,51 +209,64 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_compute_descriptor_sets(
-                self.raw,
-                layout,
-                first_set as usize,
-                sets,
-                offsets,
-            );
-        }
+        gfx_hal::command::RawCommandBuffer::bind_compute_descriptor_sets(
+            self.raw,
+            layout,
+            first_set as usize,
+            sets,
+            offsets,
+        );
     }
 
     /// Insert pipeline barrier.
-    pub fn pipeline_barrier<'b>(
+    ///
+    /// # Safety
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdPipelineBarrier.html
+    pub unsafe fn pipeline_barrier<'b>(
         &mut self,
         stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
         dependencies: gfx_hal::memory::Dependencies,
         barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'b, B>>,
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::pipeline_barrier(
-                self.raw,
-                stages,
-                dependencies,
-                barriers,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::pipeline_barrier(
+            self.raw,
+            stages,
+            dependencies,
+            barriers,
+        )
     }
 
     /// Push graphics constants.
-    pub fn push_constants<'b>(
+    ///
+    /// # Safety
+    ///
+    /// `offset` must be multiple of 4.
+    /// `constants.len() + offset`, must be less than or equal to the
+    /// `maxPushConstantsSize` device limit.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdPushConstants.html
+    pub unsafe fn push_constants<'b>(
         &mut self,
         layout: &B::PipelineLayout,
         stages: gfx_hal::pso::ShaderStageFlags,
         offset: u32,
         constants: &[u32],
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::push_graphics_constants(
-                self.raw, layout, stages, offset, constants,
-            );
-        }
+        gfx_hal::command::RawCommandBuffer::push_graphics_constants(
+            self.raw, layout, stages, offset, constants,
+        );
     }
 
     /// Set scissors
-    pub fn set_scissors<'b>(
+    ///
+    /// # Safety
+    ///
+    /// `first_scissor + rects.count()` must be less than the
+    /// `maxViewports` device limit.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetScissor.html
+    pub unsafe fn set_scissors<'b>(
         &mut self,
         first_scissor: u32,
         rects: impl IntoIterator<Item = &'b gfx_hal::pso::Rect>,
@@ -250,7 +274,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        unsafe { gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects) }
+        gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects)
     }
 
     /// Reborrow encoder.
@@ -297,25 +321,39 @@ where
     B: gfx_hal::Backend,
 {
     /// Draw.
-    pub fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
-        unsafe { gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances) }
+    ///
+    /// # Safety
+    ///
+    /// The range of `vertices` must not exceed the size of the currently bound vertex buffer,
+    /// and the range of `instances` must not exceed the size of the currently bound instance
+    /// buffer.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDraw.html
+    pub unsafe fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
+        gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances)
     }
 
-    /// Draw indexed.
-    pub fn draw_indexed(
+    /// Draw indexed, with `base_vertex` specifying an offset that is treated as
+    /// vertex number 0.
+    ///
+    /// # Safety
+    ///
+    /// Same as `draw()`, plus the value of `base_vertex`.  So, `base_vertex + indices.end`
+    /// must not be larger than the currently bound vertex buffer.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndexed.html
+    pub unsafe fn draw_indexed(
         &mut self,
         indices: std::ops::Range<u32>,
         base_vertex: i32,
         instances: std::ops::Range<u32>,
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::draw_indexed(
-                self.inner.raw,
-                indices,
-                base_vertex,
-                instances,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::draw_indexed(
+            self.inner.raw,
+            indices,
+            base_vertex,
+            instances,
+        )
     }
 
     /// Draw indirect.
@@ -324,16 +362,26 @@ where
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
     /// [`DrawCommand`]: struct.DrawCommand.html
-    pub fn draw_indirect(&mut self, buffer: &B::Buffer, offset: u64, draw_count: u32, stride: u32) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::draw_indirect(
-                self.inner.raw,
-                buffer,
-                offset,
-                draw_count,
-                stride,
-            )
-        }
+    ///
+    /// # Safety
+    ///
+    /// Similar to `draw()`.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndirect.html
+    pub unsafe fn draw_indirect(
+        &mut self,
+        buffer: &B::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        gfx_hal::command::RawCommandBuffer::draw_indirect(
+            self.inner.raw,
+            buffer,
+            offset,
+            draw_count,
+            stride,
+        )
     }
 
     /// Draw indirect with indices.
@@ -342,22 +390,26 @@ where
     ///
     /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw_indexed
     /// [`DrawIndexedCommand`]: struct.DrawIndexedCommand.html
-    pub fn draw_indexed_indirect(
+    ///
+    /// # Safety
+    ///
+    /// Similar to `draw_indexed()`
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndexedIndirect.html
+    pub unsafe fn draw_indexed_indirect(
         &mut self,
         buffer: &B::Buffer,
         offset: u64,
         draw_count: u32,
         stride: u32,
     ) {
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
-                self.inner.raw,
-                buffer,
-                offset,
-                draw_count,
-                stride,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
+            self.inner.raw,
+            buffer,
+            offset,
+            draw_count,
+            stride,
+        )
     }
 
     /// Reborrow encoder.
@@ -482,9 +534,7 @@ where
                 self.inner.raw,
                 gfx_hal::command::SubpassContents::Inline,
             );
-        }
 
-        unsafe {
             let next = RenderPassInlineEncoder {
                 inner: RenderPassEncoder {
                     inner: std::ptr::read(&self.inner),
@@ -634,7 +684,14 @@ where
     /// `src` and `dst` can be the same buffer or alias in memory.
     /// But regions must not overlap.
     /// Otherwise resulting values are undefined.
-    pub fn copy_buffer(
+    ///
+    /// # Safety
+    ///
+    /// The size of the copy region in any `regions` must not exceed the
+    /// length of the corresponding buffer.
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyBuffer.html
+    pub unsafe fn copy_buffer(
         &mut self,
         src: &B::Buffer,
         dst: &B::Buffer,
@@ -644,13 +701,17 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
-        }
+        gfx_hal::command::RawCommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
     }
 
     /// Copy buffer region to image subresource range.
-    pub fn copy_buffer_to_image(
+    ///
+    /// # Safety
+    ///
+    /// Same as `copy_buffer()`
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyBufferToImage.html
+    pub unsafe fn copy_buffer_to_image(
         &mut self,
         src: &B::Buffer,
         dst: &B::Image,
@@ -661,19 +722,23 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_buffer_to_image(
-                self.inner.raw,
-                src,
-                dst,
-                dst_layout,
-                regions,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::copy_buffer_to_image(
+            self.inner.raw,
+            src,
+            dst,
+            dst_layout,
+            regions,
+        )
     }
 
     /// Copy image regions.
-    pub fn copy_image(
+    ///
+    /// # Safety
+    ///
+    /// Same as `copy_buffer()`
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyImage.html
+    pub unsafe fn copy_image(
         &mut self,
         src: &B::Image,
         src_layout: gfx_hal::image::Layout,
@@ -685,20 +750,24 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::copy_image(
-                self.inner.raw,
-                src,
-                src_layout,
-                dst,
-                dst_layout,
-                regions,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::copy_image(
+            self.inner.raw,
+            src,
+            src_layout,
+            dst,
+            dst_layout,
+            regions,
+        )
     }
 
     /// Blit image regions, potentially using specified filter when resize is necessary.
-    pub fn blit_image(
+    ///
+    /// # Safety
+    ///
+    /// Same as `copy_buffer()`
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBlitImage.html
+    pub unsafe fn blit_image(
         &mut self,
         src: &B::Image,
         src_layout: gfx_hal::image::Layout,
@@ -711,27 +780,29 @@ where
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::blit_image(
-                self.inner.raw,
-                src,
-                src_layout,
-                dst,
-                dst_layout,
-                filter,
-                regions,
-            )
-        }
+        gfx_hal::command::RawCommandBuffer::blit_image(
+            self.inner.raw,
+            src,
+            src_layout,
+            dst,
+            dst_layout,
+            filter,
+            regions,
+        )
     }
 
     /// Dispatch compute.
-    pub fn dispatch(&mut self, x: u32, y: u32, z: u32)
+    ///
+    /// # Safety
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDispatch.html
+    pub unsafe fn dispatch(&mut self, x: u32, y: u32, z: u32)
     where
         C: Supports<Compute>,
     {
         self.capability.assert();
 
-        unsafe { gfx_hal::command::RawCommandBuffer::dispatch(self.inner.raw, [x, y, z]) }
+        gfx_hal::command::RawCommandBuffer::dispatch(self.inner.raw, [x, y, z])
     }
 
     /// Dispatch indirect.
@@ -740,15 +811,17 @@ where
     ///
     /// [`dispatch`]: trait.Encoder.html#tymethod.dispatch
     /// [`DispatchCommand`]: struct.DispatchCommand.html
-    pub fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
+    ///
+    /// # Safety
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDispatchIndirect.html
+    pub unsafe fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
     where
         C: Supports<Compute>,
     {
         self.capability.assert();
 
-        unsafe {
-            gfx_hal::command::RawCommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
-        }
+        gfx_hal::command::RawCommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
     }
 }
 

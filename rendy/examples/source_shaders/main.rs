@@ -217,8 +217,10 @@ where
         _aux: &T,
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
-        encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
-        encoder.draw(0..3, 0..1);
+        unsafe {
+            encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
+            encoder.draw(0..3, 0..1);
+        }
     }
 
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
