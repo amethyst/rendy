@@ -15,7 +15,6 @@ profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
 gfx-hal = "0.2"
-rendy-util = { version = "0.3.0", path = "../util" }
 fnv = "1.0"
 log = "0.4"
 thread_profiler = "0.3"
