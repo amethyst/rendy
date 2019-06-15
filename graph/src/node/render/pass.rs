@@ -992,19 +992,19 @@ where
                             .groups
                             .iter_mut()
                             .fold(force_record, |force_record, group| {
-                                force_record
-                                    || group
-                                        .prepare(
-                                            factory,
-                                            queue.id(),
-                                            index,
-                                            gfx_hal::pass::Subpass {
-                                                index: subpass_index,
-                                                main_pass: &render_pass,
-                                            },
-                                            aux,
-                                        )
-                                        .force_record()
+                                group
+                                    .prepare(
+                                        factory,
+                                        queue.id(),
+                                        index,
+                                        gfx_hal::pass::Subpass {
+                                            index: subpass_index,
+                                            main_pass: &render_pass,
+                                        },
+                                        aux,
+                                    )
+                                    .force_record()
+                                    || force_record
                             })
                     },
                 );
@@ -1163,19 +1163,19 @@ where
                         .groups
                         .iter_mut()
                         .fold(force_record, |force_record, group| {
-                            force_record
-                                || group
-                                    .prepare(
-                                        factory,
-                                        queue.id(),
-                                        index,
-                                        gfx_hal::pass::Subpass {
-                                            index: subpass_index,
-                                            main_pass: &render_pass,
-                                        },
-                                        aux,
-                                    )
-                                    .force_record()
+                            group
+                                .prepare(
+                                    factory,
+                                    queue.id(),
+                                    index,
+                                    gfx_hal::pass::Subpass {
+                                        index: subpass_index,
+                                        main_pass: &render_pass,
+                                    },
+                                    aux,
+                                )
+                                .force_record()
+                                || force_record
                         })
                 },
             );
