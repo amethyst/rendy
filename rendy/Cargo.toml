@@ -1,6 +1,6 @@
 [package]
 name = "rendy"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -57,7 +57,7 @@ rendy-command = { version = "0.3.0", path = "../command", optional = true }
 rendy-descriptor = { version = "0.3.0", path = "../descriptor", optional = true }
 rendy-factory = { version = "0.3.0", path = "../factory", optional = true }
 rendy-frame = { version = "0.3.0", path = "../frame", optional = true }
-rendy-graph = { version = "0.3.0", path = "../graph", optional = true }
+rendy-graph = { version = "0.3.1", path = "../graph", optional = true }
 rendy-memory = { version = "0.3.0", path = "../memory", optional = true }
 rendy-mesh = { version = "0.3.0", path = "../mesh", optional = true }
 rendy-shader = { version = "0.3.0", path = "../shader", optional = true }
