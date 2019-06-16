@@ -55,7 +55,7 @@ This means users can't accidentally:
 
 `rendy`'s memory manager is called `Heaps`.
 `Heaps` provides convenient methods to sub-allocate device-visible memory based on usage and visibility requirements. It also handles mapping for specific usage types.
-**It is possible for [`gfx-hal`] to adopt VMA. In which case `rendy` will use it**
+**It is possible for [`gfx-hal`] to adopt [VMA]. In which case `rendy` will use it**
 
 ### Rendergraph
 
@@ -157,3 +157,4 @@ at your option.
 [`Vulkan`]: https://www.khronos.org/vulkan/
 [`Vulkan`-portability]: https://www.khronos.org/vulkan/portability-initiative
 [`Amethyst`]: https://github.com/amethyst/amethyst
+[VMA]: https://gpuopen.com/gaming-product/vulkan-memory-allocator/
