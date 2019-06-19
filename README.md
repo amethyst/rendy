@@ -137,7 +137,7 @@ enabled separately (enabling a subcrate will also enable its dependencies).
 
 ## Who is using it?
 
-The first project to use `rendy` is expected to be the [`Amethyst`] project. Kindly open a PR or issue if you're aware of other projects using `rendy`.
+The first project to use `rendy` is the [`Amethyst`] project. Kindly open a PR or issue if you're aware of other projects using `rendy`.
 
 ## License
 
