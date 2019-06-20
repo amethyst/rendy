@@ -64,7 +64,7 @@ Note that this is not a scene graph offered by high-level graphics libraries, wh
 the graph correspond to complex objects in the world.  Instead it is a graph of render passes
 with different properties.
 This makes it much easier to compose a complex frame from simple parts.
-A ser defines nodes which declare which buffers and images it reads and writes and
+A user defines nodes which declare which buffers and images it reads and writes and
 the rendergraph takes responsibility for transient resource allocation and execution synchronization.
 The user is responsible only for intra-node synchronization.
 
