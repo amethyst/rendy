@@ -295,7 +295,7 @@ unsafe fn create_swapchain<B: Backend>(
 
     assert!(
         capabilities.usage.contains(usage),
-        "Surface supports {:?}, but {:?} was requested"
+        "Surface supports {:?}, but {:?} was requested", capabilities.usage, usage
     );
 
     let extent = capabilities.current_extent.unwrap_or(suggest_extent);

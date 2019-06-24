@@ -68,6 +68,18 @@ where
         self
     }
 
+    /// Add render group of dynamic type to this subpass.
+    pub fn add_dyn_group(&mut self, group: Box<dyn RenderGroupBuilder<B, T>>) -> &mut Self {
+        self.groups.push(group);
+        self
+    }
+
+    /// Add render group of dynamic type to this subpass.
+    pub fn with_dyn_group(mut self, group: Box<dyn RenderGroupBuilder<B, T>>) -> Self {
+        self.add_dyn_group(group);
+        self
+    }
+
     /// Add input attachment to the subpass.
     pub fn add_input(&mut self, input: ImageId) -> &mut Self {
         self.inputs.push(Either::Left(input));

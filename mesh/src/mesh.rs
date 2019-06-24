@@ -410,17 +410,13 @@ where
     {
         let vertex_iter = self.get_vertex_iter(formats)?;
         match self.index_buffer.as_ref() {
-            Some(index_buffer) => {
-                unsafe {
-                    encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
-                    encoder.bind_vertex_buffers(first_binding, vertex_iter);
-                }
-            }
-            None => {
-                unsafe {
-                    encoder.bind_vertex_buffers(first_binding, vertex_iter);
-                }
-            }
+            Some(index_buffer) => unsafe {
+                encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+            },
+            None => unsafe {
+                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+            },
         }
 
         Ok(self.len)
@@ -438,7 +434,11 @@ where
         unsafe {
             match self.index_buffer.as_ref() {
                 Some(index_buffer) => {
-                    encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                    encoder.bind_index_buffer(
+                        index_buffer.buffer.raw(),
+                        0,
+                        index_buffer.index_type,
+                    );
                     encoder.bind_vertex_buffers(first_binding, vertex_iter);
                     encoder.draw_indexed(0..self.len, 0, instance_range);
                 }
@@ -460,8 +460,10 @@ where
     not_found, in_formats
 )]
 pub struct Incompatible {
-    not_found: VertexFormat,
-    in_formats: Vec<VertexFormat>,
+    /// Format that was queried but was not found
+    pub not_found: VertexFormat,
+    /// List of formats that were available at query time
+    pub in_formats: Vec<VertexFormat>,
 }
 
 /// Helper function to find buffer with compatible format.
