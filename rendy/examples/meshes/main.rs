@@ -22,7 +22,7 @@ use {
         mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-        wsi::winit::{Event, EventsLoop, WindowBuilder, WindowEvent},
+        wsi::winit::{event::Event, event::WindowEvent, event_loop::EventLoop, window::WindowBuilder},
     },
     std::{cmp::min, mem::size_of, time},
 };
@@ -381,7 +381,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.poll_events(|_| ());
+    //event_loop.poll_events(|_| ());
 
     let surface = factory.create_surface(&window);
 
@@ -505,6 +505,7 @@ fn main() {
         let from = scene.objects.len();
         for _ in &mut frames {
             factory.maintain(&mut families);
+            /*
             event_loop.poll_events(|event| match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
@@ -512,6 +513,7 @@ fn main() {
                 } => should_close = true,
                 _ => (),
             });
+*/
             graph.run(&mut factory, &mut families, &scene);
 
             let elapsed = checkpoint.elapsed();

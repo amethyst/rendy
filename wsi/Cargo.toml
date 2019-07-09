@@ -28,4 +28,4 @@ failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
-winit = { version = "0.19", optional = true }
+winit = { version = "0.20.0-alpha1", optional = true }

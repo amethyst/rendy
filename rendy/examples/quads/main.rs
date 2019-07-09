@@ -30,7 +30,7 @@ use rendy::{
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{SourceShaderInfo, Shader, ShaderKind, SourceLanguage, SpirvShader},
-    wsi::winit::{EventsLoop, Window, WindowBuilder},
+    wsi::winit::{event::Event, event_loop::EventLoop, window::WindowBuilder},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -544,7 +544,7 @@ where
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn run(
-    event_loop: &mut EventsLoop,
+    event_loop: &mut EventLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
     window: &Window,
@@ -561,7 +561,7 @@ fn run(
 
     for _ in &mut frames {
         factory.maintain(families);
-        event_loop.poll_events(|_| ());
+        //event_loop.poll_events(|_| ());
         let new_window_size = window.get_inner_size();
 
         if last_window_size != new_window_size {
@@ -609,14 +609,14 @@ fn main() {
 
     let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
-    let mut event_loop = EventsLoop::new();
+    let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
         .unwrap();
 
-    event_loop.poll_events(|_| ());
+    //event_loop.poll_events(|_| ());
 
     run(&mut event_loop, &mut factory, &mut families, &window).unwrap();
     log::debug!("Done");

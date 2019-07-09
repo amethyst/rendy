@@ -20,7 +20,7 @@ use rendy::{
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-    wsi::winit::{EventsLoop, WindowBuilder},
+    wsi::winit::{event_loop::EventLoop, window::WindowBuilder},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -228,7 +228,7 @@ where
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn run(
-    event_loop: &mut EventsLoop,
+    event_loop: &mut EventLoop,
     factory: &mut Factory<Backend>,
     families: &mut Families<Backend>,
     mut graph: Graph<Backend, ()>,
@@ -240,7 +240,7 @@ fn run(
 
     for _ in &mut frames {
         factory.maintain(families);
-        event_loop.poll_events(|_| ());
+        //event_loop.poll_events(|_| ());
         graph.run(factory, families, &mut ());
 
         elapsed = started.elapsed();
@@ -272,14 +272,14 @@ fn main() {
 
     let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
-    let mut event_loop = EventsLoop::new();
+    let mut event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
         .unwrap();
 
-    event_loop.poll_events(|_| ());
+    //event_loop.poll_events(|_| ());
 
     let surface = factory.create_surface(&window);
 

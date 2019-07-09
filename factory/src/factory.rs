@@ -1154,7 +1154,7 @@ rendy_wsi::with_winit! {
         B: Backend,
     {
         /// Create rendering surface from window.
-        pub fn create_surface(&mut self, window: &rendy_wsi::winit::Window) -> Surface<B> {
+        pub fn create_surface(&mut self, window: &rendy_wsi::winit::window::Window) -> Surface<B> {
             profile_scope!("create_surface");
             Surface::new(&self.instance, window)
         }

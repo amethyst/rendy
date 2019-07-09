@@ -32,7 +32,7 @@ rendy_with_empty_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             _instance: &rendy_util::empty::Instance,
-            _window: &winit::Window,
+            _window: &winit::window::Window,
         ) -> rendy_util::empty::Surface {
             rendy_util::empty::Surface
         }
@@ -44,7 +44,7 @@ rendy_with_dx12_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             instance: &rendy_util::dx12::Instance,
-            window: &winit::Window,
+            window: &winit::window::Window,
         ) -> <rendy_util::dx12::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -56,7 +56,7 @@ rendy_with_metal_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             instance: &rendy_util::metal::Instance,
-            window: &winit::Window,
+            window: &winit::window::Window,
         ) -> <rendy_util::metal::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -68,7 +68,7 @@ rendy_with_vulkan_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             instance: &rendy_util::vulkan::Instance,
-            window: &winit::Window,
+            window: &winit::window::Window,
         ) -> <rendy_util::vulkan::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -77,7 +77,7 @@ rendy_with_vulkan_backend! {
 
 #[cfg(feature = "winit")]
 #[allow(unused)]
-fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) -> B::Surface {
+fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::window::Window) -> B::Surface {
     use rendy_util::identical_cast;
 
     // We perform identical type transmute.
@@ -122,7 +122,7 @@ where
 {
     /// Create surface for the window.
     #[cfg(feature = "winit")]
-    pub fn new(instance: &Instance<B>, window: &winit::Window) -> Self {
+    pub fn new(instance: &Instance<B>, window: &winit::window::Window) -> Self {
         let raw = create_surface::<B>(instance, &window);
         Surface {
             raw,
