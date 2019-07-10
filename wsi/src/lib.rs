@@ -21,18 +21,29 @@ use {
     },
 };
 
-#[cfg(feature = "winit")]
+#[cfg(any(feature = "winit-19", feature = "winit-20"))]
 use rendy_util::rendy_backend_match;
 
-#[cfg(feature = "winit")]
-pub use winit;
+#[cfg(all(feature = "winit-19", not(feature = "winit-20")))]
+pub use winit_19 as winit;
+
+#[cfg(all(feature = "winit-19", not(feature = "winit-20")))]
+pub use winit::Window as WinitWindow;
+
+#[cfg(all(feature = "winit-19", feature = "winit-20"))]
+pub use winit_20 as winit;
+
+#[cfg(all(feature = "winit-19", feature = "winit-20"))]
+pub use winit::window::Window as WinitWindow;
+
+
 
 rendy_with_empty_backend! {
     mod gfx_backend_empty {
-        #[cfg(feature = "winit")]
+        #[cfg(any(feature = "winit-19", feature = "winit-20"))]
         pub(super) fn create_surface(
             _instance: &rendy_util::empty::Instance,
-            _window: &winit::Window,
+            _window: &super::WinitWindow,
         ) -> rendy_util::empty::Surface {
             rendy_util::empty::Surface
         }
@@ -41,10 +52,10 @@ rendy_with_empty_backend! {
 
 rendy_with_dx12_backend! {
     mod gfx_backend_dx12 {
-        #[cfg(feature = "winit")]
+        #[cfg(any(feature = "winit-19", feature = "winit-20"))]
         pub(super) fn create_surface(
             instance: &rendy_util::dx12::Instance,
-            window: &winit::Window,
+            window: &super::WinitWindow,
         ) -> <rendy_util::dx12::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -53,10 +64,10 @@ rendy_with_dx12_backend! {
 
 rendy_with_metal_backend! {
     mod gfx_backend_metal {
-        #[cfg(feature = "winit")]
+        #[cfg(any(feature = "winit-19", feature = "winit-20"))]
         pub(super) fn create_surface(
             instance: &rendy_util::metal::Instance,
-            window: &winit::Window,
+            window: &super::WinitWindow,
         ) -> <rendy_util::metal::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -65,19 +76,19 @@ rendy_with_metal_backend! {
 
 rendy_with_vulkan_backend! {
     mod gfx_backend_vulkan {
-        #[cfg(feature = "winit")]
+        #[cfg(any(feature = "winit-19", feature = "winit-20"))]
         pub(super) fn create_surface(
             instance: &rendy_util::vulkan::Instance,
-            window: &winit::Window,
+            window: &super::WinitWindow,
         ) -> <rendy_util::vulkan::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
     }
 }
 
-#[cfg(feature = "winit")]
+#[cfg(any(feature = "winit-19", feature = "winit-20"))]
 #[allow(unused)]
-fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) -> B::Surface {
+fn create_surface<B: Backend>(instance: &Instance<B>, window: &WinitWindow) -> B::Surface {
     use rendy_util::identical_cast;
 
     // We perform identical type transmute.
@@ -121,8 +132,8 @@ where
     B: Backend,
 {
     /// Create surface for the window.
-    #[cfg(feature = "winit")]
-    pub fn new(instance: &Instance<B>, window: &winit::Window) -> Self {
+    #[cfg(any(feature = "winit-19", feature = "winit-20"))]
+    pub fn new(instance: &Instance<B>, window: &WinitWindow) -> Self {
         let raw = create_surface::<B>(instance, &window);
         Surface {
             raw,
@@ -552,7 +563,7 @@ where
 }
 
 /// Resolve into input AST if winit support is enabled.
-#[cfg(feature = "winit")]
+#[cfg(any(feature = "winit-19", feature = "winit-20"))]
 #[macro_export]
 macro_rules! with_winit {
     ($($t:tt)*) => { $($t)* };

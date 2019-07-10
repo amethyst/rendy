@@ -13,6 +13,7 @@ readme = "../README.md"
 
 [features]
 serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-util/serde-1"]
+winit-20 = ["rendy-wsi/winit-20"]
 
 # Rendy subcrates
 command = ["rendy-command"]

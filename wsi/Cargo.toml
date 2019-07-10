@@ -16,6 +16,7 @@ dx12 = ["rendy-util/dx12"]
 metal = ["rendy-util/metal"]
 vulkan = ["rendy-util/vulkan"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+winit = ["winit-19"]
 
 [dependencies]
 rendy-memory = { version = "0.3.0", path = "../memory" }
@@ -28,4 +29,6 @@ failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
-winit = { version = "0.19", optional = true }
+
+winit-19 = { version = ">= 0.16, <= 0.19", package = "winit", optional = true }
+winit-20 = { version = "0.20.0-alpha2", package = "winit", optional = true }
