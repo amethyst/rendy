@@ -20,3 +20,11 @@ members = [
 
 [profile.release]
 lto = true
+
+[patch.crates-io]
+gfx-hal = { git = "https://github.com/gfx-rs/gfx.git" }
+gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx.git" }
+gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx.git" }
+gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx.git" }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx.git" }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx.git" }
