@@ -23,7 +23,7 @@ use rendy_wsi as wsi;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BufferId(usize);
 
-/// Id of the image (or target) in graph.
+/// Id of the image in graph.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ImageId(usize);
 

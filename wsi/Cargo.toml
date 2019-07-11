@@ -13,6 +13,7 @@ description = "Rendy's windowing support"
 [features]
 empty = ["rendy-util/empty"]
 dx12 = ["rendy-util/dx12"]
+gl = ["rendy-util/gl"]
 metal = ["rendy-util/metal"]
 vulkan = ["rendy-util/vulkan"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]

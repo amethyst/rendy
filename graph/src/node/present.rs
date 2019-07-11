@@ -12,7 +12,7 @@ use crate::{
         gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
         NodeBuilder, NodeImage,
     },
-    wsi::{Surface, Target},
+    wsi::{Surface, Swapchain},
     BufferId, ImageId, NodeId,
 };
 
@@ -42,7 +42,7 @@ impl<B: gfx_hal::Backend> ForImage<B> {
 pub struct PresentNode<B: gfx_hal::Backend> {
     per_image: Vec<ForImage<B>>,
     free_acquire: B::Semaphore,
-    target: Target<B>,
+    swapchain: Swapchain<B>,
     pool: CommandPool<B, gfx_hal::QueueType>,
     input_image: NodeImage,
     blit_filter: gfx_hal::image::Filter,
@@ -97,17 +97,17 @@ fn create_per_image_data<B: gfx_hal::Backend>(
     input_image: &NodeImage,
     pool: &mut CommandPool<B, gfx_hal::QueueType>,
     factory: &Factory<B>,
-    target: &Target<B>,
+    swapchain: &Swapchain<B>,
     blit_filter: gfx_hal::image::Filter,
 ) -> Result<Vec<ForImage<B>>, failure::Error> {
     let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
 
-    let target_images = target.backbuffer();
-    let buffers = pool.allocate_buffers(target_images.len());
-    let per_image = target_images
+    let swapchain_images = swapchain.backbuffer();
+    let buffers = pool.allocate_buffers(swapchain_images.len());
+    let per_image = swapchain_images
         .iter()
         .zip(buffers)
-        .map(|(target_image, buf_initial)| {
+        .map(|(swapchain_image, buf_initial)| {
             let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
             let mut encoder = buf_recording.encoder();
             let (mut stages, mut barriers) =
@@ -124,7 +124,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                         gfx_hal::image::Layout::TransferDstOptimal,
                     ),
                 families: None,
-                target: target_image.raw(),
+                target: swapchain_image.raw(),
                 range: gfx_hal::image::SubresourceRange {
                     aspects: gfx_hal::format::Aspects::COLOR,
                     levels: 0..1,
@@ -140,22 +140,22 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 );
             }
 
-            let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
-            let formats_differ = target_image.format() != input_image_res.format();
+            let extents_differ = swapchain_image.kind().extent() != input_image_res.kind().extent();
+            let formats_differ = swapchain_image.format() != input_image_res.format();
 
             if extents_differ || formats_differ
             {
                 if formats_differ {
-                    log::debug!("Present node is blitting because target format {:?} doesnt match image format {:?}", target_image.format(), input_image_res.format());
+                    log::debug!("Present node is blitting because swapchain format {:?} doesnt match image format {:?}", swapchain_image.format(), input_image_res.format());
                 }
                 if extents_differ {
-                    log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
+                    log::debug!("Present node is blitting because swapchain extent {:?} doesnt match image extent {:?}", swapchain_image.kind().extent(), input_image_res.kind().extent());
                 }
                 unsafe {
                     encoder.blit_image(
                         input_image_res.raw(),
                         input_image.layout,
-                        target_image.raw(),
+                        swapchain_image.raw(),
                         gfx_hal::image::Layout::TransferDstOptimal,
                         blit_filter,
                         Some(gfx_hal::command::ImageBlit {
@@ -172,7 +172,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                                 layers: 0..1,
                             },
                             dst_bounds: gfx_hal::image::Offset::ZERO
-                                .into_bounds(&target_image.kind().extent()),
+                                .into_bounds(&swapchain_image.kind().extent()),
                         }),
                     );
                 }
@@ -182,7 +182,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                     encoder.copy_image(
                         input_image_res.raw(),
                         input_image.layout,
-                        target_image.raw(),
+                        swapchain_image.raw(),
                         gfx_hal::image::Layout::TransferDstOptimal,
                         Some(gfx_hal::command::ImageCopy {
                             src_subresource: gfx_hal::image::SubresourceLayers {
@@ -198,8 +198,8 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                             },
                             dst_offset: gfx_hal::image::Offset::ZERO,
                             extent: gfx_hal::image::Extent {
-                                width: target_image.kind().extent().width,
-                                height: target_image.kind().extent().height,
+                                width: swapchain_image.kind().extent().width,
+                                height: swapchain_image.kind().extent().height,
                                 depth: 1,
                             },
                         }),
@@ -222,7 +222,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                             gfx_hal::image::Layout::Present,
                         ),
                     families: None,
-                    target: target_image.raw(),
+                    target: swapchain_image.raw(),
                     range: gfx_hal::image::SubresourceRange {
                         aspects: gfx_hal::format::Aspects::COLOR,
                         levels: 0..1,
@@ -425,14 +425,14 @@ where
             &input_image,
             &mut pool,
             factory,
-            &target,
+            &swapchain,
             self.blit_filter,
         )?;
 
         Ok(Box::new(PresentNode {
             free_acquire: factory.create_semaphore().unwrap(),
             pool,
-            target,
+            swapchain,
             per_image,
             input_image,
             blit_filter: self.blit_filter,
@@ -457,7 +457,7 @@ where
         mut fence: Option<&mut Fence<B>>,
     ) {
         loop {
-            match self.target.next_image(&self.free_acquire) {
+            match self.swapchain.next_image(&self.free_acquire) {
                 Ok(next) => {
                     log::trace!("Present: {:#?}", next);
                     let ref mut for_image = self.per_image[next[0] as usize];
@@ -509,7 +509,7 @@ where
                 .extent()
                 .into();
 
-            self.target
+            self.swapchain
                 .recreate(factory.physical(), factory.device(), extent)
                 .expect("Failed recreating swapchain");
 
@@ -522,7 +522,7 @@ where
                 &self.input_image,
                 &mut self.pool,
                 factory,
-                &self.target,
+                &self.swapchain,
                 self.blit_filter,
             )
             .expect("Failed recreating swapchain data");
@@ -536,6 +536,6 @@ where
 
         factory.destroy_semaphore(self.free_acquire);
         factory.destroy_command_pool(self.pool);
-        factory.destroy_target(self.target);
+        factory.destroy_swapchain(self.swapchain);
     }
 }

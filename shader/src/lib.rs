@@ -70,7 +70,6 @@ impl SpirvShader {
     /// Create Spir-V shader from bytes.
     pub fn new(spirv: Vec<u32>, stage: ShaderStageFlags, entrypoint: &str) -> Self {
         assert!(!spirv.is_empty());
-        assert_eq!(spirv.len() % 4, 0);
         Self {
             spirv,
             stage,
@@ -219,42 +218,66 @@ impl ShaderSetBuilder {
         if let Some(shader) = self.vertex.clone() {
             set.shaders.insert(
                 ShaderStageFlags::VERTEX,
-                create_storage(ShaderStageFlags::VERTEX, (shader.0, shader.1, spec_constants.vertex), factory)?,
+                create_storage(
+                    ShaderStageFlags::VERTEX,
+                    (shader.0, shader.1, spec_constants.vertex),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.fragment.clone() {
             set.shaders.insert(
                 ShaderStageFlags::FRAGMENT,
-                create_storage(ShaderStageFlags::FRAGMENT, (shader.0, shader.1, spec_constants.fragment), factory)?,
+                create_storage(
+                    ShaderStageFlags::FRAGMENT,
+                    (shader.0, shader.1, spec_constants.fragment),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.compute.clone() {
             set.shaders.insert(
                 ShaderStageFlags::COMPUTE,
-                create_storage(ShaderStageFlags::COMPUTE, (shader.0, shader.1, spec_constants.compute), factory)?,
+                create_storage(
+                    ShaderStageFlags::COMPUTE,
+                    (shader.0, shader.1, spec_constants.compute),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.domain.clone() {
             set.shaders.insert(
                 ShaderStageFlags::DOMAIN,
-                create_storage(ShaderStageFlags::DOMAIN, (shader.0, shader.1, spec_constants.domain), factory)?,
+                create_storage(
+                    ShaderStageFlags::DOMAIN,
+                    (shader.0, shader.1, spec_constants.domain),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.hull.clone() {
             set.shaders.insert(
                 ShaderStageFlags::HULL,
-                create_storage(ShaderStageFlags::HULL, (shader.0, shader.1, spec_constants.hull), factory)?,
+                create_storage(
+                    ShaderStageFlags::HULL,
+                    (shader.0, shader.1, spec_constants.hull),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.geometry.clone() {
             set.shaders.insert(
                 ShaderStageFlags::GEOMETRY,
-                create_storage(ShaderStageFlags::GEOMETRY, (shader.0, shader.1, spec_constants.geometry), factory)?,
+                create_storage(
+                    ShaderStageFlags::GEOMETRY,
+                    (shader.0, shader.1, spec_constants.geometry),
+                    factory,
+                )?,
             );
         }
 
@@ -360,7 +383,10 @@ impl<B: Backend> ShaderStorage<B> {
         Ok(Some(gfx_hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
-            specialization: self.specialization.clone().unwrap_or(gfx_hal::pso::Specialization::default()),
+            specialization: self
+                .specialization
+                .clone()
+                .unwrap_or(gfx_hal::pso::Specialization::default()),
         }))
     }
 
@@ -384,12 +410,5 @@ impl<B: Backend> ShaderStorage<B> {
             unsafe { factory.destroy_shader_module(module) };
         }
         self.module = None;
-    }
-}
-impl<B: Backend> Drop for ShaderStorage<B> {
-    fn drop(&mut self) {
-        if self.module.is_some() {
-            panic!("This shader storage class needs to be manually dropped with dispose() first");
-        }
     }
 }

@@ -12,11 +12,11 @@ use {
         },
         graph::GraphContext,
         node::{
-            gfx_acquire_barriers, gfx_release_barriers, is_metal,
+            gfx_acquire_barriers, gfx_release_barriers, is_metal, is_gl,
             render::group::{RenderGroup, RenderGroupBuilder},
             BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeImage,
         },
-        wsi::{Surface, Target},
+        wsi::{Surface, Swapchain},
         BufferId, ImageId, NodeId,
     },
     either::Either,
@@ -393,7 +393,7 @@ where
         let mut framebuffer_height = u32::max_value();
         let mut framebuffer_layers = u16::max_value();
 
-        let mut node_target = None;
+        let mut node_swapchain = None;
 
         log::trace!("Configure attachments");
 
@@ -445,14 +445,14 @@ where
                             surface_usage,
                         )?;
 
-                        framebuffer_width = min(framebuffer_width, target.extent().width);
-                        framebuffer_height = min(framebuffer_height, target.extent().height);
+                        framebuffer_width = min(framebuffer_width, swapchain.extent().width);
+                        framebuffer_height = min(framebuffer_height, swapchain.extent().height);
                         framebuffer_layers = min(
                             framebuffer_layers,
-                            target.backbuffer()[0].layers(),
+                            swapchain.backbuffer()[0].layers(),
                         );
 
-                        let views = target.backbuffer().iter().map(|image| unsafe {
+                        let views = swapchain.backbuffer().iter().map(|image| unsafe {
                             factory
                                 .device()
                                 .create_image_view(
@@ -468,7 +468,7 @@ where
                                 ).map_err(failure::Error::from)
                         }).collect::<Result<Vec<_>, failure::Error>>()?;
 
-                        node_target = Some(target);
+                        node_swapchain = Some(swapchain);
                         Ok(views)
                     }
                 }
@@ -488,9 +488,9 @@ where
                             (image.format(), node_image.clear, node_image.layout)
                         }
                         Either::Right(RenderPassSurface) => (
-                            node_target
+                            node_swapchain
                                 .as_ref()
-                                .expect("Expect target created")
+                                .expect("Expect swapchain created")
                                 .backbuffer()[0]
                                 .format(),
                             surface_clear,
@@ -657,7 +657,7 @@ where
 
         let command_cirque = CommandCirque::new();
 
-        let acquire = if !is_metal::<B>() {
+        let acquire = if !is_metal::<B>() && !is_gl::<B>() {
             let (stages, barriers) = gfx_acquire_barriers(ctx, &buffers, &images);
 
             if !barriers.is_empty() {
@@ -683,7 +683,7 @@ where
             None
         };
 
-        let release = if !is_metal::<B>() {
+        let release = if !is_metal::<B>() && !is_gl::<B>() {
             let (stages, barriers) = gfx_release_barriers(ctx, &buffers, &images);
 
             if !barriers.is_empty() {
@@ -771,8 +771,8 @@ where
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let node: Box<dyn DynNode<B, T>> = match node_target {
-            Some(target) => {
+        let node: Box<dyn DynNode<B, T>> = match node_swapchain {
+            Some(swapchain) => {
                 log::debug!("Construct RenderPassNodeWithSurface");
                 Box::new(RenderPassNodeWithSurface {
                     common: RenderPassNodeCommon {
@@ -805,7 +805,7 @@ where
                         })
                         .collect(),
                     free_acquire: factory.create_semaphore().unwrap(),
-                    target,
+                    swapchain,
                 })
             }
             None => {
@@ -941,7 +941,7 @@ struct RenderPassNodeWithSurface<B: Backend, T: ?Sized> {
     common: RenderPassNodeCommon<B, T>,
     per_image: Vec<PerImage<B>>,
     free_acquire: B::Semaphore,
-    target: Target<B>,
+    swapchain: Swapchain<B>,
 }
 
 impl<B, T> DynNode<B, T> for RenderPassNodeWithSurface<B, T>
@@ -978,12 +978,12 @@ where
                     release,
                     ..
                 },
-            target,
+            swapchain,
             free_acquire,
             per_image,
         } = self;
 
-        let next = match target.next_image(&free_acquire) {
+        let next = match swapchain.next_image(&free_acquire) {
             Ok(next) => {
                 log::trace!("Presentable image acquired: {:#?}", next);
                 std::mem::swap(&mut per_image[next[0] as usize].acquire, free_acquire);
@@ -1025,10 +1025,10 @@ where
                     },
                 );
 
-                if force_record || for_image.index != index {
+                // if force_record || for_image.index != index {
                     for_image.index = index;
                     cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
-                }
+                // }
             }
 
             cbuf.or_init(|cbuf| {
@@ -1121,7 +1121,7 @@ where
             factory.destroy_semaphore(per_image.release);
         }
         self.common.dispose(factory, aux);
-        factory.destroy_surface(factory.destroy_target(self.target));
+        factory.destroy_surface(factory.destroy_swapchain(self.swapchain));
     }
 }
 

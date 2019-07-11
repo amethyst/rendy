@@ -10,7 +10,7 @@ use {
         factory::Factory,
         frame::Frames,
         graph::GraphContext,
-        util::{rendy_with_metal_backend, rendy_without_metal_backend},
+        util::{rendy_with_metal_backend, rendy_without_metal_backend, rendy_with_gl_backend, rendy_without_gl_backend},
         BufferId, ImageId, NodeId,
     },
     gfx_hal::{queue::QueueFamilyId, Backend},
@@ -548,6 +548,21 @@ rendy_with_metal_backend! {
 rendy_without_metal_backend! {
     /// Check if backend is metal.
     pub fn is_metal<B: Backend>() -> bool {
+        false
+    }
+}
+
+
+rendy_with_gl_backend! {
+    /// Check if backend is gl.
+    pub fn is_gl<B: Backend>() -> bool {
+        std::any::TypeId::of::<B>() == std::any::TypeId::of::<rendy_util::gl::Backend>()
+    }
+}
+
+rendy_without_gl_backend! {
+    /// Check if backend is gl.
+    pub fn is_gl<B: Backend>() -> bool {
         false
     }
 }

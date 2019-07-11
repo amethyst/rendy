@@ -5,9 +5,9 @@
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
     factory::{BufferState, Factory},
-    memory::{Data, Upload, Write},
+    memory::{self, Write as _},
     resource::{Buffer, BufferInfo, Escape},
-    util::cast_cow,
+    util::*,
     AsVertex, VertexFormat,
 };
 use gfx_hal::adapter::PhysicalDevice;
@@ -239,7 +239,7 @@ impl<'a> MeshBuilder<'a> {
                 size: aligned_size,
                 usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
             },
-            Upload,
+            memory::Upload,
         )?;
 
         let mut buffer = factory.create_buffer(
@@ -247,7 +247,7 @@ impl<'a> MeshBuilder<'a> {
                 size: buffer_size as _,
                 usage: gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
             },
-            Data,
+            memory::Data,
         )?;
 
         let mut mapped = staging.map(factory, 0..aligned_size)?;
@@ -282,25 +282,47 @@ impl<'a> MeshBuilder<'a> {
                 ref indices,
                 index_type,
             }) => {
+                rendy_wasm32! {
+                    let buffer_usage = gfx_hal::buffer::Usage::INDEX;
+                    let memory_usage = memory::Dynamic;
+                }
+                rendy_not_wasm32! {
+                    let buffer_usage = gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST;
+                    let memory_usage = memory::Data;
+                }
+
                 len = (indices.len() / index_stride(index_type)) as u32;
                 let mut buffer = factory.create_buffer(
                     BufferInfo {
                         size: indices.len() as _,
-                        usage: gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+                        usage: buffer_usage,
                     },
-                    Data,
+                    memory_usage,
                 )?;
-                unsafe {
-                    // New buffer can't be touched by device yet.
-                    factory.upload_buffer(
-                        &mut buffer,
-                        0,
-                        &indices,
-                        None,
-                        BufferState::new(queue)
-                            .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
-                            .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
-                    )?;
+
+                rendy_wasm32! {
+                    unsafe {
+                        // New buffer can't be touched by device yet.
+                        factory.upload_visible_buffer(
+                            &mut buffer,
+                            0,
+                            &indices,
+                        )?;
+                    }
+                }
+                rendy_not_wasm32! {
+                    unsafe {
+                        // New buffer can't be touched by device yet.
+                        factory.upload_buffer(
+                            &mut buffer,
+                            0,
+                            &indices,
+                            None,
+                            BufferState::new(queue)
+                                .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
+                                .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
+                        )?;
+                    }
                 }
 
                 Some(IndexBuffer { buffer, index_type })

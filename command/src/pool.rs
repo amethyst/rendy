@@ -117,7 +117,7 @@ where
     /// All buffers allocated from this pool must be marked reset.
     /// See [`CommandBuffer::mark_reset`](struct.Command buffer.html#method.mark_reset)
     pub unsafe fn reset(&mut self) {
-        gfx_hal::pool::RawCommandPool::reset(&mut self.raw, false);
+        gfx_hal::pool::RawCommandPool::reset(&mut self.raw, true);
     }
 
     /// Dispose of command pool.

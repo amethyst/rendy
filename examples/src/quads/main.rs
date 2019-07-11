@@ -4,33 +4,41 @@
 //!
 
 #![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
+    not(any(
+        feature = "dx12",
+        feature = "gl",
+        feature = "metal",
+        feature = "vulkan"
+    )),
     allow(unused)
 )]
 
-use rendy::{
-    command::{
-        CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
-        MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
-    },
-    factory::{BufferState, Config, Factory},
-    frame::Frames,
-    graph::{
-        gfx_acquire_barriers, gfx_release_barriers,
-        present::PresentNode,
-        render::{
-            Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
-            SimpleGraphicsPipelineDesc,
+use {
+    rand::{distributions::Uniform, SeedableRng as _, Rng as _},
+    rendy_examples::*,
+    rendy::{
+        command::{
+            CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
+            MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
         },
-        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
-        NodeSubmittable,
-    },
-    hal::{self, Device as _},
-    memory::Dynamic,
-    mesh::Color,
-    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{SourceShaderInfo, Shader, ShaderKind, SourceLanguage, SpirvShader},
-    wsi::winit::{EventsLoop, Window, WindowBuilder},
+        factory::{BufferState, Factory},
+        frame::Frames,
+        graph::{
+            gfx_acquire_barriers, gfx_release_barriers,
+            render::{
+                Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
+                SimpleGraphicsPipelineDesc,
+            },
+            BufferAccess, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
+            NodeSubmittable,
+        },
+        hal::{self, Device as _, pso::ShaderStageFlags},
+        memory::Dynamic,
+        mesh::Color,
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{ShaderSetBuilder, ShaderSet, SpirvShader, Shader as _},
+        util::*,
+    }
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -41,6 +49,9 @@ use rendy::mesh::AsVertex;
 
 #[cfg(feature = "dx12")]
 type Backend = rendy::dx12::Backend;
+
+#[cfg(feature = "gl")]
+type Backend = rendy::gl::Backend;
 
 #[cfg(feature = "metal")]
 type Backend = rendy::metal::Backend;
@@ -56,48 +67,51 @@ struct PosVel {
 }
 
 lazy_static::lazy_static! {
-    static ref RENDER_VERTEX: SpirvShader = SourceShaderInfo::new(
-        include_str!("render.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert").into(),
-        ShaderKind::Vertex,
-        SourceLanguage::GLSL,
-        "main",
-    ).precompile().unwrap();
+    static ref RENDER_VERTEX: SpirvShader = SpirvShader::new(
+        unsafe {
+            let bytes = include_bytes!("render.vert.spv");
+            std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4).to_vec()
+        },
+        ShaderStageFlags::VERTEX,
+        "main"
+    );
 
-    static ref RENDER_FRAGMENT: SpirvShader = SourceShaderInfo::new(
-        include_str!("render.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag").into(),
-        ShaderKind::Fragment,
-        SourceLanguage::GLSL,
+    static ref RENDER_FRAGMENT: SpirvShader = SpirvShader::new(
+        unsafe {
+            let bytes = include_bytes!("render.frag.spv");
+            std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4).to_vec()
+        },
+        ShaderStageFlags::FRAGMENT,
         "main",
-    ).precompile().unwrap();
+    );
 
-    static ref BOUNCE_COMPUTE: SpirvShader = SourceShaderInfo::new(
-        include_str!("bounce.comp"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp").into(),
-        ShaderKind::Compute,
-        SourceLanguage::GLSL,
+    static ref BOUNCE_COMPUTE: SpirvShader = SpirvShader::new(
+        unsafe {
+            let bytes = include_bytes!("comp.spv");
+            std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4).to_vec()
+        },
+        ShaderStageFlags::COMPUTE,
         "main",
-    ).precompile().unwrap();
+    );
 
     static ref POSVEL_DATA: Vec<PosVel> = {
-        let mut rng = rand::thread_rng();
-        let uniform = rand::distributions::Uniform::new(0.0, 1.0);
+        let mut rng = rand::rngs::SmallRng::seed_from_u64(87654687654354);
+        let uniform = Uniform::new(0.0, 1.0);
         (0..QUADS)
             .map(|_index| PosVel {
                 pos: [
-                    rand::Rng::sample(&mut rng, uniform),
-                    rand::Rng::sample(&mut rng, uniform),
+                    rng.sample(uniform),
+                    rng.sample(uniform),
                 ],
                 vel: [
-                    rand::Rng::sample(&mut rng, uniform),
-                    rand::Rng::sample(&mut rng, uniform),
+                    rng.sample(uniform),
+                    rng.sample(uniform),
                 ],
             })
             .collect()
     };
 
-    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+    static ref SHADERS: ShaderSetBuilder = ShaderSetBuilder::default()
         .with_vertex(&*RENDER_VERTEX).unwrap()
         .with_fragment(&*RENDER_FRAGMENT).unwrap();
 }
@@ -114,11 +128,21 @@ const PER_CALL: u32 = QUADS / DIVIDE;
 #[derive(Debug, Default)]
 struct QuadsRenderPipelineDesc;
 
-#[derive(Debug)]
-struct QuadsRenderPipeline<B: hal::Backend> {
-    indirect: Escape<Buffer<B>>,
-    vertices: Escape<Buffer<B>>,
-    descriptor_set: Escape<DescriptorSet<B>>,
+rendy_without_gl_backend! {
+    #[derive(Debug)]
+    struct QuadsRenderPipeline<B: hal::Backend> {
+        indirect: Escape<Buffer<B>>,
+        vertices: Escape<Buffer<B>>,
+        descriptor_set: Escape<DescriptorSet<B>>,
+    }
+}
+
+rendy_with_gl_backend! {
+    #[derive(Debug)]
+    struct QuadsRenderPipeline<B: hal::Backend> {
+        vertices: Escape<Buffer<B>>,
+        descriptor_set: Escape<DescriptorSet<B>>,
+    }
 }
 
 impl<B, T> SimpleGraphicsPipelineDesc<B, T> for QuadsRenderPipelineDesc
@@ -128,7 +152,7 @@ where
 {
     type Pipeline = QuadsRenderPipeline<B>;
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -191,31 +215,33 @@ where
 
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
-        let mut indirect = factory
-            .create_buffer(
-                BufferInfo {
-                    size: std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
-                    usage: hal::buffer::Usage::INDIRECT,
-                },
-                Dynamic,
-            )
-            .unwrap();
-
-        unsafe {
-            factory
-                .upload_visible_buffer(
-                    &mut indirect,
-                    0,
-                    &(0..DIVIDE)
-                        .map(|index| DrawCommand {
-                            vertex_count: 6,
-                            instance_count: PER_CALL,
-                            first_vertex: 0,
-                            first_instance: index * PER_CALL,
-                        })
-                        .collect::<Vec<_>>(),
+        rendy_without_gl_backend! {
+            let mut indirect = factory
+                .create_buffer(
+                    BufferInfo {
+                        size: std::mem::size_of::<DrawCommand>() as u64 * DIVIDE as u64,
+                        usage: hal::buffer::Usage::INDIRECT,
+                    },
+                    Dynamic,
                 )
                 .unwrap();
+
+            unsafe {
+                factory
+                    .upload_visible_buffer(
+                        &mut indirect,
+                        0,
+                        &(0..DIVIDE)
+                            .map(|index| DrawCommand {
+                                vertex_count: 6,
+                                instance_count: PER_CALL,
+                                first_vertex: 0,
+                                first_instance: index * PER_CALL,
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap();
+            }
         }
 
         let mut vertices = factory
@@ -289,11 +315,20 @@ where
                 }))
         }
 
-        Ok(QuadsRenderPipeline {
-            indirect,
-            vertices,
-            descriptor_set,
-        })
+        rendy_without_gl_backend!{
+            Ok(QuadsRenderPipeline {
+                indirect,
+                vertices,
+                descriptor_set,
+            })
+        }
+
+        rendy_with_gl_backend!{
+            Ok(QuadsRenderPipeline {
+                vertices,
+                descriptor_set,
+            })
+        }
     }
 }
 
@@ -330,12 +365,24 @@ where
                 std::iter::empty::<u32>(),
             );
             encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
-            encoder.draw_indirect(
-                self.indirect.raw(),
-                0,
-                DIVIDE,
-                std::mem::size_of::<DrawCommand>() as u32,
-            );
+
+            rendy_without_gl_backend! {
+                encoder.draw_indirect(
+                    self.indirect.raw(),
+                    0,
+                    DIVIDE,
+                    std::mem::size_of::<DrawCommand>() as u32,
+                );
+            }
+
+            rendy_with_gl_backend! {
+                for i in 0 .. DIVIDE {
+                    encoder.draw(
+                        0 .. 6,
+                        i * PER_CALL .. (i + 1) * PER_CALL,
+                    );
+                }
+            }
         }
     }
 
@@ -534,7 +581,6 @@ where
             pipeline_layout,
             pipeline,
             descriptor_set,
-            // buffer_view,
             command_pool,
             command_buffer,
             submit,
@@ -542,147 +588,53 @@ where
     }
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(
-    event_loop: &mut EventsLoop,
-    factory: &mut Factory<Backend>,
-    families: &mut Families<Backend>,
-    window: &Window,
-) -> Result<(), failure::Error> {
-    let mut graph = build_graph(factory, families, window.clone());
-
-    let started = std::time::Instant::now();
-
-    let mut last_window_size = window.get_inner_size();
-    let mut need_rebuild = false;
-
-    let mut frames = 0u64..;
-    let mut elapsed = started.elapsed();
-
-    for _ in &mut frames {
-        factory.maintain(families);
-        event_loop.poll_events(|_| ());
-        let new_window_size = window.get_inner_size();
-
-        if last_window_size != new_window_size {
-            need_rebuild = true;
-        }
-
-        if need_rebuild && last_window_size == new_window_size {
-            need_rebuild = false;
-            let started = std::time::Instant::now();
-            graph.dispose(factory, &());
-            println!("Graph disposed in: {:?}", started.elapsed());
-            graph = build_graph(factory, families, window.clone());
-        }
-
-        last_window_size = new_window_size;
-
-        graph.run(factory, families, &());
-
-        elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
-            break;
-        }
+rendy_wasm32! {
+    #[wasm_bindgen(start)]
+    pub fn wasm_main() {
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        main();
     }
-
-    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-
-    log::info!(
-        "Elapsed: {:?}. Frames: {}. FPS: {}",
-        elapsed,
-        frames.start,
-        frames.start * 1_000_000_000 / elapsed_ns
-    );
-
-    graph.dispose(factory, &mut ());
-    Ok(())
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
-    env_logger::Builder::from_default_env()
-        .filter_module("quads", log::LevelFilter::Trace)
-        .init();
+    run(|factory, families, surface| {
+        let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let config: Config = Default::default();
+        let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
-    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
+        let size = unsafe {
+            surface.extent(factory.physical())
+        }.unwrap();
 
-    let mut event_loop = EventsLoop::new();
+        let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
 
-    let window = WindowBuilder::new()
-        .with_title("Rendy example")
-        .build(&event_loop)
-        .unwrap();
+        let depth = graph_builder.create_image(
+            window_kind,
+            1,
+            hal::format::Format::D32Sfloat,
+            Some(hal::command::ClearValue::DepthStencil(
+                hal::command::ClearDepthStencil(1.0, 0),
+            )),
+        );
 
-    event_loop.poll_events(|_| ());
+        let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));
 
-    run(&mut event_loop, &mut factory, &mut families, &window).unwrap();
-    log::debug!("Done");
+        graph_builder.add_node(
+            QuadsRenderPipeline::builder()
+                .with_buffer(posvel)
+                .with_dependency(grav)
+                .into_subpass()
+                .with_color_surface()
+                .with_depth_stencil(depth)
+                .into_pass()
+                .with_surface(
+                    surface,
+                    Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
+                ),
+        );
 
-    log::debug!("Drop families");
-    drop(families);
+        let graph = graph_builder.build(factory, families, &()).unwrap();
 
-    log::debug!("Drop factory");
-    drop(factory);
-}
-
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn build_graph(
-    factory: &mut Factory<Backend>,
-    families: &mut Families<Backend>,
-    window: &Window,
-) -> Graph<Backend, ()> {
-    let surface = factory.create_surface(window);
-
-    let mut graph_builder = GraphBuilder::<Backend, ()>::new();
-
-    let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
-
-    let size = window
-        .get_inner_size()
-        .unwrap()
-        .to_physical(window.get_hidpi_factor());
-    let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
-
-    let color = graph_builder.create_image(
-        window_kind,
-        1,
-        factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-    );
-
-    let depth = graph_builder.create_image(
-        window_kind,
-        1,
-        hal::format::Format::D16Unorm,
-        Some(hal::command::ClearValue::DepthStencil(
-            hal::command::ClearDepthStencil(1.0, 0),
-        )),
-    );
-
-    let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));
-
-    let pass = graph_builder.add_node(
-        QuadsRenderPipeline::builder()
-            .with_buffer(posvel)
-            .with_dependency(grav)
-            .into_subpass()
-            .with_color(color)
-            .with_depth_stencil(depth)
-            .into_pass(),
-    );
-
-    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
-
-    let started = std::time::Instant::now();
-    let graph = graph_builder.build(factory, families, &()).unwrap();
-    println!("Graph built in: {:?}", started.elapsed());
-    graph
-}
-
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
-fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
+        (graph, (), move |_: &mut Factory<Backend>, _: &mut Families<Backend>, _: &mut ()| true)
+    })
 }

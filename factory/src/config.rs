@@ -165,27 +165,29 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
             .iter()
             .map(|mt| {
                 let config = HeapsConfig {
-                    linear: if mt
-                        .properties
-                        .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-                    {
-                        Some(LinearConfig {
-                            linear_size: min(_128mb, properties.memory_heaps[mt.heap_index] / 16),
-                        })
-                    } else {
-                        None
-                    },
-                    dynamic: Some(DynamicConfig {
-                        block_size_granularity: 256.min(
-                            (properties.memory_heaps[mt.heap_index] / 4096).next_power_of_two(),
-                        ),
-                        min_device_allocation: _1mb
-                            .min(properties.memory_heaps[mt.heap_index] / 1048)
-                            .next_power_of_two(),
-                        max_chunk_size: _32mb.min(
-                            (properties.memory_heaps[mt.heap_index] / 128).next_power_of_two(),
-                        ),
-                    }),
+                    // linear: if mt
+                    //     .properties
+                    //     .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
+                    // {
+                    //     Some(LinearConfig {
+                    //         linear_size: min(_128mb, properties.memory_heaps[mt.heap_index] / 16),
+                    //     })
+                    // } else {
+                    //     None
+                    // },
+                    // dynamic: Some(DynamicConfig {
+                    //     block_size_granularity: 256.min(
+                    //         (properties.memory_heaps[mt.heap_index] / 4096).next_power_of_two(),
+                    //     ),
+                    //     min_device_allocation: _1mb
+                    //         .min(properties.memory_heaps[mt.heap_index] / 1048)
+                    //         .next_power_of_two(),
+                    //     max_chunk_size: _32mb.min(
+                    //         (properties.memory_heaps[mt.heap_index] / 128).next_power_of_two(),
+                    //     ),
+                    // }),
+                    linear: None,
+                    dynamic: None,
                 };
 
                 (mt.properties, mt.heap_index as u32, config)

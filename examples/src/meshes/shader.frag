@@ -1,9 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(early_fragment_tests) in;
-
-layout(location = 0) in vec4 in_pos;
+layout(location = 0) in vec4 frag_pos;
 layout(location = 1) in vec3 frag_norm;
 layout(location = 2) in vec4 frag_color;
 layout(location = 0) out vec4 color;
@@ -14,7 +12,7 @@ struct Light {
     float intencity;
 };
 
-layout(std140, set = 0, binding = 0) uniform Args {
+layout(std140, set = 0, binding = 1) uniform FArgs {
     mat4 proj;
     mat4 view;
     int lights_count;
@@ -27,7 +25,7 @@ layout(std140, set = 0, binding = 0) uniform Args {
 void main() {
     float acc = 0.0;
 
-    vec3 frag_pos = in_pos.xyz / in_pos.w;
+    vec3 frag_pos = frag_pos.xyz / frag_pos.w;
 
     for (int i = 0; i < lights_count; ++i) {
         vec3 v = lights[i].pos - frag_pos;

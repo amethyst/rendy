@@ -23,6 +23,9 @@ pub use rendy_util::empty;
 #[cfg(feature = "dx12")]
 pub use rendy_util::dx12;
 
+#[cfg(feature = "gl")]
+pub use rendy_util::gl;
+
 #[cfg(feature = "metal")]
 pub use rendy_util::metal;
 

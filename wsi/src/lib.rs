@@ -16,8 +16,8 @@ use {
     rendy_resource::{Image, ImageInfo},
     rendy_util::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
-        rendy_with_metal_backend, rendy_with_vulkan_backend, Device, DeviceId, Instance,
-        InstanceId,
+        rendy_with_gl_backend, rendy_with_metal_backend, rendy_with_vulkan_backend, Device,
+        DeviceId, Instance, InstanceId,
     },
 };
 
@@ -47,6 +47,18 @@ rendy_with_dx12_backend! {
             window: &winit::Window,
         ) -> <rendy_util::dx12::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
+        }
+    }
+}
+
+rendy_with_gl_backend! {
+    mod gfx_backend_gl {
+        #[cfg(feature = "winit")]
+        pub(super) fn create_surface(
+            _instance: &rendy_util::gl::Surface,
+            _window: &winit::Window,
+        ) -> <rendy_util::gl::Backend as gfx_hal::Backend>::Surface {
+            panic!("This functional is unavailable with gl backend.");
         }
     }
 }
@@ -88,6 +100,9 @@ fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) ->
         dx12 => {
             identical_cast(gfx_backend_dx12::create_surface(instance.raw_typed().unwrap(), window))
         }
+        gl => {
+            identical_cast(gfx_backend_gl::create_surface(instance.raw_typed().unwrap(), window))
+        }
         metal => {
             identical_cast(gfx_backend_metal::create_surface(instance.raw_typed().unwrap(), window))
         }
@@ -97,7 +112,7 @@ fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) ->
     })
 }
 
-/// Rendering target bound to window.
+/// Rendering swapchain bound to window.
 pub struct Surface<B: Backend> {
     raw: B::Surface,
     instance: InstanceId,
@@ -120,6 +135,13 @@ impl<B> Surface<B>
 where
     B: Backend,
 {
+    /// Create surface from raw parts.
+    /// This is most useful for gl backend where `Surface` **is** `Instance`
+    /// and must be created prior anything else.
+    pub unsafe fn from_raw(raw: B::Surface, instance: InstanceId) -> Self {
+        Surface { raw, instance }
+    }
+
     /// Create surface for the window.
     #[cfg(feature = "winit")]
     pub fn new(instance: &Instance<B>, window: &winit::Window) -> Self {
@@ -161,6 +183,11 @@ where
         capabilities.current_extent
     }
 
+    /// Check if this surface supported by specified queue family.
+    pub unsafe fn support(&self, family: &B::QueueFamily) -> bool {
+        gfx_hal::Surface::supports_queue_family(&self.raw, family)
+    }
+
     /// Get surface ideal format.
     pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
         let (_capabilities, formats, _present_modes) =
@@ -196,8 +223,8 @@ where
         gfx_hal::Surface::compatibility(&self.raw, physical_device)
     }
 
-    /// Cast surface into render target.
-    pub unsafe fn into_target(
+    /// Cast surface into render swapchain.
+    pub unsafe fn into_swapchain(
         mut self,
         physical_device: &B::PhysicalDevice,
         device: &Device<B>,
@@ -205,7 +232,7 @@ where
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: gfx_hal::image::Usage,
-    ) -> Result<Target<B>, failure::Error> {
+    ) -> Result<Swapchain<B>, failure::Error> {
         assert_eq!(
             device.id().instance,
             self.instance,
@@ -222,7 +249,7 @@ where
             usage,
         )?;
 
-        Ok(Target {
+        Ok(Swapchain {
             device: device.id(),
             relevant: relevant::Relevant,
             surface: self,
@@ -346,7 +373,7 @@ unsafe fn create_swapchain<B: Backend>(
 
 /// Rendering target bound to window.
 /// With swapchain created.
-pub struct Target<B: Backend> {
+pub struct Swapchain<B: Backend> {
     device: DeviceId,
     surface: Surface<B>,
     swapchain: Option<B::Swapchain>,
@@ -357,24 +384,24 @@ pub struct Target<B: Backend> {
     relevant: relevant::Relevant,
 }
 
-device_owned!(Target<B>);
+device_owned!(Swapchain<B>);
 
-impl<B> std::fmt::Debug for Target<B>
+impl<B> std::fmt::Debug for Swapchain<B>
 where
     B: Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Target")
+        fmt.debug_struct("Swapchain")
             .field("backbuffer", &self.backbuffer)
             .finish()
     }
 }
 
-impl<B> Target<B>
+impl<B> Swapchain<B>
 where
     B: Backend,
 {
-    /// Dispose of target.
+    /// Dispose of swapchain.
     ///
     /// # Safety
     ///
@@ -465,7 +492,7 @@ where
             .expect("Swapchain already disposed")
     }
 
-    /// Get render target size.
+    /// Get render swapchain size.
     pub fn extent(&self) -> Extent2D {
         self.extent
     }
@@ -492,7 +519,7 @@ where
         .0;
 
         Ok(NextImages {
-            targets: std::iter::once((&*self, index)).collect(),
+            swapchains: std::iter::once((&*self, index)).collect(),
         })
     }
 }
@@ -500,7 +527,7 @@ where
 /// Represents acquire frames that will be presented next.
 #[derive(Debug)]
 pub struct NextImages<'a, B: Backend> {
-    targets: smallvec::SmallVec<[(&'a Target<B>, u32); 8]>,
+    swapchains: smallvec::SmallVec<[(&'a Swapchain<B>, u32); 8]>,
 }
 
 impl<'a, B> NextImages<'a, B>
@@ -509,7 +536,7 @@ where
 {
     /// Get indices.
     pub fn indices(&self) -> impl IntoIterator<Item = u32> + '_ {
-        self.targets.iter().map(|(_s, i)| *i)
+        self.swapchains.iter().map(|(_s, i)| *i)
     }
 
     /// Present images by the queue.
@@ -526,9 +553,9 @@ where
         'a: 'b,
     {
         queue.present(
-            self.targets.iter().map(|(target, index)| {
+            self.swapchains.iter().map(|(swapchain, index)| {
                 (
-                    target
+                    swapchain
                         .swapchain
                         .as_ref()
                         .expect("Swapchain already disposed"),
@@ -547,7 +574,7 @@ where
     type Output = u32;
 
     fn index(&self, index: usize) -> &u32 {
-        &self.targets[index].1
+        &self.swapchains[index].1
     }
 }
 

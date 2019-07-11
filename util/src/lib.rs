@@ -19,6 +19,9 @@ pub use gfx_backend_empty as empty;
 #[cfg(feature = "gfx-backend-dx12")]
 pub use gfx_backend_dx12 as dx12;
 
+#[cfg(feature = "gfx-backend-gl")]
+pub use gfx_backend_gl as gl;
+
 #[cfg(feature = "gfx-backend-metal")]
 pub use gfx_backend_metal as metal;
 

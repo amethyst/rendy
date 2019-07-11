@@ -1,59 +1,43 @@
 //!
 //! The mighty triangle example.
-//! This examples shows colord triangle on white background.
+//! This examples shows colored triangle on white background.
 //! Nothing fancy. Just prove that `rendy` works.
 //!
 
-#![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
-    allow(unused)
-)]
+use rendy_examples::*;
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
-    factory::{Config, Factory},
-    graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-    hal,
+    factory::Factory,
+    graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
+    hal::{self, pso::ShaderStageFlags},
     memory::Dynamic,
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
-    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-    wsi::winit::{EventsLoop, WindowBuilder},
+    shader::{ShaderSetBuilder, ShaderSet, SpirvShader},
+    util::*,
 };
 
-#[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflection;
-
-#[cfg(not(feature = "spirv-reflection"))]
-use rendy::mesh::AsVertex;
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
-
 lazy_static::lazy_static! {
-    static ref VERTEX: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
-        ShaderKind::Vertex,
-        SourceLanguage::GLSL,
-        "main",
-    ).precompile().unwrap();
+    static ref VERTEX: SpirvShader = SpirvShader::new(
+        unsafe {
+            let bytes = include_bytes!("vert.spv");
+            std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4).to_vec()
+        },
+        ShaderStageFlags::VERTEX,
+        "main"
+    );
 
-    static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
-        ShaderKind::Fragment,
-        SourceLanguage::GLSL,
+    static ref FRAGMENT: SpirvShader = SpirvShader::new(
+        unsafe {
+            let bytes = include_bytes!("frag.spv");
+            std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4).to_vec()
+        },
+        ShaderStageFlags::FRAGMENT,
         "main",
-    ).precompile().unwrap();
+    );
 
-    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+    static ref SHADERS: ShaderSetBuilder = ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
         .with_fragment(&*FRAGMENT).unwrap();
 }
@@ -82,7 +66,7 @@ where
         None
     }
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -200,84 +184,34 @@ where
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(
-    event_loop: &mut EventsLoop,
-    factory: &mut Factory<Backend>,
-    families: &mut Families<Backend>,
-    mut graph: Graph<Backend, ()>,
-) -> Result<(), failure::Error> {
-    let started = std::time::Instant::now();
 
-    let mut frames = 0u64..;
-    let mut elapsed = started.elapsed();
-
-    for _ in &mut frames {
-        factory.maintain(families);
-        event_loop.poll_events(|_| ());
-        graph.run(factory, families, &());
-
-        elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
-            break;
-        }
+rendy_wasm32! {
+    #[wasm_bindgen(start)]
+    pub fn wasm_main() {
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        main();
     }
-
-    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-
-    log::info!(
-        "Elapsed: {:?}. Frames: {}. FPS: {}",
-        elapsed,
-        frames.start,
-        frames.start * 1_000_000_000 / elapsed_ns
-    );
-
-    graph.dispose(factory, &());
-    Ok(())
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
-    env_logger::Builder::from_default_env()
-        .filter_module("triangle", log::LevelFilter::Trace)
-        .init();
+    run(|factory, families, surface| {
+        let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let config: Config = Default::default();
+        graph_builder.add_node(
+            TriangleRenderPipeline::builder()
+                .into_subpass()
+                .with_color_surface()
+                .into_pass()
+                .with_surface(
+                    surface,
+                    Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
+                ),
+        );
 
-    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
+        let graph = graph_builder
+            .build(factory, families, &())
+            .unwrap();
 
-    let mut event_loop = EventsLoop::new();
-
-    let window = WindowBuilder::new()
-        .with_title("Rendy example")
-        .build(&event_loop)
-        .unwrap();
-
-    event_loop.poll_events(|_| ());
-
-    let surface = factory.create_surface(&window);
-
-    let mut graph_builder = GraphBuilder::<Backend, ()>::new();
-
-    graph_builder.add_node(
-        TriangleRenderPipeline::builder()
-            .into_subpass()
-            .with_color_surface()
-            .into_pass()
-            .with_surface(
-                surface,
-                Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-            ),
-    );
-
-    let graph = graph_builder
-        .build(&mut factory, &mut families, &())
-        .unwrap();
-
-    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
-}
-
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
-fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
+        (graph, (), move |_: &mut Factory<Backend>, _: &mut Families<Backend>, _: &mut ()| true)
+    })
 }

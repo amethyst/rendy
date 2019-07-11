@@ -182,7 +182,7 @@ where
 
         if !self.coherent.0 {
             device
-                .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
+                .invalidate_mapped_memory_ranges(Some((self.memory.raw(), range.clone())))?;
         }
 
         let slice = mapped_slice_mut::<T>(ptr, size);

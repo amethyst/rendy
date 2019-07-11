@@ -15,4 +15,8 @@ members = [
     "graph",
     "util",
     "texture",
+    "examples",
 ]
+
+[profile.release]
+lto = true

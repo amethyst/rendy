@@ -11,10 +11,11 @@ categories = ["rendering"]
 description = "Rendy's render graph"
 
 [features]
-empty = ["rendy-util/gfx-backend-empty"]
-dx12 = ["rendy-util/gfx-backend-dx12"]
-metal = ["rendy-util/gfx-backend-metal"]
-vulkan = ["rendy-util/gfx-backend-vulkan"]
+empty = ["rendy-util/empty"]
+dx12 = ["rendy-util/dx12"]
+gl = ["rendy-util/gl"]
+metal = ["rendy-util/metal"]
+vulkan = ["rendy-util/vulkan"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 

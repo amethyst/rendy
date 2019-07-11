@@ -69,6 +69,8 @@ where
             "Memory mapping region must have valid size"
         );
 
+        assert!(self.size() >= range.end);
+
         if !self.memory.host_visible() {
             return Err(gfx_hal::mapping::Error::InvalidAccess);
         }

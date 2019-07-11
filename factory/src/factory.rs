@@ -9,11 +9,8 @@ use {
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        util::{
-            identical_cast, rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId,
-            Instance,
-        },
-        wsi::{Surface, Target},
+        util::{rendy_with_gl_backend, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
+        wsi::{Surface, Swapchain},
     },
     gfx_hal::{
         buffer, device::*, error::HostExecutionError, format, image,
@@ -636,26 +633,26 @@ where
         drop(surface);
     }
 
-    /// Create target out of rendering surface.
+    /// Create swapchain out of rendering surface.
     ///
     /// The compatibility of the surface with the queue family which will present to
-    /// this target must have *already* been checked using `Factory::surface_support`.
+    /// this swapchain must have *already* been checked using `Factory::surface_support`.
     ///
     /// # Panics
     ///
     /// Panics if `surface` was not created by this `Factory`.
-    pub fn create_target(
+    pub fn create_swapchain(
         &self,
         surface: Surface<B>,
         extent: Extent2D,
         image_count: u32,
         present_mode: gfx_hal::PresentMode,
         usage: image::Usage,
-    ) -> Result<Target<B>, failure::Error> {
-        profile_scope!("create_target");
+    ) -> Result<Swapchain<B>, failure::Error> {
+        profile_scope!("create_swapchain");
 
         unsafe {
-            surface.into_target(
+            surface.into_swapchain(
                 &self.adapter.physical_device,
                 &self.device,
                 extent,
@@ -666,21 +663,21 @@ where
         }
     }
 
-    /// Destroy target returning underlying surface back to the caller.
+    /// Destroy swapchain returning underlying surface back to the caller.
     ///
     /// # Safety
     ///
-    /// Target images must not be used by pending commands or referenced anywhere.
-    pub unsafe fn destroy_target(&self, target: Target<B>) -> Surface<B> {
-        target.dispose(&self.device)
+    /// Swapchain images must not be used by pending commands or referenced anywhere.
+    pub unsafe fn destroy_swapchain(&self, swapchain: Swapchain<B>) -> Surface<B> {
+        swapchain.dispose(&self.device)
     }
 
     /// Check if queue family supports presentation to the specified surface.
     pub fn surface_support(&self, family: FamilyId, surface: &Surface<B>) -> bool {
         surface.assert_instance_owner(&self.instance);
-        surface
-            .raw()
-            .supports_queue_family(&self.adapter.queue_families[family.index])
+        unsafe {
+            surface.support(&self.adapter.queue_families[family.index])
+        }
     }
 
     /// Get raw device.
@@ -1007,6 +1004,15 @@ where
     }
 }
 
+rendy_with_gl_backend! {
+    impl Factory<rendy_util::gl::Backend> {
+        /// Wrap raw GL surface.
+        pub unsafe fn wrap_surface(&self, surface: rendy_util::gl::Surface) -> Surface<rendy_util::gl::Backend> {
+            Surface::from_raw(surface, self.instance.id())
+        }
+    }
+}
+
 impl<B> std::ops::Deref for Factory<B>
 where
     B: Backend,
@@ -1019,19 +1025,41 @@ where
 }
 
 /// Initialize `Factory` and Queue `Families` associated with Device.
-#[allow(unused_variables)]
+#[allow(unused)]
 pub fn init<B>(
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
 ) -> Result<(Factory<B>, Families<B>), failure::Error>
 where
     B: Backend,
 {
+    use crate::util::{identical_cast, rendy_backend_match};
+
     log::debug!("Creating factory");
-    rendy_backend_match!(B as backend => {
-        profile_scope!(concat!("init_factory"));
-        let instance = backend::Instance::create("Rendy", 1);
-        Ok(identical_cast(init_with_instance(instance, config)?))
-    });
+    rendy_backend_match!(B {
+        empty => {
+            profile_scope!(concat!("init_factory"));
+            let instance = rendy_util::empty::Instance::create("Rendy", 1);
+            Ok(identical_cast(init_with_instance(instance, config)?))
+        }
+        dx12 => {
+            profile_scope!(concat!("init_factory"));
+            let instance = rendy_util::dx12::Instance::create("Rendy", 1);
+            Ok(identical_cast(init_with_instance(instance, config)?))
+        }
+        gl => {
+            panic!("This function does not support GL backend. Use `init_with_instance` instead.");
+        }
+        metal => {
+            profile_scope!(concat!("init_factory"));
+            let instance = rendy_util::metal::Instance::create("Rendy", 1);
+            Ok(identical_cast(init_with_instance(instance, config)?))
+        }
+        vulkan => {
+            profile_scope!(concat!("init_factory"));
+            let instance = rendy_util::vulkan::Instance::create("Rendy", 1);
+            Ok(identical_cast(init_with_instance(instance, config)?))
+        }
+    })
 }
 
 /// Initialize `Factory` and Queue `Families` associated with Device
