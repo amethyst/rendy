@@ -597,19 +597,15 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface| {
+    run(|factory, families, surface, extent| {
         let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
         let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
-        let size = unsafe {
-            surface.extent(factory.physical())
-        }.unwrap();
-
-        let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
+        let kind = hal::image::Kind::D2(extent.width as u32, extent.height as u32, 1, 1);
 
         let depth = graph_builder.create_image(
-            window_kind,
+            kind,
             1,
             hal::format::Format::D32Sfloat,
             Some(hal::command::ClearValue::DepthStencil(
@@ -629,6 +625,7 @@ fn main() {
                 .into_pass()
                 .with_surface(
                     surface,
+                    extent,
                     Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
                 ),
         );

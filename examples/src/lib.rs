@@ -1,18 +1,18 @@
-// #![cfg_attr(
-//     not(any(
-//         feature = "dx12",
-//         feature = "gl",
-//         feature = "metal",
-//         feature = "vulkan"
-//     )),
-//     allow(unused)
-// )]
+#![cfg_attr(
+    not(any(
+        feature = "dx12",
+        feature = "gl",
+        feature = "metal",
+        feature = "vulkan"
+    )),
+    allow(unused)
+)]
 
 use rendy::{
     command::Families,
     factory::{Config, Factory},
     graph::Graph,
-    hal::self,
+    hal,
     wsi::Surface,
     util::*,
 };
@@ -67,7 +67,7 @@ pub type Backend = rendy::vulkan::Backend;
 ))]
 pub fn run<I, U, T>(init: I)
 where
-    I: FnOnce(&mut Factory<Backend>, &mut Families<Backend>, Surface<Backend>) -> (Graph<Backend, T>, T, U),
+    I: FnOnce(&mut Factory<Backend>, &mut Families<Backend>, Surface<Backend>, hal::window::Extent2D) -> (Graph<Backend, T>, T, U),
     U: FnMut(&mut Factory<Backend>, &mut Families<Backend>, &mut T) -> bool + 'static,
     T: 'static,
 {
@@ -96,36 +96,23 @@ where
 
     rendy_with_gl_backend!{
         rendy_not_wasm32! {
-            let windowed_context = unsafe {
-                let builder = rendy::gl::config_context(
-                    rendy::gl::glutin::ContextBuilder::new(),
-                    hal::format::Rgba8Srgb::SELF,
-                    None,
-                )
-                .with_vsync(true);
-                builder.build_windowed(window_builder, &events_loop)
-                    .unwrap().make_current().unwrap()
-            };
+            let (mut factory, mut families, surface, window) = rendy::factory::init_gl(config, window_builder, &events_loop).unwrap();
         }
         rendy_wasm32! {
-            let window = { rendy::gl::Window };
+            let (mut factory, mut families, surface, window) = rendy::factory::init_gl(config).unwrap();
+            let extent = window.get_window_extent().into();
         }
     }
 
-    rendy_with_gl_backend!{
-        rendy_wasm32! {
-            let surface = rendy::gl::Surface::from_window(window);
-        }
-
-        rendy_not_wasm32! {
-            let surface = rendy::gl::Surface::from_window(windowed_context);
-        }
-        let (mut factory, mut families) =
-            rendy::factory::init_with_instance(surface.clone(), config).unwrap();
-        let surface = unsafe { factory.wrap_surface(surface) };
+    rendy_not_wasm32! {
+        let ps = window.get_inner_size().expect("Properly sized window").to_physical(window.get_hidpi_factor());
+        let extent = hal::window::Extent2D {
+            width: ps.width as _,
+            height: ps.height as _,
+        };
     }
 
-    let (mut graph, mut aux, mut update) = init(&mut factory, &mut families, surface);
+    let (mut graph, mut aux, mut update) = init(&mut factory, &mut families, surface, extent);
 
     rendy_not_wasm32! {
         let mut frames = 0u64..;
@@ -182,10 +169,10 @@ where
 
 rendy_wasm32! {
     struct Renderer<T, U> {
+        aux: T,
         factory: Factory<Backend>,
         families: Families<Backend>,
         graph: Graph<Backend, T>,
-        aux: T,
         update: U,
         frame: u64,
         start: Option<f64>,
@@ -204,7 +191,7 @@ rendy_wasm32! {
                     self.start = Some(timestamp);
                 }
 
-                if !(self.update)(&mut self.factory, &mut self.families, &mut self.aux) || self.frame > 3600 {
+                if !(self.update)(&mut self.factory, &mut self.families, &mut self.aux) || self.frame > 300 {
                     self.graph.dispose(&mut self.factory, &self.aux);
 
                     let elapsed = timestamp - self.start.unwrap_or(timestamp);

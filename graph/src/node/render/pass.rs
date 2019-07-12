@@ -165,7 +165,7 @@ where
 #[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassBuilder<B, T>>,
-    surface: Option<(Surface<B>, Option<gfx_hal::command::ClearValue>)>,
+    surface: Option<(Surface<B>, gfx_hal::window::Extent2D, Option<gfx_hal::command::ClearValue>)>,
 }
 
 impl<B, T> RenderPassNodeBuilder<B, T>
@@ -194,13 +194,14 @@ where
     pub fn add_surface(
         &mut self,
         surface: Surface<B>,
+        suggest_extent: gfx_hal::window::Extent2D,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> &mut Self {
         assert!(
             self.surface.is_none(),
-            "Only one surface can be attachend to rende pass"
+            "Only one surface can be attachend to render pass"
         );
-        self.surface = Some((surface, clear));
+        self.surface = Some((surface, suggest_extent, clear));
         self
     }
 
@@ -208,9 +209,10 @@ where
     pub fn with_surface(
         mut self,
         surface: Surface<B>,
+        suggest_extent: gfx_hal::window::Extent2D,
         clear: Option<gfx_hal::command::ClearValue>,
     ) -> Self {
-        self.add_surface(surface, clear);
+        self.add_surface(surface, suggest_extent, clear);
         self
     }
 }
@@ -341,7 +343,7 @@ where
         let mut surface_color_usage = false;
         let mut surface_depth_usage = false;
 
-        let (mut surface, surface_clear) = self.surface.map_or((None, None), |(s, c)| (Some(s), c));
+        let (mut surface, mut surface_extent, surface_clear) = self.surface.map_or((None, None, None), |(s, e, c)| (Some(s), Some(e), c));
         log::debug!(
             "Build render pass node {} surface",
             surface.as_ref().map_or("without", |_| "with")
@@ -427,11 +429,7 @@ where
                         log::trace!("Surface attachment");
 
                         let surface = surface.take().expect("Render pass should be configured with Surface instance if at least one subpass uses surface attachment");
-                        let surface_extent = unsafe {
-                            surface.extent(factory.physical()).unwrap_or(gfx_hal::window::Extent2D { width: framebuffer_width, height: framebuffer_height })
-                        };
-
-                        log::debug!("Surface extent {:#?}", surface_extent);
+                        let surface_extent = surface_extent.take().unwrap();
 
                         if !factory.surface_support(family.id(), &surface) {
                             failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
@@ -445,8 +443,9 @@ where
                             surface_usage,
                         )?;
 
-                        framebuffer_width = min(framebuffer_width, swapchain.extent().width);
-                        framebuffer_height = min(framebuffer_height, swapchain.extent().height);
+                        let swapchain_extent = swapchain.extent();
+                        framebuffer_width = min(framebuffer_width, swapchain_extent.width);
+                        framebuffer_height = min(framebuffer_height, swapchain_extent.height);
                         framebuffer_layers = min(
                             framebuffer_layers,
                             swapchain.backbuffer()[0].layers(),
@@ -801,7 +800,6 @@ where
                             framebuffer: fb,
                             acquire: factory.create_semaphore().unwrap(),
                             release: factory.create_semaphore().unwrap(),
-                            index: 0,
                         })
                         .collect(),
                     free_acquire: factory.create_semaphore().unwrap(),
@@ -932,7 +930,6 @@ struct PerImage<B: Backend> {
     framebuffer: B::Framebuffer,
     acquire: B::Semaphore,
     release: B::Semaphore,
-    index: usize,
 }
 
 #[derive(derivative::Derivative)]
@@ -998,10 +995,8 @@ where
         let submit = command_cirque.encode(frames, command_pool, |mut cbuf| {
             let index = cbuf.index();
 
-            if let Some(next) = &next {
-                let ref mut for_image = per_image[next[0] as usize];
-
-                let force_record = subpasses.iter_mut().enumerate().fold(
+            if let Some(_) = &next {
+                let _force_record = subpasses.iter_mut().enumerate().fold(
                     false,
                     |force_record, (subpass_index, subpass)| {
                         subpass
@@ -1025,10 +1020,9 @@ where
                     },
                 );
 
-                // if force_record || for_image.index != index {
-                    for_image.index = index;
-                    cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
-                // }
+                cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
+            } else {
+                cbuf = CirqueRef::Initial(cbuf.or_reset(|cbuf| cbuf.reset()));
             }
 
             cbuf.or_init(|cbuf| {

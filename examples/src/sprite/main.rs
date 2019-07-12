@@ -297,7 +297,7 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface| {
+    run(|factory, families, surface, extent| {
         let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
         graph_builder.add_node(
@@ -307,6 +307,7 @@ fn main() {
                 .into_pass()
                 .with_surface(
                     surface,
+                    extent,
                     Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
                 ),
         );

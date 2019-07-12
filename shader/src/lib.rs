@@ -60,16 +60,115 @@ pub trait Shader {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpirvShader {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    #[cfg_attr(feature = "serde", serde(with = "serde_spirv"))]
     spirv: Vec<u32>,
     stage: ShaderStageFlags,
     entry: String,
+}
+
+#[cfg(feature = "serde")]
+mod serde_spirv {
+    pub fn serialize<S>(spirv: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let len = spirv.len();
+        let ptr = spirv.as_ptr();
+        unsafe {
+            let slice = std::slice::from_raw_parts::<u8>(ptr as _, len * 4);
+            serializer.serialize_bytes(slice)
+        }
+    }
+
+    struct SpirvVisitor;
+
+    fn from_bytes<E>(bytes: &[u8]) -> Result<Vec<u32>, E>
+    where
+        E: serde::de::Error,
+    {
+        let ptr = bytes.as_ptr();
+        let len = bytes.len();
+        if len % 4 > 0 {
+            Err(E::invalid_length(bytes.len(), &"Spirv data lengh expected to be multiple of 4"))
+        } else {
+            let mut spirv = Vec::<u32>::with_capacity(len / 4);
+            unsafe {
+                std::ptr::copy_nonoverlapping(ptr, spirv.as_mut_ptr() as _, len);
+                spirv.set_len(len / 4);
+            }
+            Ok(spirv)
+        }
+    }
+
+    impl<'de> serde::de::Visitor<'de> for SpirvVisitor {
+        type Value = Vec<u32>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("spirv binary data")
+        }
+
+        fn visit_bytes<E>(self, v: &[u8]) -> Result<Vec<u32>, E>
+        where
+            E: serde::de::Error,
+        {
+            from_bytes(v)
+        }
+
+        fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Vec<u32>, E>
+        where
+            E: serde::de::Error,
+        {
+            from_bytes(&v)
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Vec<u32>, E>
+        where
+            E: serde::de::Error,
+        {
+            from_bytes(v.as_bytes())
+        }
+
+        fn visit_string<E>(self, v: String) -> Result<Vec<u32>, E>
+        where
+            E: serde::de::Error,
+        {
+            from_bytes(v.as_bytes())
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u32>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_bytes(SpirvVisitor)
+    }
 }
 
 impl SpirvShader {
     /// Create Spir-V shader from bytes.
     pub fn new(spirv: Vec<u32>, stage: ShaderStageFlags, entrypoint: &str) -> Self {
         assert!(!spirv.is_empty());
+        Self {
+            spirv,
+            stage,
+            entry: entrypoint.to_string(),
+        }
+    }
+    
+    /// Create Spir-V shader from bytes.
+    pub fn from_bytes(bytes: Vec<u8>, stage: ShaderStageFlags, entrypoint: &str) -> Self {
+        assert!(!bytes.is_empty());
+        assert_ne!(!bytes.len() % 4, 0);
+
+        let ptr = bytes.as_ptr();
+        let len = bytes.len();
+
+        let mut spirv = Vec::<u32>::with_capacity(len / 4);
+        unsafe {
+            std::ptr::copy_nonoverlapping(ptr, spirv.as_mut_ptr() as _, len);
+            spirv.set_len(len / 4);
+        }
+
         Self {
             spirv,
             stage,

@@ -19,7 +19,7 @@ use {
     rand::{distributions::{Distribution, Uniform}, SeedableRng as _},
     rendy::{
         command::{Families, QueueId, RenderPassEncoder, DrawIndexedCommand},
-        factory::{Factory, ImageState},
+        factory::Factory,
         graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
         hal::{self, Device as _, PhysicalDevice as _, pso::ShaderStageFlags},
         memory::Dynamic,
@@ -28,7 +28,7 @@ use {
         shader::{ShaderSetBuilder, ShaderSet, SpirvShader},
         util::*,
     },
-    std::{cmp::min, mem::size_of, time},
+    std::{cmp::min, mem::size_of},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -419,19 +419,15 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface| {
+    run(|factory, families, surface, extent| {
 
         let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
 
-        let size = unsafe {
-            surface.extent(factory.physical())
-        }.unwrap();
-
-        let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
-        let aspect = size.width / size.height;
+        let kind = hal::image::Kind::D2(extent.width as u32, extent.height as u32, 1, 1);
+        let aspect = extent.width / extent.height;
 
         let depth = graph_builder.create_image(
-            window_kind,
+            kind,
             1,
             hal::format::Format::D32Sfloat,
             Some(hal::command::ClearValue::DepthStencil(
@@ -448,6 +444,7 @@ fn main() {
                 .into_pass()
                 .with_surface(
                     surface,
+                    extent,
                     Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
                 ),
         );
@@ -485,7 +482,7 @@ fn main() {
 
         log::info!("{:#?}", scene);
 
-        let mut graph = graph_builder
+        let graph = graph_builder
             .with_frames_in_flight(3)
             .build(factory, families, &scene)
             .unwrap();

@@ -10,12 +10,12 @@ use {
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         util::{rendy_with_gl_backend, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
-        wsi::{Surface, Swapchain},
+        wsi::{self, Surface, Swapchain, with_winit},
     },
     gfx_hal::{
-        buffer, device::*, error::HostExecutionError, format, image,
+        buffer, device::*, error::HostExecutionError, format::{self, AsFormat as _}, image,
         pso::DescriptorSetLayoutBinding, window::Extent2D, Adapter, Backend, Device as _, Features,
-        Gpu, Limits, PhysicalDevice, Surface as GfxSurface,
+        Gpu, Limits, PhysicalDevice, Surface as _,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -579,6 +579,16 @@ where
         &self.blitter
     }
 
+    /// Destroy surface returning underlying window back to the caller.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `surface` was not created by this `Factory`
+    pub fn destroy_surface(&mut self, surface: Surface<B>) {
+        surface.assert_instance_owner(&self.instance);
+        drop(surface);
+    }
+
     /// Create rendering surface from window.
     ///
     /// # Safety
@@ -621,16 +631,6 @@ where
 
         surface.assert_instance_owner(&self.instance);
         unsafe { surface.format(&self.adapter.physical_device) }
-    }
-
-    /// Destroy surface returning underlying window back to the caller.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `surface` was not created by this `Factory`
-    pub fn destroy_surface(&mut self, surface: Surface<B>) {
-        surface.assert_instance_owner(&self.instance);
-        drop(surface);
     }
 
     /// Create swapchain out of rendering surface.
@@ -1004,12 +1004,56 @@ where
     }
 }
 
+with_winit! {
+    impl<B> Factory<B>
+    where
+        B: Backend,
+    {
+        /// Create rendering surface from window.
+        pub fn create_surface(&mut self, window: &rendy_wsi::winit::Window) -> Surface<B> {
+            profile_scope!("create_surface");
+            Surface::new(&self.instance, window)
+        }
+    }
+}
+
 rendy_with_gl_backend! {
     impl Factory<rendy_util::gl::Backend> {
         /// Wrap raw GL surface.
         pub unsafe fn wrap_surface(&self, surface: rendy_util::gl::Surface) -> Surface<rendy_util::gl::Backend> {
             Surface::from_raw(surface, self.instance.id())
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    with_winit! {
+        pub fn init_gl(config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: wsi::winit::WindowBuilder, events_loop: &wsi::winit::EventsLoop) -> Result<(Factory<rendy_util::gl::Backend>, Families<rendy_util::gl::Backend>, Surface<rendy_util::gl::Backend>, wsi::winit::Window), failure::Error> {
+            let windowed_context = unsafe {
+                let builder = rendy_util::gl::config_context(
+                    rendy_util::gl::glutin::ContextBuilder::new(),
+                    format::Rgba8Srgb::SELF,
+                    None,
+                )
+                .with_vsync(true);
+                builder.build_windowed(window_builder, events_loop)?.make_current().map_err(|(_ctx, err)| err)?
+            };
+            let (context, window) = unsafe { windowed_context.split() };
+            let surface = rendy_util::gl::Surface::from_context(context);
+
+            let (factory, families) = init_with_instance(surface.clone(), config)?;
+            let surface = unsafe { factory.wrap_surface(surface) };
+            Ok((factory, families, surface, window))
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn init_gl(config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>) -> Result<(Factory<rendy_util::gl::Backend>, Families<rendy_util::gl::Backend>, Surface<rendy_util::gl::Backend>, rendy_util::gl::Window), failure::Error> {
+        let window = rendy_util::gl::Window;
+        let surface = rendy_util::gl::Surface::from_window(&window);
+
+        let (factory, families) = init_with_instance(surface.clone(), config)?;
+        let surface = unsafe { factory.wrap_surface(surface) };
+        Ok((factory, families, surface, window))
     }
 }
 
@@ -1177,17 +1221,4 @@ where
     };
 
     Ok((factory, families))
-}
-
-rendy_wsi::with_winit! {
-    impl<B> Factory<B>
-    where
-        B: Backend,
-    {
-        /// Create rendering surface from window.
-        pub fn create_surface(&mut self, window: &rendy_wsi::winit::Window) -> Surface<B> {
-            profile_scope!("create_surface");
-            Surface::new(&self.instance, window)
-        }
-    }
 }
