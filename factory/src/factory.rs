@@ -110,7 +110,10 @@ where
 {
     fn drop(&mut self) {
         log::debug!("Dropping factory");
-        let _ = self.wait_idle();
+        match self.wait_idle() {
+            Err(HostExecutionError::DeviceLost) | Ok(()) => (),
+            Err(err) => panic!("{}", err),
+        }
 
         unsafe {
             // Device is idle.
