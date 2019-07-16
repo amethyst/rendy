@@ -1,4 +1,6 @@
 use std::cmp::max;
+use std::collections::HashMap;
+use std::collections::hash_map::RandomState;
 use std::hash::Hash;
 use std::ops::Range;
 
@@ -179,13 +181,13 @@ fn fill<T: Default>(num: usize) -> Vec<T> {
 }
 
 struct LookupBuilder<I: Hash + Eq + Copy> {
-    forward: fnv::FnvHashMap<I, usize>,
+    forward: HashMap<I, usize>,
     backward: Vec<I>,
 }
 impl<I: Hash + Eq + Copy> LookupBuilder<I> {
     fn new() -> LookupBuilder<I> {
         LookupBuilder {
-            forward: fnv::FnvHashMap::default(),
+            forward: HashMap::default(),
             backward: Vec::new(),
         }
     }
@@ -215,7 +217,9 @@ where
     let mut buffers = LookupBuilder::new();
     let mut images = LookupBuilder::new();
 
-    let mut family_full = fnv::FnvHashMap::default();
+    let s = RandomState::new();
+    let mut family_full = HashMap::with_hasher(s);
+
     for node in nodes {
         let family = node.family;
         if !family_full.contains_key(&family) {
@@ -268,8 +272,8 @@ where
     )
 }
 
-fn reify_chain<R: Resource>(ids: &[Id], vec: Vec<ChainData<R>>) -> fnv::FnvHashMap<Id, Chain<R>> {
-    let mut map = fnv::FnvHashMap::with_capacity_and_hasher(vec.len(), Default::default());
+fn reify_chain<R: Resource>(ids: &[Id], vec: Vec<ChainData<R>>) -> HashMap<Id, Chain<R>> {
+    let mut map = HashMap::with_capacity_and_hasher(vec.len(), Default::default());
     for (chain, &i) in vec.into_iter().zip(ids) {
         map.insert(i, chain.chain);
     }

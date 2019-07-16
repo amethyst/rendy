@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use super::queue::QueueId;
 use crate::Id;
 
@@ -38,8 +39,8 @@ impl SubmissionId {
 pub struct Submission<S> {
     node: usize,
     id: SubmissionId,
-    buffer_links: fnv::FnvHashMap<Id, usize>,
-    image_links: fnv::FnvHashMap<Id, usize>,
+    buffer_links: HashMap<Id, usize>,
+    image_links: HashMap<Id, usize>,
     wait_factor: usize,
     submit_order: usize,
     sync: S,
@@ -101,8 +102,8 @@ impl<S> Submission<S> {
     ) -> Self {
         Submission {
             node,
-            buffer_links: fnv::FnvHashMap::default(),
-            image_links: fnv::FnvHashMap::default(),
+            buffer_links: HashMap::default(),
+            image_links: HashMap::default(),
             id,
             wait_factor,
             submit_order,

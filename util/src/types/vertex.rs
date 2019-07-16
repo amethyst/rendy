@@ -4,6 +4,7 @@ use derivative::Derivative;
 use gfx_hal::format::Format;
 use std::cmp::Ordering;
 use std::{borrow::Cow, fmt::Debug};
+use std::collections::HashMap;
 
 /// Trait for vertex attributes to implement
 pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'static {
@@ -18,7 +19,7 @@ pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'st
 pub struct AttrUuid(u16);
 
 lazy_static::lazy_static! {
-    static ref UUID_MAP: parking_lot::RwLock<fnv::FnvHashMap<(Cow<'static, str>, u8, Format), AttrUuid>> =
+    static ref UUID_MAP: parking_lot::RwLock<HashMap<(Cow<'static, str>, u8, Format), AttrUuid>> =
         Default::default();
 }
 

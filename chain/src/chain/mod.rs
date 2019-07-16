@@ -4,6 +4,8 @@
 //! This information allows to derive synchronization required.
 //!
 
+use std::collections::HashMap;
+
 mod link;
 
 use std::ops::BitOr;
@@ -91,7 +93,7 @@ where
 }
 
 /// Type alias for map of chains by id for buffers.
-pub(crate) type BufferChains = fnv::FnvHashMap<Id, Chain<Buffer>>;
+pub(crate) type BufferChains = HashMap<Id, Chain<Buffer>>;
 
 /// Type alias for map of chains by id for images.
-pub(crate) type ImageChains = fnv::FnvHashMap<Id, Chain<Image>>;
+pub(crate) type ImageChains = HashMap<Id, Chain<Image>>;

@@ -12,6 +12,7 @@ mod family;
 mod queue;
 mod submission;
 
+use std::collections::HashMap;
 use std::ops::{Index, IndexMut};
 
 pub use self::{
@@ -23,7 +24,7 @@ pub use self::{
 /// Whole passes schedule.
 #[derive(Clone, Debug)]
 pub struct Schedule<S> {
-    map: fnv::FnvHashMap<gfx_hal::queue::QueueFamilyId, Family<S>>,
+    map: HashMap<gfx_hal::queue::QueueFamilyId, Family<S>>,
     ordered: Vec<SubmissionId>,
 }
 
@@ -31,7 +32,7 @@ impl<S> Schedule<S> {
     /// Create new empty `Schedule`
     pub fn new() -> Self {
         Schedule {
-            map: fnv::FnvHashMap::default(),
+            map: HashMap::default(),
             ordered: Vec::new(),
         }
     }
