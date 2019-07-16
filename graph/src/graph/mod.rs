@@ -100,7 +100,11 @@ impl<B: Backend> GraphContext<B> {
             })
             .collect::<Result<_, _>>()?;
 
-        Ok(Self { buffers, images, frames_in_flight })
+        Ok(Self {
+            buffers,
+            images,
+            frames_in_flight,
+        })
     }
 
     /// Get reference to transient image by id.
@@ -258,7 +262,8 @@ where
 }
 
 /// Build graph from nodes and resource.
-#[derive(Debug)]
+#[derive(derivative::Derivative)]
+#[derivative(Debug(bound = ""))]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
     buffers: Vec<BufferInfo>,
