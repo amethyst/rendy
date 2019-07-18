@@ -433,6 +433,10 @@ where
 
                         log::debug!("Surface extent {:#?}", surface_extent);
 
+                        if !factory.surface_support(family.id(), &surface) {
+                            failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
+                        }
+
                         let target = factory.create_target(
                             surface,
                             surface_extent,
