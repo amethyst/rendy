@@ -1,6 +1,6 @@
 [package]
 name = "rendy-graph"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -19,7 +19,7 @@ no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-rendy-chain = { version = "0.3.0", path = "../chain" }
+rendy-chain = { version = "0.3.1", path = "../chain" }
 rendy-command = { version = "0.3.0", path = "../command" }
 rendy-descriptor = { version = "0.3.0", path = "../descriptor" }
 rendy-factory = { version = "0.3.0", path = "../factory" }
