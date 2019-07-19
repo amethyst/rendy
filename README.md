@@ -135,6 +135,8 @@ This helps to keep API clean and hopefully sound.
 The top-level umbrella crate `rendy` has features for each subcrate so that they could be
 enabled separately (enabling a subcrate will also enable its dependencies).
 
+## [Changelog]
+
 ## Who is using it?
 
 * The [`Amethyst`](https://github.com/amethyst/) project
@@ -161,3 +163,4 @@ at your option.
 [`Vulkan`-portability]: https://www.khronos.org/vulkan/portability-initiative
 [`Amethyst`]: https://github.com/amethyst/amethyst
 [VMA]: https://gpuopen.com/gaming-product/vulkan-memory-allocator/
+[Changelog]: CHANGELOG.md
