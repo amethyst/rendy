@@ -349,7 +349,7 @@ where
     ///
     /// # Safety
     ///
-    /// None of descriptor sets can be refernced in any pending command buffers.
+    /// None of descriptor sets can be referenced in any pending command buffers.
     /// All command buffers where at least one of descriptor sets referenced
     /// move to invalid state.
     pub unsafe fn free(&mut self, all_sets: impl IntoIterator<Item = DescriptorSet<B>>) {
