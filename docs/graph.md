@@ -8,7 +8,7 @@ Let's start at the end for this explanation. What you see on your monitor is the
 
 This series of transformations is often referred to as a _rendering pipeline_; note that this is separate from another meaning of _rendering pipeline_ which is used to encompass the GPU hardware pipeline (all shader stages and everything in between). 
 
-These `rendering pipelines_ can be very simple, or they can be very complex. When they are very complex, it can be useful to add a layer of abstraction to make them easier to conceptualize.
+These _rendering pipelines_ can be very simple, or they can be very complex. When they are very complex, it can be useful to add a layer of abstraction to make them easier to conceptualize.
 
 One way of doing this is with a _framegraph_ (an alternate name sometimes used is _render graph_). Consider a simple rendering pipeline that looks like this:
 
