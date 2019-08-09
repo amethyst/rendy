@@ -30,7 +30,7 @@ rendy-util = { version = "0.3.0", path = "../util" }
 rendy-wsi = { version = "0.3.0", path = "../wsi" }
 rendy-shader = { version = "0.3.0", path = "../shader" }
 
-gfx-hal = "0.2"
+gfx-hal = "0.3"
 
 either = "1.5"
 bitflags = "1.0"

@@ -14,6 +14,6 @@ description = "Rendy's node synchronization tool"
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-gfx-hal = "0.2"
+gfx-hal = "0.3"
 log = "0.4"
 thread_profiler = "0.3"

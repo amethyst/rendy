@@ -13,7 +13,7 @@ description = "Rendy's utilities"
 [features]
 serde-1 = ["serde", "gfx-hal/serde"]
 
-# This list of features is common for many rendy's crates
+# This list of features is common for many of rendy's crates
 # All other crates should transitively enable feature for rendy-util crate
 # and not rely on the feature being enabled for that crate directly.
 # To conditionally enable token trees `rendy-util::with_*` macro should be used instead of
@@ -25,14 +25,14 @@ vulkan = ["gfx-backend-vulkan"]
 no-slow-safety-checks = []
 
 [dependencies]
-gfx-hal = "0.2"
-gfx-backend-empty = { version = "0.2", optional = true }
-gfx-backend-dx12 = { version = "0.2", optional = true }
-gfx-backend-metal = { version = "0.2", optional = true }
-gfx-backend-vulkan = { version = "0.2", optional = true }
+gfx-hal = "0.3"
+gfx-backend-empty = { version = "0.3", features = ["winit"], optional = true }
+gfx-backend-dx12 = { version = "0.3", features = ["winit"], optional = true }
+gfx-backend-metal = { version = "0.3", features = ["winit"], optional = true }
+gfx-backend-vulkan = { version = "0.3", features = ["winit"], optional = true }
 derivative = "1.0"
 lazy_static = "1.0"
 log = "0.4"
-parking_lot = "0.7"
+parking_lot = "0.9"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 thread_profiler = "0.3"
