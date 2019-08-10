@@ -105,10 +105,10 @@ impl SpirvReflection {
 
     /// This function performs the actual SPIRV reflection utilizing spirv-reflect-rs, and then converting it into appropriate structures which are then consumed by rendy.
     pub fn reflect(
-        spirv: &[u8],
+        spirv: &[u32],
         entrypoint: Option<&str>,
     ) -> Result<SpirvReflection, failure::Error> {
-        match ShaderModule::load_u8_data(spirv) {
+        match ShaderModule::load_u32_data(spirv) {
             Ok(module) => {
                 let stage_flag = convert_stage(module.get_shader_stage());
 

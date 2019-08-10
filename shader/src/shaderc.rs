@@ -53,7 +53,7 @@ where
     P: AsRef<std::path::Path> + std::fmt::Debug,
     E: AsRef<str>,
 {
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u8]>, failure::Error> {
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, failure::Error> {
         let code = std::fs::read_to_string(&self.path)?;
 
         let artifact = shaderc::Compiler::new()
@@ -77,7 +77,7 @@ where
                 .as_ref(),
             )?;
 
-        Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
+        Ok(std::borrow::Cow::Owned(artifact.as_binary().into()))
     }
 
     fn entry(&self) -> &str {
@@ -136,7 +136,7 @@ impl<P, E, S> Shader for SourceCodeShaderInfo<P, E, S>
         E: AsRef<str>,
         S: AsRef<str> + std::fmt::Debug,
 {
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u8]>, failure::Error> {
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, failure::Error> {
         let artifact = shaderc::Compiler::new()
             .ok_or_else(|| failure::format_err!("Failed to init Shaderc"))?
             .compile_into_spirv(
@@ -158,7 +158,7 @@ impl<P, E, S> Shader for SourceCodeShaderInfo<P, E, S>
                     .as_ref(),
             )?;
 
-        Ok(std::borrow::Cow::Owned(artifact.as_binary_u8().into()))
+        Ok(std::borrow::Cow::Owned(artifact.as_binary().into()))
     }
 
     fn entry(&self) -> &str {

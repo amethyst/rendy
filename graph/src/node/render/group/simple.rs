@@ -62,21 +62,21 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
 
     /// Color blend descs.
     fn colors(&self) -> Vec<gfx_hal::pso::ColorBlendDesc> {
-        vec![gfx_hal::pso::ColorBlendDesc(
-            gfx_hal::pso::ColorMask::ALL,
-            gfx_hal::pso::BlendState::ALPHA,
-        )]
+        vec![gfx_hal::pso::ColorBlendDesc {
+            mask: gfx_hal::pso::ColorMask::ALL,
+            blend: Some(gfx_hal::pso::BlendState::ALPHA),
+        }]
     }
 
     /// Depth stencil desc.
     fn depth_stencil(&self) -> Option<gfx_hal::pso::DepthStencilDesc> {
         Some(gfx_hal::pso::DepthStencilDesc {
-            depth: gfx_hal::pso::DepthTest::On {
+            depth: Some(gfx_hal::pso::DepthTest {
                 fun: gfx_hal::pso::Comparison::Less,
                 write: true,
-            },
+            }),
             depth_bounds: false,
-            stencil: gfx_hal::pso::StencilTest::Off,
+            stencil: None,
         })
     }
 

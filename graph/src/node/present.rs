@@ -67,7 +67,7 @@ where
         let (caps, _f, present_modes_caps) = factory.get_surface_compatibility(&surface);
 
         let img_count_caps = caps.image_count;
-        let image_count = 3.min(img_count_caps.end).max(img_count_caps.start);
+        let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());
 
         let present_mode = *present_modes_caps
             .iter()
@@ -260,7 +260,7 @@ pub struct PresentBuilder<B: gfx_hal::Backend> {
     surface: Surface<B>,
     image: ImageId,
     image_count: u32,
-    img_count_caps: std::ops::Range<u32>,
+    img_count_caps: std::ops::RangeInclusive<u32>,
     present_modes_caps: Vec<gfx_hal::PresentMode>,
     present_mode: gfx_hal::PresentMode,
     dependencies: Vec<NodeId>,
@@ -292,8 +292,8 @@ where
     /// building to see the final image count.
     pub fn with_image_count(mut self, image_count: u32) -> Self {
         let image_count = image_count
-            .min(self.img_count_caps.end)
-            .max(self.img_count_caps.start);
+            .min(*self.img_count_caps.end())
+            .max(*self.img_count_caps.start());
         self.image_count = image_count;
         self
     }

@@ -67,7 +67,7 @@ rendy-util = { version = "0.3.1", path = "../util" }
 rendy-wsi = { version = "0.3.0", path = "../wsi", optional = true }
 
 failure = "0.1"
-gfx-hal = "0.2"
+gfx-hal = "0.3"
 thread_profiler = "0.3"
 
 [dev-dependencies]
@@ -77,7 +77,7 @@ env_logger = "0.6"
 lazy_static = "1.0"
 log = "0.4"
 palette = "0.4"
-rand = "0.6"
+rand = "0.7"
 
 [[example]]
 name = "triangle"

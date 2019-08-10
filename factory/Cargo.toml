@@ -31,12 +31,12 @@ rendy-descriptor = { version = "0.3.0", path = "../descriptor" }
 rendy-wsi = { version = "0.3.0", path = "../wsi" }
 rendy-util = { version = "0.3.0", path = "../util" }
 
-gfx-hal = "0.2"
+gfx-hal = "0.3"
 derivative = "1.0"
 either = "1.0"
 failure = "0.1"
 log = "0.4"
-parking_lot = "0.7"
+parking_lot = "0.9"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"

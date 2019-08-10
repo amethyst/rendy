@@ -278,7 +278,7 @@ unsafe fn create_swapchain<B: Backend>(
 
     log::trace!("Surface formats: {:#?}. Pick {:#?}", formats, format);
 
-    if image_count < capabilities.image_count.start || image_count > capabilities.image_count.end {
+    if image_count < *capabilities.image_count.start() || image_count > *capabilities.image_count.end() {
         log::warn!(
             "Image count not supported. Supported: {:#?}, requested: {:#?}",
             capabilities.image_count,

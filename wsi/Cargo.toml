@@ -22,7 +22,7 @@ rendy-memory = { version = "0.3.0", path = "../memory" }
 rendy-resource = { version = "0.3.0", path = "../resource" }
 rendy-util = { version = "0.3.0", path = "../util" }
 
-gfx-hal = "0.2"
+gfx-hal = "0.3"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
