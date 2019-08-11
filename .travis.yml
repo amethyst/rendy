@@ -15,11 +15,13 @@ matrix:
     - env: MACOSX_DEPLOYMENT_TARGET=10.9
       os: osx
       osx_image: xcode10.2
+      install: travis_wait 30 cargo build --verbose
 
     # iPhoneOS 64bit
     - env: TARGET=aarch64-apple-ios
       os: osx
       osx_image: xcode10.2
+      install: travis_wait 30 cargo build --verbose
 
     # Windows 64bit
     - os: windows
