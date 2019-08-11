@@ -9,10 +9,7 @@ use {
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        util::{
-            identical_cast, rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId,
-            Instance,
-        },
+        util::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
         wsi::{Surface, Target},
     },
     gfx_hal::{
@@ -1030,7 +1027,7 @@ where
     rendy_backend_match!(B as backend => {
         profile_scope!(concat!("init_factory"));
         let instance = backend::Instance::create("Rendy", 1);
-        Ok(identical_cast(init_with_instance(instance, config)?))
+        Ok(crate::util::identical_cast(init_with_instance(instance, config)?))
     });
 }
 
