@@ -46,5 +46,5 @@ gfx-backend-dx12 = { version = "0.3", optional = true }
 [target.'cfg(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))'.dependencies]
 gfx-backend-vulkan = { version = "0.3", optional = true }
 
-[target.'cfg(any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios"))))'.dependencies]
+[target.'cfg(any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios"))))'.dependencies]
 gfx-backend-metal = { version = "0.3", optional = true }

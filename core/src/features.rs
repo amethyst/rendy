@@ -85,28 +85,28 @@ macro_rules! rendy_without_gl_backend {
 
 /// Resolve into input AST if metal backend is enabled.
 #[macro_export]
-#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
 macro_rules! rendy_with_metal_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if metal backend is enabled.
 #[macro_export]
-#[cfg(not(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios"))))))]
+#[cfg(not(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios"))))))]
 macro_rules! rendy_with_metal_backend {
     ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if metal backend is disabled.
 #[macro_export]
-#[cfg(not(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios"))))))]
+#[cfg(not(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios"))))))]
 macro_rules! rendy_without_metal_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if metal backend is disabled.
 #[macro_export]
-#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
 macro_rules! rendy_without_metal_backend {
     ($($tt:tt)*) => {};
 }

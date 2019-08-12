@@ -388,7 +388,7 @@ where
             images
                 .iter()
                 .find(|a| a.id == id)
-                .expect("Attachment image wasn't provided")
+                .expect("Attachment image wasm't provided")
         };
 
         let mut framebuffer_width = u32::max_value();
@@ -732,7 +732,7 @@ where
                             .map(|(id, _)| {
                                 buffers
                                     .find(|b| b.id == id)
-                                    .expect("Transient buffer wasn't provided")
+                                    .expect("Transient buffer wasm't provided")
                                     .clone()
                             })
                             .collect();
@@ -742,7 +742,7 @@ where
                             .map(|(id, _)| {
                                 images
                                     .find(|i| i.id == id)
-                                    .expect("Transient image wasn't provided")
+                                    .expect("Transient image wasm't provided")
                                     .clone()
                             })
                             .collect();

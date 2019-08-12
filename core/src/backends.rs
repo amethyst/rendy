@@ -15,7 +15,7 @@ pub enum EnabledBackend {
     Gl,
 
     /// Metal backend.
-    #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+    #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
     Metal,
 
     /// Vulkan backend.
@@ -33,7 +33,7 @@ impl EnabledBackend {
             tid if tid == std::any::TypeId::of::<crate::empty::Backend>() => EnabledBackend::Empty,
             #[cfg(feature = "gl")]
             tid if tid == std::any::TypeId::of::<crate::gl::Backend>() => EnabledBackend::Gl,
-            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
             tid if tid == std::any::TypeId::of::<crate::metal::Backend>() => EnabledBackend::Metal,
             #[cfg(all(feature = "vulkan", any(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
             tid if tid == std::any::TypeId::of::<crate::vulkan::Backend>() => EnabledBackend::Vulkan,
@@ -53,7 +53,7 @@ impl std::fmt::Display for EnabledBackend {
             EnabledBackend::Empty => "empty",
             #[cfg(feature = "gl")]
             EnabledBackend::Gl => "gl",
-            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
             EnabledBackend::Metal => "metal",
             #[cfg(all(feature = "vulkan", any(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
             EnabledBackend::Vulkan => "vulkan",
@@ -108,7 +108,7 @@ impl From<EnabledBackend> for Backend {
             EnabledBackend::Empty => Backend::Empty,
             #[cfg(feature = "gl")]
             EnabledBackend::Gl => Backend::Gl,
-            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
             EnabledBackend::Metal => Backend::Metal,
             #[cfg(all(feature = "vulkan", any(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
             EnabledBackend::Vulkan => Backend::Vulkan,
@@ -166,7 +166,7 @@ impl std::convert::TryFrom<Backend> for EnabledBackend {
             Backend::Empty => Ok(EnabledBackend::Empty),
             #[cfg(feature = "gl")]
             Backend::Gl => Ok(EnabledBackend::Gl),
-            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+            #[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
             Backend::Metal => Ok(EnabledBackend::Metal),
             #[cfg(all(feature = "vulkan", any(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
             Backend::Vulkan => Ok(EnabledBackend::Vulkan),
