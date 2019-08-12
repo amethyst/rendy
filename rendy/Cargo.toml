@@ -32,6 +32,7 @@ empty = ["rendy-util/gfx-backend-empty"]
 dx12 = ["rendy-util/gfx-backend-dx12"]
 metal = ["rendy-util/gfx-backend-metal"]
 vulkan = ["rendy-util/gfx-backend-vulkan"]
+vulkan-x11 = ["vulkan", "rendy-util/vulkan-x11"]
 no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 

@@ -22,6 +22,7 @@ empty = ["gfx-backend-empty"]
 dx12 = ["gfx-backend-dx12"]
 metal = ["gfx-backend-metal"]
 vulkan = ["gfx-backend-vulkan"]
+vulkan-x11 = ["gfx-backend-vulkan/x11"]
 no-slow-safety-checks = []
 
 [dependencies]
@@ -29,7 +30,7 @@ gfx-hal = "0.3"
 gfx-backend-empty = { version = "0.3", features = ["winit"], optional = true }
 gfx-backend-dx12 = { version = "0.3", features = ["winit"], optional = true }
 gfx-backend-metal = { version = "0.3", features = ["winit"], optional = true }
-gfx-backend-vulkan = { version = "0.3", features = ["winit", "x11"], optional = true }
+gfx-backend-vulkan = { version = "0.3", features = ["winit"], optional = true }
 derivative = "1.0"
 lazy_static = "1.0"
 log = "0.4"
