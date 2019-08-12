@@ -22,6 +22,7 @@ empty = ["gfx-backend-empty"]
 dx12 = ["gfx-backend-dx12"]
 metal = ["gfx-backend-metal"]
 vulkan = ["gfx-backend-vulkan"]
+vulkan-x11 = ["vulkan", "gfx-backend-vulkan/x11"]
 no-slow-safety-checks = []
 
 [dependencies]
