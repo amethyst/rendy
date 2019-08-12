@@ -1,8 +1,8 @@
 //! CommandPool module docs.
 
 use {
-    crate::{buffer::*, capability::*, family::FamilyId, util::Device},
-    gfx_hal::{Backend, Device as _},
+    crate::{buffer::*, capability::*, family::FamilyId, core::Device},
+    rendy_core::hal::{Backend, device::Device as _},
 };
 
 /// Simple pool wrapper.
@@ -37,14 +37,14 @@ where
         family: FamilyId,
         capability: C,
         device: &Device<B>,
-    ) -> Result<Self, gfx_hal::device::OutOfMemory>
+    ) -> Result<Self, rendy_core::hal::device::OutOfMemory>
     where
         R: Reset,
         C: Capability,
     {
         let reset = R::default();
         let raw = device
-            .create_command_pool(gfx_hal::queue::QueueFamilyId(family.index), reset.flags())?;
+            .create_command_pool(rendy_core::hal::queue::QueueFamilyId(family.index), reset.flags())?;
         Ok(CommandPool::from_raw(raw, capability, reset, family))
     }
 
@@ -78,7 +78,7 @@ where
         let level = L::default();
 
         let buffers =
-            gfx_hal::pool::RawCommandPool::allocate_vec(&mut self.raw, count, level.raw_level());
+            rendy_core::hal::pool::CommandPool::allocate_vec(&mut self.raw, count, level.raw_level());
 
         buffers
             .into_iter()
@@ -107,7 +107,7 @@ where
             .map(|buffer| buffer.into_raw())
             .collect::<Vec<_>>();
 
-        gfx_hal::pool::RawCommandPool::free(&mut self.raw, buffers);
+        rendy_core::hal::pool::CommandPool::free(&mut self.raw, buffers);
     }
 
     /// Reset all buffers of this pool.
@@ -117,7 +117,7 @@ where
     /// All buffers allocated from this pool must be marked reset.
     /// See [`CommandBuffer::mark_reset`](struct.Command buffer.html#method.mark_reset)
     pub unsafe fn reset(&mut self) {
-        gfx_hal::pool::RawCommandPool::reset(&mut self.raw, true);
+        rendy_core::hal::pool::CommandPool::reset(&mut self.raw, true);
     }
 
     /// Dispose of command pool.

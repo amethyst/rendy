@@ -40,7 +40,7 @@ pub type CommandReadyRef<'a, B, C, P = OutsideRenderPass, L = PrimaryLevel> = Re
 
 impl<B, C, P, L> CommandCirque<B, C, P, L>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
     L: Level,
     C: Capability,
     P: RenderPassRelation<L>,

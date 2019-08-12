@@ -13,24 +13,24 @@
 )]
 
 #[doc(inline)]
-pub use rendy_util as util;
+pub use rendy_core as core;
 
-pub use gfx_hal as hal;
+pub use rendy_core::hal as hal;
 
 #[cfg(feature = "empty")]
-pub use rendy_util::empty;
+pub use rendy_core::empty;
 
-#[cfg(feature = "dx12")]
-pub use rendy_util::dx12;
+#[cfg(all(feature = "dx12", all(target_os = "windows", not(target_arch = "wasm32"))))]
+pub use rendy_core::dx12;
 
 #[cfg(feature = "gl")]
-pub use rendy_util::gl;
+pub use rendy_core::gl;
 
-#[cfg(feature = "metal")]
-pub use rendy_util::metal;
+#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios")))))]
+pub use rendy_core::metal;
 
-#[cfg(feature = "vulkan")]
-pub use rendy_util::vulkan;
+#[cfg(all(feature = "vulkan", any(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
+pub use rendy_core::vulkan;
 
 #[cfg(feature = "command")]
 #[doc(inline)]
@@ -51,6 +51,10 @@ pub use rendy_frame as frame;
 #[cfg(feature = "graph")]
 #[doc(inline)]
 pub use rendy_graph as graph;
+
+#[cfg(feature = "init")]
+#[doc(inline)]
+pub use rendy_init as init;
 
 #[cfg(feature = "memory")]
 #[doc(inline)]

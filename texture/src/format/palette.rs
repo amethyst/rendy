@@ -5,13 +5,13 @@ use crate::{pixel, texture::TextureBuilder};
 use palette::{white_point::WhitePoint, Component};
 
 macro_rules! define_load {
-    (@swizzle NO) => { gfx_hal::format::Swizzle::NO };
+    (@swizzle NO) => { rendy_core::hal::format::Swizzle::NO };
     (@swizzle ($r:ident, $g:ident, $b:ident, $a:ident)) => {
-        gfx_hal::format::Swizzle(
-            gfx_hal::format::Component::$r,
-            gfx_hal::format::Component::$g,
-            gfx_hal::format::Component::$b,
-            gfx_hal::format::Component::$a,
+        rendy_core::hal::format::Swizzle(
+            rendy_core::hal::format::Component::$r,
+            rendy_core::hal::format::Component::$g,
+            rendy_core::hal::format::Component::$b,
+            rendy_core::hal::format::Component::$a,
         )
     };
     ($(pub fn $load_fn:ident<$($ty:ident: $where:path),*>($palette:ident) -> $pixel:ident $swizzle:tt;)*) => {$(
@@ -24,8 +24,8 @@ macro_rules! define_load {
             palette::$palette<$($ty),*>: Into<pixel::$pixel>,
         {
             TextureBuilder::new()
-                .with_kind(gfx_hal::image::Kind::D2(1, 1, 1, 1))
-                .with_view_kind(gfx_hal::image::ViewKind::D2)
+                .with_kind(rendy_core::hal::image::Kind::D2(1, 1, 1, 1))
+                .with_view_kind(rendy_core::hal::image::ViewKind::D2)
                 .with_data_width(1)
                 .with_data_height(1)
                 .with_data(vec![palette.into()])

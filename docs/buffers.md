@@ -51,9 +51,9 @@ let buffer = factory
     .create_buffer(
         BufferInfo {
             size: buffer_frame_size(align) * frames as u64,
-            usage: gfx_hal::buffer::Usage::UNIFORM
-                | gfx_hal::buffer::Usage::INDIRECT
-                | gfx_hal::buffer::Usage::VERTEX,
+            usage: rendy_core::hal::buffer::Usage::UNIFORM
+                | rendy_core::hal::buffer::Usage::INDIRECT
+                | rendy_core::hal::buffer::Usage::VERTEX,
         },
         Dynamic,
     )

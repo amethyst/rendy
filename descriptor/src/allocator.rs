@@ -1,9 +1,9 @@
 use {
     crate::ranges::*,
-    gfx_hal::{
-        device::OutOfMemory,
+    rendy_core::hal::{
+        device::{Device, OutOfMemory},
         pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
-        Backend, Device,
+        Backend,
     },
     smallvec::{smallvec, SmallVec},
     std::{

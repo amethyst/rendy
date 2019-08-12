@@ -1,0 +1,50 @@
+[package]
+name = "rendy-core"
+version = "0.3.1"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/amethyst/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy-core"
+keywords = ["graphics", "gfx-hal", "rendy"]
+categories = ["rendering"]
+description = "Rendy's utilities"
+
+[features]
+serde-1 = ["serde", "gfx-hal/serde"]
+
+# This list of features is common for many of rendy's crates
+# All other crates should transitively enable feature for rendy-core crate
+# and not rely on the feature being enabled for that crate directly.
+# To conditionally enable token trees `rendy-core::with_*` macro should be used instead of
+# `cfg` attributes.
+dx12 = ["gfx-backend-dx12"]
+empty = ["gfx-backend-empty"]
+gl = ["gfx-backend-gl"]
+glutin = ["gfx-backend-gl/glutin"]
+metal = ["gfx-backend-metal"]
+vulkan = ["gfx-backend-vulkan"]
+no-slow-safety-checks = []
+wsi-winit = ["winit", "gfx-backend-empty/winit", "gfx-backend-dx12/winit", "gfx-backend-gl/winit", "gfx-backend-metal/winit", "gfx-backend-vulkan/winit"]
+
+[dependencies]
+derivative = "1.0"
+lazy_static = "1.0"
+log = "0.4"
+parking_lot = "0.9"
+serde = { version = "1.0", optional = true, features = ["derive"] }
+thread_profiler = "0.3"
+winit = { version = "0.20.0-alpha2", optional = true, features = ["web-sys"] }
+
+gfx-hal = "0.3"
+gfx-backend-empty = { version = "0.3", optional = true }
+gfx-backend-gl = { version = "0.3", optional = true }
+
+[target.'cfg(all(target_os = "windows", not(target_arch = "wasm32")))'.dependencies]
+gfx-backend-dx12 = { version = "0.3", optional = true }
+
+[target.'cfg(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))'.dependencies]
+gfx-backend-vulkan = { version = "0.3", optional = true }
+
+[target.'cfg(any(all(target_os = "macos", not(target_arch = "wasn32"), all(target_arch = "aarch64", target_os = "ios"))))'.dependencies]
+gfx-backend-metal = { version = "0.3", optional = true }

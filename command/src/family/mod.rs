@@ -8,9 +8,9 @@ use {
         buffer::Reset,
         capability::{Capability, QueueType, Supports},
         pool::CommandPool,
-        util::{device_owned, Device, DeviceId},
+        core::{device_owned, Device, DeviceId, hal::queue::QueueFamily as _},
     },
-    gfx_hal::Backend,
+    rendy_core::hal::{Backend, queue::QueueGroup},
 };
 
 pub use self::{queue::*, submission::*};
@@ -25,9 +25,9 @@ pub struct FamilyId {
     pub device: DeviceId,
 }
 
-impl From<FamilyId> for gfx_hal::queue::QueueFamilyId {
+impl From<FamilyId> for rendy_core::hal::queue::QueueFamilyId {
     fn from(id: FamilyId) -> Self {
-        gfx_hal::queue::QueueFamilyId(id.index)
+        rendy_core::hal::queue::QueueFamilyId(id.index)
     }
 }
 
@@ -49,7 +49,7 @@ pub struct QueueId {
 pub struct Family<B: Backend, C = QueueType> {
     id: FamilyId,
     queues: Vec<Queue<B>>,
-    // min_image_transfer_granularity: gfx_hal::image::Extent,
+    // min_image_transfer_granularity: rendy_core::hal::image::Extent,
     capability: C,
 }
 
@@ -68,26 +68,15 @@ where
     /// `family` must be one of the family indices used during `device` creation.
     /// `properties` must be the properties retuned for queue family from physical device.
     pub unsafe fn from_device(
-        queues: &mut gfx_hal::queue::Queues<B>,
         id: FamilyId,
-        count: usize,
-        family: &impl gfx_hal::queue::QueueFamily,
+        queue_type: QueueType,
+        queues: impl IntoIterator<Item = B::CommandQueue>,
     ) -> Self {
         Family {
             id,
-            queues: {
-                let queues = queues
-                    .take_raw(gfx_hal::queue::QueueFamilyId(id.index))
-                    .expect("");
-                assert_eq!(queues.len(), count);
-                queues
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, queue)| Queue::new(queue, QueueId { family: id, index }))
-                    .collect()
-            },
+            queues: queues.into_iter().enumerate().map(|(index, queue)| Queue::new(queue, QueueId { family: id, index })).collect(),
             // min_image_transfer_granularity: properties.min_image_transfer_granularity,
-            capability: family.queue_type(),
+            capability: queue_type,
         }
     }
 }
@@ -126,7 +115,7 @@ where
     pub fn create_pool<R>(
         &self,
         device: &Device<B>,
-    ) -> Result<CommandPool<B, C, R>, gfx_hal::device::OutOfMemory>
+    ) -> Result<CommandPool<B, C, R>, rendy_core::hal::device::OutOfMemory>
     where
         R: Reset,
         C: Capability,
@@ -235,16 +224,17 @@ where
 /// `properties` must contain properties retuned for queue family from physical device for each family id yielded by `families`.
 pub unsafe fn families_from_device<B>(
     device: DeviceId,
-    queues: &mut gfx_hal::queue::Queues<B>,
-    families: impl IntoIterator<Item = (FamilyId, usize)>,
-    queue_types: &[impl gfx_hal::queue::QueueFamily],
+    queue_groups: Vec<QueueGroup<B>>,
+    queue_types: &[B::QueueFamily],
 ) -> Families<B>
 where
     B: Backend,
 {
-    let families: Vec<_> = families
+    let families: Vec<_> = queue_groups
         .into_iter()
-        .map(|(id, count)| Family::from_device(queues, id, count, &queue_types[id.index]))
+        .map(|group| {
+            Family::from_device(FamilyId { index: group.family.0, device, }, queue_types[group.family.0].queue_type(), group.queues)
+        })
         .collect();
 
     let mut families_indices = vec![!0; families.len()];

@@ -5,6 +5,7 @@ use {
             IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
             SecondaryLevel, SimultaneousUse, Submission, Submit, Supports,
         },
+        core::hal::{self, image::Layout, Backend, device::Device as _},
         factory::Factory,
         frame::{
             cirque::{CirqueRef, CommandCirque},
@@ -20,7 +21,6 @@ use {
         BufferId, ImageId, NodeId,
     },
     either::Either,
-    gfx_hal::{image::Layout, Backend, Device as _},
     std::{cmp::min, collections::HashMap},
 };
 
@@ -165,7 +165,7 @@ where
 #[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassBuilder<B, T>>,
-    surface: Option<(Surface<B>, gfx_hal::window::Extent2D, Option<gfx_hal::command::ClearValue>)>,
+    surface: Option<(Surface<B>, hal::window::Extent2D, Option<hal::command::ClearValue>)>,
 }
 
 impl<B, T> RenderPassNodeBuilder<B, T>
@@ -194,8 +194,8 @@ where
     pub fn add_surface(
         &mut self,
         surface: Surface<B>,
-        suggest_extent: gfx_hal::window::Extent2D,
-        clear: Option<gfx_hal::command::ClearValue>,
+        suggest_extent: hal::window::Extent2D,
+        clear: Option<hal::command::ClearValue>,
     ) -> &mut Self {
         assert!(
             self.surface.is_none(),
@@ -209,8 +209,8 @@ where
     pub fn with_surface(
         mut self,
         surface: Surface<B>,
-        suggest_extent: gfx_hal::window::Extent2D,
-        clear: Option<gfx_hal::command::ClearValue>,
+        suggest_extent: hal::window::Extent2D,
+        clear: Option<hal::command::ClearValue>,
     ) -> Self {
         self.add_surface(surface, suggest_extent, clear);
         self
@@ -231,9 +231,9 @@ where
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
         let empty = BufferAccess {
-            access: gfx_hal::buffer::Access::empty(),
-            usage: gfx_hal::buffer::Usage::empty(),
-            stages: gfx_hal::pso::PipelineStage::empty(),
+            access: hal::buffer::Access::empty(),
+            usage: hal::buffer::Usage::empty(),
+            stages: hal::pso::PipelineStage::empty(),
         };
         let mut buffers = HashMap::new();
 
@@ -253,9 +253,9 @@ where
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
         let empty = ImageAccess {
-            access: gfx_hal::image::Access::empty(),
-            usage: gfx_hal::image::Usage::empty(),
-            stages: gfx_hal::pso::PipelineStage::empty(),
+            access: hal::image::Access::empty(),
+            usage: hal::image::Usage::empty(),
+            stages: hal::pso::PipelineStage::empty(),
             layout: Layout::Undefined,
         };
         let mut attachments = HashMap::new();
@@ -267,9 +267,9 @@ where
                     layout: Layout::ShaderReadOnlyOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::INPUT_ATTACHMENT_READ;
-                entry.usage |= gfx_hal::image::Usage::INPUT_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::FRAGMENT_SHADER;
+                entry.access |= hal::image::Access::INPUT_ATTACHMENT_READ;
+                entry.usage |= hal::image::Usage::INPUT_ATTACHMENT;
+                entry.stages |= hal::pso::PipelineStage::FRAGMENT_SHADER;
             }
 
             for &id in subpass.colors.iter().filter_map(|e| e.as_ref().left()) {
@@ -277,10 +277,10 @@ where
                     layout: Layout::ColorAttachmentOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::COLOR_ATTACHMENT_READ
-                    | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE;
-                entry.usage |= gfx_hal::image::Usage::COLOR_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+                entry.access |= hal::image::Access::COLOR_ATTACHMENT_READ
+                    | hal::image::Access::COLOR_ATTACHMENT_WRITE;
+                entry.usage |= hal::image::Usage::COLOR_ATTACHMENT;
+                entry.stages |= hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
             }
 
             if let Some(id) = subpass.depth_stencil.and_then(Either::left) {
@@ -288,11 +288,11 @@ where
                     layout: Layout::DepthStencilAttachmentOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
-                    | gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
-                entry.usage |= gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::EARLY_FRAGMENT_TESTS
-                    | gfx_hal::pso::PipelineStage::LATE_FRAGMENT_TESTS;
+                entry.access |= hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
+                    | hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
+                entry.usage |= hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
+                entry.stages |= hal::pso::PipelineStage::EARLY_FRAGMENT_TESTS
+                    | hal::pso::PipelineStage::LATE_FRAGMENT_TESTS;
             }
 
             for group in &subpass.groups {
@@ -367,18 +367,18 @@ where
             })
             .collect();
 
-        let mut surface_usage = gfx_hal::image::Usage::empty();
+        let mut surface_usage = hal::image::Usage::empty();
         if surface_color_usage {
-            surface_usage |= gfx_hal::image::Usage::COLOR_ATTACHMENT;
+            surface_usage |= hal::image::Usage::COLOR_ATTACHMENT;
         }
         if surface_depth_usage {
-            surface_usage |= gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
+            surface_usage |= hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
         }
 
         if surface.is_some() {
             log::debug!("Surface usage {:#?}", surface_usage);
         } else {
-            debug_assert_eq!(surface_usage, gfx_hal::image::Usage::empty());
+            debug_assert_eq!(surface_usage, hal::image::Usage::empty());
         }
 
         attachments.sort();
@@ -419,9 +419,9 @@ where
                             .device()
                             .create_image_view(
                                 image.raw(),
-                                gfx_hal::image::ViewKind::D2,
+                                hal::image::ViewKind::D2,
                                 image.format(),
-                                gfx_hal::format::Swizzle::NO,
+                                hal::format::Swizzle::NO,
                                 node_image.range.clone(),
                             )}?])
                     },
@@ -435,11 +435,11 @@ where
                             failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
                         }
 
-                        let target = factory.create_target(
+                        let swapchain = factory.create_swapchain(
                             surface,
                             surface_extent,
-                            3,
-                            gfx_hal::window::PresentMode::Fifo,
+                            None,
+                            hal::window::PresentMode::Fifo,
                             surface_usage,
                         )?;
 
@@ -456,10 +456,10 @@ where
                                 .device()
                                 .create_image_view(
                                     image.raw(),
-                                    gfx_hal::image::ViewKind::D2,
+                                    hal::image::ViewKind::D2,
                                     image.format(),
-                                    gfx_hal::format::Swizzle::NO,
-                                    gfx_hal::image::SubresourceRange {
+                                    hal::format::Swizzle::NO,
+                                    hal::image::SubresourceRange {
                                         aspects: image.format().surface_desc().aspects,
                                         levels: 0 .. 1,
                                         layers: 0 .. 1,
@@ -493,23 +493,23 @@ where
                                 .backbuffer()[0]
                                 .format(),
                             surface_clear,
-                            gfx_hal::image::Layout::Present,
+                            hal::image::Layout::Present,
                         ),
                     };
 
-                    gfx_hal::pass::Attachment {
+                    hal::pass::Attachment {
                         format: Some(format),
-                        ops: gfx_hal::pass::AttachmentOps {
+                        ops: hal::pass::AttachmentOps {
                             load: if clear.is_some() {
-                                gfx_hal::pass::AttachmentLoadOp::Clear
+                                hal::pass::AttachmentLoadOp::Clear
                             } else {
-                                gfx_hal::pass::AttachmentLoadOp::Load
+                                hal::pass::AttachmentLoadOp::Load
                             },
-                            store: gfx_hal::pass::AttachmentStoreOp::Store,
+                            store: hal::pass::AttachmentStoreOp::Store,
                         },
-                        stencil_ops: gfx_hal::pass::AttachmentOps::DONT_CARE,
+                        stencil_ops: hal::pass::AttachmentOps::DONT_CARE,
                         layouts: if clear.is_some() {
-                            gfx_hal::image::Layout::Undefined..layout
+                            hal::image::Layout::Undefined..layout
                         } else {
                             layout..layout
                         },
@@ -542,7 +542,7 @@ where
                                         find_attachment_node_image(image_id).layout
                                     }
                                     Either::Right(RenderPassSurface) => {
-                                        gfx_hal::image::Layout::ShaderReadOnlyOptimal
+                                        hal::image::Layout::ShaderReadOnlyOptimal
                                     }
                                 },
                             )
@@ -559,7 +559,7 @@ where
                                         find_attachment_node_image(image_id).layout
                                     }
                                     Either::Right(RenderPassSurface) => {
-                                        gfx_hal::image::Layout::ColorAttachmentOptimal
+                                        hal::image::Layout::ColorAttachmentOptimal
                                     }
                                 },
                             )
@@ -573,7 +573,7 @@ where
                                     find_attachment_node_image(image_id).layout
                                 }
                                 Either::Right(RenderPassSurface) => {
-                                    gfx_hal::image::Layout::DepthStencilAttachmentOptimal
+                                    hal::image::Layout::DepthStencilAttachmentOptimal
                                 }
                             },
                         )
@@ -585,7 +585,7 @@ where
 
             let subpasses: Vec<_> = subpasses
                 .iter()
-                .map(|subpass| gfx_hal::pass::SubpassDesc {
+                .map(|subpass| hal::pass::SubpassDesc {
                     inputs: &subpass.inputs[..],
                     colors: &subpass.colors[..],
                     depth_stencil: subpass.depth_stencil.as_ref(),
@@ -603,7 +603,7 @@ where
                             1,
                             "TODO: Implement subpass dependencies to allow more than one subpass"
                         );
-                        std::iter::empty::<gfx_hal::pass::SubpassDependency>()
+                        std::iter::empty::<hal::pass::SubpassDependency>()
                     })
             }
             .unwrap();
@@ -629,7 +629,7 @@ where
                 factory.device().create_framebuffer(
                     &render_pass,
                     views[..attachments.len() - 1].iter().chain(Some(&views[i])),
-                    gfx_hal::image::Extent {
+                    hal::image::Extent {
                         width: framebuffer_width,
                         height: framebuffer_height,
                         depth: framebuffer_layers as u32, // This is gfx-hal BUG as this parameter actually means framebuffer layers number,
@@ -666,7 +666,7 @@ where
                 unsafe {
                     recording.encoder().pipeline_barrier(
                         stages,
-                        gfx_hal::memory::Dependencies::empty(),
+                        hal::memory::Dependencies::empty(),
                         barriers,
                     );
                 }
@@ -692,7 +692,7 @@ where
                 unsafe {
                     recording.encoder().pipeline_barrier(
                         stages,
-                        gfx_hal::memory::Dependencies::empty(),
+                        hal::memory::Dependencies::empty(),
                         barriers,
                     );
                 }
@@ -757,7 +757,7 @@ where
                             aux,
                             framebuffer_width,
                             framebuffer_height,
-                            gfx_hal::pass::Subpass {
+                            hal::pass::Subpass {
                                 index,
                                 main_pass: &render_pass,
                             },
@@ -872,7 +872,7 @@ struct RenderPassNodeCommon<B: Backend, T: ?Sized> {
 
     render_pass: B::RenderPass,
     views: Vec<B::ImageView>,
-    clears: Vec<gfx_hal::command::ClearValueRaw>,
+    clears: Vec<hal::command::ClearValue>,
 
     command_pool: CommandPool<B, Graphics, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,
@@ -953,7 +953,7 @@ where
         queue: &mut Queue<B>,
         aux: &T,
         frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
@@ -1008,7 +1008,7 @@ where
                                         factory,
                                         queue.id(),
                                         index,
-                                        gfx_hal::pass::Subpass {
+                                        hal::pass::Subpass {
                                             index: subpass_index,
                                             main_pass: &render_pass,
                                         },
@@ -1036,7 +1036,7 @@ where
                 if let Some(next) = &next {
                     let ref mut for_image = per_image[next[0] as usize];
 
-                    let area = gfx_hal::pso::Rect {
+                    let area = hal::pso::Rect {
                         x: 0,
                         y: 0,
                         w: *framebuffer_width as _,
@@ -1058,7 +1058,7 @@ where
                                 group.draw_inline(
                                     pass_encoder.reborrow(),
                                     index,
-                                    gfx_hal::pass::Subpass {
+                                    hal::pass::Subpass {
                                         index: subpass_index,
                                         main_pass: &render_pass,
                                     },
@@ -1086,7 +1086,7 @@ where
                     .wait(waits.iter().cloned().chain(next.as_ref().map(|n| {
                         (
                             &per_image[n[0] as usize].acquire,
-                            gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                            hal::pso::PipelineStage::TOP_OF_PIPE,
                         )
                     })))
                     .signal(
@@ -1138,7 +1138,7 @@ where
         queue: &mut Queue<B>,
         aux: &T,
         frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
@@ -1178,7 +1178,7 @@ where
                                     factory,
                                     queue.id(),
                                     index,
-                                    gfx_hal::pass::Subpass {
+                                    hal::pass::Subpass {
                                         index: subpass_index,
                                         main_pass: &render_pass,
                                     },
@@ -1202,7 +1202,7 @@ where
                     encoder.execute_commands(std::iter::once(&barriers.submit));
                 }
 
-                let area = gfx_hal::pso::Rect {
+                let area = hal::pso::Rect {
                     x: 0,
                     y: 0,
                     w: *framebuffer_width as _,
@@ -1220,7 +1220,7 @@ where
                             group.draw_inline(
                                 pass_encoder.reborrow(),
                                 index,
-                                gfx_hal::pass::Subpass {
+                                hal::pass::Subpass {
                                     index: subpass_index,
                                     main_pass: &render_pass,
                                 },

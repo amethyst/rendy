@@ -11,7 +11,7 @@ categories = ["rendering"]
 description = "Rendy's frame synchronization tool"
 
 [features]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
@@ -19,11 +19,10 @@ rendy-command = { version = "0.3.0", path = "../command" }
 rendy-factory = { version = "0.3.0", path = "../factory" }
 rendy-memory = { version = "0.3.0", path = "../memory" }
 rendy-resource = { version = "0.3.0", path = "../resource" }
-rendy-util = { version = "0.3.0", path = "../util" }
+rendy-core = { version = "0.3.0", path = "../core" }
 
 derivative = "1.0"
 either = "1.5"
-gfx-hal = "0.3"
 failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }

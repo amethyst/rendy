@@ -11,12 +11,12 @@ categories = ["rendering"]
 description = "Rendy's render graph"
 
 [features]
-empty = ["rendy-util/empty"]
-dx12 = ["rendy-util/dx12"]
-gl = ["rendy-util/gl"]
-metal = ["rendy-util/metal"]
-vulkan = ["rendy-util/vulkan"]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+empty = ["rendy-core/empty"]
+dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
+metal = ["rendy-core/metal"]
+vulkan = ["rendy-core/vulkan"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
@@ -27,11 +27,9 @@ rendy-factory = { version = "0.3.0", path = "../factory" }
 rendy-frame = { version = "0.3.0", path = "../frame" }
 rendy-memory = { version = "0.3.0", path = "../memory" }
 rendy-resource = { version = "0.3.0", path = "../resource" }
-rendy-util = { version = "0.3.0", path = "../util" }
+rendy-core = { version = "0.3.0", path = "../core" }
 rendy-wsi = { version = "0.3.0", path = "../wsi" }
 rendy-shader = { version = "0.3.0", path = "../shader" }
-
-gfx-hal = "0.3"
 
 either = "1.5"
 bitflags = "1.0"

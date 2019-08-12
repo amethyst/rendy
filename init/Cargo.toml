@@ -1,14 +1,14 @@
 [package]
-name = "rendy-wsi"
+name = "rendy-init"
 version = "0.3.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
 license = "MIT OR Apache-2.0"
-documentation = "https://docs.rs/rendy-wsi"
+documentation = "https://docs.rs/rendy-frame"
 keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
-description = "Rendy's windowing support"
+description = "Rendy's easy initialization tool"
 
 [features]
 empty = ["rendy-core/empty"]
@@ -17,15 +17,13 @@ gl = ["rendy-core/gl"]
 metal = ["rendy-core/metal"]
 vulkan = ["rendy-core/vulkan"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
-wsi-winit = ["rendy-core/wsi-winit"]
+wsi-winit = ["rendy-core/winit"]
 
 [dependencies]
-rendy-memory = { version = "0.3.0", path = "../memory" }
-rendy-resource = { version = "0.3.0", path = "../resource" }
-rendy-core = { version = "0.3.0", path = "../core", features = ["glutin"] }
+rendy-command = { version = "0.3.0", path = "../command" }
+rendy-factory = { version = "0.3.1", path = "../factory" }
+rendy-core = { version = "0.3.1", path = "../core" }
+rendy-wsi = { version = "0.3.0", path = "../wsi" }
 
-derivative = "1.0"
 failure = "0.1"
 log = "0.4"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
-smallvec = "0.6"

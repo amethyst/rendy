@@ -13,18 +13,22 @@ members = [
     "wsi",
     "chain",
     "graph",
-    "util",
+    "core",
     "texture",
     "examples",
+    "init",
 ]
 
 [profile.release]
 lto = true
 
 [patch.crates-io]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx.git" }
-gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx.git" }
-gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx.git" }
-gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx.git" }
-gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx.git" }
-gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx.git" }
+gfx-backend-dx12 = { git = "https://github.com/omni-viral/gfx", rev = "8a81717ce157e659bda04d740c1eaabee0d3a66e" }
+gfx-backend-empty = { git = "https://github.com/omni-viral/gfx", rev = "8a81717ce157e659bda04d740c1eaabee0d3a66e" }
+gfx-backend-gl = { git = "https://github.com/omni-viral/gfx", rev = "8a81717ce157e659bda04d740c1eaabee0d3a66e" }
+gfx-backend-metal = { git = "https://github.com/omni-viral/gfx", rev = "8a81717ce157e659bda04d740c1eaabee0d3a66e" }
+gfx-backend-vulkan = { git = "https://github.com/omni-viral/gfx", rev = "8a81717ce157e659bda04d740c1eaabee0d3a66e" }
+gfx-hal = { git = "https://github.com/omni-viral/gfx", rev = "8a81717ce157e659bda04d740c1eaabee0d3a66e" }
+winit = { git = "https://github.com/omni-viral/winit", rev = "e9b72797e0d57d64cabd5a92d0ec310fda3817e8" }
+spirv_cross = { git = "https://github.com/omni-viral/spirv_cross", rev = "b27d886dad4dd9f00c0f7e8434ecfc7620b702be" }
+

@@ -11,10 +11,9 @@ categories = ["rendering"]
 description = "Rendy's resource manager"
 
 [features]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 
 [dependencies]
-gfx-hal = "0.3"
 crossbeam-channel = "0.3"
 derivative = "1.0"
 failure = "0.1"
@@ -22,5 +21,5 @@ log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 rendy-descriptor = { version = "0.3.0", path = "../descriptor" }
 rendy-memory = { version = "0.3.0", path = "../memory" }
-rendy-util = { version = "0.3.0", path = "../util" }
+rendy-core = { version = "0.3.0", path = "../core" }
 smallvec = "0.6"

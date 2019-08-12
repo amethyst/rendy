@@ -19,7 +19,7 @@ impl SubmissionId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
         self.queue.family()
     }
 

@@ -12,7 +12,7 @@ categories = ["rendering"]
 readme = "../README.md"
 
 [features]
-serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-util/serde-1"]
+serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-core/serde-1", "rendy-memory/serde-1"]
 
 # Rendy subcrates
 command = ["rendy-command"]
@@ -20,6 +20,7 @@ descriptor = ["rendy-descriptor"]
 factory = ["rendy-factory", "command", "descriptor", "resource", "wsi"]
 frame = ["rendy-frame", "factory"]
 graph = ["rendy-graph", "frame"]
+init = ["rendy-init", "factory"]
 memory = ["rendy-memory"]
 mesh = ["rendy-mesh", "factory"]
 shader = ["rendy-shader", "factory"]
@@ -28,16 +29,17 @@ texture = ["rendy-texture", "factory"]
 wsi = ["rendy-wsi"]
 
 # Common util features
-empty = ["rendy-util/empty"]
-dx12 = ["rendy-util/dx12"]
-gl = ["rendy-util/gl"]
-metal = ["rendy-util/metal"]
-vulkan = ["rendy-util/vulkan"]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+empty = ["rendy-core/empty"]
+dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
+metal = ["rendy-core/metal"]
+vulkan = ["rendy-core/vulkan"]
+wsi-winit = ["rendy-core/wsi-winit"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 # Base feature enables all subcrates
-base = ["command", "descriptor", "factory", "frame", "graph", "memory", "mesh", "shader", "resource", "texture", "wsi"]
+base = ["command", "descriptor", "factory", "frame", "graph", "init", "memory", "mesh", "shader", "resource", "texture", "wsi"]
 
 # Subcrate features relay.
 mesh-obj = ["mesh", "rendy-mesh/obj"]
@@ -45,13 +47,12 @@ texture-image = ["texture", "rendy-texture/image"]
 texture-palette = ["texture", "rendy-texture/palette"]
 shader-compiler = ["rendy-shader/shader-compiler"]
 spirv-reflection = ["rendy-shader/spirv-reflection" ]
-wsi-winit = ["rendy-wsi/winit"]
 
-# Full feature set - all listed features except rendy-util's.
+# Full feature set - all listed features except rendy-core's.
 full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit"]
 
 # Default feature set includes all subcrates and few commonly used features.
-default = [ "base", "shader-compiler", "spirv-reflection", "wsi-winit" ]
+default = [ "base", "wsi-winit", "gl", "metal", "vulkan" ]
 
 [dependencies]
 rendy-command = { version = "0.3.0", path = "../command", optional = true }
@@ -59,16 +60,16 @@ rendy-descriptor = { version = "0.3.0", path = "../descriptor", optional = true 
 rendy-factory = { version = "0.3.1", path = "../factory", optional = true }
 rendy-frame = { version = "0.3.0", path = "../frame", optional = true }
 rendy-graph = { version = "0.3.2", path = "../graph", optional = true }
+rendy-init = { version = "0.3.0", path = "../init", optional = true }
 rendy-memory = { version = "0.3.0", path = "../memory", optional = true }
 rendy-mesh = { version = "0.3.0", path = "../mesh", optional = true }
 rendy-shader = { version = "0.3.0", path = "../shader", optional = true }
 rendy-resource = { version = "0.3.0", path = "../resource", optional = true }
 rendy-texture = { version = "0.3.0", path = "../texture", optional = true }
-rendy-util = { version = "0.3.1", path = "../util" }
+rendy-core = { version = "0.3.1", path = "../core" }
 rendy-wsi = { version = "0.3.0", path = "../wsi", optional = true }
 
 failure = "0.1"
-gfx-hal = "0.3"
 thread_profiler = "0.3"
 
 [dev-dependencies]
@@ -79,26 +80,6 @@ lazy_static = "1.0"
 log = "0.4"
 palette = "0.4"
 rand = "0.7"
-
-[[example]]
-name = "triangle"
-required-features = ["base", "wsi-winit"]
-
-[[example]]
-name = "sprite"
-required-features = ["base", "texture-image", "wsi-winit"]
-
-[[example]]
-name = "meshes"
-required-features = ["base", "wsi-winit"]
-
-[[example]]
-name = "quads"
-required-features = ["base", "wsi-winit"]
-
-[[example]]
-name = "source_shaders"
-required-features = ["base", "wsi-winit"]
 
 [package.metadata.docs.rs]
 features = ["full"]

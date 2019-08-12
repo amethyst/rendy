@@ -11,17 +11,15 @@ categories = ["rendering"]
 description = "Rendy's texture"
 
 [features]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
-serde-1 = ["serde", "gfx-hal/serde"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
+serde-1 = ["serde"]
 profile = ["thread_profiler/thread_profiler"]
 
 [dependencies]
 rendy-memory = { version = "0.3.0", path = "../memory" }
 rendy-resource = { version = "0.3.0", path = "../resource" }
 rendy-factory = { version = "0.3.0", path = "../factory" }
-rendy-util = { version = "0.3.0", path = "../util" }
-
-gfx-hal = "0.3"
+rendy-core = { version = "0.3.0", path = "../core" }
 
 derivative = "1.0"
 failure = "0.1"

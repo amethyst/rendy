@@ -8,7 +8,7 @@ use {
         memory::*,
         util::*,
     },
-    gfx_hal::{Backend, Device as _},
+    rendy_core::hal::{Backend, device::Device as _},
 };
 
 /// Memory block allocated from `LinearAllocator`
@@ -50,7 +50,7 @@ where
     B: Backend,
 {
     #[inline]
-    fn properties(&self) -> gfx_hal::memory::Properties {
+    fn properties(&self) -> rendy_core::hal::memory::Properties {
         self.shared_memory().properties()
     }
 
@@ -69,20 +69,20 @@ where
         &'a mut self,
         _device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    ) -> Result<MappedRange<'a, B>, rendy_core::hal::mapping::Error> {
         assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
         if !self.shared_memory().host_visible() {
-            return Err(gfx_hal::mapping::Error::InvalidAccess);
+            return Err(rendy_core::hal::mapping::Error::InvalidAccess);
         }
 
         if let Some((ptr, range)) = mapped_sub_range(self.ptr, self.range.clone(), range) {
             let mapping = unsafe { MappedRange::from_raw(self.shared_memory(), ptr, range) };
             Ok(mapping)
         } else {
-            Err(gfx_hal::mapping::Error::OutOfBounds)
+            Err(rendy_core::hal::mapping::Error::OutOfBounds)
         }
     }
 
@@ -112,8 +112,8 @@ pub struct LinearConfig {
 /// But holding single block will completely stop memory recycling.
 #[derive(Debug)]
 pub struct LinearAllocator<B: Backend> {
-    memory_type: gfx_hal::MemoryTypeId,
-    memory_properties: gfx_hal::memory::Properties,
+    memory_type: rendy_core::hal::MemoryTypeId,
+    memory_properties: rendy_core::hal::memory::Properties,
     linear_size: u64,
     offset: u64,
     lines: VecDeque<Line<B>>,
@@ -137,8 +137,8 @@ where
     B: Backend,
 {
     /// Get properties required by the `LinearAllocator`.
-    pub fn properties_required() -> gfx_hal::memory::Properties {
-        gfx_hal::memory::Properties::CPU_VISIBLE
+    pub fn properties_required() -> rendy_core::hal::memory::Properties {
+        rendy_core::hal::memory::Properties::CPU_VISIBLE
     }
 
     /// Maximum allocation size.
@@ -150,8 +150,8 @@ where
     /// for `memory_type` with `memory_properties` specified,
     /// with `LinearConfig` provided.
     pub fn new(
-        memory_type: gfx_hal::MemoryTypeId,
-        memory_properties: gfx_hal::memory::Properties,
+        memory_type: rendy_core::hal::MemoryTypeId,
+        memory_properties: rendy_core::hal::memory::Properties,
         config: LinearConfig,
     ) -> Self {
         log::trace!(
@@ -222,10 +222,10 @@ where
         device: &B::Device,
         size: u64,
         align: u64,
-    ) -> Result<(LinearBlock<B>, u64), gfx_hal::device::AllocationError> {
+    ) -> Result<(LinearBlock<B>, u64), rendy_core::hal::device::AllocationError> {
         debug_assert!(self
             .memory_properties
-            .contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+            .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE));
 
         assert!(size <= self.linear_size);
         assert!(align <= self.linear_size);
@@ -259,7 +259,7 @@ where
 
             let ptr = match device.map_memory(&raw, 0..self.linear_size) {
                 Ok(ptr) => NonNull::new_unchecked(ptr),
-                Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
+                Err(rendy_core::hal::mapping::Error::OutOfMemory(error)) => {
                     device.free_memory(raw);
                     return Err(error.into());
                 }

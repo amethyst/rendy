@@ -6,7 +6,7 @@ edition = "2018"
 repository = "https://github.com/amethyst/rendy"
 license = "MIT OR Apache-2.0"
 keywords = ["graphics", "gfx-hal", "rendy"]
-description = "Higher-level graphics abstrations based on gfx-hal"
+description = "Rendy examples"
 categories = ["rendering"]
 readme = "../README.md"
 exclude = ["www/generated"]
@@ -21,7 +21,7 @@ log = "0.4"
 nalgebra = "0.18"
 palette = "0.4"
 rand = "0.6"
-rendy = { path = "../rendy", version = "0.3.1", features = ["base", "empty"], default-features = false }
+rendy = { path = "../rendy", version = "0.3.1", features = ["texture-image", "mesh", "wsi-winit", "base", "gl"], default-features = false }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_log = "0.1"
@@ -30,16 +30,6 @@ wasm-bindgen = "0.2"
 web-sys = { version = "0.3", features = ["XmlHttpRequest"] }
 js-sys = "0.3"
 
-[features]
-dx12 = ["rendy/dx12"]
-gl = ["rendy/gl"]
-metal = ["rendy/metal"]
-vulkan = ["rendy/vulkan"]
-wsi-winit = ["rendy/wsi-winit"]
-shader-compiler = ["rendy/shader-compiler"]
-texture-image = ["rendy/texture-image"]
-mesh = ["rendy/mesh"]
-
 [[bin]]
 name = "triangle"
 path = "src/triangle/main.rs"
@@ -47,12 +37,10 @@ path = "src/triangle/main.rs"
 [[bin]]
 name = "sprite"
 path = "src/sprite/main.rs"
-required-features = ["texture-image"]
 
 [[bin]]
 name = "meshes"
 path = "src/meshes/main.rs"
-required-features = ["mesh"]
 
 [[bin]]
 name = "quads"

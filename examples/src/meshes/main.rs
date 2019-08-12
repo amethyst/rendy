@@ -4,15 +4,6 @@
 //! Nothing fancy. Just prove that `rendy` works.
 //!
 
-#![cfg_attr(
-    not(any(
-        feature = "dx12",
-        feature = "gl",
-        feature = "metal",
-        feature = "vulkan"
-    )),
-    allow(unused)
-)]
 use {
     rendy_examples::*,
     genmesh::generators::{IndexedPolygon, SharedVertex},
@@ -20,13 +11,15 @@ use {
     rendy::{
         command::{Families, QueueId, RenderPassEncoder, DrawIndexedCommand},
         factory::Factory,
-        graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-        hal::{self, Device as _, PhysicalDevice as _, pso::ShaderStageFlags},
+        graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
+        hal::{self, Backend, device::Device as _, adapter::PhysicalDevice as _, pso::ShaderStageFlags, window::Extent2D},
+        init::WindowedRendy,
         memory::Dynamic,
         mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderSetBuilder, ShaderSet, SpirvShader},
-        util::*,
+        core::{rendy_wasm32, rendy_with_gl_backend, rendy_without_gl_backend, EnabledBackend, winit::event_loop::EventLoop},
+        wsi::Surface,
     },
     std::{cmp::min, mem::size_of},
 };
@@ -419,119 +412,133 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface, extent| {
+    struct MeshesExample;
 
-        let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
+    impl Example for MeshesExample {
+        fn run<B: Backend>(self, mut rendy: WindowedRendy<B>, event_loop: EventLoop<()>) -> ! {
+            rendy.window.set_title(&format!("Meshesexample ({})", EnabledBackend::which::<B>()));
 
-        let kind = hal::image::Kind::D2(extent.width as u32, extent.height as u32, 1, 1);
-        let aspect = extent.width / extent.height;
+            let ps = rendy.window.inner_size().to_physical(rendy.window.hidpi_factor());
+            let extent = Extent2D {
+                width: ps.width as _,
+                height: ps.height as _,
+            };
 
-        let depth = graph_builder.create_image(
-            kind,
-            1,
-            hal::format::Format::D32Sfloat,
-            Some(hal::command::ClearValue::DepthStencil(
-                hal::command::ClearDepthStencil(1.0, 0),
-            )),
-        );
+            let kind = hal::image::Kind::D2(extent.width as u32, extent.height as u32, 1, 1);
+            let aspect = extent.width / extent.height;
 
-        let pass = graph_builder.add_node(
-            // SubpassBuilder::new()
-            MeshRenderPipeline::builder()
-                .into_subpass()
-                .with_color_surface()
-                .with_depth_stencil(depth)
-                .into_pass()
-                .with_surface(
-                    surface,
-                    extent,
-                    Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-                ),
-        );
+            let mut graph_builder = GraphBuilder::<B, Scene<B>>::new();
+            let depth = graph_builder.create_image(
+                kind,
+                1,
+                hal::format::Format::D32Sfloat,
+                Some(hal::command::ClearValue {
+                    depth_stencil: hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 },
+                }),
+            );
 
-        let mut scene = Scene {
-            camera: Camera {
-                proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
-                view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
-            },
-            object_mesh: None,
-            objects: vec![],
-            lights: vec![
-                Light {
-                    pad: 0.0,
-                    pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
-                    intencity: 10.0,
+            let pass = graph_builder.add_node(
+                // SubpassBuilder::new()
+                MeshRenderPipeline::builder()
+                    .into_subpass()
+                    .with_color_surface()
+                    .with_depth_stencil(depth)
+                    .into_pass()
+                    .with_surface(
+                        rendy.surface,
+                        extent,
+                        Some(hal::command::ClearValue {
+                            color: hal::command::ClearColor { float32: [1.0, 1.0, 1.0, 1.0] },
+                        }),
+                    ),
+            );
+
+            let mut scene = Scene {
+                camera: Camera {
+                    proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
+                    view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
                 },
-                Light {
-                    pad: 0.0,
-                    pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
-                    intencity: 140.0,
-                },
-                Light {
-                    pad: 0.0,
-                    pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
-                    intencity: 100.0,
-                },
-                Light {
-                    pad: 0.0,
-                    pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
-                    intencity: 160.0,
-                },
-            ],
-        };
+                object_mesh: None,
+                objects: vec![],
+                lights: vec![
+                    Light {
+                        pad: 0.0,
+                        pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
+                        intencity: 10.0,
+                    },
+                    Light {
+                        pad: 0.0,
+                        pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
+                        intencity: 140.0,
+                    },
+                    Light {
+                        pad: 0.0,
+                        pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
+                        intencity: 100.0,
+                    },
+                    Light {
+                        pad: 0.0,
+                        pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
+                        intencity: 160.0,
+                    },
+                ],
+            };
 
-        log::info!("{:#?}", scene);
+            log::info!("{:#?}", scene);
 
-        let graph = graph_builder
-            .with_frames_in_flight(3)
-            .build(factory, families, &scene)
-            .unwrap();
+            let graph = graph_builder
+                .with_frames_in_flight(3)
+                .build(&mut rendy.factory, &mut rendy.families, &scene)
+                .unwrap();
 
-        let icosphere = genmesh::generators::IcoSphere::subdivide(4);
-        let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter())
-            .map(|i| i as u32)
-            .collect();
-        let vertices: Vec<_> = icosphere
-            .shared_vertex_iter()
-            .map(|v| PosColorNorm {
-                position: v.pos.into(),
-                color: [
-                    (v.pos.x + 1.0) / 2.0,
-                    (v.pos.y + 1.0) / 2.0,
-                    (v.pos.z + 1.0) / 2.0,
-                    1.0,
-                ]
-                .into(),
-                normal: v.normal.into(),
+            let icosphere = genmesh::generators::IcoSphere::subdivide(4);
+            let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter())
+                .map(|i| i as u32)
+                .collect();
+            let vertices: Vec<_> = icosphere
+                .shared_vertex_iter()
+                .map(|v| PosColorNorm {
+                    position: v.pos.into(),
+                    color: [
+                        (v.pos.x + 1.0) / 2.0,
+                        (v.pos.y + 1.0) / 2.0,
+                        (v.pos.z + 1.0) / 2.0,
+                        1.0,
+                    ]
+                    .into(),
+                    normal: v.normal.into(),
+                })
+                .collect();
+
+            scene.object_mesh = Some(
+                Mesh::<B>::builder()
+                    .with_indices(&indices[..])
+                    .with_vertices(&vertices[..])
+                    .build(graph.node_queue(pass), &rendy.factory)
+                    .unwrap(),
+            );
+
+            let mut rng = rand::rngs::SmallRng::seed_from_u64(12478493548762156);
+            let rxy = Uniform::new(-1.0, 1.0);
+            let rz = Uniform::new(0.0, 185.0);
+
+            run(rendy.factory, rendy.families, rendy.window, event_loop, graph, scene, move |_: &mut Factory<B>, scene: &mut Scene<B>| {
+                if scene.objects.len() >= MAX_OBJECTS {
+                    return false;
+                }
+                scene.objects.push({
+                    let z = rz.sample(&mut rng);
+                    nalgebra::Transform3::identity()
+                        * nalgebra::Translation3::new(
+                            rxy.sample(&mut rng) * (z / 2.0 + 4.0),
+                            rxy.sample(&mut rng) * (z / 2.0 + 4.0),
+                            -z,
+                        )
+                });
+                true
             })
-            .collect();
+        }
+    }
 
-        scene.object_mesh = Some(
-            Mesh::<Backend>::builder()
-                .with_indices(&indices[..])
-                .with_vertices(&vertices[..])
-                .build(graph.node_queue(pass), &factory)
-                .unwrap(),
-        );
-
-        let mut rng = rand::rngs::SmallRng::seed_from_u64(12478493548762156);
-        let rxy = Uniform::new(-1.0, 1.0);
-        let rz = Uniform::new(0.0, 185.0);
-
-        (graph, scene, move |_: &mut Factory<Backend>, _: &mut Families<Backend>, scene: &mut Scene<Backend>| {
-            if scene.objects.len() >= MAX_OBJECTS {
-                return false;
-            }
-            scene.objects.push({
-                let z = rz.sample(&mut rng);
-                nalgebra::Transform3::identity()
-                    * nalgebra::Translation3::new(
-                        rxy.sample(&mut rng) * (z / 2.0 + 4.0),
-                        rxy.sample(&mut rng) * (z / 2.0 + 4.0),
-                        -z,
-                    )
-            });
-            true
-        })
-    })
+    start(MeshesExample)
 }

@@ -6,9 +6,9 @@ use crate::mapping::MappedRange;
 /// Implementor must ensure that there can't be any other blocks
 /// with overlapping range (either through type system or safety notes for unsafe functions).
 /// Provides access to safe memory range mapping.
-pub trait Block<B: gfx_hal::Backend> {
+pub trait Block<B: rendy_core::hal::Backend> {
     /// Get memory properties of the block.
-    fn properties(&self) -> gfx_hal::memory::Properties;
+    fn properties(&self) -> rendy_core::hal::memory::Properties;
 
     /// Get raw memory object.
     fn memory(&self) -> &B::Memory;
@@ -28,7 +28,7 @@ pub trait Block<B: gfx_hal::Backend> {
         &'a mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error>;
+    ) -> Result<MappedRange<'a, B>, rendy_core::hal::mapping::Error>;
 
     /// Release memory mapping. Must be called after successful `map` call.
     /// No-op if block is not mapped.

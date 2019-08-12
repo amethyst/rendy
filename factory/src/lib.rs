@@ -14,7 +14,7 @@ use rendy_command as command;
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;
 use rendy_resource as resource;
-use rendy_util as util;
+use rendy_core as core;
 use rendy_wsi as wsi;
 
 mod barriers;

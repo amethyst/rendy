@@ -1,14 +1,14 @@
 //! Image usage, format, kind, extent, creation-info and wrappers.
 
-pub use gfx_hal::image::*;
+pub use rendy_core::hal::image::*;
 
 use {
     crate::{
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
-        util::{device_owned, Device, DeviceId},
+        core::{device_owned, Device, DeviceId},
     },
-    gfx_hal::{format, Backend, Device as _},
+    rendy_core::hal::{format, Backend, device::Device as _},
     relevant::Relevant,
 };
 

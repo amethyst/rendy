@@ -239,7 +239,7 @@ pub trait AsPixel: Copy + std::fmt::Debug + Default + Send + Sync + 'static {
     const SIZE: u32;
 
     /// Pixel format.
-    const FORMAT: gfx_hal::format::Format;
+    const FORMAT: rendy_core::hal::format::Format;
 }
 
 macro_rules! impl_pixel {
@@ -251,7 +251,7 @@ macro_rules! impl_pixel {
             impl AsPixel for $alias {
                 const NAME: &'static str = stringify!($alias);
                 const SIZE: u32 = num_channels!($channels) * <$size as ChannelSize>::SIZE;
-                const FORMAT: gfx_hal::format::Format = gfx_hal::format::Format::$alias;
+                const FORMAT: rendy_core::hal::format::Format = rendy_core::hal::format::Format::$alias;
             }
         )*
     };

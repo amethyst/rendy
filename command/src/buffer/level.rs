@@ -11,17 +11,17 @@ pub struct SecondaryLevel;
 /// or executed as part of the primary buffers.
 pub trait Level: Copy + Default + std::fmt::Debug + 'static {
     /// Get raw level value for command buffer allocation.
-    fn raw_level(&self) -> gfx_hal::command::RawLevel;
+    fn raw_level(&self) -> rendy_core::hal::command::Level;
 }
 
 impl Level for PrimaryLevel {
-    fn raw_level(&self) -> gfx_hal::command::RawLevel {
-        gfx_hal::command::RawLevel::Primary
+    fn raw_level(&self) -> rendy_core::hal::command::Level {
+        rendy_core::hal::command::Level::Primary
     }
 }
 
 impl Level for SecondaryLevel {
-    fn raw_level(&self) -> gfx_hal::command::RawLevel {
-        gfx_hal::command::RawLevel::Secondary
+    fn raw_level(&self) -> rendy_core::hal::command::Level {
+        rendy_core::hal::command::Level::Secondary
     }
 }

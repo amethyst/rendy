@@ -14,15 +14,16 @@ description = "Rendy's factory tool"
 serde-1 = [
     "serde",
     "rendy-memory/serde-1",
-    "gfx-hal/serde",
+    "rendy-core/serde-1",
 ]
-empty = ["rendy-util/empty"]
-dx12 = ["rendy-util/dx12"]
-gl = ["rendy-util/gl"]
-metal = ["rendy-util/metal"]
-vulkan = ["rendy-util/vulkan"]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+empty = ["rendy-core/empty"]
+dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
+metal = ["rendy-core/metal"]
+vulkan = ["rendy-core/vulkan"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
+wsi-winit = ["rendy-core/wsi-winit"]
 
 [dependencies]
 rendy-memory = { version = "0.3.0", path = "../memory" }
@@ -30,9 +31,8 @@ rendy-resource = { version = "0.3.0", path = "../resource" }
 rendy-command = { version = "0.3.0", path = "../command" }
 rendy-descriptor = { version = "0.3.0", path = "../descriptor" }
 rendy-wsi = { version = "0.3.0", path = "../wsi" }
-rendy-util = { version = "0.3.0", path = "../util" }
+rendy-core = { version = "0.3.0", path = "../core" }
 
-gfx-hal = "0.3"
 derivative = "1.0"
 either = "1.0"
 failure = "0.1"

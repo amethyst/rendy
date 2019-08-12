@@ -3,16 +3,6 @@
 //! It uses compute node to move quads and simple render pass to draw them.
 //!
 
-#![cfg_attr(
-    not(any(
-        feature = "dx12",
-        feature = "gl",
-        feature = "metal",
-        feature = "vulkan"
-    )),
-    allow(unused)
-)]
-
 use {
     rand::{distributions::Uniform, SeedableRng as _, Rng as _},
     rendy_examples::*,
@@ -29,15 +19,18 @@ use {
                 Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
                 SimpleGraphicsPipelineDesc,
             },
+            Graph,
             BufferAccess, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
             NodeSubmittable,
         },
-        hal::{self, Device as _, pso::ShaderStageFlags},
+        hal::{self, Backend, device::Device as _, pso::ShaderStageFlags, window::Extent2D},
+        init::WindowedRendy,
         memory::Dynamic,
         mesh::Color,
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderSetBuilder, ShaderSet, SpirvShader, Shader as _},
-        util::*,
+        core::{rendy_wasm32, rendy_with_gl_backend, rendy_without_gl_backend, EnabledBackend, winit::event_loop::EventLoop},
+        wsi::Surface,
     }
 };
 
@@ -46,18 +39,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "gl")]
-type Backend = rendy::gl::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -597,41 +578,51 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface, extent| {
-        let mut graph_builder = GraphBuilder::<Backend, ()>::new();
+    struct QuadsExample;
 
-        let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
+    impl Example for QuadsExample {
+        fn run<B: Backend>(self, mut rendy: WindowedRendy<B>, event_loop: EventLoop<()>) -> ! {
+            rendy.window.set_title(&format!("Quads example ({})", EnabledBackend::which::<B>()));
 
-        let kind = hal::image::Kind::D2(extent.width as u32, extent.height as u32, 1, 1);
+            let ps = rendy.window.inner_size().to_physical(rendy.window.hidpi_factor());
+            let extent = Extent2D {
+                width: ps.width as _,
+                height: ps.height as _,
+            };
+            let mut graph_builder = GraphBuilder::<B, ()>::new();
 
-        let depth = graph_builder.create_image(
-            kind,
-            1,
-            hal::format::Format::D32Sfloat,
-            Some(hal::command::ClearValue::DepthStencil(
-                hal::command::ClearDepthStencil(1.0, 0),
-            )),
-        );
+            let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
-        let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));
+            let kind = hal::image::Kind::D2(extent.width as u32, extent.height as u32, 1, 1);
 
-        graph_builder.add_node(
-            QuadsRenderPipeline::builder()
-                .with_buffer(posvel)
-                .with_dependency(grav)
-                .into_subpass()
-                .with_color_surface()
-                .with_depth_stencil(depth)
-                .into_pass()
-                .with_surface(
-                    surface,
-                    extent,
-                    Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-                ),
-        );
+            let depth = graph_builder.create_image(
+                kind,
+                1,
+                hal::format::Format::D32Sfloat,
+                Some(hal::command::ClearValue { depth_stencil: hal::command::ClearDepthStencil { depth: 1.0, stencil: 0 } }),
+            );
 
-        let graph = graph_builder.build(factory, families, &()).unwrap();
+            let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));
 
-        (graph, (), move |_: &mut Factory<Backend>, _: &mut Families<Backend>, _: &mut ()| true)
-    })
+            graph_builder.add_node(
+                QuadsRenderPipeline::builder()
+                    .with_buffer(posvel)
+                    .with_dependency(grav)
+                    .into_subpass()
+                    .with_color_surface()
+                    .with_depth_stencil(depth)
+                    .into_pass()
+                    .with_surface(
+                        rendy.surface,
+                        extent,
+                        Some(hal::command::ClearValue { color: hal::command::ClearColor { float32: [1.0, 1.0, 1.0, 1.0] } })
+                    ),
+            );
+
+            let graph = graph_builder.build(&mut rendy.factory, &mut rendy.families, &()).unwrap();
+            run(rendy.factory, rendy.families, rendy.window, event_loop, graph, (), |_: &mut Factory<B>, _: &mut ()| true)
+        }
+    }
+
+    start(QuadsExample)
 }

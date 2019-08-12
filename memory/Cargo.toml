@@ -11,19 +11,19 @@ categories = ["rendering"]
 description = "Rendy's memory manager"
 
 [features]
-serde-1 = ["serde"]
+serde-1 = ["serde", "rendy-core/serde-1"]
 
 [dependencies]
-gfx-hal = "0.3"
+colorful = "0.2"
 derivative = "1.0"
 failure = "0.1"
 log = "0.4"
-hibitset = {version = "0.6", default-features = false}
+hibitset = { version = "0.6", default-features = false }
 relevant = { version = "0.4", features = ["log", "backtrace"] }
+rendy-core = { version = "0.3.1", path = "../core" }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 slab = "0.4"
-colorful = "0.2"
 
 [dev-dependencies]
 rand = "0.7"

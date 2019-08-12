@@ -5,6 +5,7 @@ use crate::{
         CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, MultiShot,
         PendingState, Queue, SimultaneousUse, Submission, Submit,
     },
+    core::hal::{self, Backend},
     factory::Factory,
     frame::Frames,
     graph::GraphContext,
@@ -17,19 +18,19 @@ use crate::{
 };
 
 #[derive(Debug)]
-struct ForImage<B: gfx_hal::Backend> {
+struct ForImage<B: Backend> {
     acquire: B::Semaphore,
     release: B::Semaphore,
     submit: Submit<B, SimultaneousUse>,
     buffer: CommandBuffer<
         B,
-        gfx_hal::QueueType,
+        hal::queue::QueueType,
         PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
     >,
 }
 
-impl<B: gfx_hal::Backend> ForImage<B> {
-    unsafe fn dispose(self, factory: &Factory<B>, pool: &mut CommandPool<B, gfx_hal::QueueType>) {
+impl<B: Backend> ForImage<B> {
+    unsafe fn dispose(self, factory: &Factory<B>, pool: &mut CommandPool<B, hal::queue::QueueType>) {
         drop(self.submit);
         factory.destroy_semaphore(self.acquire);
         factory.destroy_semaphore(self.release);
@@ -39,22 +40,22 @@ impl<B: gfx_hal::Backend> ForImage<B> {
 
 /// Node that presents images to the surface.
 #[derive(Debug)]
-pub struct PresentNode<B: gfx_hal::Backend> {
+pub struct PresentNode<B: Backend> {
     per_image: Vec<ForImage<B>>,
     free_acquire: B::Semaphore,
     swapchain: Swapchain<B>,
-    pool: CommandPool<B, gfx_hal::QueueType>,
+    pool: CommandPool<B, hal::queue::QueueType>,
     input_image: NodeImage,
-    blit_filter: gfx_hal::image::Filter,
+    blit_filter: hal::image::Filter,
 }
 
 // Raw pointer destroys Send/Sync autoimpl, but it's always from the same graph.
-unsafe impl<B: gfx_hal::Backend> Sync for PresentNode<B> {}
-unsafe impl<B: gfx_hal::Backend> Send for PresentNode<B> {}
+unsafe impl<B: Backend> Sync for PresentNode<B> {}
+unsafe impl<B: Backend> Send for PresentNode<B> {}
 
 impl<B> PresentNode<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Node builder.
     /// By default attempts to use 3 images in the swapchain with present mode priority:
@@ -72,10 +73,10 @@ where
         let present_mode = *present_modes_caps
             .iter()
             .max_by_key(|mode| match mode {
-                gfx_hal::PresentMode::Fifo => 3,
-                gfx_hal::PresentMode::Mailbox => 2,
-                gfx_hal::PresentMode::Relaxed => 1,
-                gfx_hal::PresentMode::Immediate => 0,
+                hal::window::PresentMode::Fifo => 3,
+                hal::window::PresentMode::Mailbox => 2,
+                hal::window::PresentMode::Relaxed => 1,
+                hal::window::PresentMode::Immediate => 0,
             })
             .unwrap();
 
@@ -83,22 +84,22 @@ where
             surface,
             image,
             dependencies: Vec::new(),
-            image_count,
+            image_count: Some(image_count),
             img_count_caps,
             present_mode,
             present_modes_caps,
-            blit_filter: gfx_hal::image::Filter::Nearest,
+            blit_filter: hal::image::Filter::Nearest,
         }
     }
 }
 
-fn create_per_image_data<B: gfx_hal::Backend>(
+fn create_per_image_data<B: Backend>(
     ctx: &GraphContext<B>,
     input_image: &NodeImage,
-    pool: &mut CommandPool<B, gfx_hal::QueueType>,
+    pool: &mut CommandPool<B, hal::queue::QueueType>,
     factory: &Factory<B>,
     swapchain: &Swapchain<B>,
-    blit_filter: gfx_hal::image::Filter,
+    blit_filter: hal::image::Filter,
 ) -> Result<Vec<ForImage<B>>, failure::Error> {
     let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
 
@@ -112,21 +113,21 @@ fn create_per_image_data<B: gfx_hal::Backend>(
             let mut encoder = buf_recording.encoder();
             let (mut stages, mut barriers) =
                 gfx_acquire_barriers(ctx, None, Some(input_image));
-            stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
-            stages.end |= gfx_hal::pso::PipelineStage::TRANSFER;
-            barriers.push(gfx_hal::memory::Barrier::Image {
+            stages.start |= hal::pso::PipelineStage::TRANSFER;
+            stages.end |= hal::pso::PipelineStage::TRANSFER;
+            barriers.push(hal::memory::Barrier::Image {
                 states: (
-                    gfx_hal::image::Access::empty(),
-                    gfx_hal::image::Layout::Undefined,
+                    hal::image::Access::empty(),
+                    hal::image::Layout::Undefined,
                 )
                     ..(
-                        gfx_hal::image::Access::TRANSFER_WRITE,
-                        gfx_hal::image::Layout::TransferDstOptimal,
+                        hal::image::Access::TRANSFER_WRITE,
+                        hal::image::Layout::TransferDstOptimal,
                     ),
                 families: None,
                 target: swapchain_image.raw(),
-                range: gfx_hal::image::SubresourceRange {
-                    aspects: gfx_hal::format::Aspects::COLOR,
+                range: hal::image::SubresourceRange {
+                    aspects: hal::format::Aspects::COLOR,
                     levels: 0..1,
                     layers: 0..1,
                 },
@@ -135,7 +136,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
             unsafe {
                 encoder.pipeline_barrier(
                     stages,
-                    gfx_hal::memory::Dependencies::empty(),
+                    hal::memory::Dependencies::empty(),
                     barriers,
                 );
             }
@@ -156,22 +157,22 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                         input_image_res.raw(),
                         input_image.layout,
                         swapchain_image.raw(),
-                        gfx_hal::image::Layout::TransferDstOptimal,
+                        hal::image::Layout::TransferDstOptimal,
                         blit_filter,
-                        Some(gfx_hal::command::ImageBlit {
-                            src_subresource: gfx_hal::image::SubresourceLayers {
+                        Some(hal::command::ImageBlit {
+                            src_subresource: hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
                                 layers: input_image.range.layers.start..input_image.range.layers.start + 1,
                             },
-                            src_bounds: gfx_hal::image::Offset::ZERO
+                            src_bounds: hal::image::Offset::ZERO
                                 .into_bounds(&input_image_res.kind().extent()),
-                            dst_subresource: gfx_hal::image::SubresourceLayers {
-                                aspects: gfx_hal::format::Aspects::COLOR,
+                            dst_subresource: hal::image::SubresourceLayers {
+                                aspects: hal::format::Aspects::COLOR,
                                 level: 0,
                                 layers: 0..1,
                             },
-                            dst_bounds: gfx_hal::image::Offset::ZERO
+                            dst_bounds: hal::image::Offset::ZERO
                                 .into_bounds(&swapchain_image.kind().extent()),
                         }),
                     );
@@ -183,21 +184,21 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                         input_image_res.raw(),
                         input_image.layout,
                         swapchain_image.raw(),
-                        gfx_hal::image::Layout::TransferDstOptimal,
-                        Some(gfx_hal::command::ImageCopy {
-                            src_subresource: gfx_hal::image::SubresourceLayers {
+                        hal::image::Layout::TransferDstOptimal,
+                        Some(hal::command::ImageCopy {
+                            src_subresource: hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
                                 layers: input_image.range.layers.start..input_image.range.layers.start + 1,
                             },
-                            src_offset: gfx_hal::image::Offset::ZERO,
-                            dst_subresource: gfx_hal::image::SubresourceLayers {
-                                aspects: gfx_hal::format::Aspects::COLOR,
+                            src_offset: hal::image::Offset::ZERO,
+                            dst_subresource: hal::image::SubresourceLayers {
+                                aspects: hal::format::Aspects::COLOR,
                                 level: 0,
                                 layers: 0..1,
                             },
-                            dst_offset: gfx_hal::image::Offset::ZERO,
-                            extent: gfx_hal::image::Extent {
+                            dst_offset: hal::image::Offset::ZERO,
+                            extent: hal::image::Extent {
                                 width: swapchain_image.kind().extent().width,
                                 height: swapchain_image.kind().extent().height,
                                 depth: 1,
@@ -210,21 +211,21 @@ fn create_per_image_data<B: gfx_hal::Backend>(
             {
                 let (mut stages, mut barriers) =
                     gfx_release_barriers(ctx, None, Some(input_image));
-                stages.start |= gfx_hal::pso::PipelineStage::TRANSFER;
-                stages.end |= gfx_hal::pso::PipelineStage::BOTTOM_OF_PIPE;
-                barriers.push(gfx_hal::memory::Barrier::Image {
+                stages.start |= hal::pso::PipelineStage::TRANSFER;
+                stages.end |= hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+                barriers.push(hal::memory::Barrier::Image {
                     states: (
-                        gfx_hal::image::Access::TRANSFER_WRITE,
-                        gfx_hal::image::Layout::TransferDstOptimal,
+                        hal::image::Access::TRANSFER_WRITE,
+                        hal::image::Layout::TransferDstOptimal,
                     )
                         ..(
-                            gfx_hal::image::Access::empty(),
-                            gfx_hal::image::Layout::Present,
+                            hal::image::Access::empty(),
+                            hal::image::Layout::Present,
                         ),
                     families: None,
                     target: swapchain_image.raw(),
-                    range: gfx_hal::image::SubresourceRange {
-                        aspects: gfx_hal::format::Aspects::COLOR,
+                    range: hal::image::SubresourceRange {
+                        aspects: hal::format::Aspects::COLOR,
                         levels: 0..1,
                         layers: 0..1,
                     },
@@ -234,7 +235,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 unsafe {
                     encoder.pipeline_barrier(
                         stages,
-                        gfx_hal::memory::Dependencies::empty(),
+                        hal::memory::Dependencies::empty(),
                         barriers,
                     );
                 }
@@ -256,20 +257,20 @@ fn create_per_image_data<B: gfx_hal::Backend>(
 
 /// Presentation node description.
 #[derive(Debug)]
-pub struct PresentBuilder<B: gfx_hal::Backend> {
+pub struct PresentBuilder<B: Backend> {
     surface: Surface<B>,
     image: ImageId,
-    image_count: u32,
+    image_count: Option<u32>,
     img_count_caps: std::ops::RangeInclusive<u32>,
-    present_modes_caps: Vec<gfx_hal::PresentMode>,
-    present_mode: gfx_hal::PresentMode,
+    present_modes_caps: Vec<hal::window::PresentMode>,
+    present_mode: hal::window::PresentMode,
     dependencies: Vec<NodeId>,
-    blit_filter: gfx_hal::image::Filter,
+    blit_filter: hal::image::Filter,
 }
 
 impl<B> PresentBuilder<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
 {
     /// Add dependency.
     /// Node will be placed after its dependencies.
@@ -294,14 +295,14 @@ where
         let image_count = image_count
             .min(*self.img_count_caps.end())
             .max(*self.img_count_caps.start());
-        self.image_count = image_count;
+        self.image_count = Some(image_count);
         self
     }
 
     /// Set up filter used for resizing when backbuffer size does not match source image size.
     ///
     /// Default is `Nearest`.
-    pub fn with_blit_filter(mut self, filter: gfx_hal::image::Filter) -> Self {
+    pub fn with_blit_filter(mut self, filter: hal::image::Filter) -> Self {
         self.blit_filter = filter;
         self
     }
@@ -313,7 +314,7 @@ where
     /// building to see the final present mode.
     ///
     /// ## Parameters
-    /// - present_modes_priority: A function which takes a `gfx_hal::PresentMode` and returns
+    /// - present_modes_priority: A function which takes a `hal::window::PresentMode` and returns
     /// an `Option<usize>`. `None` indicates not to use this mode, and a higher number returned
     /// indicates a higher prioirity for that mode.
     ///
@@ -321,7 +322,7 @@ where
     /// - Panics if none of the provided `PresentMode`s are supported.
     pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self
     where
-        PF: Fn(gfx_hal::PresentMode) -> Option<usize>,
+        PF: Fn(hal::window::PresentMode) -> Option<usize>,
     {
         if !self
             .present_modes_caps
@@ -342,19 +343,19 @@ where
     }
 
     /// Get image count in presentable swapchain.
-    pub fn image_count(&self) -> u32 {
+    pub fn image_count(&self) -> Option<u32> {
         self.image_count
     }
 
     /// Get present mode used by node.
-    pub fn present_mode(&self) -> gfx_hal::PresentMode {
+    pub fn present_mode(&self) -> hal::window::PresentMode {
         self.present_mode
     }
 }
 
 impl<B, T> NodeBuilder<B, T> for PresentBuilder<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
 {
     fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
@@ -373,10 +374,10 @@ where
         vec![(
             self.image,
             ImageAccess {
-                access: gfx_hal::image::Access::TRANSFER_READ,
-                layout: gfx_hal::image::Layout::TransferSrcOptimal,
-                usage: gfx_hal::image::Usage::TRANSFER_SRC,
-                stages: gfx_hal::pso::PipelineStage::TRANSFER,
+                access: hal::image::Access::TRANSFER_READ,
+                layout: hal::image::Layout::TransferSrcOptimal,
+                usage: hal::image::Usage::TRANSFER_SRC,
+                stages: hal::pso::PipelineStage::TRANSFER,
             },
         )]
     }
@@ -410,12 +411,12 @@ where
             failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", self.surface, family);
         }
 
-        let target = factory.create_target(
+        let swapchain = factory.create_swapchain(
             self.surface,
             extent,
             self.image_count,
             self.present_mode,
-            gfx_hal::image::Usage::TRANSFER_DST,
+            hal::image::Usage::TRANSFER_DST,
         )?;
 
         let mut pool = factory.create_command_pool(family)?;
@@ -442,7 +443,7 @@ where
 
 impl<B, T> DynNode<B, T> for PresentNode<B>
 where
-    B: gfx_hal::Backend,
+    B: Backend,
     T: ?Sized,
 {
     unsafe fn run<'a>(
@@ -452,7 +453,7 @@ where
         queue: &mut Queue<B>,
         _aux: &T,
         _frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         mut fence: Option<&mut Fence<B>>,
     ) {
@@ -469,7 +470,7 @@ where
                                 .submits(Some(&for_image.submit))
                                 .wait(waits.iter().cloned().chain(Some((
                                     &for_image.acquire,
-                                    gfx_hal::pso::PipelineStage::TRANSFER,
+                                    hal::pso::PipelineStage::TRANSFER,
                                 ))))
                                 .signal(signals.iter().cloned().chain(Some(&for_image.release))),
                         ),
@@ -488,7 +489,7 @@ where
                         }
                     }
                 }
-                Err(gfx_hal::window::AcquireError::OutOfDate) => {
+                Err(hal::window::AcquireError::OutOfDate) => {
                     // recreate swapchain and try again.
                 }
                 e => {

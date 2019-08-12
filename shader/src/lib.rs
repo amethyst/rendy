@@ -24,7 +24,7 @@ pub use self::shaderc::*;
 #[cfg(feature = "spirv-reflection")]
 pub use self::reflect::SpirvReflection;
 
-use gfx_hal::{pso::ShaderStageFlags, Backend};
+use rendy_core::hal::{pso::ShaderStageFlags, Backend, device::Device as _};
 use std::collections::HashMap;
 
 /// Interface to create shader modules from shaders.
@@ -51,8 +51,7 @@ pub trait Shader {
     where
         B: Backend,
     {
-        gfx_hal::Device::create_shader_module(factory.device().raw(), &self.spirv()?)
-            .map_err(Into::into)
+        factory.device().raw().create_shader_module(&self.spirv()?).map_err(Into::into)
     }
 }
 
@@ -212,8 +211,8 @@ impl<B: Backend> ShaderSet<B> {
     }
 
     /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in gfx_hal.
-    pub fn raw<'a>(&'a self) -> Result<(gfx_hal::pso::GraphicsShaderSet<'a, B>), failure::Error> {
-        Ok(gfx_hal::pso::GraphicsShaderSet {
+    pub fn raw<'a>(&'a self) -> Result<(rendy_core::hal::pso::GraphicsShaderSet<'a, B>), failure::Error> {
+        Ok(rendy_core::hal::pso::GraphicsShaderSet {
             vertex: self
                 .shaders
                 .get(&ShaderStageFlags::VERTEX)
@@ -252,17 +251,17 @@ impl<B: Backend> ShaderSet<B> {
 #[allow(missing_copy_implementations)]
 pub struct SpecConstantSet {
     /// Vertex specialization
-    pub vertex: Option<gfx_hal::pso::Specialization<'static>>,
+    pub vertex: Option<rendy_core::hal::pso::Specialization<'static>>,
     /// Fragment specialization
-    pub fragment: Option<gfx_hal::pso::Specialization<'static>>,
+    pub fragment: Option<rendy_core::hal::pso::Specialization<'static>>,
     /// Geometry specialization
-    pub geometry: Option<gfx_hal::pso::Specialization<'static>>,
+    pub geometry: Option<rendy_core::hal::pso::Specialization<'static>>,
     /// Hull specialization
-    pub hull: Option<gfx_hal::pso::Specialization<'static>>,
+    pub hull: Option<rendy_core::hal::pso::Specialization<'static>>,
     /// Domain specialization
-    pub domain: Option<gfx_hal::pso::Specialization<'static>>,
+    pub domain: Option<rendy_core::hal::pso::Specialization<'static>>,
     /// Compute specialization
-    pub compute: Option<gfx_hal::pso::Specialization<'static>>,
+    pub compute: Option<rendy_core::hal::pso::Specialization<'static>>,
 }
 
 /// Builder class which is used to begin the reflection and shader set construction process for a shader set. Provides all the functionality needed to
@@ -298,7 +297,7 @@ impl ShaderSetBuilder {
         }
 
         let create_storage = move |stage,
-                                   shader: (Vec<u32>, String, Option<gfx_hal::pso::Specialization<'static>>),
+                                   shader: (Vec<u32>, String, Option<rendy_core::hal::pso::Specialization<'static>>),
                                    factory|
               -> Result<ShaderStorage<B>, failure::Error> {
             let mut storage = ShaderStorage {
@@ -472,20 +471,20 @@ pub struct ShaderStorage<B: Backend> {
     spirv: Vec<u32>,
     module: Option<B::ShaderModule>,
     entrypoint: String,
-    specialization: Option<gfx_hal::pso::Specialization<'static>>,
+    specialization: Option<rendy_core::hal::pso::Specialization<'static>>,
 }
 impl<B: Backend> ShaderStorage<B> {
     /// Builds the `EntryPoint` structure used by gfx_hal to determine how to utilize this shader
     pub fn get_entry_point<'a>(
         &'a self,
-    ) -> Result<Option<gfx_hal::pso::EntryPoint<'a, B>>, failure::Error> {
-        Ok(Some(gfx_hal::pso::EntryPoint {
+    ) -> Result<Option<rendy_core::hal::pso::EntryPoint<'a, B>>, failure::Error> {
+        Ok(Some(rendy_core::hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
             specialization: self
                 .specialization
                 .clone()
-                .unwrap_or(gfx_hal::pso::Specialization::default()),
+                .unwrap_or(rendy_core::hal::pso::Specialization::default()),
         }))
     }
 
@@ -494,16 +493,12 @@ impl<B: Backend> ShaderStorage<B> {
         &mut self,
         factory: &rendy_factory::Factory<B>,
     ) -> Result<(), failure::Error> {
-        self.module = Some(gfx_hal::Device::create_shader_module(
-            factory.device().raw(),
-            &self.spirv,
-        )?);
-
+        self.module = Some(factory.device().raw().create_shader_module(&self.spirv,)?);
         Ok(())
     }
 
     fn dispose(&mut self, factory: &rendy_factory::Factory<B>) {
-        use gfx_hal::device::Device;
+        use rendy_core::hal::device::Device;
 
         if let Some(module) = self.module.take() {
             unsafe { factory.destroy_shader_module(module) };

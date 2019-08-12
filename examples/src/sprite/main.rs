@@ -8,14 +8,16 @@ use rendy_examples::*;
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Factory, ImageState},
-    graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-    hal::{self, pso::ShaderStageFlags, Device as _},
+    graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
+    hal::{self, Backend, pso::ShaderStageFlags, device::Device as _, window::Extent2D},
+    init::WindowedRendy,
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderSetBuilder, ShaderSet, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
-    util::*,
+    core::{rendy_wasm32, EnabledBackend, winit::event_loop::EventLoop},
+    wsi::Surface,
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -140,7 +142,7 @@ where
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
 
-        let data = get_data!("logo.png")?;
+        let data = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/logo.png"));
 
         // This is how we can load an image and create a new texture.
         let texture_builder = rendy::texture::image::load_from_image(
@@ -297,25 +299,42 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface, extent| {
-        let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-        graph_builder.add_node(
-            SpriteGraphicsPipeline::builder()
-                .into_subpass()
-                .with_color_surface()
-                .into_pass()
-                .with_surface(
-                    surface,
-                    extent,
-                    Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-                ),
-        );
+    struct SpriteExample;
 
-        let graph = graph_builder
-            .build(factory, families, &())
-            .unwrap();
+    impl Example for SpriteExample {
+        fn run<B: Backend>(self, mut rendy: WindowedRendy<B>, event_loop: EventLoop<()>) -> ! {
+            rendy.window.set_title(&format!("Sprite example ({})", EnabledBackend::which::<B>()));
 
-        (graph, (), move |_: &mut Factory<Backend>, _: &mut Families<Backend>, _: &mut ()| true)
-    })
+            let ps = rendy.window.inner_size().to_physical(rendy.window.hidpi_factor());
+            let extent = Extent2D {
+                width: ps.width as _,
+                height: ps.height as _,
+            };
+
+            let mut graph_builder = GraphBuilder::<B, ()>::new();
+
+            graph_builder.add_node(
+                SpriteGraphicsPipeline::builder()
+                    .into_subpass()
+                    .with_color_surface()
+                    .into_pass()
+                    .with_surface(
+                        rendy.surface,
+                        extent,
+                        Some(hal::command::ClearValue {
+                            color: hal::command::ClearColor { float32: [1.0, 1.0, 1.0, 1.0] },
+                        }),
+                    ),
+            );
+
+            let graph = graph_builder
+                .build(&mut rendy.factory, &mut rendy.families, &())
+                .unwrap();
+            
+            run(rendy.factory, rendy.families, rendy.window, event_loop, graph, (), |_: &mut Factory<B>, _: &mut ()| true)
+        }
+    }
+
+    start(SpriteExample)
 }

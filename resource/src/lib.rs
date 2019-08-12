@@ -13,7 +13,7 @@
 )]
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;
-use rendy_util as util;
+use rendy_core as core;
 
 mod buffer;
 mod escape;

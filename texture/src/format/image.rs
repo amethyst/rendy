@@ -53,8 +53,8 @@ pub enum TextureKind {
 }
 
 impl TextureKind {
-    fn gfx_kind(&self, width: u32, height: u32) -> gfx_hal::image::Kind {
-        use gfx_hal::image::Kind::*;
+    fn gfx_kind(&self, width: u32, height: u32) -> rendy_core::hal::image::Kind {
+        use rendy_core::hal::image::Kind::*;
         match self {
             TextureKind::D1 => D1(width * height, 1),
             TextureKind::D1Array => D1(width, height as u16),
@@ -68,8 +68,8 @@ impl TextureKind {
         }
     }
 
-    fn view_kind(&self) -> gfx_hal::image::ViewKind {
-        use gfx_hal::image::ViewKind;
+    fn view_kind(&self) -> rendy_core::hal::image::ViewKind {
+        use rendy_core::hal::image::ViewKind;
         match self {
             TextureKind::D1 => ViewKind::D1,
             TextureKind::D1Array { .. } => ViewKind::D1Array,
@@ -98,9 +98,9 @@ pub struct ImageTextureConfig {
     pub repr: Repr,
     pub kind: TextureKind,
     #[derivative(Default(
-        value = "gfx_hal::image::SamplerInfo::new(gfx_hal::image::Filter::Linear, gfx_hal::image::WrapMode::Clamp)"
+        value = "rendy_core::hal::image::SamplerInfo::new(rendy_core::hal::image::Filter::Linear, rendy_core::hal::image::WrapMode::Clamp)"
     ))]
-    pub sampler_info: gfx_hal::image::SamplerInfo,
+    pub sampler_info: rendy_core::hal::image::SamplerInfo,
     #[derivative(Default(value = "false"))]
     /// Automatically generate mipmaps for this image
     pub generate_mips: bool,
@@ -192,7 +192,7 @@ pub fn load_from_image<R>(
 where
     R: std::io::BufRead + std::io::Seek,
 {
-    use gfx_hal::format::{Component, Swizzle};
+    use rendy_core::hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
 
     let image_format = config.format.map_or_else(
@@ -213,8 +213,8 @@ where
             let metadata = decoder.metadata();
             let (w, h) = (metadata.width, metadata.height);
 
-            let format = gfx_hal::format::Format::Rgb32Sfloat;
-            let vec = crate::util::cast_vec(decoder.read_image_hdr()?);
+            let format = rendy_core::hal::format::Format::Rgb32Sfloat;
+            let vec = crate::core::cast_vec(decoder.read_image_hdr()?);
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)
         }

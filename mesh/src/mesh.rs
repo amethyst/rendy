@@ -7,10 +7,10 @@ use crate::{
     factory::{BufferState, Factory},
     memory::{self, Write as _},
     resource::{Buffer, BufferInfo, Escape},
-    util::*,
+    core::*,
     AsVertex, VertexFormat,
 };
-use gfx_hal::adapter::PhysicalDevice;
+use rendy_core::hal::adapter::PhysicalDevice;
 use std::{borrow::Cow, mem::size_of};
 
 /// Vertex buffer with it's format
@@ -22,9 +22,9 @@ pub struct VertexBufferLayout {
 
 /// Index buffer with it's type
 #[derive(Debug)]
-pub struct IndexBuffer<B: gfx_hal::Backend> {
+pub struct IndexBuffer<B: rendy_core::hal::Backend> {
     buffer: Escape<Buffer<B>>,
-    index_type: gfx_hal::IndexType,
+    index_type: rendy_core::hal::IndexType,
 }
 
 /// Abstracts over two types of indices and their absence.
@@ -84,7 +84,7 @@ pub struct MeshBuilder<'a> {
     vertices: smallvec::SmallVec<[RawVertices<'a>; 16]>,
     #[cfg_attr(feature = "serde", serde(borrow))]
     indices: Option<RawIndices<'a>>,
-    prim: gfx_hal::Primitive,
+    prim: rendy_core::hal::Primitive,
 }
 
 #[derive(Clone, Debug)]
@@ -100,13 +100,13 @@ struct RawVertices<'a> {
 struct RawIndices<'a> {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     indices: Cow<'a, [u8]>,
-    index_type: gfx_hal::IndexType,
+    index_type: rendy_core::hal::IndexType,
 }
 
-fn index_stride(index_type: gfx_hal::IndexType) -> usize {
+fn index_stride(index_type: rendy_core::hal::IndexType) -> usize {
     match index_type {
-        gfx_hal::IndexType::U16 => size_of::<u16>(),
-        gfx_hal::IndexType::U32 => size_of::<u32>(),
+        rendy_core::hal::IndexType::U16 => size_of::<u16>(),
+        rendy_core::hal::IndexType::U32 => size_of::<u32>(),
     }
 }
 
@@ -116,7 +116,7 @@ impl<'a> MeshBuilder<'a> {
         MeshBuilder {
             vertices: smallvec::SmallVec::new(),
             indices: None,
-            prim: gfx_hal::Primitive::TriangleList,
+            prim: rendy_core::hal::Primitive::TriangleList,
         }
     }
 
@@ -158,11 +158,11 @@ impl<'a> MeshBuilder<'a> {
             Indices::None => None,
             Indices::U16(i) => Some(RawIndices {
                 indices: cast_cow(i),
-                index_type: gfx_hal::IndexType::U16,
+                index_type: rendy_core::hal::IndexType::U16,
             }),
             Indices::U32(i) => Some(RawIndices {
                 indices: cast_cow(i),
-                index_type: gfx_hal::IndexType::U32,
+                index_type: rendy_core::hal::IndexType::U32,
             }),
         };
         self
@@ -194,7 +194,7 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn with_prim_type(mut self, prim: gfx_hal::Primitive) -> Self {
+    pub fn with_prim_type(mut self, prim: rendy_core::hal::Primitive) -> Self {
         self.prim = prim;
         self
     }
@@ -202,7 +202,7 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn set_prim_type(&mut self, prim: gfx_hal::Primitive) -> &mut Self {
+    pub fn set_prim_type(&mut self, prim: rendy_core::hal::Primitive) -> &mut Self {
         self.prim = prim;
         self
     }
@@ -216,7 +216,7 @@ impl<'a> MeshBuilder<'a> {
     /// Note that contents of index buffer is not validated.
     pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, failure::Error>
     where
-        B: gfx_hal::Backend,
+        B: rendy_core::hal::Backend,
     {
         let align = factory.physical().limits().non_coherent_atom_size;
         let mut len = self
@@ -237,7 +237,7 @@ impl<'a> MeshBuilder<'a> {
         let mut staging = factory.create_buffer(
             BufferInfo {
                 size: aligned_size,
-                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
+                usage: rendy_core::hal::buffer::Usage::TRANSFER_SRC,
             },
             memory::Upload,
         )?;
@@ -245,7 +245,7 @@ impl<'a> MeshBuilder<'a> {
         let mut buffer = factory.create_buffer(
             BufferInfo {
                 size: buffer_size as _,
-                usage: gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+                usage: rendy_core::hal::buffer::Usage::VERTEX | rendy_core::hal::buffer::Usage::TRANSFER_DST,
             },
             memory::Data,
         )?;
@@ -283,11 +283,11 @@ impl<'a> MeshBuilder<'a> {
                 index_type,
             }) => {
                 rendy_wasm32! {
-                    let buffer_usage = gfx_hal::buffer::Usage::INDEX;
+                    let buffer_usage = rendy_core::hal::buffer::Usage::INDEX;
                     let memory_usage = memory::Dynamic;
                 }
                 rendy_not_wasm32! {
-                    let buffer_usage = gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST;
+                    let buffer_usage = rendy_core::hal::buffer::Usage::INDEX | rendy_core::hal::buffer::Usage::TRANSFER_DST;
                     let memory_usage = memory::Data;
                 }
 
@@ -319,8 +319,8 @@ impl<'a> MeshBuilder<'a> {
                             &indices,
                             None,
                             BufferState::new(queue)
-                                .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
-                                .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
+                                .with_access(rendy_core::hal::buffer::Access::INDEX_BUFFER_READ)
+                                .with_stage(rendy_core::hal::pso::PipelineStage::VERTEX_INPUT),
                         )?;
                     }
                 }
@@ -336,8 +336,8 @@ impl<'a> MeshBuilder<'a> {
                 staging,
                 None,
                 BufferState::new(queue)
-                    .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
-                    .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
+                    .with_access(rendy_core::hal::buffer::Access::VERTEX_BUFFER_READ)
+                    .with_stage(rendy_core::hal::pso::PipelineStage::VERTEX_INPUT),
             )?;
         }
 
@@ -358,25 +358,25 @@ fn align_by(align: usize, value: usize) -> usize {
 /// Single mesh is a collection of buffer ranges that provides available attributes.
 /// Usually exactly one mesh is used per draw call.
 #[derive(Debug)]
-pub struct Mesh<B: gfx_hal::Backend> {
+pub struct Mesh<B: rendy_core::hal::Backend> {
     vertex_buffer: Escape<Buffer<B>>,
     vertex_layouts: Vec<VertexBufferLayout>,
     index_buffer: Option<IndexBuffer<B>>,
-    prim: gfx_hal::Primitive,
+    prim: rendy_core::hal::Primitive,
     len: u32,
 }
 
 impl<B> Mesh<B>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// Build new mesh with `MeshBuilder`
     pub fn builder<'a>() -> MeshBuilder<'a> {
         MeshBuilder::new()
     }
 
-    /// gfx_hal::Primitive type of the `Mesh`
-    pub fn primitive(&self) -> gfx_hal::Primitive {
+    /// rendy_core::hal::Primitive type of the `Mesh`
+    pub fn primitive(&self) -> rendy_core::hal::Primitive {
         self.prim
     }
 

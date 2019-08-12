@@ -7,15 +7,16 @@
 use rendy_examples::*;
 
 use rendy::{
-    command::{Families, QueueId, RenderPassEncoder},
+    command::{QueueId, RenderPassEncoder},
     factory::Factory,
     graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-    hal::{self, pso::ShaderStageFlags},
+    hal::{self, Backend, pso::ShaderStageFlags, window::Extent2D},
+    init::WindowedRendy,
     memory::Dynamic,
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderSetBuilder, ShaderSet, SpirvShader},
-    util::*,
+    core::{rendy_wasm32, EnabledBackend, winit::event_loop::EventLoop},
 };
 
 lazy_static::lazy_static! {
@@ -194,25 +195,41 @@ rendy_wasm32! {
 }
 
 fn main() {
-    run(|factory, families, surface, extent| {
-        let mut graph_builder = GraphBuilder::<Backend, ()>::new();
+    struct TriangleExample;
 
-        graph_builder.add_node(
-            TriangleRenderPipeline::builder()
-                .into_subpass()
-                .with_color_surface()
-                .into_pass()
-                .with_surface(
-                    surface,
-                    extent,
-                    Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
-                ),
-        );
+    impl Example for TriangleExample {
+        fn run<B: Backend>(self, mut rendy: WindowedRendy<B>, event_loop: EventLoop<()>) -> ! {
+            rendy.window.set_title(&format!("Triangle example ({})", EnabledBackend::which::<B>()));
 
-        let graph = graph_builder
-            .build(factory, families, &())
-            .unwrap();
+            let ps = rendy.window.inner_size().to_physical(rendy.window.hidpi_factor());
+            let extent = Extent2D {
+                width: ps.width as _,
+                height: ps.height as _,
+            };
 
-        (graph, (), move |_: &mut Factory<Backend>, _: &mut Families<Backend>, _: &mut ()| true)
-    })
+            let mut graph_builder = GraphBuilder::<B, ()>::new();
+
+            graph_builder.add_node(
+                TriangleRenderPipeline::builder()
+                    .into_subpass()
+                    .with_color_surface()
+                    .into_pass()
+                    .with_surface(
+                        rendy.surface,
+                        extent,
+                        Some(hal::command::ClearValue {
+                            color: hal::command::ClearColor { float32: [1.0, 1.0, 1.0, 1.0] },
+                        }),
+                    ),
+            );
+
+            let graph = graph_builder
+                .build(&mut rendy.factory, &mut rendy.families, &())
+                .unwrap();
+
+            run(rendy.factory, rendy.families, rendy.window, event_loop, graph, (), |_: &mut Factory<B>, _: &mut ()| true)
+        }
+    }
+
+    start(TriangleExample)
 }

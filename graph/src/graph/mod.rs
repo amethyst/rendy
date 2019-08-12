@@ -7,10 +7,9 @@ use {
         memory::Data,
         node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
         resource::{Buffer, BufferInfo, Handle, Image, ImageInfo},
-        util::{device_owned, DeviceId},
+        core::{hal::{self, queue::QueueFamilyId, Backend}, device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
-    gfx_hal::{queue::QueueFamilyId, Backend},
     thread_profiler::profile_scope,
 };
 
@@ -39,7 +38,7 @@ device_owned!(Graph<B, T: ?Sized>);
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
     buffers: Vec<Option<Handle<Buffer<B>>>>,
-    images: Vec<Option<(Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)>>,
+    images: Vec<Option<(Handle<Image<B>>, Option<hal::command::ClearValue>)>>,
     /// Number of potential frames in flight
     pub frames_in_flight: u32,
 }
@@ -49,7 +48,7 @@ impl<B: Backend> GraphContext<B> {
         factory: &Factory<B>,
         chains: &chain::Chains,
         buffers: impl IntoIterator<Item = &'a BufferInfo>,
-        images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
+        images: impl IntoIterator<Item = &'a (ImageInfo, Option<hal::command::ClearValue>)>,
         frames_in_flight: u32,
     ) -> Result<Self, failure::Error> {
         profile_scope!("alloc");
@@ -116,7 +115,7 @@ impl<B: Backend> GraphContext<B> {
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
-    ) -> Option<(&Handle<Image<B>>, Option<gfx_hal::command::ClearValue>)> {
+    ) -> Option<(&Handle<Image<B>>, Option<hal::command::ClearValue>)> {
         self.images
             .get(id.0)
             .and_then(|x| x.as_ref())
@@ -267,7 +266,7 @@ where
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
     buffers: Vec<BufferInfo>,
-    images: Vec<(ImageInfo, Option<gfx_hal::command::ClearValue>)>,
+    images: Vec<(ImageInfo, Option<hal::command::ClearValue>)>,
     frames_in_flight: u32,
 }
 
@@ -282,7 +281,7 @@ where
             nodes: Vec::new(),
             buffers: Vec::new(),
             images: Vec::new(),
-            frames_in_flight: 3,
+            frames_in_flight: 1,
         }
     }
 
@@ -292,7 +291,7 @@ where
 
         self.buffers.push(BufferInfo {
             size,
-            usage: gfx_hal::buffer::Usage::empty(),
+            usage: hal::buffer::Usage::empty(),
         });
         BufferId(self.buffers.len() - 1)
     }
@@ -300,10 +299,10 @@ where
     /// Create new image owned by graph.
     pub fn create_image(
         &mut self,
-        kind: gfx_hal::image::Kind,
-        levels: gfx_hal::image::Level,
-        format: gfx_hal::format::Format,
-        clear: Option<gfx_hal::command::ClearValue>,
+        kind: hal::image::Kind,
+        levels: hal::image::Level,
+        format: hal::format::Format,
+        clear: Option<hal::command::ClearValue>,
     ) -> ImageId {
         profile_scope!("create_image");
 
@@ -312,9 +311,9 @@ where
                 kind,
                 levels,
                 format,
-                tiling: gfx_hal::image::Tiling::Optimal,
-                view_caps: gfx_hal::image::ViewCapabilities::empty(),
-                usage: gfx_hal::image::Usage::empty(),
+                tiling: hal::image::Tiling::Optimal,
+                view_caps: hal::image::ViewCapabilities::empty(),
+                usage: hal::image::Usage::empty(),
             },
             clear,
         ));
@@ -502,7 +501,7 @@ fn build_node<'a, B: Backend, T: ?Sized>(
                 .expect("Image referenced from at least one node must be instantiated");
             NodeImage {
                 id,
-                range: gfx_hal::image::SubresourceRange {
+                range: hal::image::SubresourceRange {
                     aspects: image.format().surface_desc().aspects,
                     levels: 0..image.levels(),
                     layers: 0..image.layers(),
