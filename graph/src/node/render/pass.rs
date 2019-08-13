@@ -421,7 +421,13 @@ where
                                     gfx_hal::image::ViewKind::D2,
                                     image.format(),
                                     gfx_hal::format::Swizzle::NO,
-                                    node_image.range.clone(),
+                                    gfx_hal::image::SubresourceRange {
+                                        // NOTE: Framebuffer must always be created with only one mip level. If image contains multiple levels,
+                                        // only the first one is bound as an attachment.
+                                        // TODO: Allow customizing this behaviour to choose which level to bind.
+                                        levels: 0 .. 1,
+                                        ..node_image.range.clone()
+                                    }
                                 )
                                 .map_err(NodeBuildError::View)?
                             }])
@@ -503,11 +509,16 @@ where
             let pass_attachments: Vec<_> = attachments
                 .iter()
                 .map(|&attachment| {
-                    let (format, clear, layout) = match attachment {
+                    let (format, clear, layout, samples) = match attachment {
                         Either::Left(image_id) => {
                             let node_image = find_attachment_node_image(image_id);
                             let image = ctx.get_image(image_id).expect("Image does not exist");
-                            (image.format(), node_image.clear, node_image.layout)
+                            (
+                                image.format(),
+                                node_image.clear,
+                                node_image.layout,
+                                image.kind().num_samples(),
+                            )
                         }
                         Either::Right(RenderPassSurface) => (
                             node_target
@@ -517,6 +528,7 @@ where
                                 .format(),
                             surface_clear,
                             gfx_hal::image::Layout::Present,
+                            1,
                         ),
                     };
 
@@ -536,7 +548,7 @@ where
                         } else {
                             layout..layout
                         },
-                        samples: 1,
+                        samples,
                     }
                 })
                 .collect();

@@ -3,8 +3,8 @@
 use derivative::Derivative;
 use gfx_hal::format::Format;
 use std::cmp::Ordering;
-use std::{borrow::Cow, fmt::Debug};
 use std::collections::HashMap;
+use std::{borrow::Cow, fmt::Debug};
 
 /// Trait for vertex attributes to implement
 pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'static {

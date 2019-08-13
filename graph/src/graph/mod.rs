@@ -338,9 +338,12 @@ where
 
     /// Add node to the graph.
     pub fn add_node<N: NodeBuilder<B, T> + 'static>(&mut self, builder: N) -> NodeId {
-        profile_scope!("add_node");
+        self.add_dyn_node(Box::new(builder))
+    }
 
-        self.nodes.push(Box::new(builder));
+    /// Add boxed node to the graph.
+    pub fn add_dyn_node(&mut self, builder: Box<dyn NodeBuilder<B, T> + 'static>) -> NodeId {
+        self.nodes.push(builder);
         NodeId(self.nodes.len() - 1)
     }
 

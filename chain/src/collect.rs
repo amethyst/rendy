@@ -1,6 +1,6 @@
 use std::cmp::max;
-use std::collections::HashMap;
 use std::collections::hash_map::RandomState;
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Range;
 

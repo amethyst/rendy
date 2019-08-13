@@ -202,13 +202,7 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
 
     /// Make node builder.
     fn builder(self) -> DescBuilder<B, T, Self> {
-        DescBuilder {
-            desc: self,
-            buffers: Vec::new(),
-            images: Vec::new(),
-            dependencies: Vec::new(),
-            marker: std::marker::PhantomData,
-        }
+        DescBuilder::new(self)
     }
 
     /// Get set or buffer resources the node uses.
@@ -361,6 +355,16 @@ where
     B: Backend,
     T: ?Sized,
 {
+    /// Create new builder out of desc
+    pub fn new(desc: N) -> Self {
+        DescBuilder {
+            desc,
+            buffers: Vec::new(),
+            images: Vec::new(),
+            dependencies: Vec::new(),
+            marker: std::marker::PhantomData,
+        }
+    }
     /// Add buffer to the node.
     /// This method must be called for each buffer node uses.
     pub fn add_buffer(&mut self, buffer: BufferId) -> &mut Self {

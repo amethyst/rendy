@@ -63,10 +63,34 @@ pub trait Shader {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpirvShader {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    #[cfg_attr(feature = "serde", serde(with = "serde_bytes_u32"))]
     spirv: Vec<u32>,
     stage: ShaderStageFlags,
     entry: String,
+}
+
+#[cfg(feature = "serde")]
+mod serde_bytes_u32 {
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(data: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serde_bytes::serialize(rendy_util::cast_slice(&data), serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u32>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
+        assert!(bytes.len() % 4 == 0);
+        let dwords: &[u32] =
+            unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4) };
+
+        Ok(Vec::from(dwords))
+    }
 }
 
 impl SpirvShader {
@@ -201,11 +225,13 @@ impl ShaderSetBuilder {
             let msg = "A vertex or compute shader must be provided".to_string();
             return Err(gfx_hal::device::ShaderError::InterfaceMismatch(msg));
         }
+        type ShaderTy = (
+            Vec<u32>,
+            String,
+            Option<gfx_hal::pso::Specialization<'static>>,
+        );
 
-        let create_storage = move |stage,
-                                   shader: (Vec<u32>, String, Option<gfx_hal::pso::Specialization<'static>>),
-                                   factory|
-              -> Result<ShaderStorage<B>, gfx_hal::device::ShaderError> {
+        let create_storage = move |stage, shader: ShaderTy, factory| -> Result<ShaderStorage<B>, gfx_hal::device::ShaderError> {
             let mut storage = ShaderStorage {
                 stage: stage,
                 spirv: shader.0,
@@ -222,42 +248,66 @@ impl ShaderSetBuilder {
         if let Some(shader) = self.vertex.clone() {
             set.shaders.insert(
                 ShaderStageFlags::VERTEX,
-                create_storage(ShaderStageFlags::VERTEX, (shader.0, shader.1, spec_constants.vertex), factory)?,
+                create_storage(
+                    ShaderStageFlags::VERTEX,
+                    (shader.0, shader.1, spec_constants.vertex),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.fragment.clone() {
             set.shaders.insert(
                 ShaderStageFlags::FRAGMENT,
-                create_storage(ShaderStageFlags::FRAGMENT, (shader.0, shader.1, spec_constants.fragment), factory)?,
+                create_storage(
+                    ShaderStageFlags::FRAGMENT,
+                    (shader.0, shader.1, spec_constants.fragment),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.compute.clone() {
             set.shaders.insert(
                 ShaderStageFlags::COMPUTE,
-                create_storage(ShaderStageFlags::COMPUTE, (shader.0, shader.1, spec_constants.compute), factory)?,
+                create_storage(
+                    ShaderStageFlags::COMPUTE,
+                    (shader.0, shader.1, spec_constants.compute),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.domain.clone() {
             set.shaders.insert(
                 ShaderStageFlags::DOMAIN,
-                create_storage(ShaderStageFlags::DOMAIN, (shader.0, shader.1, spec_constants.domain), factory)?,
+                create_storage(
+                    ShaderStageFlags::DOMAIN,
+                    (shader.0, shader.1, spec_constants.domain),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.hull.clone() {
             set.shaders.insert(
                 ShaderStageFlags::HULL,
-                create_storage(ShaderStageFlags::HULL, (shader.0, shader.1, spec_constants.hull), factory)?,
+                create_storage(
+                    ShaderStageFlags::HULL,
+                    (shader.0, shader.1, spec_constants.hull),
+                    factory,
+                )?,
             );
         }
 
         if let Some(shader) = self.geometry.clone() {
             set.shaders.insert(
                 ShaderStageFlags::GEOMETRY,
-                create_storage(ShaderStageFlags::GEOMETRY, (shader.0, shader.1, spec_constants.geometry), factory)?,
+                create_storage(
+                    ShaderStageFlags::GEOMETRY,
+                    (shader.0, shader.1, spec_constants.geometry),
+                    factory,
+                )?,
             );
         }
 
@@ -363,7 +413,10 @@ impl<B: Backend> ShaderStorage<B> {
         Ok(Some(gfx_hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
-            specialization: self.specialization.clone().unwrap_or(gfx_hal::pso::Specialization::default()),
+            specialization: self
+                .specialization
+                .clone()
+                .unwrap_or(gfx_hal::pso::Specialization::default()),
         }))
     }
 

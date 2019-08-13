@@ -248,7 +248,11 @@ where
             }
         }
 
-        Ok(MeshRenderPipeline { align, buffer, sets })
+        Ok(MeshRenderPipeline {
+            align,
+            buffer,
+            sets,
+        })
     }
 }
 

@@ -326,13 +326,13 @@ impl<'a> TextureBuilder<'a> {
 
                 transformed_vec = vec![0; data_len];
                 let dst_slice: &mut [u8] = &mut transformed_vec;
-                for (chunk, dst_chunk) in self
-                    .data
-                    .chunks_exact(stride)
-                    .zip(dst_slice.chunks_exact_mut(new_stride))
-                {
-                    dst_chunk[..stride].copy_from_slice(chunk);
-                    dst_chunk[stride..].copy_from_slice(padding);
+                // optimize most common cases
+                match (stride, padding) {
+                    (2, &[0u8, std::u8::MAX]) => {
+                        buf_add_padding(&self.data, dst_slice, stride, padding)
+                    }
+                    (3, &[std::u8::MAX]) => buf_add_padding(&self.data, dst_slice, stride, padding),
+                    _ => buf_add_padding(&self.data, dst_slice, stride, padding),
                 }
                 &transformed_vec
             }
@@ -635,4 +635,21 @@ fn image_format_supported<B: Backend>(
             };
             info
         })
+}
+
+#[inline(always)]
+fn buf_add_padding(buffer: &[u8], dst_slice: &mut [u8], stride: usize, padding: &'static [u8]) {
+    let lad_len = padding.len();
+    for (chunk, dst_chunk) in buffer
+        .chunks_exact(stride)
+        .zip(dst_slice.chunks_exact_mut(stride + lad_len))
+    {
+        // those loops gets unrolled in special-cased scenarios
+        for i in 0..stride {
+            dst_chunk[i] = chunk[i];
+        }
+        for i in 0..lad_len {
+            dst_chunk[stride + i] = padding[i];
+        }
+    }
 }
