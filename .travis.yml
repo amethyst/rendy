@@ -15,13 +15,17 @@ matrix:
     - env: MACOSX_DEPLOYMENT_TARGET=10.9
       os: osx
       osx_image: xcode10.2
-      install: travis_wait 30 cargo build --verbose
+      # We need travis_wait here to ensure the build doesn't timeout due to
+      # shader compilation
+      script: travis_wait 30 make
 
     # iPhoneOS 64bit
     - env: TARGET=aarch64-apple-ios
       os: osx
       osx_image: xcode10.2
-      install: travis_wait 30 cargo build --verbose
+      # We need travis_wait here to ensure the build doesn't timeout due to
+      # shader compilation
+      script: travis_wait 30 make
 
     # Windows 64bit
     - os: windows
@@ -37,6 +41,9 @@ before_install:
   - if [[ $TRAVIS_OS_NAME == "windows" ]]; then choco install make; choco install ninja; choco install python; fi
   - rustup self update
   - if [[ ! -z "$TARGET" ]]; then rustup target add $TARGET; fi
+
+# Set the default install command to nothing as we build during the script stage
+install:
 
 script:
   - make
