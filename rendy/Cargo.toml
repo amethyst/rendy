@@ -1,6 +1,6 @@
 [package]
 name = "rendy"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -53,18 +53,18 @@ full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflectio
 default = [ "base", "shader-compiler", "spirv-reflection", "wsi-winit" ]
 
 [dependencies]
-rendy-command = { version = "0.3.0", path = "../command", optional = true }
-rendy-descriptor = { version = "0.3.0", path = "../descriptor", optional = true }
-rendy-factory = { version = "0.3.1", path = "../factory", optional = true }
-rendy-frame = { version = "0.3.0", path = "../frame", optional = true }
-rendy-graph = { version = "0.3.2", path = "../graph", optional = true }
-rendy-memory = { version = "0.3.0", path = "../memory", optional = true }
-rendy-mesh = { version = "0.3.0", path = "../mesh", optional = true }
-rendy-shader = { version = "0.3.0", path = "../shader", optional = true }
-rendy-resource = { version = "0.3.0", path = "../resource", optional = true }
-rendy-texture = { version = "0.3.0", path = "../texture", optional = true }
-rendy-util = { version = "0.3.1", path = "../util" }
-rendy-wsi = { version = "0.3.0", path = "../wsi", optional = true }
+rendy-command = { version = "0.4.0", path = "../command", optional = true }
+rendy-descriptor = { version = "0.4.0", path = "../descriptor", optional = true }
+rendy-factory = { version = "0.4.0", path = "../factory", optional = true }
+rendy-frame = { version = "0.4.0", path = "../frame", optional = true }
+rendy-graph = { version = "0.4.0", path = "../graph", optional = true }
+rendy-memory = { version = "0.4.0", path = "../memory", optional = true }
+rendy-mesh = { version = "0.4.0", path = "../mesh", optional = true }
+rendy-shader = { version = "0.4.0", path = "../shader", optional = true }
+rendy-resource = { version = "0.4.0", path = "../resource", optional = true }
+rendy-texture = { version = "0.4.0", path = "../texture", optional = true }
+rendy-util = { version = "0.4.0", path = "../util" }
+rendy-wsi = { version = "0.4.0", path = "../wsi", optional = true }
 
 failure = "0.1"
 gfx-hal = "0.3"

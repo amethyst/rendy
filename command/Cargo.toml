@@ -1,6 +1,6 @@
 [package]
 name = "rendy-command"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -18,7 +18,7 @@ profiler = ["thread_profiler/thread_profiler"]
 gfx-hal = "0.3"
 derivative = "1.0"
 failure = "0.1"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4.0", features = ["log", "backtrace"] }
 smallvec = "0.6"
-rendy-util = { version = "0.3.0", path = "../util" }
+rendy-util = { version = "0.4", path = "../util" }
 thread_profiler = "0.3"
