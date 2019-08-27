@@ -70,7 +70,6 @@ impl SpirvShader {
     /// Create Spir-V shader from bytes.
     pub fn new(spirv: Vec<u32>, stage: ShaderStageFlags, entrypoint: &str) -> Self {
         assert!(!spirv.is_empty());
-        assert_eq!(spirv.len() % 4, 0);
         Self {
             spirv,
             stage,
