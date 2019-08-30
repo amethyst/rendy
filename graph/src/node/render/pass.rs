@@ -724,14 +724,11 @@ where
                         assert_eq!(group.colors(), subpass_colors);
                         assert_eq!(group.depth(), subpass_depth);
 
-                        let mut buffers = buffers.iter();
-                        let mut images = images.iter();
-
                         let buffers: Vec<_> = group
                             .buffers()
                             .into_iter()
                             .map(|(id, _)| {
-                                buffers
+                                buffers.iter()
                                     .find(|b| b.id == id)
                                     .expect("Transient buffer wasn't provided")
                                     .clone()
@@ -741,7 +738,7 @@ where
                             .images()
                             .into_iter()
                             .map(|(id, _)| {
-                                images
+                                images.iter()
                                     .find(|i| i.id == id)
                                     .expect("Transient image wasn't provided")
                                     .clone()
