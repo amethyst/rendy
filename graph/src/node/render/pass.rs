@@ -437,11 +437,26 @@ where
                             failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
                         }
 
+                        let (caps, _f, present_modes_caps) = factory.get_surface_compatibility(&surface);
+         
+                        let present_mode = *present_modes_caps
+                            .iter()
+                            .max_by_key(|mode| match mode {
+                                gfx_hal::PresentMode::Fifo => 3,
+                                gfx_hal::PresentMode::Mailbox => 2,
+                                gfx_hal::PresentMode::Relaxed => 1,
+                                gfx_hal::PresentMode::Immediate => 0,
+                            })
+                            .unwrap();
+            
+                        let img_count_caps = caps.image_count;
+                        let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());
+             
                         let target = factory.create_target(
                             surface,
                             surface_extent,
-                            3,
-                            gfx_hal::window::PresentMode::Fifo,
+                            image_count,
+                            present_mode,
                             surface_usage,
                         )?;
 
