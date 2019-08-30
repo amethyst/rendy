@@ -56,11 +56,29 @@ pub trait Shader {
     }
 }
 
+#[cfg(feature = "serde")]
+mod spirv_serde {
+    use gfx_hal::read_spirv;
+    use serde::{Deserialize, Deserializer, Serializer};
+    use std::io::Cursor;
+
+    pub fn serialize<S: Serializer>(v: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error> {
+        let bytes = unsafe { std::slice::from_raw_parts(v.as_ptr() as *const u8, v.len() * 4) };
+        serializer.serialize_bytes(bytes)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u32>, D::Error> {
+        // Via the serde::Deserialize impl for &[u8].
+        let bytes: &[u8] = Deserialize::deserialize(deserializer)?;
+        read_spirv(Cursor::new(bytes)).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Spir-V shader.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpirvShader {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes"))]
+    #[cfg_attr(feature = "serde", serde(with = "spirv_serde"))]
     spirv: Vec<u32>,
     stage: ShaderStageFlags,
     entry: String,
