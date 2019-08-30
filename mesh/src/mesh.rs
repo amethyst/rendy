@@ -305,7 +305,7 @@ impl<'a> MeshBuilder<'a> {
                     factory.upload_buffer(
                         &mut buffer,
                         0,
-                        &indices,
+                        &**indices,
                         None,
                         BufferState::new(queue)
                             .with_access(gfx_hal::buffer::Access::INDEX_BUFFER_READ)
