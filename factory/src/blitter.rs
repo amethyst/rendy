@@ -139,6 +139,7 @@ impl From<BlitRegion> for gfx_hal::command::ImageBlit {
 pub struct BlitImageState {
     /// Subresource to use for blit
     pub subresource: gfx_hal::image::SubresourceLayers,
+    /// Image offset range to use for blit
     pub bounds: Range<gfx_hal::image::Offset>,
     /// Last image stage before blit
     pub last_stage: gfx_hal::pso::PipelineStage,
