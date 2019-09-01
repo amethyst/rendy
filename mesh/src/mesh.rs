@@ -4,7 +4,7 @@
 
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
-    factory::{BufferState, Factory},
+    factory::{BufferState, Factory, UploadError},
     memory::{Data, Upload, Write},
     resource::{Buffer, BufferInfo, Escape},
     util::cast_cow,
@@ -214,7 +214,7 @@ impl<'a> MeshBuilder<'a> {
     /// effectively discaring extra data from larger buffers.
     ///
     /// Note that contents of index buffer is not validated.
-    pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, failure::Error>
+    pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, UploadError>
     where
         B: gfx_hal::Backend,
     {
@@ -234,24 +234,30 @@ impl<'a> MeshBuilder<'a> {
 
         let aligned_size = align_by(align, buffer_size) as u64;
 
-        let mut staging = factory.create_buffer(
-            BufferInfo {
-                size: aligned_size,
-                usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
-            },
-            Upload,
-        )?;
+        let mut staging = factory
+            .create_buffer(
+                BufferInfo {
+                    size: aligned_size,
+                    usage: gfx_hal::buffer::Usage::TRANSFER_SRC,
+                },
+                Upload,
+            )
+            .map_err(UploadError::Create)?;
 
-        let mut buffer = factory.create_buffer(
-            BufferInfo {
-                size: buffer_size as _,
-                usage: gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
-            },
-            Data,
-        )?;
+        let mut buffer = factory
+            .create_buffer(
+                BufferInfo {
+                    size: buffer_size as _,
+                    usage: gfx_hal::buffer::Usage::VERTEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+                },
+                Data,
+            )
+            .map_err(UploadError::Create)?;
 
-        let mut mapped = staging.map(factory, 0..aligned_size)?;
-        let mut writer = unsafe { mapped.write(factory, 0..aligned_size)? };
+        let mut mapped = staging.map(factory, 0..aligned_size)
+            .map_err(UploadError::Map)?;
+        let mut writer = unsafe { mapped.write(factory, 0..aligned_size) }
+            .map_err(UploadError::Map)?;
         let staging_slice = unsafe { writer.slice() };
 
         let mut offset = 0usize;
@@ -263,12 +269,12 @@ impl<'a> MeshBuilder<'a> {
                 staging_slice[offset..offset + size].copy_from_slice(&vertices[0..size]);
                 let this_offset = offset as u64;
                 offset += size;
-                Ok(VertexBufferLayout {
+                VertexBufferLayout {
                     offset: this_offset,
                     format: format.clone(),
-                })
+                }
             })
-            .collect::<Result<_, failure::Error>>()?;
+            .collect();
 
         drop(staging_slice);
         drop(writer);
@@ -283,13 +289,15 @@ impl<'a> MeshBuilder<'a> {
                 index_type,
             }) => {
                 len = (indices.len() / index_stride(index_type)) as u32;
-                let mut buffer = factory.create_buffer(
-                    BufferInfo {
-                        size: indices.len() as _,
-                        usage: gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
-                    },
-                    Data,
-                )?;
+                let mut buffer = factory
+                    .create_buffer(
+                        BufferInfo {
+                            size: indices.len() as _,
+                            usage: gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+                        },
+                        Data,
+                    )
+                    .map_err(UploadError::Create)?;
                 unsafe {
                     // New buffer can't be touched by device yet.
                     factory.upload_buffer(
@@ -308,15 +316,17 @@ impl<'a> MeshBuilder<'a> {
         };
 
         unsafe {
-            factory.upload_from_staging_buffer(
-                &mut buffer,
-                0,
-                staging,
-                None,
-                BufferState::new(queue)
-                    .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
-                    .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
-            )?;
+            factory
+                .upload_from_staging_buffer(
+                    &mut buffer,
+                    0,
+                    staging,
+                    None,
+                    BufferState::new(queue)
+                        .with_access(gfx_hal::buffer::Access::VERTEX_BUFFER_READ)
+                        .with_stage(gfx_hal::pso::PipelineStage::VERTEX_INPUT),
+                )
+                .map_err(UploadError::Upload)?;
         }
 
         Ok(Mesh {

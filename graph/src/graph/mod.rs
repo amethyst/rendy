@@ -5,8 +5,8 @@ use {
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::Data,
-        node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeImage},
-        resource::{Buffer, BufferInfo, Handle, Image, ImageInfo},
+        node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage},
+        resource::{Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo},
         util::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
@@ -35,6 +35,19 @@ pub struct Graph<B: Backend, T: ?Sized> {
 
 device_owned!(Graph<B, T: ?Sized>);
 
+/// Error building the graph itself or one of it's nodes.
+#[derive(Debug)]
+pub enum GraphBuildError {
+    /// Failed to create a buffer.
+    Buffer(BufferCreationError),
+    /// Failed to create an image.
+    Image(ImageCreationError),
+    /// Failed to create a semaphore.
+    Semaphore(gfx_hal::device::OutOfMemory),
+    /// Failed to build a node.
+    Node(NodeBuildError),
+}
+
 /// Graphics context contains all transient resources managed by graph.
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
@@ -51,7 +64,7 @@ impl<B: Backend> GraphContext<B> {
         buffers: impl IntoIterator<Item = &'a BufferInfo>,
         images: impl IntoIterator<Item = &'a (ImageInfo, Option<gfx_hal::command::ClearValue>)>,
         frames_in_flight: u32,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, GraphBuildError> {
         profile_scope!("alloc");
 
         log::trace!("Allocate buffers");
@@ -75,7 +88,8 @@ impl<B: Backend> GraphContext<B> {
                     })
                     .unwrap_or(Ok(None))
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<_, _>>()
+            .map_err(GraphBuildError::Buffer)?;
 
         log::trace!("Allocate images");
         let images: Vec<Option<(Handle<Image<B>>, _)>> = images
@@ -98,7 +112,8 @@ impl<B: Backend> GraphContext<B> {
                     })
                     .unwrap_or(Ok(None))
             })
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<_, _>>()
+            .map_err(GraphBuildError::Image)?;
 
         Ok(Self {
             buffers,
@@ -351,7 +366,7 @@ where
         factory: &mut Factory<B>,
         families: &mut Families<B>,
         aux: &T,
-    ) -> Result<Graph<B, T>, failure::Error> {
+    ) -> Result<Graph<B, T>, GraphBuildError> {
         profile_scope!("build");
 
         log::trace!("Schedule nodes execution");
@@ -411,7 +426,8 @@ where
                             aux,
                             &chains,
                             &submission,
-                        )?;
+                        )
+                        .map_err(GraphBuildError::Node)?;
                         log::debug!("Node built: {:#?}", node);
                         built_nodes[submission.node()] = Some((node, submission.id().queue()));
                     }
@@ -422,7 +438,8 @@ where
         log::debug!("Create {} semaphores", semaphores.start);
         let semaphores = (0..semaphores.start)
             .map(|_| factory.create_semaphore())
-            .collect::<Result<_, _>>()?;
+            .collect::<Result<_, _>>()
+            .map_err(GraphBuildError::Semaphore)?;
 
         Ok(Graph {
             device: factory.device().id(),
@@ -453,7 +470,7 @@ fn build_node<'a, B: Backend, T: ?Sized>(
     aux: &T,
     chains: &chain::Chains,
     submission: &chain::Submission<chain::SyncData<usize, usize>>,
-) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
+) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
     let mut buffer_ids: Vec<_> = builder.buffers().into_iter().map(|(id, _)| id).collect();
     buffer_ids.sort();
     buffer_ids.dedup();

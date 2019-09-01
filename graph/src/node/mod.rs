@@ -7,10 +7,11 @@ pub mod render;
 use {
     crate::{
         command::{Capability, Family, FamilyId, Fence, Queue, Submission, Submittable, Supports},
-        factory::Factory,
+        factory::{Factory, UploadError},
         frame::Frames,
         graph::GraphContext,
         util::{rendy_with_metal_backend, rendy_without_metal_backend},
+        wsi::SwapchainError,
         BufferId, ImageId, NodeId,
     },
     gfx_hal::{queue::QueueFamilyId, Backend},
@@ -239,7 +240,7 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
         aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Self::Node, failure::Error>;
+    ) -> Result<Self::Node, NodeBuildError>;
 }
 
 /// Trait-object safe `Node`.
@@ -300,6 +301,23 @@ where
     }
 }
 
+/// Error building a node of the graph.
+#[derive(Debug)]
+pub enum NodeBuildError {
+    /// Filed to uplaod the data.
+    Upload(UploadError),
+    /// Mismatched queue family.
+    QueueFamily(FamilyId),
+    /// Failed to create an imate view.
+    View(gfx_hal::image::ViewError),
+    /// Failed to create a pipeline.
+    Pipeline(gfx_hal::pso::CreationError),
+    /// Failed to create a swap chain.
+    Swapchain(SwapchainError),
+    /// Ran out of memory when creating something.
+    OutOfMemory(gfx_hal::device::OutOfMemory),
+}
+
 /// Dynamic node builder that emits `DynNode`.
 pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Pick family for this node to be executed onto.
@@ -324,7 +342,7 @@ pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
         aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn DynNode<B, T>>, failure::Error>;
+    ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError>;
 }
 
 /// Builder for the node.
@@ -429,7 +447,7 @@ where
         aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
+    ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
         Ok(Box::new((self.desc.build(
             ctx, factory, family, queue, aux, buffers, images,
         )?,)))

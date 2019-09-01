@@ -24,3 +24,14 @@ mod resources;
 mod sampler;
 
 pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};
+
+/// Error creating a resource.
+#[derive(Debug)]
+pub enum CreationError<E> {
+    /// Failed to create an object.
+    Create(E),
+    /// Failed to allocate memory.
+    Allocate(memory::HeapsError),
+    /// Failed to bind object memory.
+    Bind(gfx_hal::device::BindError),
+}

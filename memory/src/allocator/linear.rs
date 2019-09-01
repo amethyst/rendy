@@ -8,7 +8,7 @@ use {
         memory::*,
         util::*,
     },
-    gfx_hal::{Backend, Device as _},
+    gfx_hal::{Backend, device::Device as _},
 };
 
 /// Memory block allocated from `LinearAllocator`
@@ -69,20 +69,21 @@ where
         &'a mut self,
         _device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
         assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
         if !self.shared_memory().host_visible() {
-            return Err(gfx_hal::mapping::Error::InvalidAccess);
+            //TODO: invalid access error
+            return Err(gfx_hal::device::MapError::MappingFailed);
         }
 
         if let Some((ptr, range)) = mapped_sub_range(self.ptr, self.range.clone(), range) {
             let mapping = unsafe { MappedRange::from_raw(self.shared_memory(), ptr, range) };
             Ok(mapping)
         } else {
-            Err(gfx_hal::mapping::Error::OutOfBounds)
+            Err(gfx_hal::device::MapError::OutOfBounds)
         }
     }
 
@@ -259,7 +260,7 @@ where
 
             let ptr = match device.map_memory(&raw, 0..self.linear_size) {
                 Ok(ptr) => NonNull::new_unchecked(ptr),
-                Err(gfx_hal::mapping::Error::OutOfMemory(error)) => {
+                Err(gfx_hal::device::MapError::OutOfMemory(error)) => {
                     device.free_memory(raw);
                     return Err(error.into());
                 }

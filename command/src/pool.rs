@@ -2,7 +2,7 @@
 
 use {
     crate::{buffer::*, capability::*, family::FamilyId, util::Device},
-    gfx_hal::{Backend, Device as _},
+    gfx_hal::{Backend, device::Device as _},
 };
 
 /// Simple pool wrapper.
@@ -78,7 +78,7 @@ where
         let level = L::default();
 
         let buffers =
-            gfx_hal::pool::RawCommandPool::allocate_vec(&mut self.raw, count, level.raw_level());
+            gfx_hal::pool::CommandPool::allocate_vec(&mut self.raw, count, level.raw_level());
 
         buffers
             .into_iter()
@@ -107,7 +107,7 @@ where
             .map(|buffer| buffer.into_raw())
             .collect::<Vec<_>>();
 
-        gfx_hal::pool::RawCommandPool::free(&mut self.raw, buffers);
+        gfx_hal::pool::CommandPool::free(&mut self.raw, buffers);
     }
 
     /// Reset all buffers of this pool.
@@ -117,7 +117,7 @@ where
     /// All buffers allocated from this pool must be marked reset.
     /// See [`CommandBuffer::mark_reset`](struct.Command buffer.html#method.mark_reset)
     pub unsafe fn reset(&mut self) {
-        gfx_hal::pool::RawCommandPool::reset(&mut self.raw, false);
+        gfx_hal::pool::CommandPool::reset(&mut self.raw, false);
     }
 
     /// Dispose of command pool.

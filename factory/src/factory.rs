@@ -10,12 +10,15 @@ use {
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         util::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
-        wsi::{Surface, Target},
+        wsi::{SwapchainError, Surface, Target},
     },
     gfx_hal::{
-        buffer, device::*, error::HostExecutionError, format, image,
-        pso::DescriptorSetLayoutBinding, window::Extent2D, Adapter, Backend, Device as _, Features,
-        Gpu, Limits, PhysicalDevice, Surface as GfxSurface,
+        buffer, format, image,
+        adapter::{Adapter, Gpu, PhysicalDevice},
+        device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
+        pso::DescriptorSetLayoutBinding,
+        window::{Extent2D, Surface as GfxSurface},
+        Backend, Features, Limits,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -75,6 +78,17 @@ where
     }
 }
 
+/// Failure uploading a buffer or an image.
+#[derive(Debug)]
+pub enum UploadError {
+    /// Failed to create the staging buffer.
+    Create(BufferCreationError),
+    /// Failed to map the staging buffer.
+    Map(MapError),
+    /// Failed to upload the data.
+    Upload(OutOfMemory),
+}
+
 /// Higher level device interface.
 /// Manges memory, resources and queue families.
 #[derive(derivative::Derivative)]
@@ -107,10 +121,7 @@ where
 {
     fn drop(&mut self) {
         log::debug!("Dropping factory");
-        match self.wait_idle() {
-            Err(HostExecutionError::DeviceLost) | Ok(()) => (),
-            Err(err) => panic!("{}", err),
-        }
+        self.wait_idle().unwrap();
 
         unsafe {
             // Device is idle.
@@ -152,7 +163,7 @@ where
     /// Wait for whole device become idle.
     /// This function is very heavy and
     /// usually used only for teardown.
-    pub fn wait_idle(&self) -> Result<(), HostExecutionError> {
+    pub fn wait_idle(&self) -> Result<(), OutOfMemory> {
         profile_scope!("wait_idle");
 
         log::debug!("Wait device idle");
@@ -171,7 +182,7 @@ where
         &self,
         info: BufferInfo,
         memory_usage: impl MemoryUsage,
-    ) -> Result<Buffer<B>, failure::Error> {
+    ) -> Result<Buffer<B>, BufferCreationError> {
         profile_scope!("create_relevant_buffer");
 
         unsafe { Buffer::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
@@ -200,7 +211,7 @@ where
         &self,
         info: BufferInfo,
         memory_usage: impl MemoryUsage,
-    ) -> Result<Escape<Buffer<B>>, failure::Error> {
+    ) -> Result<Escape<Buffer<B>>, BufferCreationError> {
         let buffer = self.create_relevant_buffer(info, memory_usage)?;
         Ok(self.resources.buffers.escape(buffer))
     }
@@ -215,7 +226,7 @@ where
         &self,
         info: ImageInfo,
         memory_usage: impl MemoryUsage,
-    ) -> Result<Image<B>, failure::Error> {
+    ) -> Result<Image<B>, ImageCreationError> {
         profile_scope!("create_relevant_image");
 
         unsafe { Image::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
@@ -244,7 +255,7 @@ where
         &self,
         info: ImageInfo,
         memory_usage: impl MemoryUsage,
-    ) -> Result<Escape<Image<B>>, failure::Error> {
+    ) -> Result<Escape<Image<B>>, ImageCreationError> {
         let image = self.create_relevant_image(info, memory_usage)?;
         Ok(self.resources.images.escape(image))
     }
@@ -274,7 +285,7 @@ where
         &self,
         image: Handle<Image<B>>,
         info: ImageViewInfo,
-    ) -> Result<ImageView<B>, failure::Error> {
+    ) -> Result<ImageView<B>, ImageViewCreationError> {
         ImageView::create(&self.device, info, image)
     }
 
@@ -301,7 +312,7 @@ where
         &self,
         image: Handle<Image<B>>,
         info: ImageViewInfo,
-    ) -> Result<Escape<ImageView<B>>, failure::Error> {
+    ) -> Result<Escape<ImageView<B>>, ImageViewCreationError> {
         let view = self.create_relevant_image_view(image, info)?;
         Ok(self.resources.views.escape(view))
     }
@@ -387,7 +398,7 @@ where
         buffer: &mut Buffer<B>,
         offset: u64,
         content: &[T],
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), MapError> {
         let content = std::slice::from_raw_parts(
             content.as_ptr() as *const u8,
             content.len() * std::mem::size_of::<T>(),
@@ -428,22 +439,26 @@ where
         content: &[T],
         last: Option<BufferState>,
         next: BufferState,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), UploadError> {
         assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
 
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
-        let mut staging = self.create_buffer(
-            BufferInfo {
-                size: content_size,
-                usage: buffer::Usage::TRANSFER_SRC,
-            },
-            memory::Upload,
-        )?;
+        let mut staging = self
+            .create_buffer(
+                BufferInfo {
+                    size: content_size,
+                    usage: buffer::Usage::TRANSFER_SRC,
+                },
+                memory::Upload,
+            )
+            .map_err(UploadError::Create)?;
 
-        self.upload_visible_buffer(&mut staging, 0, content)?;
+        self.upload_visible_buffer(&mut staging, 0, content)
+            .map_err(UploadError::Map)?;
 
         self.uploader
             .upload_buffer(&self.device, buffer, offset, staging, last, next)
+            .map_err(UploadError::Upload)
     }
 
     /// Update buffer content with provided staging buffer.
@@ -467,7 +482,7 @@ where
         staging: Escape<Buffer<B>>,
         last: Option<BufferState>,
         next: BufferState,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), OutOfMemory> {
         assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
         assert!(staging.info().usage.contains(buffer::Usage::TRANSFER_SRC));
         self.uploader
@@ -531,7 +546,7 @@ where
         content: &[T],
         last: impl Into<ImageStateOrLayout>,
         next: ImageState,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), UploadError> {
         assert!(image.info().usage.contains(image::Usage::TRANSFER_DST));
         assert_eq!(image.format().surface_desc().aspects, image_layers.aspects);
         assert!(image_layers.layers.start <= image_layers.layers.end);
@@ -550,28 +565,33 @@ where
             "Size of must match size of the image region"
         );
 
-        let mut staging = self.create_buffer(
-            BufferInfo {
-                size: content_size,
-                usage: buffer::Usage::TRANSFER_SRC,
-            },
-            memory::Upload,
-        )?;
+        let mut staging = self
+            .create_buffer(
+                BufferInfo {
+                    size: content_size,
+                    usage: buffer::Usage::TRANSFER_SRC,
+                },
+                memory::Upload,
+            )
+            .map_err(UploadError::Create)?;
 
-        self.upload_visible_buffer(&mut staging, 0, content)?;
+        self.upload_visible_buffer(&mut staging, 0, content)
+            .map_err(UploadError::Map)?;
 
-        self.uploader.upload_image(
-            &self.device,
-            image,
-            data_width,
-            data_height,
-            image_layers,
-            image_offset,
-            image_extent,
-            staging,
-            last.into(),
-            next,
-        )
+        self.uploader
+            .upload_image(
+                &self.device,
+                image,
+                data_width,
+                data_height,
+                image_layers,
+                image_offset,
+                image_extent,
+                staging,
+                last.into(),
+                next,
+            )
+            .map_err(UploadError::Upload)
     }
 
     /// Get blitter instance
@@ -603,7 +623,7 @@ where
     ) -> (
         gfx_hal::window::SurfaceCapabilities,
         Option<Vec<gfx_hal::format::Format>>,
-        Vec<gfx_hal::PresentMode>,
+        Vec<gfx_hal::window::PresentMode>,
     ) {
         profile_scope!("get_surface_compatibility");
 
@@ -646,9 +666,9 @@ where
         surface: Surface<B>,
         extent: Extent2D,
         image_count: u32,
-        present_mode: gfx_hal::PresentMode,
+        present_mode: gfx_hal::window::PresentMode,
         usage: image::Usage,
-    ) -> Result<Target<B>, failure::Error> {
+    ) -> Result<Target<B>, SwapchainError> {
         profile_scope!("create_target");
 
         unsafe {
@@ -785,7 +805,7 @@ where
 
         let timeout = !unsafe {
             self.device
-                .wait_for_fences(fences.iter().map(|f| f.raw()), wait_for, timeout_ns)
+                .wait_for_fences(fences.iter().map(|f| f.raw()), wait_for.clone(), timeout_ns)
         }?;
 
         if timeout {
@@ -1019,14 +1039,15 @@ where
 #[allow(unused_variables)]
 pub fn init<B>(
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-) -> Result<(Factory<B>, Families<B>), failure::Error>
+) -> Result<(Factory<B>, Families<B>), gfx_hal::device::CreationError>
 where
     B: Backend,
 {
     log::debug!("Creating factory");
     rendy_backend_match!(B as backend => {
         profile_scope!(concat!("init_factory"));
-        let instance = backend::Instance::create("Rendy", 1);
+        let instance = backend::Instance::create("Rendy", 1)
+            .map_err(|_| gfx_hal::device::CreationError::InitializationFailed)?;
         Ok(crate::util::identical_cast(init_with_instance(instance, config)?))
     });
 }
@@ -1036,7 +1057,7 @@ where
 pub fn init_with_instance<B>(
     instance: impl gfx_hal::Instance<Backend = B>,
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-) -> Result<(Factory<B>, Families<B>), failure::Error>
+) -> Result<(Factory<B>, Families<B>), gfx_hal::device::CreationError>
 where
     B: Backend,
 {
@@ -1046,7 +1067,8 @@ where
     let mut adapters = instance.enumerate_adapters();
 
     if adapters.is_empty() {
-        failure::bail!("No physical devices found");
+        log::warn!("No physical devices found");
+        return Err(gfx_hal::device::CreationError::InitializationFailed);
     }
 
     log::debug!(
@@ -1100,14 +1122,14 @@ where
 
         log::debug!("Queues: {:#?}", get_queues);
 
-        let Gpu { device, mut queues } = unsafe {
+        let Gpu { device, mut queue_groups } = unsafe {
             adapter
                 .physical_device
                 .open(&create_queues, adapter.physical_device.features())
         }?;
 
         let families = unsafe {
-            families_from_device(device_id, &mut queues, get_queues, &adapter.queue_families)
+            families_from_device(device_id, &mut queue_groups, get_queues, &adapter.queue_families)
         };
         (device, families)
     };
@@ -1136,8 +1158,10 @@ where
         ),
         heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
         resources: ManuallyDrop::new(ResourceHub::default()),
-        uploader: unsafe { Uploader::new(&device, &families) }?,
-        blitter: unsafe { Blitter::new(&device, &families) }?,
+        uploader: unsafe { Uploader::new(&device, &families) }
+            .map_err(gfx_hal::device::CreationError::OutOfMemory)?,
+        blitter: unsafe { Blitter::new(&device, &families) }
+            .map_err(gfx_hal::device::CreationError::OutOfMemory)?,
         families_indices: families.indices().into(),
         epochs,
         device,
@@ -1154,7 +1178,7 @@ rendy_wsi::with_winit! {
         B: Backend,
     {
         /// Create rendering surface from window.
-        pub fn create_surface(&mut self, window: &rendy_wsi::winit::Window) -> Surface<B> {
+        pub fn create_surface(&mut self, window: &rendy_wsi::winit::window::Window) -> Surface<B> {
             profile_scope!("create_surface");
             Surface::new(&self.instance, window)
         }

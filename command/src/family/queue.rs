@@ -1,7 +1,7 @@
 use {
     super::{submission::*, QueueId},
     crate::{buffer::Submittable, fence::*},
-    gfx_hal::{queue::RawCommandQueue, Backend},
+    gfx_hal::{queue::CommandQueue, Backend},
 };
 
 /// Command queue wrapper.
@@ -34,7 +34,7 @@ where
     }
 
     /// Get raw command queue.
-    pub fn raw(&mut self) -> &mut impl RawCommandQueue<B> {
+    pub fn raw(&mut self) -> &mut impl CommandQueue<B> {
         &mut self.raw
     }
 
@@ -151,7 +151,7 @@ where
     }
 
     /// Wait for queue to finish all pending commands.
-    pub fn wait_idle(&self) -> Result<(), gfx_hal::error::HostExecutionError> {
+    pub fn wait_idle(&self) -> Result<(), gfx_hal::device::OutOfMemory> {
         self.raw.wait_idle()
     }
 }

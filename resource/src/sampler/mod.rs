@@ -4,7 +4,7 @@ mod cache;
 
 use {
     crate::util::{device_owned, Device, DeviceId},
-    gfx_hal::{image::SamplerInfo, Backend, Device as _},
+    gfx_hal::{image::SamplerInfo, Backend, device::Device as _},
     relevant::Relevant,
 };
 

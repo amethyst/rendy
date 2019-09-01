@@ -14,13 +14,13 @@ use {
         node::{
             gfx_acquire_barriers, gfx_release_barriers, is_metal,
             render::group::{RenderGroup, RenderGroupBuilder},
-            BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeImage,
+            BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage,
         },
         wsi::{Surface, Target},
         BufferId, ImageId, NodeId,
     },
     either::Either,
-    gfx_hal::{image::Layout, Backend, Device as _},
+    gfx_hal::{image::Layout, Backend, device::Device as _},
     std::{cmp::min, collections::HashMap},
 };
 
@@ -337,7 +337,7 @@ where
         aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
+    ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
         let mut surface_color_usage = false;
         let mut surface_depth_usage = false;
 
@@ -399,7 +399,7 @@ where
 
         let views: Vec<_> = attachments
             .iter()
-            .map(|&attachment| -> Result<Vec<_>, failure::Error> {
+            .map(|&attachment| -> Result<Vec<_>, NodeBuildError> {
                 match attachment {
                     Either::Left(image_id) => {
                         log::debug!("Image {:?} attachment", image_id);
@@ -413,15 +413,18 @@ where
                             framebuffer_layers,
                             node_image.range.layers.end - node_image.range.layers.start,
                         );
-                        Ok(vec![unsafe {factory
-                            .device()
-                            .create_image_view(
-                                image.raw(),
-                                gfx_hal::image::ViewKind::D2,
-                                image.format(),
-                                gfx_hal::format::Swizzle::NO,
-                                node_image.range.clone(),
-                            )}?])
+                        Ok(vec![unsafe {
+                            factory
+                                .device()
+                                .create_image_view(
+                                    image.raw(),
+                                    gfx_hal::image::ViewKind::D2,
+                                    image.format(),
+                                    gfx_hal::format::Swizzle::NO,
+                                    node_image.range.clone(),
+                                )
+                                .map_err(NodeBuildError::View)?
+                            }])
                     },
                     Either::Right(RenderPassSurface) => {
                         log::trace!("Surface attachment");
@@ -434,7 +437,8 @@ where
                         log::debug!("Surface extent {:#?}", surface_extent);
 
                         if !factory.surface_support(family.id(), &surface) {
-                            failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
+                            log::warn!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
+                            return Err(NodeBuildError::QueueFamily(family.id()));
                         }
 
                         let (caps, _f, present_modes_caps) = factory.get_surface_compatibility(&surface);
@@ -442,23 +446,25 @@ where
                         let present_mode = *present_modes_caps
                             .iter()
                             .max_by_key(|mode| match mode {
-                                gfx_hal::PresentMode::Fifo => 3,
-                                gfx_hal::PresentMode::Mailbox => 2,
-                                gfx_hal::PresentMode::Relaxed => 1,
-                                gfx_hal::PresentMode::Immediate => 0,
+                                gfx_hal::window::PresentMode::Fifo => 3,
+                                gfx_hal::window::PresentMode::Mailbox => 2,
+                                gfx_hal::window::PresentMode::Relaxed => 1,
+                                gfx_hal::window::PresentMode::Immediate => 0,
                             })
                             .unwrap();
             
                         let img_count_caps = caps.image_count;
                         let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());
              
-                        let target = factory.create_target(
-                            surface,
-                            surface_extent,
-                            image_count,
-                            present_mode,
-                            surface_usage,
-                        )?;
+                        let target = factory
+                            .create_target(
+                                surface,
+                                surface_extent,
+                                image_count,
+                                present_mode,
+                                surface_usage,
+                            )
+                            .map_err(NodeBuildError::Swapchain)?;
 
                         framebuffer_width = min(framebuffer_width, target.extent().width);
                         framebuffer_height = min(framebuffer_height, target.extent().height);
@@ -480,8 +486,9 @@ where
                                         levels: 0 .. 1,
                                         layers: 0 .. 1,
                                     },
-                                ).map_err(failure::Error::from)
-                        }).collect::<Result<Vec<_>, failure::Error>>()?;
+                                )
+                                .map_err(NodeBuildError::View)
+                        }).collect::<Result<Vec<_>, NodeBuildError>>()?;
 
                         node_target = Some(target);
                         Ok(views)
@@ -642,15 +649,18 @@ where
                     attachments.len() - 1,
                     i,
                 );
-                factory.device().create_framebuffer(
-                    &render_pass,
-                    views[..attachments.len() - 1].iter().chain(Some(&views[i])),
-                    gfx_hal::image::Extent {
-                        width: framebuffer_width,
-                        height: framebuffer_height,
-                        depth: framebuffer_layers as u32, // This is gfx-hal BUG as this parameter actually means framebuffer layers number,
-                    },
-                )
+                factory
+                    .device()
+                    .create_framebuffer(
+                        &render_pass,
+                        views[..attachments.len() - 1].iter().chain(Some(&views[i])),
+                        gfx_hal::image::Extent {
+                            width: framebuffer_width,
+                            height: framebuffer_height,
+                            depth: framebuffer_layers as u32, // This is gfx-hal BUG as this parameter actually means framebuffer layers number,
+                        },
+                    )
+                    .map_err(NodeBuildError::OutOfMemory)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -666,7 +676,8 @@ where
             .collect();
 
         let mut command_pool = factory
-            .create_command_pool(family)?
+            .create_command_pool(family)
+            .map_err(NodeBuildError::OutOfMemory)?
             .with_capability()
             .expect("Graph must specify family that supports `Graphics`");
 
@@ -781,7 +792,8 @@ where
                     .collect::<Result<Vec<_>, _>>()
                     .map(|groups| SubpassNode { groups })
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(NodeBuildError::Pipeline)?;
 
         let node: Box<dyn DynNode<B, T>> = match node_target {
             Some(target) => {
@@ -886,7 +898,7 @@ struct RenderPassNodeCommon<B: Backend, T: ?Sized> {
 
     render_pass: B::RenderPass,
     views: Vec<B::ImageView>,
-    clears: Vec<gfx_hal::command::ClearValueRaw>,
+    clears: Vec<gfx_hal::command::ClearValue>,
 
     command_pool: CommandPool<B, Graphics, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,

@@ -10,7 +10,7 @@ use {
         upload::ImageState,
         util::Device,
     },
-    gfx_hal::Device as _,
+    gfx_hal::device::{Device as _, OutOfMemory},
     smallvec::SmallVec,
     std::{collections::VecDeque, iter::once, ops::DerefMut, ops::Range},
 };
@@ -157,7 +157,7 @@ where
     pub(crate) unsafe fn new(
         device: &Device<B>,
         families: &Families<B>,
-    ) -> Result<Self, gfx_hal::device::OutOfMemory> {
+    ) -> Result<Self, OutOfMemory> {
         let mut family_ops = Vec::new();
         for family in families.as_slice() {
             while family_ops.len() <= family.id().index {
@@ -202,7 +202,7 @@ where
         filter: gfx_hal::image::Filter,
         last: impl IntoIterator<Item = ImageState>,
         next: impl IntoIterator<Item = ImageState>,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), OutOfMemory> {
         let (queue, blits) = BlitRegion::mip_blits_for_image(&image, last, next);
         for blit in blits {
             log::trace!("Blit: {:#?}", blit);
@@ -228,7 +228,7 @@ where
         dst_image: &Handle<Image<B>>,
         filter: gfx_hal::image::Filter,
         regions: impl IntoIterator<Item = BlitRegion>,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), OutOfMemory> {
         let mut family_ops = self.family_ops[queue_id.family.index]
             .as_ref()
             .unwrap()
@@ -241,7 +241,8 @@ where
         let next_ops = next[queue_id.index].as_mut().unwrap();
         let mut encoder = next_ops.command_buffer.encoder();
 
-        blit_image(&mut encoder, src_image, dst_image, filter, regions)
+        blit_image(&mut encoder, src_image, dst_image, filter, regions);
+        Ok(())
     }
 
     /// Cleanup pending updates.
@@ -298,7 +299,7 @@ pub unsafe fn blit_image<B, C, L>(
     dst_image: &Handle<Image<B>>,
     filter: gfx_hal::image::Filter,
     regions: impl IntoIterator<Item = BlitRegion>,
-) -> Result<(), failure::Error>
+)
 where
     B: gfx_hal::Backend,
     C: Supports<Graphics>,
@@ -364,7 +365,6 @@ where
 
     read_barriers.encode_after(encoder);
     write_barriers.encode_after(encoder);
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -413,7 +413,7 @@ where
         &mut self,
         device: &Device<B>,
         queue: usize,
-    ) -> Result<&mut GraphicsOps<B, RecordingState<OneShot>>, failure::Error> {
+    ) -> Result<&mut GraphicsOps<B, RecordingState<OneShot>>, OutOfMemory> {
         while self.next.len() <= queue {
             self.next.push(None);
         }
@@ -423,7 +423,7 @@ where
         match &mut self.next[queue] {
             Some(next) => Ok(next),
             slot @ None => {
-                let initial: Result<_, failure::Error> = self.initial.pop().map_or_else(
+                let initial: Result<_, OutOfMemory> = self.initial.pop().map_or_else(
                     || {
                         Ok(GraphicsOps {
                             command_buffer: pool.allocate_buffers(1).remove(0),

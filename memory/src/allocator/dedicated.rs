@@ -7,7 +7,7 @@ use {
         mapping::{mapped_fitting_range, MappedRange},
         memory::*,
     },
-    gfx_hal::{Backend, Device as _},
+    gfx_hal::{Backend, device::Device as _},
 };
 
 /// Memory block allocated from `DedicatedAllocator`
@@ -63,14 +63,15 @@ where
         &'a mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
         assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
 
         if !self.memory.host_visible() {
-            return Err(gfx_hal::mapping::Error::InvalidAccess);
+            //TODO: invalid access error
+            return Err(gfx_hal::device::MapError::MappingFailed);
         }
 
         unsafe {

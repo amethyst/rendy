@@ -14,13 +14,17 @@ use rendy::{
     graph::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
-    hal::{self, Device as _},
+    hal::{self, device::Device as _},
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{SourceShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
-    wsi::winit::{EventsLoop, WindowBuilder},
+    wsi::winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    },
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -146,16 +150,22 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<SpriteGraphicsPipeline<B>, failure::Error> {
+    ) -> Result<SpriteGraphicsPipeline<B>, hal::pso::CreationError> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
 
         // This is how we can load an image and create a new texture.
-        let image_reader = BufReader::new(File::open(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/examples/sprite/logo.png"
-        ))?);
+        let image_reader = BufReader::new(
+            File::open(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/examples/sprite/logo.png"
+            ))
+            .map_err(|e| {
+                log::error!("Unable to open {}: {:?}", "/examples/sprite/logo.png", e);
+                hal::pso::CreationError::Other
+            })?
+        );
 
         let texture_builder = rendy::texture::image::load_from_image(
             image_reader,
@@ -163,7 +173,10 @@ where
                 generate_mips: true,
                 ..Default::default()
             },
-        )?;
+        ).map_err(|e| {
+            log::error!("Unable to load image: {:?}", e);
+            hal::pso::CreationError::Other
+        })?;
 
         let texture = texture_builder
             .build(
@@ -303,11 +316,11 @@ where
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn run(
-    event_loop: &mut EventsLoop,
-    factory: &mut Factory<Backend>,
-    families: &mut Families<Backend>,
-    mut graph: Graph<Backend, ()>,
-) -> Result<(), failure::Error> {
+    event_loop: EventLoop<()>,
+    mut factory: Factory<Backend>,
+    mut families: Families<Backend>,
+    graph: Graph<Backend, ()>,
+) {
     let started = std::time::Instant::now();
 
     std::thread::spawn(move || {
@@ -318,31 +331,47 @@ fn run(
         std::process::abort();
     });
 
-    let mut frames = 0u64..;
+    let mut frame = 0u64;
     let mut elapsed = started.elapsed();
+    let mut graph = Some(graph);
 
-    for _ in &mut frames {
-        factory.maintain(families);
-        event_loop.poll_events(|_| ());
-        graph.run(factory, families, &());
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Poll;
+        match event {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => {
+                    *control_flow = ControlFlow::Exit
+                }
+                _ => {}
+            },
+            Event::EventsCleared => {
+                factory.maintain(&mut families);
+                if let Some(ref mut graph) = graph {
+                    graph.run(&mut factory, &mut families, &());
+                    frame += 1;
+                }
 
-        elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
-            break;
+                elapsed = started.elapsed();
+                if elapsed >= std::time::Duration::new(5, 0) {
+                    *control_flow = ControlFlow::Exit
+                }
+            }
+            _ => {}
         }
-    }
 
-    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+        if *control_flow == ControlFlow::Exit && graph.is_some() {
+            let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
 
-    log::info!(
-        "Elapsed: {:?}. Frames: {}. FPS: {}",
-        elapsed,
-        frames.start,
-        frames.start * 1_000_000_000 / elapsed_ns
-    );
+            log::info!(
+                "Elapsed: {:?}. Frames: {}. FPS: {}",
+                elapsed,
+                frame,
+                frame * 1_000_000_000 / elapsed_ns
+            );
 
-    graph.dispose(factory, &());
-    Ok(())
+            graph.take().unwrap().dispose(&mut factory, &());
+        }
+    });
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
@@ -355,29 +384,30 @@ fn main() {
 
     let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
-    let mut event_loop = EventsLoop::new();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
         .unwrap();
 
-    event_loop.poll_events(|_| ());
-
     let surface = factory.create_surface(&window);
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
     let size = window
-        .get_inner_size()
-        .unwrap()
-        .to_physical(window.get_hidpi_factor());
+        .inner_size()
+        .to_physical(window.hidpi_factor());
 
     let color = graph_builder.create_image(
         hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
         1,
         factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
+        Some(hal::command::ClearValue {
+            color: hal::command::ClearColor {
+                float32: [1.0, 1.0, 1.0, 1.0],
+            },
+        }),
     );
 
     let pass = graph_builder.add_node(
@@ -393,7 +423,7 @@ fn main() {
         .build(&mut factory, &mut families, &())
         .unwrap();
 
-    run(&mut event_loop, &mut factory, &mut families, graph).unwrap();
+    run(event_loop, factory, families, graph);
 }
 
 #[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]

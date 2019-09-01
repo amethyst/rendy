@@ -12,7 +12,7 @@
 )]
 
 use {
-    gfx_hal::{window::Extent2D, Backend, Device as _},
+    gfx_hal::{window::Extent2D, Backend, device::Device as _},
     rendy_resource::{Image, ImageInfo},
     rendy_util::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
@@ -32,7 +32,7 @@ rendy_with_empty_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             _instance: &rendy_util::empty::Instance,
-            _window: &winit::Window,
+            _window: &winit::window::Window,
         ) -> rendy_util::empty::Surface {
             rendy_util::empty::Surface
         }
@@ -44,7 +44,7 @@ rendy_with_dx12_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             instance: &rendy_util::dx12::Instance,
-            window: &winit::Window,
+            window: &winit::window::Window,
         ) -> <rendy_util::dx12::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -56,7 +56,7 @@ rendy_with_metal_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             instance: &rendy_util::metal::Instance,
-            window: &winit::Window,
+            window: &winit::window::Window,
         ) -> <rendy_util::metal::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
@@ -68,16 +68,27 @@ rendy_with_vulkan_backend! {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
             instance: &rendy_util::vulkan::Instance,
-            window: &winit::Window,
+            window: &winit::window::Window,
         ) -> <rendy_util::vulkan::Backend as gfx_hal::Backend>::Surface {
             instance.create_surface(window)
         }
     }
 }
 
+/// Error creating a new swapchain.
+#[derive(Debug)]
+pub enum SwapchainError {
+    /// Internal error in gfx-hal.
+    Create(gfx_hal::window::CreationError),
+    /// Present mode is not supported.
+    BadPresentMode(gfx_hal::window::PresentMode),
+    /// Image count is not supported.
+    BadImageCount(gfx_hal::window::SwapImageIndex),
+}
+
 #[cfg(feature = "winit")]
 #[allow(unused)]
-fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::Window) -> B::Surface {
+fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::window::Window) -> B::Surface {
     use rendy_util::identical_cast;
 
     // We perform identical type transmute.
@@ -122,7 +133,7 @@ where
 {
     /// Create surface for the window.
     #[cfg(feature = "winit")]
-    pub fn new(instance: &Instance<B>, window: &winit::Window) -> Self {
+    pub fn new(instance: &Instance<B>, window: &winit::window::Window) -> Self {
         let raw = create_surface::<B>(instance, &window);
         Surface {
             raw,
@@ -164,7 +175,7 @@ where
     /// Get surface ideal format.
     pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
         let (_capabilities, formats, _present_modes) =
-            gfx_hal::Surface::compatibility(&self.raw, physical_device);
+            gfx_hal::window::Surface::compatibility(&self.raw, physical_device);
         let formats = formats.unwrap();
 
         *formats
@@ -191,9 +202,9 @@ where
     ) -> (
         gfx_hal::window::SurfaceCapabilities,
         Option<Vec<gfx_hal::format::Format>>,
-        Vec<gfx_hal::PresentMode>,
+        Vec<gfx_hal::window::PresentMode>,
     ) {
-        gfx_hal::Surface::compatibility(&self.raw, physical_device)
+        gfx_hal::window::Surface::compatibility(&self.raw, physical_device)
     }
 
     /// Cast surface into render target.
@@ -203,9 +214,9 @@ where
         device: &Device<B>,
         suggest_extent: Extent2D,
         image_count: u32,
-        present_mode: gfx_hal::PresentMode,
+        present_mode: gfx_hal::window::PresentMode,
         usage: gfx_hal::image::Usage,
-    ) -> Result<Target<B>, failure::Error> {
+    ) -> Result<Target<B>, SwapchainError> {
         assert_eq!(
             device.id().instance,
             self.instance,
@@ -241,9 +252,9 @@ unsafe fn create_swapchain<B: Backend>(
     device: &Device<B>,
     suggest_extent: Extent2D,
     image_count: u32,
-    present_mode: gfx_hal::PresentMode,
+    present_mode: gfx_hal::window::PresentMode,
     usage: gfx_hal::image::Usage,
-) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), failure::Error> {
+) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), SwapchainError> {
     let (capabilities, formats, present_modes) = surface.compatibility(physical_device);
 
     if !present_modes.contains(&present_mode) {
@@ -252,7 +263,7 @@ unsafe fn create_swapchain<B: Backend>(
             present_modes,
             present_mode,
         );
-        failure::bail!("Present mode not supported.");
+        return Err(SwapchainError::BadPresentMode(present_mode));
     }
 
     log::trace!(
@@ -284,7 +295,7 @@ unsafe fn create_swapchain<B: Backend>(
             capabilities.image_count,
             image_count
         );
-        failure::bail!("Image count not supported.")
+        return Err(SwapchainError::BadImageCount(image_count));
     }
 
     log::trace!(
@@ -300,28 +311,30 @@ unsafe fn create_swapchain<B: Backend>(
 
     let extent = capabilities.current_extent.unwrap_or(suggest_extent);
 
-    let (swapchain, images) = device.create_swapchain(
-        &mut surface.raw,
-        gfx_hal::SwapchainConfig {
-            present_mode,
-            format,
-            extent,
-            image_count,
-            image_layers: 1,
-            image_usage: usage,
-            composite_alpha: [
-                gfx_hal::window::CompositeAlpha::INHERIT,
-                gfx_hal::window::CompositeAlpha::OPAQUE,
-                gfx_hal::window::CompositeAlpha::PREMULTIPLIED,
-                gfx_hal::window::CompositeAlpha::POSTMULTIPLIED,
-            ]
-            .iter()
-            .find(|&bit| capabilities.composite_alpha & *bit == *bit)
-            .cloned()
-            .expect("No CompositeAlpha modes supported"),
-        },
-        None,
-    )?;
+    let (swapchain, images) = device
+        .create_swapchain(
+            &mut surface.raw,
+            gfx_hal::window::SwapchainConfig {
+                present_mode,
+                format,
+                extent,
+                image_count,
+                image_layers: 1,
+                image_usage: usage,
+                composite_alpha: [
+                    gfx_hal::window::CompositeAlpha::INHERIT,
+                    gfx_hal::window::CompositeAlpha::OPAQUE,
+                    gfx_hal::window::CompositeAlpha::PREMULTIPLIED,
+                    gfx_hal::window::CompositeAlpha::POSTMULTIPLIED,
+                ]
+                .iter()
+                .find(|&bit| capabilities.composite_alpha & *bit == *bit)
+                .cloned()
+                .expect("No CompositeAlpha modes supported"),
+            },
+            None,
+        )
+        .map_err(SwapchainError::Create)?;
 
     let backbuffer = images
         .into_iter()
@@ -352,7 +365,7 @@ pub struct Target<B: Backend> {
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Vec<Image<B>>>,
     extent: Extent2D,
-    present_mode: gfx_hal::PresentMode,
+    present_mode: gfx_hal::window::PresentMode,
     usage: gfx_hal::image::Usage,
     relevant: relevant::Relevant,
 }
@@ -416,7 +429,7 @@ where
         physical_device: &B::PhysicalDevice,
         device: &Device<B>,
         suggest_extent: Extent2D,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), SwapchainError> {
         self.assert_device_owner(device);
 
         let image_count = match self.backbuffer.take() {
@@ -454,7 +467,7 @@ where
     /// # Safety
     ///
     /// Trait usage should not violate this type valid usage.
-    pub unsafe fn swapchain_mut(&mut self) -> &mut impl gfx_hal::Swapchain<B> {
+    pub unsafe fn swapchain_mut(&mut self) -> &mut impl gfx_hal::window::Swapchain<B> {
         self.swapchain.as_mut().expect("Swapchain already disposed")
     }
 
@@ -479,12 +492,12 @@ where
     pub unsafe fn next_image(
         &mut self,
         signal: &B::Semaphore,
-    ) -> Result<NextImages<'_, B>, gfx_hal::AcquireError> {
-        let index = gfx_hal::Swapchain::acquire_image(
+    ) -> Result<NextImages<'_, B>, gfx_hal::window::AcquireError> {
+        let index = gfx_hal::window::Swapchain::acquire_image(
             // Missing swapchain is equivalent to OutOfDate, as it has to be recreated anyway.
             self.swapchain
                 .as_mut()
-                .ok_or(gfx_hal::AcquireError::OutOfDate)?,
+                .ok_or(gfx_hal::window::AcquireError::OutOfDate)?,
             !0,
             Some(signal),
             None,
@@ -519,7 +532,7 @@ where
     /// Use specific presentation error type.
     pub unsafe fn present<'b>(
         self,
-        queue: &mut impl gfx_hal::queue::RawCommandQueue<B>,
+        queue: &mut impl gfx_hal::queue::CommandQueue<B>,
         wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>,
     ) -> Result<Option<gfx_hal::window::Suboptimal>, gfx_hal::window::PresentError>
     where

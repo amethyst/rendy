@@ -68,7 +68,7 @@ rendy-util = { version = "0.4.0", path = "../util" }
 rendy-wsi = { version = "0.4.0", path = "../wsi", optional = true }
 
 failure = "0.1"
-gfx-hal = "0.3"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019" }
 thread_profiler = "0.3"
 
 [dev-dependencies]

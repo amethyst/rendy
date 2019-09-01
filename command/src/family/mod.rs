@@ -68,7 +68,7 @@ where
     /// `family` must be one of the family indices used during `device` creation.
     /// `properties` must be the properties retuned for queue family from physical device.
     pub unsafe fn from_device(
-        queues: &mut gfx_hal::queue::Queues<B>,
+        queue_groups: &mut Vec<gfx_hal::queue::QueueGroup<B>>,
         id: FamilyId,
         count: usize,
         family: &impl gfx_hal::queue::QueueFamily,
@@ -76,11 +76,10 @@ where
         Family {
             id,
             queues: {
-                let queues = queues
-                    .take_raw(gfx_hal::queue::QueueFamilyId(id.index))
-                    .expect("");
-                assert_eq!(queues.len(), count);
-                queues
+                let pos = queue_groups.iter().position(|qg| qg.family.0 == id.index);
+                let group = queue_groups.swap_remove(pos.unwrap());
+                assert_eq!(group.queues.len(), count);
+                group.queues
                     .into_iter()
                     .enumerate()
                     .map(|(index, queue)| Queue::new(queue, QueueId { family: id, index }))
@@ -235,7 +234,7 @@ where
 /// `properties` must contain properties retuned for queue family from physical device for each family id yielded by `families`.
 pub unsafe fn families_from_device<B>(
     device: DeviceId,
-    queues: &mut gfx_hal::queue::Queues<B>,
+    queue_groups: &mut Vec<gfx_hal::queue::QueueGroup<B>>,
     families: impl IntoIterator<Item = (FamilyId, usize)>,
     queue_types: &[impl gfx_hal::queue::QueueFamily],
 ) -> Families<B>
@@ -244,7 +243,7 @@ where
 {
     let families: Vec<_> = families
         .into_iter()
-        .map(|(id, count)| Family::from_device(queues, id, count, &queue_types[id.index]))
+        .map(|(id, count)| Family::from_device(queue_groups, id, count, &queue_types[id.index]))
         .collect();
 
     let mut families_indices = vec![!0; families.len()];

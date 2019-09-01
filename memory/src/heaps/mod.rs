@@ -12,7 +12,7 @@ use {
 #[derive(Debug, failure::Fail)]
 pub enum HeapsError {
     /// Memory allocation failure.
-    #[fail(display = "{}", _0)]
+    #[fail(display = "{:?}", _0)]
     AllocationError(gfx_hal::device::AllocationError),
 
     /// No memory types among required for resource with requested properties was found.
@@ -134,7 +134,7 @@ where
                 .max_by_key(|&(_, _, fitness)| fitness)
                 .ok_or_else(|| {
                     log::error!("All suitable heaps are exhausted. {:#?}", self);
-                    gfx_hal::device::OutOfMemory::OutOfDeviceMemory
+                    gfx_hal::device::OutOfMemory::Device
                 })?
         };
 
@@ -167,7 +167,7 @@ where
         let ref mut memory_heap = self.heaps[memory_type.heap_index()];
 
         if memory_heap.available() < size {
-            return Err(gfx_hal::device::OutOfMemory::OutOfDeviceMemory.into());
+            return Err(gfx_hal::device::OutOfMemory::Device.into());
         }
 
         let (block, allocated) = memory_type.alloc(device, usage, size, align)?;
@@ -306,7 +306,7 @@ where
         &'a mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
         any_block!(&mut self.block => block.map(device, range))
     }
 

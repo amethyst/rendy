@@ -1,9 +1,9 @@
 use {
     crate::ranges::*,
     gfx_hal::{
-        device::OutOfMemory,
+        device::{Device, OutOfMemory},
         pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
-        Backend, Device,
+        Backend,
     },
     smallvec::{smallvec, SmallVec},
     std::{
@@ -79,8 +79,8 @@ unsafe fn allocate_from_pool<B: Backend>(
     let sets_were = allocation.len();
     raw.allocate_sets(std::iter::repeat(layout).take(count as usize), allocation)
         .map_err(|err| match err {
-            AllocationError::OutOfHostMemory => OutOfMemory::OutOfHostMemory,
-            AllocationError::OutOfDeviceMemory => OutOfMemory::OutOfDeviceMemory,
+            AllocationError::Host => OutOfMemory::Host,
+            AllocationError::Device => OutOfMemory::Device,
             err => {
                 // We check pool for free descriptors and sets before calling this function,
                 // so it can't be exhausted.

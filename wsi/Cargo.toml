@@ -22,10 +22,9 @@ rendy-memory = { version = "0.4.0", path = "../memory" }
 rendy-resource = { version = "0.4.0", path = "../resource" }
 rendy-util = { version = "0.4.0", path = "../util" }
 
-gfx-hal = "0.3"
+gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019" }
 derivative = "1.0"
-failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
-winit = { version = "0.19", optional = true }
+winit = { version = "0.20.0-alpha3", optional = true }

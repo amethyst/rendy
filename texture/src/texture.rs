@@ -1,10 +1,13 @@
 //! Module for creating a `Texture` from an image
 use {
     crate::{
-        factory::{Factory, ImageState},
+        factory::{Factory, ImageState, UploadError},
         memory::Data,
         pixel::AsPixel,
-        resource::{Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler},
+        resource::{
+            Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler,
+            ImageCreationError, ImageViewCreationError,
+        },
         util::{cast_cow, cast_slice},
     },
     derivative::Derivative,
@@ -68,12 +71,22 @@ pub enum MipLevels {
     GenerateLevels(NonZeroU8),
     /// Create the image with raw mip levels but without blitting the main
     /// texture data into them
-    RawLevels(NonZeroU8),
+    Levels(NonZeroU8),
 }
 
 /// Calculate the number of mip levels for a 2D image with given dimensions
 pub fn mip_levels_from_dims(width: u32, height: u32) -> u8 {
     ((32 - width.max(height).leading_zeros()).max(1) as u8).min(gfx_hal::image::MAX_LEVEL)
+}
+
+#[derive(Debug)]
+pub enum BuildError {
+    Format(Format),
+    Image(ImageCreationError),
+    Upload(UploadError),
+    ImageView(ImageViewCreationError),
+    Mipmap(gfx_hal::device::OutOfMemory),
+    Sampler(gfx_hal::device::AllocationError),
 }
 
 /// Generics-free texture builder.
@@ -110,7 +123,7 @@ impl<'a> TextureBuilder<'a> {
                 gfx_hal::image::WrapMode::Clamp,
             ),
             swizzle: Swizzle::NO,
-            mip_levels: MipLevels::RawLevels(NonZeroU8::new(1).unwrap()),
+            mip_levels: MipLevels::Levels(NonZeroU8::new(1).unwrap()),
             premultiplied: false,
         }
     }
@@ -258,7 +271,7 @@ impl<'a> TextureBuilder<'a> {
         &self,
         next_state: ImageState,
         factory: &'a mut Factory<B>,
-    ) -> Result<Texture<B>, failure::Error>
+    ) -> Result<Texture<B>, BuildError>
     where
         B: Backend,
     {
@@ -274,7 +287,7 @@ impl<'a> TextureBuilder<'a> {
 
         let (mip_levels, generate_mips) = match self.mip_levels {
             MipLevels::GenerateLevels(val) => (val.get(), true),
-            MipLevels::RawLevels(val) => (val.get(), false),
+            MipLevels::Levels(val) => (val.get(), false),
             MipLevels::GenerateAuto => match self.kind {
                 gfx_hal::image::Kind::D1(_, _) => (1, false),
                 gfx_hal::image::Kind::D2(w, h, _, _) => (mip_levels_from_dims(w, h), true),
@@ -295,14 +308,12 @@ impl<'a> TextureBuilder<'a> {
                     | gfx_hal::image::Usage::TRANSFER_SRC,
             },
         )
-        .ok_or_else(|| {
-            failure::format_err!(
-                "Format {:?} is not supported and no suitable conversion found.",
-                self.format
-            )
-        })?;
+        .ok_or(BuildError::Format(self.format))?;
 
-        let image: Handle<Image<B>> = factory.create_image(info, Data)?.into();
+        let image: Handle<Image<B>> = factory
+            .create_image(info, Data)
+            .map_err(BuildError::Image)?
+            .into();
 
         let mut transformed_vec: Vec<u8>;
 
@@ -365,19 +376,23 @@ impl<'a> TextureBuilder<'a> {
                 } else {
                     mip_state
                 },
-            )?;
+            )
+            .map_err(BuildError::Upload)?;
         }
 
         if mip_levels > 1 && generate_mips {
             profile_scope!("fill_mips");
             unsafe {
-                factory.blitter().fill_mips(
-                    factory.device(),
-                    image.clone(),
-                    image::Filter::Linear,
-                    std::iter::once(mip_state).chain(std::iter::repeat(undef_state)),
-                    std::iter::repeat(next_state),
-                )?;
+                factory
+                    .blitter()
+                    .fill_mips(
+                        factory.device(),
+                        image.clone(),
+                        image::Filter::Linear,
+                        std::iter::once(mip_state).chain(std::iter::repeat(undef_state)),
+                        std::iter::repeat(next_state),
+                    )
+                    .map_err(BuildError::Mipmap)?;
             }
         } else if mip_levels > 1 && !generate_mips {
             unsafe {
@@ -408,10 +423,13 @@ impl<'a> TextureBuilder<'a> {
                         layers: 0..info.kind.num_layers(),
                     },
                 },
-            )?
+            )
+            .map_err(BuildError::ImageView)?
         };
 
-        let sampler = factory.get_sampler(self.sampler_info.clone())?;
+        let sampler = factory
+            .get_sampler(self.sampler_info.clone())
+            .map_err(BuildError::Sampler)?;
 
         Ok(Texture {
             image,

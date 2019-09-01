@@ -79,7 +79,7 @@ unsafe impl QueuesConfigure for OneGraphicsQueue {
     ) -> Option<(FamilyId, [f32; 1])> {
         families
             .iter()
-            .find(|f| f.supports_graphics() && f.max_queues() > 0)
+            .find(|f| f.queue_type().supports_graphics() && f.max_queues() > 0)
             .map(|f| {
                 (
                     FamilyId {
@@ -229,7 +229,7 @@ pub trait DevicesConfigure {
     ///
     /// This function may panic if empty slice is provided.
     ///
-    fn pick<B>(&self, adapters: &[gfx_hal::Adapter<B>]) -> usize
+    fn pick<B>(&self, adapters: &[gfx_hal::adapter::Adapter<B>]) -> usize
     where
         B: gfx_hal::Backend;
 }
@@ -249,7 +249,7 @@ pub trait DevicesConfigure {
 pub struct BasicDevicesConfigure;
 
 impl DevicesConfigure for BasicDevicesConfigure {
-    fn pick<B>(&self, adapters: &[gfx_hal::Adapter<B>]) -> usize
+    fn pick<B>(&self, adapters: &[gfx_hal::adapter::Adapter<B>]) -> usize
     where
         B: gfx_hal::Backend,
     {

@@ -22,15 +22,19 @@ use rendy::{
             Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
-        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeDesc, NodeImage,
-        NodeSubmittable,
+        BufferAccess, Graph, GraphBuilder, GraphContext, Node,
+        NodeBuildError, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
     },
-    hal::{self, Device as _},
+    hal::{self, device::Device as _},
     memory::Dynamic,
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{SourceShaderInfo, Shader, ShaderKind, SourceLanguage, SpirvShader},
-    wsi::winit::{EventsLoop, Window, WindowBuilder},
+    wsi::winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::{Window, WindowBuilder},
+    },
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -185,7 +189,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<QuadsRenderPipeline<B>, failure::Error> {
+    ) -> Result<QuadsRenderPipeline<B>, gfx_hal::pso::CreationError> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
@@ -420,7 +424,7 @@ where
         _aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Self::Node, failure::Error> {
+    ) -> Result<Self::Node, NodeBuildError> {
         assert!(images.is_empty());
         assert_eq!(buffers.len(), 1);
 
@@ -441,47 +445,61 @@ where
                     access: hal::buffer::Access::SHADER_WRITE | hal::buffer::Access::SHADER_READ,
                 },
             )
+            .map_err(NodeBuildError::Upload)
         }?;
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
-        let module = unsafe { BOUNCE_COMPUTE.module(factory) }?;
+        let module = unsafe { BOUNCE_COMPUTE.module(factory) }
+            .map_err(gfx_hal::pso::CreationError::Shader)
+            .map_err(NodeBuildError::Pipeline)?;
 
-        let set_layout = Handle::from(factory.create_descriptor_set_layout(vec![
-            hal::pso::DescriptorSetLayoutBinding {
-                binding: 0,
-                ty: hal::pso::DescriptorType::StorageBuffer,
-                count: 1,
-                stage_flags: hal::pso::ShaderStageFlags::COMPUTE,
-                immutable_samplers: false,
-            },
-        ])?);
+        let set_layout = Handle::from(factory
+            .create_descriptor_set_layout(vec![
+                hal::pso::DescriptorSetLayoutBinding {
+                    binding: 0,
+                    ty: hal::pso::DescriptorType::StorageBuffer,
+                    count: 1,
+                    stage_flags: hal::pso::ShaderStageFlags::COMPUTE,
+                    immutable_samplers: false,
+                },
+            ])
+            .map_err(NodeBuildError::OutOfMemory)?
+        );
 
         let pipeline_layout = unsafe {
-            factory.device().create_pipeline_layout(
-                std::iter::once(set_layout.raw()),
-                std::iter::empty::<(hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
-            )
-        }?;
+            factory
+                .device()
+                .create_pipeline_layout(
+                    std::iter::once(set_layout.raw()),
+                    std::iter::empty::<(hal::pso::ShaderStageFlags, std::ops::Range<u32>)>(),
+                )
+                .map_err(NodeBuildError::OutOfMemory)?
+        };
 
         let pipeline = unsafe {
-            factory.device().create_compute_pipeline(
-                &hal::pso::ComputePipelineDesc {
-                    shader: hal::pso::EntryPoint {
-                        entry: "main",
-                        module: &module,
-                        specialization: hal::pso::Specialization::default(),
+            factory
+                .device()
+                .create_compute_pipeline(
+                    &hal::pso::ComputePipelineDesc {
+                        shader: hal::pso::EntryPoint {
+                            entry: "main",
+                            module: &module,
+                            specialization: hal::pso::Specialization::default(),
+                        },
+                        layout: &pipeline_layout,
+                        flags: hal::pso::PipelineCreationFlags::empty(),
+                        parent: hal::pso::BasePipeline::None,
                     },
-                    layout: &pipeline_layout,
-                    flags: hal::pso::PipelineCreationFlags::empty(),
-                    parent: hal::pso::BasePipeline::None,
-                },
-                None,
-            )
-        }?;
+                    None,
+                )
+                .map_err(NodeBuildError::Pipeline)?
+        };
 
         unsafe { factory.destroy_shader_module(module) };
 
-        let descriptor_set = factory.create_descriptor_set(set_layout.clone())?;
+        let descriptor_set = factory
+            .create_descriptor_set(set_layout.clone())
+            .map_err(NodeBuildError::OutOfMemory)?;
 
         unsafe {
             factory
@@ -498,7 +516,8 @@ where
         }
 
         let mut command_pool = factory
-            .create_command_pool(family)?
+            .create_command_pool(family)
+            .map_err(NodeBuildError::OutOfMemory)?
             .with_capability::<Compute>()
             .expect("Graph builder must provide family with Compute capability");
         let initial = command_pool.allocate_buffers(1).remove(0);
@@ -544,59 +563,61 @@ where
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn run(
-    event_loop: &mut EventsLoop,
-    factory: &mut Factory<Backend>,
-    families: &mut Families<Backend>,
-    window: &Window,
-) -> Result<(), failure::Error> {
-    let mut graph = build_graph(factory, families, window.clone());
+    event_loop: EventLoop<()>,
+    mut factory: Factory<Backend>,
+    mut families: Families<Backend>,
+    window: Window,
+) {
+    let mut graph = Some(build_graph(&mut factory, &mut families, &window));
 
     let started = std::time::Instant::now();
 
-    let mut last_window_size = window.get_inner_size();
-    let mut need_rebuild = false;
-
-    let mut frames = 0u64..;
+    let mut frame = 0u64;
     let mut elapsed = started.elapsed();
 
-    for _ in &mut frames {
-        factory.maintain(families);
-        event_loop.poll_events(|_| ());
-        let new_window_size = window.get_inner_size();
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Poll;
+        match event {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => {
+                    *control_flow = ControlFlow::Exit
+                }
+                WindowEvent::Resized(_dims) => {
+                    let started = std::time::Instant::now();
+                    graph.take().unwrap().dispose(&mut factory, &());
+                    println!("Graph disposed in: {:?}", started.elapsed());
+                    graph = Some(build_graph(&mut factory, &mut families, &window));
+                }
+                _ => {}
+            },
+            Event::EventsCleared => {
+                factory.maintain(&mut families);
+                if let Some(ref mut graph) = graph {
+                    graph.run(&mut factory, &mut families, &());
+                    frame += 1;
+                }
 
-        if last_window_size != new_window_size {
-            need_rebuild = true;
+                elapsed = started.elapsed();
+                if elapsed >= std::time::Duration::new(5, 0) {
+                    *control_flow = ControlFlow::Exit
+                }
+            }
+            _ => {}
         }
 
-        if need_rebuild && last_window_size == new_window_size {
-            need_rebuild = false;
-            let started = std::time::Instant::now();
-            graph.dispose(factory, &());
-            println!("Graph disposed in: {:?}", started.elapsed());
-            graph = build_graph(factory, families, window.clone());
+        if *control_flow == ControlFlow::Exit && graph.is_some() {
+            let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+
+            log::info!(
+                "Elapsed: {:?}. Frames: {}. FPS: {}",
+                elapsed,
+                frame,
+                frame * 1_000_000_000 / elapsed_ns
+            );
+
+            graph.take().unwrap().dispose(&mut factory, &());
         }
-
-        last_window_size = new_window_size;
-
-        graph.run(factory, families, &());
-
-        elapsed = started.elapsed();
-        if elapsed >= std::time::Duration::new(5, 0) {
-            break;
-        }
-    }
-
-    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-
-    log::info!(
-        "Elapsed: {:?}. Frames: {}. FPS: {}",
-        elapsed,
-        frames.start,
-        frames.start * 1_000_000_000 / elapsed_ns
-    );
-
-    graph.dispose(factory, &mut ());
-    Ok(())
+    });
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
@@ -607,25 +628,16 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
+    let (factory, families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
 
-    let mut event_loop = EventsLoop::new();
+    let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("Rendy example")
         .build(&event_loop)
         .unwrap();
 
-    event_loop.poll_events(|_| ());
-
-    run(&mut event_loop, &mut factory, &mut families, &window).unwrap();
-    log::debug!("Done");
-
-    log::debug!("Drop families");
-    drop(families);
-
-    log::debug!("Drop factory");
-    drop(factory);
+    run(event_loop, factory, families, window);
 }
 
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
@@ -641,25 +653,31 @@ fn build_graph(
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
     let size = window
-        .get_inner_size()
-        .unwrap()
-        .to_physical(window.get_hidpi_factor());
+        .inner_size()
+        .to_physical(window.hidpi_factor());
     let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
 
     let color = graph_builder.create_image(
         window_kind,
         1,
         factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue::Color([1.0, 1.0, 1.0, 1.0].into())),
+        Some(hal::command::ClearValue {
+            color: hal::command::ClearColor {
+                float32: [1.0, 1.0, 1.0, 1.0],
+            },
+        }),
     );
 
     let depth = graph_builder.create_image(
         window_kind,
         1,
         hal::format::Format::D16Unorm,
-        Some(hal::command::ClearValue::DepthStencil(
-            hal::command::ClearDepthStencil(1.0, 0),
-        )),
+        Some(hal::command::ClearValue {
+            depth_stencil: hal::command::ClearDepthStencil {
+                depth: 1.0,
+                stencil: 0,
+            },
+        }),
     );
 
     let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));

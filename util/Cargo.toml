@@ -26,11 +26,11 @@ vulkan-x11 = ["gfx-backend-vulkan/x11"]
 no-slow-safety-checks = []
 
 [dependencies]
-gfx-hal = "0.3"
-gfx-backend-empty = { version = "0.3", features = ["winit"], optional = true }
-gfx-backend-dx12 = { version = "0.3", features = ["winit"], optional = true }
-gfx-backend-metal = { version = "0.3", features = ["winit"], optional = true }
-gfx-backend-vulkan = { version = "0.3", features = ["winit"], optional = true }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019" }
+gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019", features = ["winit"], optional = true }
+gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019", features = ["winit"], optional = true }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019", features = ["winit"], optional = true }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "a084a1f2fec6c9ed928c53e2dc8c1761782b9019", features = ["winit"], optional = true }
 derivative = "1.0"
 lazy_static = "1.0"
 log = "0.4"

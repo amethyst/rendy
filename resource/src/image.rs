@@ -4,11 +4,12 @@ pub use gfx_hal::image::*;
 
 use {
     crate::{
+        CreationError,
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
         util::{device_owned, Device, DeviceId},
     },
-    gfx_hal::{format, Backend, Device as _},
+    gfx_hal::{format, Backend, device::Device as _},
     relevant::Relevant,
 };
 
@@ -49,6 +50,8 @@ pub struct Image<B: Backend> {
 }
 
 device_owned!(Image<B>);
+/// Alias for the error to create an image.
+pub type ImageCreationError = CreationError<gfx_hal::image::CreationError>;
 
 impl<B> Image<B>
 where
@@ -68,7 +71,7 @@ where
         heaps: &mut Heaps<B>,
         info: ImageInfo,
         memory_usage: impl MemoryUsage,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, ImageCreationError> {
         assert!(
             info.levels <= info.kind.num_levels(),
             "Number of mip leves ({}) cannot be greater than {} for given kind {:?}",
@@ -79,24 +82,30 @@ where
 
         log::trace!("{:#?}@{:#?}", info, memory_usage);
 
-        let mut img = device.create_image(
-            info.kind,
-            info.levels,
-            info.format,
-            info.tiling,
-            info.usage,
-            info.view_caps,
-        )?;
+        let mut img = device
+            .create_image(
+                info.kind,
+                info.levels,
+                info.format,
+                info.tiling,
+                info.usage,
+                info.view_caps,
+            )
+            .map_err(CreationError::Create)?;
         let reqs = device.get_image_requirements(&img);
-        let block = heaps.allocate(
-            device,
-            reqs.type_mask as u32,
-            memory_usage,
-            reqs.size,
-            reqs.alignment,
-        )?;
+        let block = heaps
+            .allocate(
+                device,
+                reqs.type_mask as u32,
+                memory_usage,
+                reqs.size,
+                reqs.alignment,
+            )
+            .map_err(CreationError::Allocate)?;
 
-        device.bind_image_memory(block.memory(), block.range().start, &mut img)?;
+        device
+            .bind_image_memory(block.memory(), block.range().start, &mut img)
+            .map_err(CreationError::Bind)?;
 
         Ok(Image {
             device: device.id(),
@@ -206,6 +215,8 @@ pub struct ImageView<B: Backend> {
 }
 
 device_owned!(ImageView<B> @ |view: &Self| view.image.device_id());
+/// Alias for the error to create an image view.
+pub type ImageViewCreationError = CreationError<ViewError>;
 
 impl<B> ImageView<B>
 where
@@ -216,7 +227,7 @@ where
         device: &Device<B>,
         info: ImageViewInfo,
         image: Handle<Image<B>>,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, ImageViewCreationError> {
         log::trace!("{:#?}@{:#?}", info, image);
 
         image.assert_device_owner(device);
@@ -228,18 +239,20 @@ where
         ));
 
         let view = unsafe {
-            device.create_image_view(
-                image.raw(),
-                info.view_kind,
-                info.format,
-                info.swizzle,
-                SubresourceRange {
-                    aspects: info.range.aspects.clone(),
-                    layers: info.range.layers.clone(),
-                    levels: info.range.levels.clone(),
-                },
-            )
-        }?;
+            device
+                .create_image_view(
+                    image.raw(),
+                    info.view_kind,
+                    info.format,
+                    info.swizzle,
+                    SubresourceRange {
+                        aspects: info.range.aspects.clone(),
+                        layers: info.range.layers.clone(),
+                        levels: info.range.levels.clone(),
+                    },
+                )
+                .map_err(CreationError::Create)?
+        };
 
         Ok(ImageView {
             raw: view,

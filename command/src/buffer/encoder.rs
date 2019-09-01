@@ -104,7 +104,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::bind_index_buffer(
+        gfx_hal::command::CommandBuffer::bind_index_buffer(
             self.raw,
             gfx_hal::buffer::IndexBufferView {
                 buffer: buffer,
@@ -136,7 +136,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::bind_vertex_buffers(self.raw, first_binding, buffers)
+        gfx_hal::command::CommandBuffer::bind_vertex_buffers(self.raw, first_binding, buffers)
     }
 
     /// Bind graphics pipeline.
@@ -152,7 +152,7 @@ where
         self.capability.assert();
 
         unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
+            gfx_hal::command::CommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
         }
     }
 
@@ -172,7 +172,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::bind_graphics_descriptor_sets(
+        gfx_hal::command::CommandBuffer::bind_graphics_descriptor_sets(
             self.raw,
             layout,
             first_set as _,
@@ -189,7 +189,7 @@ where
         self.capability.assert();
 
         unsafe {
-            gfx_hal::command::RawCommandBuffer::bind_compute_pipeline(self.raw, pipeline);
+            gfx_hal::command::CommandBuffer::bind_compute_pipeline(self.raw, pipeline);
         }
     }
 
@@ -209,7 +209,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::bind_compute_descriptor_sets(
+        gfx_hal::command::CommandBuffer::bind_compute_descriptor_sets(
             self.raw,
             layout,
             first_set as usize,
@@ -229,7 +229,7 @@ where
         dependencies: gfx_hal::memory::Dependencies,
         barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'b, B>>,
     ) {
-        gfx_hal::command::RawCommandBuffer::pipeline_barrier(
+        gfx_hal::command::CommandBuffer::pipeline_barrier(
             self.raw,
             stages,
             dependencies,
@@ -253,7 +253,7 @@ where
         offset: u32,
         constants: &[u32],
     ) {
-        gfx_hal::command::RawCommandBuffer::push_graphics_constants(
+        gfx_hal::command::CommandBuffer::push_graphics_constants(
             self.raw, layout, stages, offset, constants,
         );
     }
@@ -269,7 +269,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_viewports(self.raw, first_viewport, viewports)
+        gfx_hal::command::CommandBuffer::set_viewports(self.raw, first_viewport, viewports)
     }
 
     /// Set scissors
@@ -288,7 +288,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects)
+        gfx_hal::command::CommandBuffer::set_scissors(self.raw, first_scissor, rects)
     }
 
     /// Set the stencil reference dynamic state
@@ -302,7 +302,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_stencil_reference(self.raw, faces, value);
+        gfx_hal::command::CommandBuffer::set_stencil_reference(self.raw, faces, value);
     }
 
     /// Set the stencil compare mask dynamic state
@@ -316,7 +316,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_stencil_read_mask(self.raw, faces, value);
+        gfx_hal::command::CommandBuffer::set_stencil_read_mask(self.raw, faces, value);
     }
 
     /// Set the stencil write mask dynamic state
@@ -330,7 +330,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_stencil_write_mask(self.raw, faces, value);
+        gfx_hal::command::CommandBuffer::set_stencil_write_mask(self.raw, faces, value);
     }
 
     /// Set the values of blend constants
@@ -341,7 +341,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_blend_constants(self.raw, color);
+        gfx_hal::command::CommandBuffer::set_blend_constants(self.raw, color);
     }
 
     /// Set the depth bounds test values
@@ -352,7 +352,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_depth_bounds(self.raw, bounds);
+        gfx_hal::command::CommandBuffer::set_depth_bounds(self.raw, bounds);
     }
 
     /// Set the dynamic line width state
@@ -363,7 +363,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_line_width(self.raw, width);
+        gfx_hal::command::CommandBuffer::set_line_width(self.raw, width);
     }
 
     /// Set the depth bias dynamic state
@@ -374,7 +374,7 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        gfx_hal::command::RawCommandBuffer::set_depth_bias(self.raw, depth_bias);
+        gfx_hal::command::CommandBuffer::set_depth_bias(self.raw, depth_bias);
     }
 
     /// Reborrow encoder.
@@ -428,7 +428,7 @@ where
         clears: impl IntoIterator<Item = impl std::borrow::Borrow<gfx_hal::command::AttachmentClear>>,
         rects: impl IntoIterator<Item = impl std::borrow::Borrow<gfx_hal::pso::ClearRect>>,
     ) {
-        gfx_hal::command::RawCommandBuffer::clear_attachments(self.inner.raw, clears, rects);
+        gfx_hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);
     }
 
     /// Draw.
@@ -441,7 +441,7 @@ where
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDraw.html
     pub unsafe fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
-        gfx_hal::command::RawCommandBuffer::draw(self.inner.raw, vertices, instances)
+        gfx_hal::command::CommandBuffer::draw(self.inner.raw, vertices, instances)
     }
 
     /// Draw indexed, with `base_vertex` specifying an offset that is treated as
@@ -459,7 +459,7 @@ where
         base_vertex: i32,
         instances: std::ops::Range<u32>,
     ) {
-        gfx_hal::command::RawCommandBuffer::draw_indexed(
+        gfx_hal::command::CommandBuffer::draw_indexed(
             self.inner.raw,
             indices,
             base_vertex,
@@ -486,7 +486,7 @@ where
         draw_count: u32,
         stride: u32,
     ) {
-        gfx_hal::command::RawCommandBuffer::draw_indirect(
+        gfx_hal::command::CommandBuffer::draw_indirect(
             self.inner.raw,
             buffer,
             offset,
@@ -514,7 +514,7 @@ where
         draw_count: u32,
         stride: u32,
     ) {
-        gfx_hal::command::RawCommandBuffer::draw_indexed_indirect(
+        gfx_hal::command::CommandBuffer::draw_indexed_indirect(
             self.inner.raw,
             buffer,
             offset,
@@ -542,7 +542,7 @@ where
     B: gfx_hal::Backend,
 {
     fn drop(&mut self) {
-        unsafe { gfx_hal::command::RawCommandBuffer::end_render_pass(self.inner.inner.raw) }
+        unsafe { gfx_hal::command::CommandBuffer::end_render_pass(self.inner.inner.raw) }
     }
 }
 
@@ -573,7 +573,7 @@ where
     /// Record next subpass inline.
     pub fn next_subpass_inline(self) -> RenderPassInlineEncoder<'a, B> {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::next_subpass(
+            gfx_hal::command::CommandBuffer::next_subpass(
                 self.inner.inner.raw,
                 gfx_hal::command::SubpassContents::Inline,
             );
@@ -585,7 +585,7 @@ where
     /// Record next subpass secondary.
     pub fn next_subpass_secondary(self) -> RenderPassSecondaryEncoder<'a, B> {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::next_subpass(
+            gfx_hal::command::CommandBuffer::next_subpass(
                 self.inner.inner.raw,
                 gfx_hal::command::SubpassContents::SecondaryBuffers,
             );
@@ -613,7 +613,7 @@ where
     B: gfx_hal::Backend,
 {
     fn drop(&mut self) {
-        unsafe { gfx_hal::command::RawCommandBuffer::end_render_pass(self.inner.raw) }
+        unsafe { gfx_hal::command::CommandBuffer::end_render_pass(self.inner.raw) }
     }
 }
 
@@ -628,7 +628,7 @@ where
     ) {
         let family = self.inner.family;
         unsafe {
-            gfx_hal::command::RawCommandBuffer::execute_commands(
+            gfx_hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
@@ -641,7 +641,7 @@ where
     /// Record next subpass inline.
     pub fn next_subpass_inline(self) -> RenderPassInlineEncoder<'a, B> {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::next_subpass(
+            gfx_hal::command::CommandBuffer::next_subpass(
                 self.inner.raw,
                 gfx_hal::command::SubpassContents::Inline,
             );
@@ -660,7 +660,7 @@ where
     /// Record next subpass secondary.
     pub fn next_subpass_secondary(self) -> RenderPassSecondaryEncoder<'a, B> {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::next_subpass(
+            gfx_hal::command::CommandBuffer::next_subpass(
                 self.inner.raw,
                 gfx_hal::command::SubpassContents::SecondaryBuffers,
             );
@@ -707,7 +707,7 @@ where
         render_pass: &B::RenderPass,
         framebuffer: &B::Framebuffer,
         render_area: gfx_hal::pso::Rect,
-        clear_values: &[gfx_hal::command::ClearValueRaw],
+        clear_values: &[gfx_hal::command::ClearValue],
     ) -> RenderPassInlineEncoder<'_, B>
     where
         C: Supports<Graphics>,
@@ -715,7 +715,7 @@ where
         self.capability.assert();
 
         unsafe {
-            gfx_hal::command::RawCommandBuffer::begin_render_pass(
+            gfx_hal::command::CommandBuffer::begin_render_pass(
                 self.inner.raw,
                 render_pass,
                 framebuffer,
@@ -738,7 +738,7 @@ where
         render_pass: &B::RenderPass,
         framebuffer: &B::Framebuffer,
         render_area: gfx_hal::pso::Rect,
-        clear_values: &[gfx_hal::command::ClearValueRaw],
+        clear_values: &[gfx_hal::command::ClearValue],
     ) -> RenderPassSecondaryEncoder<'_, B>
     where
         C: Supports<Graphics>,
@@ -746,7 +746,7 @@ where
         self.capability.assert();
 
         unsafe {
-            gfx_hal::command::RawCommandBuffer::begin_render_pass(
+            gfx_hal::command::CommandBuffer::begin_render_pass(
                 self.inner.raw,
                 render_pass,
                 framebuffer,
@@ -768,7 +768,7 @@ where
     ) {
         let family = self.inner.family;
         unsafe {
-            gfx_hal::command::RawCommandBuffer::execute_commands(
+            gfx_hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
                 submittables.into_iter().map(|submit| {
                     assert_eq!(family, submit.family());
@@ -812,7 +812,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
+        gfx_hal::command::CommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
     }
 
     /// Copy buffer region to image subresource range.
@@ -833,7 +833,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::copy_buffer_to_image(
+        gfx_hal::command::CommandBuffer::copy_buffer_to_image(
             self.inner.raw,
             src,
             dst,
@@ -861,7 +861,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::copy_image(
+        gfx_hal::command::CommandBuffer::copy_image(
             self.inner.raw,
             src,
             src_layout,
@@ -891,7 +891,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::blit_image(
+        gfx_hal::command::CommandBuffer::blit_image(
             self.inner.raw,
             src,
             src_layout,
@@ -913,7 +913,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::dispatch(self.inner.raw, [x, y, z])
+        gfx_hal::command::CommandBuffer::dispatch(self.inner.raw, [x, y, z])
     }
 
     /// Dispatch indirect.
@@ -932,7 +932,7 @@ where
     {
         self.capability.assert();
 
-        gfx_hal::command::RawCommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
+        gfx_hal::command::CommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
     }
 }
 
