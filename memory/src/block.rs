@@ -28,7 +28,7 @@ pub trait Block<B: gfx_hal::Backend> {
         &'a mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error>;
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError>;
 
     /// Release memory mapping. Must be called after successful `map` call.
     /// No-op if block is not mapped.

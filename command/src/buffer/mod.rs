@@ -125,7 +125,7 @@ where
     }
 
     /// Convert capability level.
-    pub fn with_queue_type(self) -> CommandBuffer<B, gfx_hal::QueueType, S, L, R>
+    pub fn with_queue_type(self) -> CommandBuffer<B, gfx_hal::queue::QueueType, S, L, R>
     where
         C: Capability,
     {
@@ -250,7 +250,7 @@ where
     {
         let pass_relation = P::default();
         unsafe {
-            gfx_hal::command::RawCommandBuffer::begin(
+            gfx_hal::command::CommandBuffer::begin(
                 self.raw(),
                 usage.flags() | pass_relation.flags(),
                 info.inheritance_info(),
@@ -268,7 +268,7 @@ where
     /// Finish recording command buffer.
     pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
         unsafe {
-            gfx_hal::command::RawCommandBuffer::finish(self.raw());
+            gfx_hal::command::CommandBuffer::finish(self.raw());
 
             self.change_state(|s| ExecutableState(s.0, s.1))
         }

@@ -4,7 +4,7 @@ use {
         escape::Handle,
         util::{device_owned, Device, DeviceId},
     },
-    gfx_hal::{pso::DescriptorSetLayoutBinding, Backend, Device as _},
+    gfx_hal::{pso::DescriptorSetLayoutBinding, Backend, device::Device as _},
     relevant::Relevant,
     smallvec::SmallVec,
 };

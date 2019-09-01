@@ -8,7 +8,7 @@ use {
         resource::{Buffer, Escape, Handle, Image},
         util::Device,
     },
-    gfx_hal::Device as _,
+    gfx_hal::device::{Device as _, OutOfMemory},
     std::{collections::VecDeque, iter::once},
 };
 
@@ -135,7 +135,7 @@ where
     pub(crate) unsafe fn new(
         device: &Device<B>,
         families: &Families<B>,
-    ) -> Result<Self, gfx_hal::device::OutOfMemory> {
+    ) -> Result<Self, OutOfMemory> {
         let mut family_uploads = Vec::new();
         for family in families.as_slice() {
             while family_uploads.len() <= family.id().index {
@@ -174,7 +174,7 @@ where
         staging: Escape<Buffer<B>>,
         last: Option<BufferState>,
         next: BufferState,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), OutOfMemory> {
         let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
             .unwrap()
@@ -276,7 +276,7 @@ where
         staging: Escape<Buffer<B>>,
         last: ImageStateOrLayout,
         next: ImageState,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), OutOfMemory> {
         use gfx_hal::image::{Access, Layout};
 
         let mut family_uploads = self.family_uploads[next.queue.family.index]
@@ -476,7 +476,7 @@ where
         &mut self,
         device: &Device<B>,
         queue: usize,
-    ) -> Result<&mut NextUploads<B>, failure::Error> {
+    ) -> Result<&mut NextUploads<B>, OutOfMemory> {
         while self.next.len() <= queue {
             self.next.push(None);
         }

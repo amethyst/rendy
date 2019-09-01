@@ -64,7 +64,7 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         subpass: gfx_hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error>;
+    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError>;
 }
 
 /// One or more graphics pipelines to be called in subpass.
@@ -129,7 +129,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
         subpass: gfx_hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error>;
+    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError>;
 }
 
 impl<B, T, D> RenderGroupBuilder<B, T> for DescBuilder<B, T, D>
@@ -177,7 +177,7 @@ where
         subpass: gfx_hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
+    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError> {
         self.desc.build(
             ctx,
             factory,

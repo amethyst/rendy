@@ -47,12 +47,15 @@ pub trait Shader {
     unsafe fn module<B>(
         &self,
         factory: &rendy_factory::Factory<B>,
-    ) -> Result<B::ShaderModule, failure::Error>
+    ) -> Result<B::ShaderModule, gfx_hal::device::ShaderError>
     where
         B: Backend,
     {
-        gfx_hal::Device::create_shader_module(factory.device().raw(), &self.spirv()?)
-            .map_err(Into::into)
+        gfx_hal::device::Device::create_shader_module(
+            factory.device().raw(),
+            &self.spirv()
+                .map_err(|e| gfx_hal::device::ShaderError::CompilationFailed(format!("{:?}", e)))?,
+        )
     }
 }
 
@@ -104,7 +107,7 @@ impl<B: Backend> ShaderSet<B> {
     pub fn load(
         &mut self,
         factory: &rendy_factory::Factory<B>,
-    ) -> Result<&mut Self, failure::Error> {
+    ) -> Result<&mut Self, gfx_hal::device::ShaderError> {
         for (_, v) in self.shaders.iter_mut() {
             unsafe { v.compile(factory)? }
         }
@@ -191,17 +194,18 @@ impl ShaderSetBuilder {
         &self,
         factory: &rendy_factory::Factory<B>,
         spec_constants: SpecConstantSet,
-    ) -> Result<ShaderSet<B>, failure::Error> {
+    ) -> Result<ShaderSet<B>, gfx_hal::device::ShaderError> {
         let mut set = ShaderSet::<B>::default();
 
         if self.vertex.is_none() && self.compute.is_none() {
-            failure::bail!("A vertex or compute shader must be provided");
+            let msg = "A vertex or compute shader must be provided".to_string();
+            return Err(gfx_hal::device::ShaderError::InterfaceMismatch(msg));
         }
 
         let create_storage = move |stage,
                                    shader: (Vec<u32>, String, Option<gfx_hal::pso::Specialization<'static>>),
                                    factory|
-              -> Result<ShaderStorage<B>, failure::Error> {
+              -> Result<ShaderStorage<B>, gfx_hal::device::ShaderError> {
             let mut storage = ShaderStorage {
                 stage: stage,
                 spirv: shader.0,
@@ -367,8 +371,8 @@ impl<B: Backend> ShaderStorage<B> {
     pub unsafe fn compile(
         &mut self,
         factory: &rendy_factory::Factory<B>,
-    ) -> Result<(), failure::Error> {
-        self.module = Some(gfx_hal::Device::create_shader_module(
+    ) -> Result<(), gfx_hal::device::ShaderError> {
+        self.module = Some(gfx_hal::device::Device::create_shader_module(
             factory.device().raw(),
             &self.spirv,
         )?);

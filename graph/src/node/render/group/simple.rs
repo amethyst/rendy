@@ -9,7 +9,7 @@ use {
         },
         resource::{DescriptorSetLayout, Handle},
     },
-    gfx_hal::{Backend, Device},
+    gfx_hal::{Backend, device::Device as _},
 };
 
 pub use crate::util::types::{Layout, SetLayout};
@@ -142,7 +142,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<Self::Pipeline, failure::Error>;
+    ) -> Result<Self::Pipeline, gfx_hal::pso::CreationError>;
 }
 
 /// Simple render pipeline.
@@ -235,7 +235,7 @@ where
         subpass: gfx_hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, failure::Error> {
+    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError> {
         log::trace!("Load shader sets for");
 
         let mut shader_set = self.inner.load_shader_set(factory, aux);
@@ -265,7 +265,7 @@ where
         }
         .map_err(|e| {
             shader_set.dispose(factory);
-            e
+            gfx_hal::pso::CreationError::OutOfMemory(e)
         })?;
 
         assert_eq!(pipeline.colors.len(), self.inner.colors().len());
@@ -287,7 +287,8 @@ where
         let shaders = match shader_set.raw() {
             Err(e) => {
                 shader_set.dispose(factory);
-                return Err(e);
+                log::warn!("Shader error {:?}", e);
+                return Err(gfx_hal::pso::CreationError::Other);
             }
             Ok(s) => s,
         };

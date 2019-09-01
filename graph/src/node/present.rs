@@ -9,8 +9,8 @@ use crate::{
     frame::Frames,
     graph::GraphContext,
     node::{
-        gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
-        NodeBuilder, NodeImage,
+        gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode,
+        ImageAccess, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage,
     },
     wsi::{Surface, Target},
     BufferId, ImageId, NodeId,
@@ -23,13 +23,13 @@ struct ForImage<B: gfx_hal::Backend> {
     submit: Submit<B, SimultaneousUse>,
     buffer: CommandBuffer<
         B,
-        gfx_hal::QueueType,
+        gfx_hal::queue::QueueType,
         PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
     >,
 }
 
 impl<B: gfx_hal::Backend> ForImage<B> {
-    unsafe fn dispose(self, factory: &Factory<B>, pool: &mut CommandPool<B, gfx_hal::QueueType>) {
+    unsafe fn dispose(self, factory: &Factory<B>, pool: &mut CommandPool<B, gfx_hal::queue::QueueType>) {
         drop(self.submit);
         factory.destroy_semaphore(self.acquire);
         factory.destroy_semaphore(self.release);
@@ -43,7 +43,7 @@ pub struct PresentNode<B: gfx_hal::Backend> {
     per_image: Vec<ForImage<B>>,
     free_acquire: B::Semaphore,
     target: Target<B>,
-    pool: CommandPool<B, gfx_hal::QueueType>,
+    pool: CommandPool<B, gfx_hal::queue::QueueType>,
     input_image: NodeImage,
     blit_filter: gfx_hal::image::Filter,
 }
@@ -72,10 +72,10 @@ where
         let present_mode = *present_modes_caps
             .iter()
             .max_by_key(|mode| match mode {
-                gfx_hal::PresentMode::Fifo => 3,
-                gfx_hal::PresentMode::Mailbox => 2,
-                gfx_hal::PresentMode::Relaxed => 1,
-                gfx_hal::PresentMode::Immediate => 0,
+                gfx_hal::window::PresentMode::Fifo => 3,
+                gfx_hal::window::PresentMode::Mailbox => 2,
+                gfx_hal::window::PresentMode::Relaxed => 1,
+                gfx_hal::window::PresentMode::Immediate => 0,
             })
             .unwrap();
 
@@ -95,16 +95,16 @@ where
 fn create_per_image_data<B: gfx_hal::Backend>(
     ctx: &GraphContext<B>,
     input_image: &NodeImage,
-    pool: &mut CommandPool<B, gfx_hal::QueueType>,
+    pool: &mut CommandPool<B, gfx_hal::queue::QueueType>,
     factory: &Factory<B>,
     target: &Target<B>,
     blit_filter: gfx_hal::image::Filter,
-) -> Result<Vec<ForImage<B>>, failure::Error> {
+) -> Vec<ForImage<B>> {
     let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
 
     let target_images = target.backbuffer();
     let buffers = pool.allocate_buffers(target_images.len());
-    let per_image = target_images
+    target_images
         .iter()
         .zip(buffers)
         .map(|(target_image, buf_initial)| {
@@ -249,9 +249,7 @@ fn create_per_image_data<B: gfx_hal::Backend>(
                 release: factory.create_semaphore().unwrap(),
             }
         })
-        .collect();
-
-    Ok(per_image)
+        .collect()
 }
 
 /// Presentation node description.
@@ -261,8 +259,8 @@ pub struct PresentBuilder<B: gfx_hal::Backend> {
     image: ImageId,
     image_count: u32,
     img_count_caps: std::ops::RangeInclusive<u32>,
-    present_modes_caps: Vec<gfx_hal::PresentMode>,
-    present_mode: gfx_hal::PresentMode,
+    present_modes_caps: Vec<gfx_hal::window::PresentMode>,
+    present_mode: gfx_hal::window::PresentMode,
     dependencies: Vec<NodeId>,
     blit_filter: gfx_hal::image::Filter,
 }
@@ -321,7 +319,7 @@ where
     /// - Panics if none of the provided `PresentMode`s are supported.
     pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self
     where
-        PF: Fn(gfx_hal::PresentMode) -> Option<usize>,
+        PF: Fn(gfx_hal::window::PresentMode) -> Option<usize>,
     {
         if !self
             .present_modes_caps
@@ -347,7 +345,7 @@ where
     }
 
     /// Get present mode used by node.
-    pub fn present_mode(&self) -> gfx_hal::PresentMode {
+    pub fn present_mode(&self) -> gfx_hal::window::PresentMode {
         self.present_mode
     }
 }
@@ -394,7 +392,7 @@ where
         _aux: &T,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn DynNode<B, T>>, failure::Error> {
+    ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
         assert_eq!(buffers.len(), 0);
         assert_eq!(images.len(), 1);
 
@@ -407,18 +405,22 @@ where
             .into();
 
         if !factory.surface_support(family.id(), &self.surface) {
-            failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", self.surface, family);
+            log::warn!("Surface {:?} presentation is unsupported by family {:?} bound to the node", self.surface, family);
+            return Err(NodeBuildError::QueueFamily(family.id()));
         }
 
-        let target = factory.create_target(
-            self.surface,
-            extent,
-            self.image_count,
-            self.present_mode,
-            gfx_hal::image::Usage::TRANSFER_DST,
-        )?;
+        let target = factory
+            .create_target(
+                self.surface,
+                extent,
+                self.image_count,
+                self.present_mode,
+                gfx_hal::image::Usage::TRANSFER_DST,
+            )
+            .map_err(NodeBuildError::Swapchain)?;
 
-        let mut pool = factory.create_command_pool(family)?;
+        let mut pool = factory.create_command_pool(family)
+            .map_err(NodeBuildError::OutOfMemory)?;
 
         let per_image = create_per_image_data(
             ctx,
@@ -427,7 +429,7 @@ where
             factory,
             &target,
             self.blit_filter,
-        )?;
+        );
 
         Ok(Box::new(PresentNode {
             free_acquire: factory.create_semaphore().unwrap(),
@@ -480,7 +482,7 @@ where
                         Ok(_) => break,
                         Err(e) => {
                             log::debug!(
-                                "Swapchain present error after next_image is acquired: {}",
+                                "Swapchain present error after next_image is acquired: {:?}",
                                 e
                             );
                             // recreate swapchain on next frame.
@@ -524,8 +526,7 @@ where
                 factory,
                 &self.target,
                 self.blit_filter,
-            )
-            .expect("Failed recreating swapchain data");
+            );
         }
     }
 

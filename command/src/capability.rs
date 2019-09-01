@@ -1,6 +1,6 @@
 //! Capability module docs.
 
-pub use gfx_hal::QueueType;
+pub use gfx_hal::queue::QueueType;
 
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]

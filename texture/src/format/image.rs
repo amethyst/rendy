@@ -286,7 +286,7 @@ where
     let mips = if config.generate_mips {
         MipLevels::GenerateAuto
     } else {
-        MipLevels::RawLevels(NonZeroU8::new(1).unwrap())
+        MipLevels::Levels(NonZeroU8::new(1).unwrap())
     };
 
     Ok(TextureBuilder::new()

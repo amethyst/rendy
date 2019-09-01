@@ -4,10 +4,11 @@ pub use gfx_hal::buffer::*;
 
 use {
     crate::{
+        CreationError,
         memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
         util::{device_owned, Device, DeviceId},
     },
-    gfx_hal::{Backend, Device as _},
+    gfx_hal::{Backend, device::Device as _},
     relevant::Relevant,
 };
 
@@ -36,6 +37,8 @@ pub struct Buffer<B: Backend> {
 }
 
 device_owned!(Buffer<B>);
+/// Alias for the error to create a buffer.
+pub type BufferCreationError = CreationError<gfx_hal::buffer::CreationError>;
 
 impl<B> Buffer<B>
 where
@@ -55,21 +58,27 @@ where
         heaps: &mut Heaps<B>,
         info: BufferInfo,
         memory_usage: impl MemoryUsage,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, BufferCreationError> {
         log::trace!("{:#?}@{:#?}", info, memory_usage);
         assert_ne!(info.size, 0);
 
-        let mut buf = device.create_buffer(info.size, info.usage)?;
+        let mut buf = device
+            .create_buffer(info.size, info.usage)
+            .map_err(CreationError::Create)?;
         let reqs = device.get_buffer_requirements(&buf);
-        let block = heaps.allocate(
-            device,
-            reqs.type_mask as u32,
-            memory_usage,
-            reqs.size,
-            reqs.alignment,
-        )?;
+        let block = heaps
+            .allocate(
+                device,
+                reqs.type_mask as u32,
+                memory_usage,
+                reqs.size,
+                reqs.alignment,
+            )
+            .map_err(CreationError::Allocate)?;
 
-        device.bind_buffer_memory(block.memory(), block.range().start, &mut buf)?;
+        device
+            .bind_buffer_memory(block.memory(), block.range().start, &mut buf)
+            .map_err(CreationError::Bind)?;
 
         Ok(Buffer {
             device: device.id(),
@@ -130,7 +139,7 @@ where
         &'a mut self,
         device: &Device<B>,
         range: std::ops::Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::mapping::Error> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
         self.block.map(device, range)
     }
 
