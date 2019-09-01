@@ -63,33 +63,28 @@ pub trait Shader {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SpirvShader {
-    #[cfg_attr(feature = "serde", serde(with = "serde_bytes_u32"))]
+    #[cfg_attr(feature = "serde", serde(with = "serde_spirv"))]
     spirv: Vec<u32>,
     stage: ShaderStageFlags,
     entry: String,
 }
 
 #[cfg(feature = "serde")]
-mod serde_bytes_u32 {
-    use serde::{Deserializer, Serializer};
-
+mod serde_spirv {
     pub fn serialize<S>(data: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: serde::Serializer,
     {
-        serde_bytes::serialize(rendy_util::cast_slice(&data), serializer)
+        serializer.serialize_bytes(rendy_util::cast_slice(&data))
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u32>, D::Error>
     where
-        D: Deserializer<'de>,
+        D: serde::Deserializer<'de>,
     {
-        let bytes: &[u8] = serde_bytes::deserialize(deserializer)?;
-        assert!(bytes.len() % 4 == 0);
-        let dwords: &[u32] =
-            unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const u32, bytes.len() / 4) };
-
-        Ok(Vec::from(dwords))
+        // Via the serde::Deserialize impl for &[u8].
+        let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
+        gfx_hal::read_spirv(std::io::Cursor::new(bytes)).map_err(serde::de::Error::custom)
     }
 }
 
