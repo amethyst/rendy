@@ -258,6 +258,20 @@ where
         );
     }
 
+    /// Set viewports
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetViewport.html
+    pub unsafe fn set_viewports<'b>(
+        &mut self,
+        first_viewport: u32,
+        viewports: impl IntoIterator<Item = &'b gfx_hal::pso::Viewport>,
+    ) where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_viewports(self.raw, first_viewport, viewports)
+    }
+
     /// Set scissors
     ///
     /// # Safety
@@ -275,6 +289,92 @@ where
     {
         self.capability.assert();
         gfx_hal::command::RawCommandBuffer::set_scissors(self.raw, first_scissor, rects)
+    }
+
+    /// Set the stencil reference dynamic state
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilReference.html
+    pub unsafe fn set_stencil_reference(
+        &mut self,
+        faces: gfx_hal::pso::Face,
+        value: gfx_hal::pso::StencilValue,
+    ) where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_stencil_reference(self.raw, faces, value);
+    }
+
+    /// Set the stencil compare mask dynamic state
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilCompareMask.html
+    pub unsafe fn set_stencil_read_mask(
+        &mut self,
+        faces: gfx_hal::pso::Face,
+        value: gfx_hal::pso::StencilValue,
+    ) where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_stencil_read_mask(self.raw, faces, value);
+    }
+
+    /// Set the stencil write mask dynamic state
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilWriteMask.html
+    pub unsafe fn set_stencil_write_mask(
+        &mut self,
+        faces: gfx_hal::pso::Face,
+        value: gfx_hal::pso::StencilValue,
+    ) where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_stencil_write_mask(self.raw, faces, value);
+    }
+
+    /// Set the values of blend constants
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetBlendConstants.html
+    pub unsafe fn set_blend_constants(&mut self, color: gfx_hal::pso::ColorValue)
+    where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_blend_constants(self.raw, color);
+    }
+
+    /// Set the depth bounds test values
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetDepthBounds.html
+    pub unsafe fn set_depth_bounds(&mut self, bounds: std::ops::Range<f32>)
+    where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_depth_bounds(self.raw, bounds);
+    }
+
+    /// Set the dynamic line width state
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetLineWidth.html
+    pub unsafe fn set_line_width(&mut self, width: f32)
+    where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_line_width(self.raw, width);
+    }
+
+    /// Set the depth bias dynamic state
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetDepthBias.html
+    pub unsafe fn set_depth_bias(&mut self, depth_bias: gfx_hal::pso::DepthBias)
+    where
+        C: Supports<Graphics>,
+    {
+        self.capability.assert();
+        gfx_hal::command::RawCommandBuffer::set_depth_bias(self.raw, depth_bias);
     }
 
     /// Reborrow encoder.
@@ -320,6 +420,17 @@ impl<'a, B> RenderPassEncoder<'a, B>
 where
     B: gfx_hal::Backend,
 {
+    /// Clear regions within bound framebuffer attachments
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdClearAttachments.html#vkCmdBeginRenderPass
+    pub unsafe fn clear_attachments(
+        &mut self,
+        clears: impl IntoIterator<Item = impl std::borrow::Borrow<gfx_hal::command::AttachmentClear>>,
+        rects: impl IntoIterator<Item = impl std::borrow::Borrow<gfx_hal::pso::ClearRect>>,
+    ) {
+        gfx_hal::command::RawCommandBuffer::clear_attachments(self.inner.raw, clears, rects);
+    }
+
     /// Draw.
     ///
     /// # Safety
