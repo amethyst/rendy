@@ -513,7 +513,14 @@ fn build_node<'a, B: Backend, T: ?Sized>(
                 clear: if link == 0 { clear } else { None },
                 acquire: sync.acquire.images.get(&chain_id).map(
                     |chain::Barrier { states, families }| ImageBarrier {
-                        states: (states.start.0, states.start.1)..(states.end.0, states.end.1),
+                        states: (
+                            states.start.0,
+                            if link == 0 {
+                                gfx_hal::image::Layout::Undefined
+                            } else {
+                                states.start.1
+                            },
+                        )..(states.end.0, states.end.1),
                         stages: states.start.2..states.end.2,
                         families: families.clone(),
                     },
