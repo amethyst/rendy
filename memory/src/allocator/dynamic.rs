@@ -307,14 +307,14 @@ where
             .next_back()
         {
             // Allocate block for the chunk.
-            let (block, allocated) = self.alloc_from_entry(device, chunk_size, 1)?;
+            let (block, allocated) = self.alloc_from_entry(device, chunk_size, 1, block_size)?;
             Ok((Chunk::from_block(block_size, block), allocated))
         } else {
             let total_blocks = self.sizes[&block_size].total_blocks;
             let chunk_size =
                 (max_chunk_size.min(min_chunk_size.max(total_blocks * block_size)) / 2 + 1)
                     .next_power_of_two();
-            let (block, allocated) = self.alloc_block(device, chunk_size)?;
+            let (block, allocated) = self.alloc_block(device, chunk_size, block_size)?;
             Ok((Chunk::from_block(block_size, block), allocated))
         }
     }
@@ -325,6 +325,7 @@ where
         chunk_index: u32,
         block_size: u64,
         count: u32,
+        align: u64,
     ) -> Option<DynamicBlock<B>> {
         log::trace!(
             "Allocate {} consecutive blocks of size {} from chunk {}",
@@ -334,8 +335,9 @@ where
         );
 
         let ref mut chunk = chunks[chunk_index as usize];
-        let block_index = chunk.acquire_blocks(count)?;
+        let block_index = chunk.acquire_blocks(count, block_size, align)?;
         let block_range = chunk.blocks_range(block_size, block_index, count);
+
         debug_assert_eq!((block_range.end - block_range.start) % count as u64, 0);
 
         Some(DynamicBlock {
@@ -358,6 +360,7 @@ where
         device: &B::Device,
         block_size: u64,
         count: u32,
+        align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         log::trace!(
             "Allocate {} consecutive blocks for size {} from the entry",
@@ -369,9 +372,13 @@ where
         let size_entry = self.sizes.entry(block_size).or_default();
 
         for chunk_index in (&size_entry.ready_chunks).iter() {
-            if let Some(block) =
-                Self::alloc_from_chunk(&mut size_entry.chunks, chunk_index, block_size, count)
-            {
+            if let Some(block) = Self::alloc_from_chunk(
+                &mut size_entry.chunks,
+                chunk_index,
+                block_size,
+                count,
+                align,
+            ) {
                 return Ok((block, 0));
             }
         }
@@ -385,8 +392,14 @@ where
         let size_entry = self.sizes.entry(block_size).or_default();
         let chunk_index = size_entry.chunks.insert(chunk) as u32;
 
-        let block = Self::alloc_from_chunk(&mut size_entry.chunks, chunk_index, block_size, count)
-            .expect("New chunk should yield blocks");
+        let block = Self::alloc_from_chunk(
+            &mut size_entry.chunks,
+            chunk_index,
+            block_size,
+            count,
+            align,
+        )
+        .expect("New chunk should yield blocks");
 
         if !size_entry.chunks[chunk_index as usize].is_exhausted() {
             size_entry.ready_chunks.add(chunk_index);
@@ -400,6 +413,7 @@ where
         &mut self,
         device: &B::Device,
         block_size: u64,
+        align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         log::trace!("Allocate block of size {}", block_size);
 
@@ -415,7 +429,12 @@ where
                 .range(block_size / 4..block_size * overhead)
                 .next()
             {
-                return self.alloc_from_entry(device, size, ((block_size - 1) / size + 1) as u32);
+                return self.alloc_from_entry(
+                    device,
+                    size,
+                    ((block_size - 1) / size + 1) as u32,
+                    align,
+                );
             }
         }
 
@@ -423,7 +442,7 @@ where
             self.chunks.insert(block_size);
         }
 
-        self.alloc_from_entry(device, block_size, 1)
+        self.alloc_from_entry(device, block_size, 1, align)
     }
 
     fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>, block_size: u64) -> u64 {
@@ -516,7 +535,7 @@ where
             self.memory_type.0
         );
 
-        self.alloc_block(device, aligned_size)
+        self.alloc_block(device, aligned_size, align)
     }
 
     fn free(&mut self, device: &B::Device, block: DynamicBlock<B>) -> u64 {
@@ -611,20 +630,26 @@ where
         self.blocks == 0
     }
 
-    fn acquire_blocks(&mut self, count: u32) -> Option<u32> {
+    fn acquire_blocks(&mut self, count: u32, block_size: u64, align: u64) -> Option<u32> {
         debug_assert!(count > 0 && count <= MAX_BLOCKS_PER_CHUNK);
+
+        // Holds a bit-array of all positions with `count` free blocks.
         let mut blocks = !0;
         for i in 0..count {
             blocks &= self.blocks >> i;
         }
-        let index = blocks.trailing_zeros();
-        if index == MAX_BLOCKS_PER_CHUNK {
-            None
-        } else {
-            let mask = ((1 << count) - 1) << index;
-            self.blocks &= !mask;
-            Some(index)
+        // Find a position in `blocks` that is aligned.
+        while blocks != 0 {
+            let index = blocks.trailing_zeros();
+            blocks &= !(1 << index);
+
+            if (index as u64 * block_size) & (align - 1) == 0 {
+                let mask = ((1 << count) - 1) << index;
+                self.blocks &= !mask;
+                return Some(index);
+            }
         }
+        None
     }
 
     fn release_blocks(&mut self, index: u32, count: u32) {
