@@ -10,12 +10,13 @@ use {
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         util::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
-        wsi::{SwapchainError, Surface, Target},
+        wsi::{Surface, SwapchainError, Target},
     },
     gfx_hal::{
-        buffer, format, image,
         adapter::{Adapter, Gpu, PhysicalDevice},
+        buffer,
         device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
+        format, image,
         pso::DescriptorSetLayoutBinding,
         window::{Extent2D, Surface as GfxSurface},
         Backend, Features, Limits,
@@ -804,8 +805,11 @@ where
         }
 
         let timeout = !unsafe {
-            self.device
-                .wait_for_fences(fences.iter().map(|f| f.raw()), wait_for.clone(), timeout_ns)
+            self.device.wait_for_fences(
+                fences.iter().map(|f| f.raw()),
+                wait_for.clone(),
+                timeout_ns,
+            )
         }?;
 
         if timeout {
@@ -1122,14 +1126,22 @@ where
 
         log::debug!("Queues: {:#?}", get_queues);
 
-        let Gpu { device, mut queue_groups } = unsafe {
+        let Gpu {
+            device,
+            mut queue_groups,
+        } = unsafe {
             adapter
                 .physical_device
                 .open(&create_queues, adapter.physical_device.features())
         }?;
 
         let families = unsafe {
-            families_from_device(device_id, &mut queue_groups, get_queues, &adapter.queue_families)
+            families_from_device(
+                device_id,
+                &mut queue_groups,
+                get_queues,
+                &adapter.queue_families,
+            )
         };
         (device, families)
     };

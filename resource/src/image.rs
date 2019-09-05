@@ -4,12 +4,12 @@ pub use gfx_hal::image::*;
 
 use {
     crate::{
-        CreationError,
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
         util::{device_owned, Device, DeviceId},
+        CreationError,
     },
-    gfx_hal::{format, Backend, device::Device as _},
+    gfx_hal::{device::Device as _, format, Backend},
     relevant::Relevant,
 };
 

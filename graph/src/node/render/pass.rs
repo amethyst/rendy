@@ -1,9 +1,9 @@
 use {
     crate::{
         command::{
-            CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, Graphics,
-            IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
-            SecondaryLevel, SimultaneousUse, Submission, Submit, Supports,
+            CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence,
+            Graphics, IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
+            SecondaryLevel, SimultaneousUse, Submission, Submit,
         },
         factory::Factory,
         frame::{
@@ -14,13 +14,13 @@ use {
         node::{
             gfx_acquire_barriers, gfx_release_barriers, is_metal,
             render::group::{RenderGroup, RenderGroupBuilder},
-            BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage,
+            BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuildError, NodeBuilder, NodeImage,
         },
         wsi::{Surface, Target},
         BufferId, ImageId, NodeId,
     },
     either::Either,
-    gfx_hal::{image::Layout, Backend, device::Device as _},
+    gfx_hal::{device::Device as _, image::Layout, Backend},
     std::{cmp::min, collections::HashMap},
 };
 
@@ -220,11 +220,8 @@ where
     B: Backend,
     T: ?Sized + 'static,
 {
-    fn family(&self, _factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
-        families
-            .iter()
-            .find(|family| Supports::<Graphics>::supports(&family.capability()).is_some())
-            .map(|family| family.id())
+    fn family(&self, _factory: &mut Factory<B>, families: &Families<B>) -> Option<FamilyId> {
+        families.with_capability::<Graphics>()
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
@@ -448,7 +445,7 @@ where
                         }
 
                         let (caps, _f, present_modes_caps) = factory.get_surface_compatibility(&surface);
-         
+
                         let present_mode = *present_modes_caps
                             .iter()
                             .max_by_key(|mode| match mode {
@@ -458,10 +455,10 @@ where
                                 gfx_hal::window::PresentMode::Immediate => 0,
                             })
                             .unwrap();
-            
+
                         let img_count_caps = caps.image_count;
                         let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());
-             
+
                         let target = factory
                             .create_target(
                                 surface,
@@ -766,7 +763,8 @@ where
                             .buffers()
                             .into_iter()
                             .map(|(id, _)| {
-                                buffers.iter()
+                                buffers
+                                    .iter()
                                     .find(|b| b.id == id)
                                     .expect("Transient buffer wasn't provided")
                                     .clone()
@@ -776,7 +774,8 @@ where
                             .images()
                             .into_iter()
                             .map(|(id, _)| {
-                                images.iter()
+                                images
+                                    .iter()
                                     .find(|i| i.id == id)
                                     .expect("Transient image wasn't provided")
                                     .clone()

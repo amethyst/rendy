@@ -53,7 +53,8 @@ pub trait Shader {
     {
         gfx_hal::device::Device::create_shader_module(
             factory.device().raw(),
-            &self.spirv()
+            &self
+                .spirv()
                 .map_err(|e| gfx_hal::device::ShaderError::CompilationFailed(format!("{:?}", e)))?,
         )
     }
@@ -84,7 +85,7 @@ mod serde_spirv {
     {
         // Via the serde::Deserialize impl for &[u8].
         let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
-        gfx_hal::read_spirv(std::io::Cursor::new(bytes)).map_err(serde::de::Error::custom)
+        gfx_hal::pso::read_spirv(std::io::Cursor::new(bytes)).map_err(serde::de::Error::custom)
     }
 }
 
@@ -226,19 +227,23 @@ impl ShaderSetBuilder {
             Option<gfx_hal::pso::Specialization<'static>>,
         );
 
-        let create_storage = move |stage, shader: ShaderTy, factory| -> Result<ShaderStorage<B>, gfx_hal::device::ShaderError> {
-            let mut storage = ShaderStorage {
-                stage: stage,
-                spirv: shader.0,
-                module: None,
-                entrypoint: shader.1.clone(),
-                specialization: shader.2,
+        let create_storage =
+            move |stage,
+                  shader: ShaderTy,
+                  factory|
+                  -> Result<ShaderStorage<B>, gfx_hal::device::ShaderError> {
+                let mut storage = ShaderStorage {
+                    stage: stage,
+                    spirv: shader.0,
+                    module: None,
+                    entrypoint: shader.1.clone(),
+                    specialization: shader.2,
+                };
+                unsafe {
+                    storage.compile(factory)?;
+                }
+                Ok(storage)
             };
-            unsafe {
-                storage.compile(factory)?;
-            }
-            Ok(storage)
-        };
 
         if let Some(shader) = self.vertex.clone() {
             set.shaders.insert(

@@ -2,7 +2,7 @@
 
 use crate::{
     command::{
-        CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, MultiShot,
+        CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence, MultiShot,
         PendingState, Queue, SimultaneousUse, Submission, Submit,
     },
     factory::Factory,
@@ -359,12 +359,9 @@ where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
-    fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, factory: &mut Factory<B>, families: &Families<B>) -> Option<FamilyId> {
         // Find correct queue family.
-        families
-            .iter()
-            .find(|family| factory.surface_support(family.id(), &self.surface))
-            .map(Family::id)
+        families.find(|family| factory.surface_support(family.id(), &self.surface))
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {

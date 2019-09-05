@@ -2,7 +2,7 @@
 
 use {
     crate::{buffer::*, capability::*, family::FamilyId, util::Device},
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
 };
 
 /// Simple pool wrapper.

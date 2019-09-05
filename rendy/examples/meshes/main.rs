@@ -17,7 +17,7 @@ use {
         graph::{
             present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
         },
-        hal::{self, device::Device as _, adapter::PhysicalDevice as _},
+        hal::{self, adapter::PhysicalDevice as _, device::Device as _},
         memory::Dynamic,
         mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
@@ -393,9 +393,7 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
 
-    let size = window
-        .inner_size()
-        .to_physical(window.hidpi_factor());
+    let size = window.inner_size().to_physical(window.hidpi_factor());
     let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
     let aspect = size.width / size.height;
 
@@ -519,9 +517,7 @@ fn main() {
         *control_flow = ControlFlow::Poll;
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit
-                }
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
             Event::EventsCleared => {
@@ -549,10 +545,7 @@ fn main() {
                 if elapsed >= std::time::Duration::new(5, 0) || *control_flow == ControlFlow::Exit {
                     let frames = frame - start;
                     let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                    fpss.push((
-                        frames * 1_000_000_000 / nanos,
-                        from..scene.objects.len(),
-                    ));
+                    fpss.push((frames * 1_000_000_000 / nanos, from..scene.objects.len()));
                     checkpoint += elapsed;
                     start = frame;
                     from = scene.objects.len();

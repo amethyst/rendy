@@ -164,7 +164,7 @@ where
             .map_err(|e| {
                 log::error!("Unable to open {}: {:?}", "/examples/sprite/logo.png", e);
                 hal::pso::CreationError::Other
-            })?
+            })?,
         );
 
         let texture_builder = rendy::texture::image::load_from_image(
@@ -173,7 +173,8 @@ where
                 generate_mips: true,
                 ..Default::default()
             },
-        ).map_err(|e| {
+        )
+        .map_err(|e| {
             log::error!("Unable to load image: {:?}", e);
             hal::pso::CreationError::Other
         })?;
@@ -339,9 +340,7 @@ fn run(
         *control_flow = ControlFlow::Poll;
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit
-                }
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
             Event::EventsCleared => {
@@ -395,9 +394,7 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let size = window
-        .inner_size()
-        .to_physical(window.hidpi_factor());
+    let size = window.inner_size().to_physical(window.hidpi_factor());
 
     let color = graph_builder.create_image(
         hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),

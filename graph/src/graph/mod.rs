@@ -5,8 +5,13 @@ use {
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::Data,
-        node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage},
-        resource::{Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo},
+        node::{
+            BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuildError, NodeBuilder,
+            NodeImage,
+        },
+        resource::{
+            Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo,
+        },
         util::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
@@ -572,7 +577,7 @@ where
     let images = builder.images();
     chain::Node {
         id,
-        family: QueueFamilyId(builder.family(factory, families.as_slice()).unwrap().index),
+        family: QueueFamilyId(builder.family(factory, families).unwrap().index),
         dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
         buffers: buffers
             .into_iter()

@@ -12,7 +12,7 @@
 )]
 
 use {
-    gfx_hal::{window::Extent2D, Backend, device::Device as _},
+    gfx_hal::{device::Device as _, window::Extent2D, Backend},
     rendy_resource::{Image, ImageInfo},
     rendy_util::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
@@ -88,7 +88,10 @@ pub enum SwapchainError {
 
 #[cfg(feature = "winit")]
 #[allow(unused)]
-fn create_surface<B: Backend>(instance: &Instance<B>, window: &winit::window::Window) -> B::Surface {
+fn create_surface<B: Backend>(
+    instance: &Instance<B>,
+    window: &winit::window::Window,
+) -> B::Surface {
     use rendy_util::identical_cast;
 
     // We perform identical type transmute.

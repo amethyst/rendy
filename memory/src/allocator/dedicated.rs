@@ -7,7 +7,7 @@ use {
         mapping::{mapped_fitting_range, MappedRange},
         memory::*,
     },
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
 };
 
 /// Memory block allocated from `DedicatedAllocator`

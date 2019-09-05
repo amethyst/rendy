@@ -307,8 +307,7 @@ pub unsafe fn blit_image<B, C, L>(
     dst_image: &Handle<Image<B>>,
     filter: gfx_hal::image::Filter,
     regions: impl IntoIterator<Item = BlitRegion>,
-)
-where
+) where
     B: gfx_hal::Backend,
     C: Supports<Graphics>,
     L: Level,

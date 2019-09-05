@@ -254,10 +254,11 @@ impl<'a> MeshBuilder<'a> {
             )
             .map_err(UploadError::Create)?;
 
-        let mut mapped = staging.map(factory, 0..aligned_size)
+        let mut mapped = staging
+            .map(factory, 0..aligned_size)
             .map_err(UploadError::Map)?;
-        let mut writer = unsafe { mapped.write(factory, 0..aligned_size) }
-            .map_err(UploadError::Map)?;
+        let mut writer =
+            unsafe { mapped.write(factory, 0..aligned_size) }.map_err(UploadError::Map)?;
         let staging_slice = unsafe { writer.slice() };
 
         let mut offset = 0usize;
@@ -293,7 +294,8 @@ impl<'a> MeshBuilder<'a> {
                     .create_buffer(
                         BufferInfo {
                             size: indices.len() as _,
-                            usage: gfx_hal::buffer::Usage::INDEX | gfx_hal::buffer::Usage::TRANSFER_DST,
+                            usage: gfx_hal::buffer::Usage::INDEX
+                                | gfx_hal::buffer::Usage::TRANSFER_DST,
                         },
                         Data,
                     )

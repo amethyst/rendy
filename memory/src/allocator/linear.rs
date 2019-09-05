@@ -8,7 +8,7 @@ use {
         memory::*,
         util::*,
     },
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
 };
 
 /// Memory block allocated from `LinearAllocator`

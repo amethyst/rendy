@@ -5,8 +5,8 @@ use {
         memory::Data,
         pixel::AsPixel,
         resource::{
-            Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler,
-            ImageCreationError, ImageViewCreationError,
+            Escape, Handle, Image, ImageCreationError, ImageInfo, ImageView,
+            ImageViewCreationError, ImageViewInfo, Sampler,
         },
         util::{cast_cow, cast_slice},
     },
@@ -358,26 +358,27 @@ impl<'a> TextureBuilder<'a> {
         unsafe {
             profile_scope!("upload_image");
 
-            factory.upload_image(
-                image.clone(),
-                self.data_width,
-                self.data_height,
-                image::SubresourceLayers {
-                    aspects: info.format.surface_desc().aspects,
-                    level: 0,
-                    layers: 0..info.kind.num_layers(),
-                },
-                image::Offset::ZERO,
-                info.kind.extent(),
-                buffer,
-                image::Layout::Undefined,
-                if !generate_mips || mip_levels == 1 {
-                    next_state
-                } else {
-                    mip_state
-                },
-            )
-            .map_err(BuildError::Upload)?;
+            factory
+                .upload_image(
+                    image.clone(),
+                    self.data_width,
+                    self.data_height,
+                    image::SubresourceLayers {
+                        aspects: info.format.surface_desc().aspects,
+                        level: 0,
+                        layers: 0..info.kind.num_layers(),
+                    },
+                    image::Offset::ZERO,
+                    info.kind.extent(),
+                    buffer,
+                    image::Layout::Undefined,
+                    if !generate_mips || mip_levels == 1 {
+                        next_state
+                    } else {
+                        mip_state
+                    },
+                )
+                .map_err(BuildError::Upload)?;
         }
 
         if mip_levels > 1 && generate_mips {
@@ -411,20 +412,21 @@ impl<'a> TextureBuilder<'a> {
 
         let view = {
             profile_scope!("create_image_view");
-            factory.create_image_view(
-                image.clone(),
-                ImageViewInfo {
-                    view_kind: self.view_kind,
-                    format: info.format,
-                    swizzle: double_swizzle(self.swizzle, transform_swizzle),
-                    range: image::SubresourceRange {
-                        aspects: info.format.surface_desc().aspects,
-                        levels: 0..info.levels,
-                        layers: 0..info.kind.num_layers(),
+            factory
+                .create_image_view(
+                    image.clone(),
+                    ImageViewInfo {
+                        view_kind: self.view_kind,
+                        format: info.format,
+                        swizzle: double_swizzle(self.swizzle, transform_swizzle),
+                        range: image::SubresourceRange {
+                            aspects: info.format.surface_desc().aspects,
+                            levels: 0..info.levels,
+                            layers: 0..info.kind.num_layers(),
+                        },
                     },
-                },
-            )
-            .map_err(BuildError::ImageView)?
+                )
+                .map_err(BuildError::ImageView)?
         };
 
         let sampler = factory

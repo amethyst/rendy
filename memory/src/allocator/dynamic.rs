@@ -13,7 +13,7 @@ use {
         memory::*,
         util::*,
     },
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
     hibitset::{BitSet, BitSetLike as _},
 };
 
