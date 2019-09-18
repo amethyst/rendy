@@ -141,7 +141,7 @@ impl<B: Backend> ShaderSet<B> {
             vertex: self
                 .shaders
                 .get(&ShaderStageFlags::VERTEX)
-                .unwrap()
+                .expect("ShaderSet doesn't contain vertex shader")
                 .get_entry_point()?
                 .unwrap(),
             fragment: match self.shaders.get(&ShaderStageFlags::FRAGMENT) {
