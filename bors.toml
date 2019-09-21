@@ -1,6 +1,5 @@
+# Test suite must pass on both Travis (if enabled) and Jenkins before merging into `master`.
 status = [
-  "continuous-integration/travis-ci/push"
+  # "continuous-integration/travis-ci/push",
+  "continuous-integration/jenkins/%",
 ]
-# Uncomment this to use a two hour timeout.
-# The default is one hour.
-#timeout_sec = 7200

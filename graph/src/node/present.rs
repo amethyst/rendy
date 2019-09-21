@@ -407,7 +407,11 @@ where
             .into();
 
         if !factory.surface_support(family.id(), &self.surface) {
-            failure::bail!("Surface {:?} presentation is unsupported by family {:?} bound to the node", self.surface, family);
+            failure::bail!(
+                "Surface {:?} presentation is unsupported by family {:?} bound to the node",
+                self.surface,
+                family
+            );
         }
 
         let target = factory.create_target(

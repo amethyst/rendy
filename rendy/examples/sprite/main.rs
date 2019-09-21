@@ -18,7 +18,7 @@ use rendy::{
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{SourceShaderInfo, ShaderKind, SourceLanguage, SpirvShader},
+    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
     wsi::winit::{EventsLoop, WindowBuilder},
 };
