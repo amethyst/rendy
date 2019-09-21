@@ -1,5 +1,6 @@
 language: rust
 compiler: clang
+cache: cargo
 
 env:
   global: RUSTFLAGS="-D warnings" RUST_LOG=info
@@ -8,16 +9,16 @@ rust: stable
 
 matrix:
   include:
-    # Linux 64bit
-    - os: linux
+    # # Linux 64bit
+    # - os: linux
 
-    # macOS 64bit
-    - env: MACOSX_DEPLOYMENT_TARGET=10.9
-      os: osx
-      osx_image: xcode10.2
-      # We need travis_wait here to ensure the build doesn't timeout due to
-      # shader compilation
-      script: travis_wait 30 make
+    # # macOS 64bit
+    # - env: MACOSX_DEPLOYMENT_TARGET=10.9
+    #   os: osx
+    #   osx_image: xcode10.2
+    #   # We need travis_wait here to ensure the build doesn't timeout due to
+    #   # shader compilation
+    #   script: travis_wait 30 make
 
     # iPhoneOS 64bit
     - env: TARGET=aarch64-apple-ios
@@ -25,17 +26,18 @@ matrix:
       osx_image: xcode10.2
       # We need travis_wait here to ensure the build doesn't timeout due to
       # shader compilation
-      script: travis_wait 30 make
+      script: travis_wait 45 make
 
-    # Windows 64bit
-    - os: windows
-      env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
+    # # Windows 64bit
+    # - os: windows
+    #   env: PATH=/c/Python37:/c/Python37/Scripts:$PATH
 
 branches:
   only:
-    - staging
-    - trying
+    # Only build on master as sanity check
     - master
+    # - staging
+    # - trying
 
 before_install:
   - if [[ $TRAVIS_OS_NAME == "windows" ]]; then choco install make; choco install ninja; choco install python; fi
