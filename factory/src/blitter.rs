@@ -137,14 +137,22 @@ impl From<BlitRegion> for gfx_hal::command::ImageBlit {
 /// A region and image states for one image in a blit.
 #[derive(Debug, Clone)]
 pub struct BlitImageState {
-    subresource: gfx_hal::image::SubresourceLayers,
-    bounds: Range<gfx_hal::image::Offset>,
-    last_stage: gfx_hal::pso::PipelineStage,
-    last_access: gfx_hal::image::Access,
-    last_layout: gfx_hal::image::Layout,
-    next_stage: gfx_hal::pso::PipelineStage,
-    next_access: gfx_hal::image::Access,
-    next_layout: gfx_hal::image::Layout,
+    /// Subresource to use for blit
+    pub subresource: gfx_hal::image::SubresourceLayers,
+    /// Image offset range to use for blit
+    pub bounds: Range<gfx_hal::image::Offset>,
+    /// Last image stage before blit
+    pub last_stage: gfx_hal::pso::PipelineStage,
+    /// Last image access before blit
+    pub last_access: gfx_hal::image::Access,
+    /// Last image layout before blit
+    pub last_layout: gfx_hal::image::Layout,
+    /// Image stage after blit
+    pub next_stage: gfx_hal::pso::PipelineStage,
+    /// Image access after blit
+    pub next_access: gfx_hal::image::Access,
+    /// Image layout after blit
+    pub next_layout: gfx_hal::image::Layout,
 }
 
 impl<B> Blitter<B>
@@ -299,8 +307,7 @@ pub unsafe fn blit_image<B, C, L>(
     dst_image: &Handle<Image<B>>,
     filter: gfx_hal::image::Filter,
     regions: impl IntoIterator<Item = BlitRegion>,
-)
-where
+) where
     B: gfx_hal::Backend,
     C: Supports<Graphics>,
     L: Level,

@@ -5,8 +5,8 @@ use {
         memory::Data,
         pixel::AsPixel,
         resource::{
-            Escape, Handle, Image, ImageInfo, ImageView, ImageViewInfo, Sampler,
-            ImageCreationError, ImageViewCreationError,
+            Escape, Handle, Image, ImageCreationError, ImageInfo, ImageView,
+            ImageViewCreationError, ImageViewInfo, Sampler,
         },
         util::{cast_cow, cast_slice},
     },
@@ -326,13 +326,13 @@ impl<'a> TextureBuilder<'a> {
 
                 transformed_vec = vec![0; data_len];
                 let dst_slice: &mut [u8] = &mut transformed_vec;
-                for (chunk, dst_chunk) in self
-                    .data
-                    .chunks_exact(stride)
-                    .zip(dst_slice.chunks_exact_mut(new_stride))
-                {
-                    dst_chunk[..stride].copy_from_slice(chunk);
-                    dst_chunk[stride..].copy_from_slice(padding);
+                // optimize most common cases
+                match (stride, padding) {
+                    (2, &[0u8, std::u8::MAX]) => {
+                        buf_add_padding(&self.data, dst_slice, stride, padding)
+                    }
+                    (3, &[std::u8::MAX]) => buf_add_padding(&self.data, dst_slice, stride, padding),
+                    _ => buf_add_padding(&self.data, dst_slice, stride, padding),
                 }
                 &transformed_vec
             }
@@ -358,26 +358,27 @@ impl<'a> TextureBuilder<'a> {
         unsafe {
             profile_scope!("upload_image");
 
-            factory.upload_image(
-                image.clone(),
-                self.data_width,
-                self.data_height,
-                image::SubresourceLayers {
-                    aspects: info.format.surface_desc().aspects,
-                    level: 0,
-                    layers: 0..info.kind.num_layers(),
-                },
-                image::Offset::ZERO,
-                info.kind.extent(),
-                buffer,
-                image::Layout::Undefined,
-                if !generate_mips || mip_levels == 1 {
-                    next_state
-                } else {
-                    mip_state
-                },
-            )
-            .map_err(BuildError::Upload)?;
+            factory
+                .upload_image(
+                    image.clone(),
+                    self.data_width,
+                    self.data_height,
+                    image::SubresourceLayers {
+                        aspects: info.format.surface_desc().aspects,
+                        level: 0,
+                        layers: 0..info.kind.num_layers(),
+                    },
+                    image::Offset::ZERO,
+                    info.kind.extent(),
+                    buffer,
+                    image::Layout::Undefined,
+                    if !generate_mips || mip_levels == 1 {
+                        next_state
+                    } else {
+                        mip_state
+                    },
+                )
+                .map_err(BuildError::Upload)?;
         }
 
         if mip_levels > 1 && generate_mips {
@@ -411,20 +412,21 @@ impl<'a> TextureBuilder<'a> {
 
         let view = {
             profile_scope!("create_image_view");
-            factory.create_image_view(
-                image.clone(),
-                ImageViewInfo {
-                    view_kind: self.view_kind,
-                    format: info.format,
-                    swizzle: double_swizzle(self.swizzle, transform_swizzle),
-                    range: image::SubresourceRange {
-                        aspects: info.format.surface_desc().aspects,
-                        levels: 0..info.levels,
-                        layers: 0..info.kind.num_layers(),
+            factory
+                .create_image_view(
+                    image.clone(),
+                    ImageViewInfo {
+                        view_kind: self.view_kind,
+                        format: info.format,
+                        swizzle: double_swizzle(self.swizzle, transform_swizzle),
+                        range: image::SubresourceRange {
+                            aspects: info.format.surface_desc().aspects,
+                            levels: 0..info.levels,
+                            layers: 0..info.kind.num_layers(),
+                        },
                     },
-                },
-            )
-            .map_err(BuildError::ImageView)?
+                )
+                .map_err(BuildError::ImageView)?
         };
 
         let sampler = factory
@@ -635,4 +637,21 @@ fn image_format_supported<B: Backend>(
             };
             info
         })
+}
+
+#[inline(always)]
+fn buf_add_padding(buffer: &[u8], dst_slice: &mut [u8], stride: usize, padding: &'static [u8]) {
+    let lad_len = padding.len();
+    for (chunk, dst_chunk) in buffer
+        .chunks_exact(stride)
+        .zip(dst_slice.chunks_exact_mut(stride + lad_len))
+    {
+        // those loops gets unrolled in special-cased scenarios
+        for i in 0..stride {
+            dst_chunk[i] = chunk[i];
+        }
+        for i in 0..lad_len {
+            dst_chunk[stride + i] = padding[i];
+        }
+    }
 }

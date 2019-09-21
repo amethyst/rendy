@@ -6,7 +6,7 @@ pub mod render;
 
 use {
     crate::{
-        command::{Capability, Family, FamilyId, Fence, Queue, Submission, Submittable, Supports},
+        command::{Capability, Families, Family, FamilyId, Fence, Queue, Submission, Submittable},
         factory::{Factory, UploadError},
         frame::Frames,
         graph::GraphContext,
@@ -155,26 +155,6 @@ pub trait Node<B: Backend, T: ?Sized>:
     /// Graph will execute this node on command queue that supports this capability level.
     type Capability: Capability;
 
-    /// Description type to instantiate the node.
-    type Desc: NodeDesc<B, T, Node = Self>;
-
-    /// Desc creation.
-    /// Convenient method if `Self::Desc` implements `Default`.
-    fn desc() -> Self::Desc
-    where
-        Self::Desc: Default,
-    {
-        Default::default()
-    }
-
-    /// Builder creation.
-    fn builder() -> DescBuilder<B, T, Self::Desc>
-    where
-        Self::Desc: Default,
-    {
-        Self::desc().builder()
-    }
-
     /// Record commands required by node.
     /// Returned submits are guaranteed to be submitted within specified frame.
     fn run<'a>(
@@ -202,13 +182,7 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
 
     /// Make node builder.
     fn builder(self) -> DescBuilder<B, T, Self> {
-        DescBuilder {
-            desc: self,
-            buffers: Vec::new(),
-            images: Vec::new(),
-            dependencies: Vec::new(),
-            marker: std::marker::PhantomData,
-        }
+        DescBuilder::new(self)
     }
 
     /// Get set or buffer resources the node uses.
@@ -321,7 +295,7 @@ pub enum NodeBuildError {
 /// Dynamic node builder that emits `DynNode`.
 pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Pick family for this node to be executed onto.
-    fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId>;
+    fn family(&self, factory: &mut Factory<B>, families: &Families<B>) -> Option<FamilyId>;
 
     /// Get buffer accessed by the node.
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)>;
@@ -361,6 +335,16 @@ where
     B: Backend,
     T: ?Sized,
 {
+    /// Create new builder out of desc
+    pub fn new(desc: N) -> Self {
+        DescBuilder {
+            desc,
+            buffers: Vec::new(),
+            images: Vec::new(),
+            dependencies: Vec::new(),
+            marker: std::marker::PhantomData,
+        }
+    }
     /// Add buffer to the node.
     /// This method must be called for each buffer node uses.
     pub fn add_buffer(&mut self, buffer: BufferId) -> &mut Self {
@@ -410,14 +394,8 @@ where
     T: ?Sized,
     N: NodeDesc<B, T>,
 {
-    fn family(&self, _factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
-        families
-            .iter()
-            .find(|family| {
-                Supports::<<N::Node as Node<B, T>>::Capability>::supports(&family.capability())
-                    .is_some()
-            })
-            .map(|family| family.id())
+    fn family(&self, _factory: &mut Factory<B>, families: &Families<B>) -> Option<FamilyId> {
+        families.with_capability::<<N::Node as Node<B, T>>::Capability>()
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {

@@ -22,14 +22,14 @@ use rendy::{
             Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
             SimpleGraphicsPipelineDesc,
         },
-        BufferAccess, Graph, GraphBuilder, GraphContext, Node,
-        NodeBuildError, NodeBuffer, NodeDesc, NodeImage, NodeSubmittable,
+        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
+        NodeDesc, NodeImage, NodeSubmittable,
     },
     hal::{self, device::Device as _},
     memory::Dynamic,
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{SourceShaderInfo, Shader, ShaderKind, SourceLanguage, SpirvShader},
+    shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     wsi::winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
@@ -375,8 +375,6 @@ where
 {
     type Capability = Compute;
 
-    type Desc = GravBounceDesc;
-
     fn run<'a>(
         &'a mut self,
         _ctx: &GraphContext<B>,
@@ -431,21 +429,23 @@ where
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         unsafe {
-            factory.upload_buffer(
-                posvelbuff,
-                0,
-                &POSVEL_DATA,
-                None,
-                BufferState {
-                    queue: QueueId {
-                        index: queue,
-                        family: family.id(),
+            factory
+                .upload_buffer(
+                    posvelbuff,
+                    0,
+                    &POSVEL_DATA,
+                    None,
+                    BufferState {
+                        queue: QueueId {
+                            index: queue,
+                            family: family.id(),
+                        },
+                        stage: hal::pso::PipelineStage::COMPUTE_SHADER,
+                        access: hal::buffer::Access::SHADER_WRITE
+                            | hal::buffer::Access::SHADER_READ,
                     },
-                    stage: hal::pso::PipelineStage::COMPUTE_SHADER,
-                    access: hal::buffer::Access::SHADER_WRITE | hal::buffer::Access::SHADER_READ,
-                },
-            )
-            .map_err(NodeBuildError::Upload)
+                )
+                .map_err(NodeBuildError::Upload)
         }?;
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
@@ -453,17 +453,16 @@ where
             .map_err(gfx_hal::pso::CreationError::Shader)
             .map_err(NodeBuildError::Pipeline)?;
 
-        let set_layout = Handle::from(factory
-            .create_descriptor_set_layout(vec![
-                hal::pso::DescriptorSetLayoutBinding {
+        let set_layout = Handle::from(
+            factory
+                .create_descriptor_set_layout(vec![hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
                     ty: hal::pso::DescriptorType::StorageBuffer,
                     count: 1,
                     stage_flags: hal::pso::ShaderStageFlags::COMPUTE,
                     immutable_samplers: false,
-                },
-            ])
-            .map_err(NodeBuildError::OutOfMemory)?
+                }])
+                .map_err(NodeBuildError::OutOfMemory)?,
         );
 
         let pipeline_layout = unsafe {
@@ -579,9 +578,7 @@ fn run(
         *control_flow = ControlFlow::Poll;
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit
-                }
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::Resized(_dims) => {
                     let started = std::time::Instant::now();
                     graph.take().unwrap().dispose(&mut factory, &());
@@ -652,9 +649,7 @@ fn build_graph(
 
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
-    let size = window
-        .inner_size()
-        .to_physical(window.hidpi_factor());
+    let size = window.inner_size().to_physical(window.hidpi_factor());
     let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
 
     let color = graph_builder.create_image(

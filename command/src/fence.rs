@@ -3,7 +3,7 @@ use {
         family::QueueId,
         util::{device_owned, Device, DeviceId},
     },
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
 };
 
 /// Queue epoch is the point in particluar queue timeline when fence is submitted.

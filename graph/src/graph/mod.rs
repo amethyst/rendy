@@ -5,8 +5,13 @@ use {
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::Data,
-        node::{BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage},
-        resource::{Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo},
+        node::{
+            BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuildError, NodeBuilder,
+            NodeImage,
+        },
+        resource::{
+            Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo,
+        },
         util::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
@@ -338,9 +343,12 @@ where
 
     /// Add node to the graph.
     pub fn add_node<N: NodeBuilder<B, T> + 'static>(&mut self, builder: N) -> NodeId {
-        profile_scope!("add_node");
+        self.add_dyn_node(Box::new(builder))
+    }
 
-        self.nodes.push(Box::new(builder));
+    /// Add boxed node to the graph.
+    pub fn add_dyn_node(&mut self, builder: Box<dyn NodeBuilder<B, T> + 'static>) -> NodeId {
+        self.nodes.push(builder);
         NodeId(self.nodes.len() - 1)
     }
 
@@ -569,7 +577,7 @@ where
     let images = builder.images();
     chain::Node {
         id,
-        family: QueueFamilyId(builder.family(factory, families.as_slice()).unwrap().index),
+        family: QueueFamilyId(builder.family(factory, families).unwrap().index),
         dependencies: builder.dependencies().into_iter().map(|id| id.0).collect(),
         buffers: buffers
             .into_iter()

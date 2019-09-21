@@ -167,8 +167,7 @@ macro_rules! dyn_format {
 }
 
 /// pixel.channel_count() must be 4
-fn premultiply_alpha_4channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) 
-{
+fn premultiply_alpha_4channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) {
     let channels_mut = pixel.channels_mut();
     let alpha = channels_mut[3] as f32 / 255.0;
     channels_mut[0] = (channels_mut[0] as f32 * alpha).min(255.0).max(0.0) as u8;
@@ -177,8 +176,7 @@ fn premultiply_alpha_4channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P)
 }
 
 /// pixel.channel_count() must be 2
-fn premultiply_alpha_2channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) 
-{
+fn premultiply_alpha_2channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) {
     let channels_mut = pixel.channels_mut();
     let alpha = channels_mut[1] as f32 / 255.0;
     channels_mut[0] = (channels_mut[0] as f32 * alpha).min(255.0).max(0.0) as u8;
@@ -240,7 +238,7 @@ where
                         dyn_format!(Rg, _8, config.repr),
                         Swizzle(Component::R, Component::R, Component::R, Component::G),
                     )
-                },
+                }
                 DynamicImage::ImageRgb8(img) => (
                     img.into_vec(),
                     dyn_format!(Rgb, _8, config.repr),
@@ -257,7 +255,7 @@ where
                         dyn_format!(Rgba, _8, config.repr),
                         Swizzle::NO,
                     )
-                },
+                }
                 DynamicImage::ImageBgr8(img) => (
                     img.into_vec(),
                     dyn_format!(Bgr, _8, config.repr),
@@ -274,7 +272,7 @@ where
                         dyn_format!(Bgra, _8, config.repr),
                         Swizzle::NO,
                     )
-                },
+                }
             };
             (w, h, vec, format, swizzle)
         }

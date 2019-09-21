@@ -247,9 +247,7 @@ fn run(
         *control_flow = ControlFlow::Poll;
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => {
-                    *control_flow = ControlFlow::Exit
-                }
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
             Event::EventsCleared => {
@@ -303,9 +301,7 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    let size = window
-        .inner_size()
-        .to_physical(window.hidpi_factor());
+    let size = window.inner_size().to_physical(window.hidpi_factor());
 
     let color = graph_builder.create_image(
         hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),

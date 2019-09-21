@@ -79,7 +79,8 @@ where
                 let pos = queue_groups.iter().position(|qg| qg.family.0 == id.index);
                 let group = queue_groups.swap_remove(pos.unwrap());
                 assert_eq!(group.queues.len(), count);
-                group.queues
+                group
+                    .queues
                     .into_iter()
                     .enumerate()
                     .map(|(index, queue)| Queue::new(queue, QueueId { family: id, index }))
@@ -221,6 +222,19 @@ where
     /// Get id -> index mapping.
     pub fn indices(&self) -> &[usize] {
         &self.families_indices
+    }
+
+    /// Find family id matching predicate
+    pub fn find<F>(&self, predicate: F) -> Option<FamilyId>
+    where
+        F: FnMut(&&Family<B>) -> bool,
+    {
+        self.families.iter().find(predicate).map(Family::id)
+    }
+
+    /// Get first matching family id with specified capability
+    pub fn with_capability<C: Capability>(&self) -> Option<FamilyId> {
+        self.find(|family| Supports::<C>::supports(&family.capability()).is_some())
     }
 }
 

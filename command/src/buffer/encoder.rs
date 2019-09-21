@@ -229,12 +229,7 @@ where
         dependencies: gfx_hal::memory::Dependencies,
         barriers: impl IntoIterator<Item = gfx_hal::memory::Barrier<'b, B>>,
     ) {
-        gfx_hal::command::CommandBuffer::pipeline_barrier(
-            self.raw,
-            stages,
-            dependencies,
-            barriers,
-        )
+        gfx_hal::command::CommandBuffer::pipeline_barrier(self.raw, stages, dependencies, barriers)
     }
 
     /// Push graphics constants.

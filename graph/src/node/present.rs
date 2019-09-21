@@ -2,15 +2,15 @@
 
 use crate::{
     command::{
-        CommandBuffer, CommandPool, ExecutableState, Family, FamilyId, Fence, MultiShot,
+        CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence, MultiShot,
         PendingState, Queue, SimultaneousUse, Submission, Submit,
     },
     factory::Factory,
     frame::Frames,
     graph::GraphContext,
     node::{
-        gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode,
-        ImageAccess, NodeBuffer, NodeBuilder, NodeBuildError, NodeImage,
+        gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
+        NodeBuildError, NodeBuilder, NodeImage,
     },
     wsi::{Surface, Target},
     BufferId, ImageId, NodeId,
@@ -29,7 +29,11 @@ struct ForImage<B: gfx_hal::Backend> {
 }
 
 impl<B: gfx_hal::Backend> ForImage<B> {
-    unsafe fn dispose(self, factory: &Factory<B>, pool: &mut CommandPool<B, gfx_hal::queue::QueueType>) {
+    unsafe fn dispose(
+        self,
+        factory: &Factory<B>,
+        pool: &mut CommandPool<B, gfx_hal::queue::QueueType>,
+    ) {
         drop(self.submit);
         factory.destroy_semaphore(self.acquire);
         factory.destroy_semaphore(self.release);
@@ -355,12 +359,9 @@ where
     B: gfx_hal::Backend,
     T: ?Sized,
 {
-    fn family(&self, factory: &mut Factory<B>, families: &[Family<B>]) -> Option<FamilyId> {
+    fn family(&self, factory: &mut Factory<B>, families: &Families<B>) -> Option<FamilyId> {
         // Find correct queue family.
-        families
-            .iter()
-            .find(|family| factory.surface_support(family.id(), &self.surface))
-            .map(Family::id)
+        families.find(|family| factory.surface_support(family.id(), &self.surface))
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
@@ -405,7 +406,11 @@ where
             .into();
 
         if !factory.surface_support(family.id(), &self.surface) {
-            log::warn!("Surface {:?} presentation is unsupported by family {:?} bound to the node", self.surface, family);
+            log::warn!(
+                "Surface {:?} presentation is unsupported by family {:?} bound to the node",
+                self.surface,
+                family
+            );
             return Err(NodeBuildError::QueueFamily(family.id()));
         }
 
@@ -419,7 +424,8 @@ where
             )
             .map_err(NodeBuildError::Swapchain)?;
 
-        let mut pool = factory.create_command_pool(family)
+        let mut pool = factory
+            .create_command_pool(family)
             .map_err(NodeBuildError::OutOfMemory)?;
 
         let per_image = create_per_image_data(

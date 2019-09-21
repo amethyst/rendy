@@ -3,12 +3,12 @@
 //! for example many Vulkan resources must be destroyed by the same
 //! Vulkan instance that created them.  Because they need some outside
 //! context to be destroyed, Rust's `Drop` trait alone cannot handle them.
-//! The `Escape` wrapper helps the user handle these values by sending the 
-//! underlying value to a `Terminal` when it is dropped.  The user can 
-//! then remove those values from the `Terminal` elsewhere in the program 
+//! The `Escape` wrapper helps the user handle these values by sending the
+//! underlying value to a `Terminal` when it is dropped.  The user can
+//! then remove those values from the `Terminal` elsewhere in the program
 //! and destroy them however necessary.
-//! 
-//! Users are encouraged to dispose of values manually while using `Escape` 
+//!
+//! Users are encouraged to dispose of values manually while using `Escape`
 //! as just a safety net.
 
 use {

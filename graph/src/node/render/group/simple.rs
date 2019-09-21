@@ -9,7 +9,7 @@ use {
         },
         resource::{DescriptorSetLayout, Handle},
     },
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
 };
 
 pub use crate::util::types::{Layout, SetLayout};

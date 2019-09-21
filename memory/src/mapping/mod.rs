@@ -3,7 +3,7 @@ pub(crate) mod write;
 
 use {
     crate::{memory::Memory, util::fits_usize},
-    gfx_hal::{Backend, device::Device as _},
+    gfx_hal::{device::Device as _, Backend},
     std::{ops::Range, ptr::NonNull},
 };
 

@@ -89,7 +89,6 @@ where
     }
 }
 
-
 /// Shader loaded from a source in the filesystem.
 #[derive(Clone, Copy, Debug)]
 pub struct SourceCodeShaderInfo<P, E, S> {
@@ -114,13 +113,13 @@ impl<P, E, S> SourceCodeShaderInfo<P, E, S> {
 }
 
 impl<P, E, S> SourceCodeShaderInfo<P, E, S>
-    where
-        E: AsRef<str>,
+where
+    E: AsRef<str>,
 {
     /// Precompile shader source code into Spir-V bytecode.
     pub fn precompile(&self) -> Result<SpirvShader, failure::Error>
-        where
-            Self: Shader,
+    where
+        Self: Shader,
     {
         Ok(SpirvShader::new(
             self.spirv()?.into_owned(),
@@ -131,10 +130,10 @@ impl<P, E, S> SourceCodeShaderInfo<P, E, S>
 }
 
 impl<P, E, S> Shader for SourceCodeShaderInfo<P, E, S>
-    where
-        P: AsRef<std::path::Path> + std::fmt::Debug,
-        E: AsRef<str>,
-        S: AsRef<str> + std::fmt::Debug,
+where
+    P: AsRef<std::path::Path> + std::fmt::Debug,
+    E: AsRef<str>,
+    S: AsRef<str> + std::fmt::Debug,
 {
     fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, failure::Error> {
         let artifact = shaderc::Compiler::new()
@@ -155,7 +154,7 @@ impl<P, E, S> Shader for SourceCodeShaderInfo<P, E, S>
                     ops.set_optimization_level(shaderc::OptimizationLevel::Performance);
                     ops
                 })
-                    .as_ref(),
+                .as_ref(),
             )?;
 
         Ok(std::borrow::Cow::Owned(artifact.as_binary().into()))
@@ -174,7 +173,10 @@ impl<P, E, S> Shader for SourceCodeShaderInfo<P, E, S>
 pub type SourceShaderInfo = SourceCodeShaderInfo<&'static str, &'static str, &'static str>;
 
 /// DEPRECATED. USE `PathBufShaderInfo` INSTEAD!
-#[deprecated(since = "0.2.1", note = "StaticShaderInfo will be removed in favor of PathBufShaderInfo soon. Please move to that implementation.")]
+#[deprecated(
+    since = "0.2.1",
+    note = "StaticShaderInfo will be removed in favor of PathBufShaderInfo soon. Please move to that implementation."
+)]
 pub type StaticShaderInfo = FileShaderInfo<&'static str, &'static str>;
 
 /// Shader info with a PathBuf for the path and static string for entry
