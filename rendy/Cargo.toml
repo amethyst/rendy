@@ -48,7 +48,7 @@ spirv-reflection = ["rendy-shader/spirv-reflection" ]
 wsi-winit = ["rendy-wsi/winit"]
 
 # Full feature set - all listed features except rendy-util's.
-full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit"]
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit", "serde-1"]
 
 # Default feature set includes all subcrates and few commonly used features.
 default = [ "base", "shader-compiler", "spirv-reflection", "wsi-winit" ]
@@ -82,23 +82,23 @@ rand = "0.7"
 
 [[example]]
 name = "triangle"
-required-features = ["base", "wsi-winit"]
+required-features = ["base", "wsi-winit", "shader-compiler"]
 
 [[example]]
 name = "sprite"
-required-features = ["base", "texture-image", "wsi-winit"]
+required-features = ["base", "texture-image", "wsi-winit", "shader-compiler"]
 
 [[example]]
 name = "meshes"
-required-features = ["base", "wsi-winit"]
+required-features = ["base", "wsi-winit", "shader-compiler"]
 
 [[example]]
 name = "quads"
-required-features = ["base", "wsi-winit"]
+required-features = ["base", "wsi-winit", "shader-compiler"]
 
 [[example]]
 name = "source_shaders"
-required-features = ["base", "wsi-winit"]
+required-features = ["base", "wsi-winit", "shader-compiler"]
 
 [package.metadata.docs.rs]
 features = ["full"]
