@@ -153,10 +153,17 @@ impl<T> Drop for Terminal<T> {
 /// Permit sharing unlike [`Escape`]
 ///
 /// [`Escape`]: ./struct.Escape.html
-#[derive(derivative::Derivative, Debug)]
-#[derivative(Clone(bound = ""))]
+#[derive(Debug)]
 pub struct Handle<T> {
     inner: Arc<Escape<T>>,
+}
+
+impl<T> Clone for Handle<T> {
+    fn clone(&self) -> Self {
+        Handle {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<T> From<Escape<T>> for Handle<T> {

@@ -11,10 +11,20 @@ use {
 };
 
 /// Sampler cache holds handlers to created samplers.
-#[derive(Debug, derivative::Derivative)]
-#[derivative(Default(bound = ""))]
+#[derive(Debug)]
 pub struct SamplerCache<B: Backend> {
     samplers: HashMap<SamplerInfo, Handle<Sampler<B>>>,
+}
+
+impl<B> Default for SamplerCache<B>
+where
+    B: Backend,
+{
+    fn default() -> Self {
+        SamplerCache {
+            samplers: HashMap::default(),
+        }
+    }
 }
 
 impl<B> SamplerCache<B>
