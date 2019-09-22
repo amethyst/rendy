@@ -8,6 +8,7 @@ use {
     smallvec::{smallvec, SmallVec},
     std::{
         collections::{HashMap, VecDeque},
+        fmt,
         ops::Deref,
     },
 };
@@ -56,10 +57,7 @@ struct Allocation<B: Backend> {
     pools: Vec<u64>,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 struct DescriptorPool<B: Backend> {
-    #[derivative(Debug = "ignore")]
     raw: B::DescriptorPool,
     size: u32,
 
@@ -68,6 +66,19 @@ struct DescriptorPool<B: Backend> {
 
     // Number of sets freed (they can't be reused until gfx-hal 0.2)
     freed: u32,
+}
+
+impl<B> fmt::Debug for DescriptorPool<B>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DescriptorPool")
+            .field("size", &self.size)
+            .field("free", &self.free)
+            .field("freed", &self.freed)
+            .finish()
+    }
 }
 
 unsafe fn allocate_from_pool<B: Backend>(
