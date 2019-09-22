@@ -21,7 +21,7 @@ use {
     },
     either::Either,
     gfx_hal::{device::Device as _, image::Layout, Backend},
-    std::{cmp::min, collections::HashMap},
+    std::{cmp::min, collections::HashMap, fmt},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -30,14 +30,44 @@ struct RenderPassSurface;
 type Attachment = Either<ImageId, RenderPassSurface>;
 
 /// Build for rendering sub-pass.
-#[derive(derivative::Derivative)]
-#[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct SubpassBuilder<B: Backend, T: ?Sized> {
     groups: Vec<Box<dyn RenderGroupBuilder<B, T>>>,
     inputs: Vec<Attachment>,
     colors: Vec<Attachment>,
     depth_stencil: Option<Attachment>,
     dependencies: Vec<NodeId>,
+}
+
+impl<B, T> fmt::Debug for SubpassBuilder<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SubpassBuilder")
+            .field("groups", &self.groups)
+            .field("inputs", &self.inputs)
+            .field("colors", &self.colors)
+            .field("depth_stencil", &self.depth_stencil)
+            .field("dependencies", &self.dependencies)
+            .finish()
+    }
+}
+
+impl<B, T> Default for SubpassBuilder<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn default() -> Self {
+        SubpassBuilder {
+            groups: Vec::default(),
+            inputs: Vec::default(),
+            colors: Vec::default(),
+            depth_stencil: Option::default(),
+            dependencies: Vec::default(),
+        }
+    }
 }
 
 impl<B, T> SubpassBuilder<B, T>
@@ -161,11 +191,35 @@ where
 }
 
 /// Builder for render-pass node.
-#[derive(derivative::Derivative)]
-#[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassBuilder<B, T>>,
     surface: Option<(Surface<B>, Option<gfx_hal::command::ClearValue>)>,
+}
+
+impl<B, T> fmt::Debug for RenderPassNodeBuilder<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RenderPassNodeBuilder")
+            .field("subpasses", &self.subpasses)
+            .field("surface", &self.surface)
+            .finish()
+    }
+}
+
+impl<B, T> Default for RenderPassNodeBuilder<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn default() -> Self {
+        RenderPassNodeBuilder {
+            subpasses: Vec::default(),
+            surface: Option::default(),
+        }
+    }
 }
 
 impl<B, T> RenderPassNodeBuilder<B, T>
@@ -878,15 +932,23 @@ where
 }
 
 /// Subpass of the `RenderPassNode`.
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = ""))]
 struct SubpassNode<B: Backend, T: ?Sized> {
     /// RenderGroups of pipelines to exeucte withing subpass.
     groups: Vec<Box<dyn RenderGroup<B, T>>>,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = ""))]
+impl<B, T> fmt::Debug for SubpassNode<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SubpassNode")
+            .field("groups", &self.groups)
+            .finish()
+    }
+}
+
 struct BarriersCommands<B: Backend> {
     submit: Submit<B, SimultaneousUse, SecondaryLevel>,
     buffer: CommandBuffer<
@@ -898,8 +960,18 @@ struct BarriersCommands<B: Backend> {
     >,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = ""))]
+impl<B> fmt::Debug for BarriersCommands<B>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BarriersCommands")
+            .field("submit", &self.submit)
+            .field("buffer", &self.buffer)
+            .finish()
+    }
+}
+
 struct RenderPassNodeCommon<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassNode<B, T>>,
 
@@ -918,6 +990,29 @@ struct RenderPassNodeCommon<B: Backend, T: ?Sized> {
     release: Option<BarriersCommands<B>>,
 
     relevant: relevant::Relevant,
+}
+
+impl<B, T> fmt::Debug for RenderPassNodeCommon<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RenderPassNodeCommon")
+            .field("subpasses", &self.subpasses)
+            .field("framebuffer_width", &self.framebuffer_width)
+            .field("framebuffer_height", &self.framebuffer_height)
+            .field("_framebuffer_layers", &self._framebuffer_layers)
+            .field("render_pass", &self.render_pass)
+            .field("views", &self.views)
+            .field("clears", &self.clears)
+            .field("command_pool", &self.command_pool)
+            .field("command_cirque", &self.command_cirque)
+            .field("acquire", &self.acquire)
+            .field("release", &self.release)
+            .field("relevant", &self.relevant)
+            .finish()
+    }
 }
 
 impl<B, T> RenderPassNodeCommon<B, T>
@@ -970,13 +1065,26 @@ struct PerImage<B: Backend> {
     index: usize,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = ""))]
 struct RenderPassNodeWithSurface<B: Backend, T: ?Sized> {
     common: RenderPassNodeCommon<B, T>,
     per_image: Vec<PerImage<B>>,
     free_acquire: B::Semaphore,
     target: Target<B>,
+}
+
+impl<B, T> fmt::Debug for RenderPassNodeWithSurface<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RenderPassNodeWithSurface")
+            .field("common", &self.common)
+            .field("per_image", &self.per_image)
+            .field("free_acquire", &self.free_acquire)
+            .field("target", &self.target)
+            .finish()
+    }
 }
 
 impl<B, T> DynNode<B, T> for RenderPassNodeWithSurface<B, T>
@@ -1160,11 +1268,22 @@ where
     }
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = ""))]
 struct RenderPassNodeWithoutSurface<B: Backend, T: ?Sized> {
     common: RenderPassNodeCommon<B, T>,
     framebuffer: B::Framebuffer,
+}
+
+impl<B, T> fmt::Debug for RenderPassNodeWithoutSurface<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RenderPassNodeWithoutSurface")
+            .field("common", &self.common)
+            .field("framebuffer", &self.framebuffer)
+            .finish()
+    }
 }
 
 impl<B, T> DynNode<B, T> for RenderPassNodeWithoutSurface<B, T>

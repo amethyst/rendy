@@ -282,13 +282,26 @@ where
 }
 
 /// Build graph from nodes and resource.
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = ""))]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
     buffers: Vec<BufferInfo>,
     images: Vec<(ImageInfo, Option<gfx_hal::command::ClearValue>)>,
     frames_in_flight: u32,
+}
+
+impl<B, T> std::fmt::Debug for GraphBuilder<B, T>
+where
+    B: Backend,
+    T: ?Sized,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GraphBuilder")
+            .field("nodes", &self.nodes)
+            .field("buffers", &self.buffers)
+            .field("images", &self.images)
+            .field("frames_in_flight", &self.frames_in_flight)
+            .finish()
+    }
 }
 
 impl<B, T> GraphBuilder<B, T>
