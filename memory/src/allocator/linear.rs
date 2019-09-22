@@ -9,19 +9,31 @@ use {
         util::*,
     },
     gfx_hal::{device::Device as _, Backend},
+    std::fmt,
 };
 
 /// Memory block allocated from `LinearAllocator`
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct LinearBlock<B: Backend> {
-    // #[derivative(Debug(format_with = "::memory::memory_ptr_fmt"))]
     memory: *const Memory<B>,
     linear_index: u64,
     ptr: NonNull<u8>,
     range: Range<u64>,
-    #[derivative(Debug = "ignore")]
     relevant: relevant::Relevant,
+}
+
+impl<B> fmt::Debug for LinearBlock<B>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LinearBlock")
+            .field("memory", &self.memory)
+            .field("linear_index", &self.linear_index)
+            .field("ptr", &self.ptr)
+            .field("range", &self.range)
+            .field("relevant", &self.relevant)
+            .finish()
+    }
 }
 
 unsafe impl<B> Send for LinearBlock<B> where B: Backend {}
@@ -120,14 +132,24 @@ pub struct LinearAllocator<B: Backend> {
     lines: VecDeque<Line<B>>,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 struct Line<B: Backend> {
     used: u64,
     free: u64,
-    #[derivative(Debug = "ignore")]
     memory: Box<Memory<B>>,
     ptr: NonNull<u8>,
+}
+
+impl<B> fmt::Debug for Line<B>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Line")
+            .field("used", &self.used)
+            .field("free", &self.free)
+            .field("ptr", &self.ptr)
+            .finish()
+    }
 }
 
 unsafe impl<B> Send for Line<B> where B: Backend {}
