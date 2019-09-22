@@ -31,7 +31,6 @@ gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db1566112
 gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69", features = ["winit"], optional = true }
 gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69", features = ["winit"], optional = true }
 gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69", features = ["winit"], optional = true }
-derivative = "1.0"
 lazy_static = "1.0"
 log = "0.4"
 parking_lot = "0.9"
