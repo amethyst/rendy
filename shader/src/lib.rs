@@ -116,10 +116,20 @@ impl Shader for SpirvShader {
 }
 
 /// A `ShaderSet` object represents a merged collection of `ShaderStorage` structures, which reflects merged information for all shaders in the set.
-#[derive(derivative::Derivative, Debug)]
-#[derivative(Default(bound = ""))]
+#[derive(Debug)]
 pub struct ShaderSet<B: Backend> {
     shaders: HashMap<ShaderStageFlags, ShaderStorage<B>>,
+}
+
+impl<B> Default for ShaderSet<B>
+where
+    B: Backend,
+{
+    fn default() -> Self {
+        ShaderSet {
+            shaders: HashMap::default(),
+        }
+    }
 }
 
 impl<B: Backend> ShaderSet<B> {
