@@ -21,8 +21,7 @@ use crate::{
 /// [`BasicHeapsConfigure`]: struct.BasicHeapsConfigure.html
 /// [`QueuesConfigure`]: trait.QueuesConfigure.html
 /// [`OneGraphicsQueue`]: struct.OneGraphicsQueue.html
-#[derive(Clone, derivative::Derivative)]
-#[derivative(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Config<D = BasicDevicesConfigure, H = BasicHeapsConfigure, Q = OneGraphicsQueue> {
     /// Config to choose adapter.
