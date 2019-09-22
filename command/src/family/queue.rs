@@ -5,13 +5,22 @@ use {
 };
 
 /// Command queue wrapper.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct Queue<B: Backend> {
-    #[derivative(Debug = "ignore")]
     raw: B::CommandQueue,
     id: QueueId,
     next_epoch: u64,
+}
+
+impl<B> std::fmt::Debug for Queue<B>
+where
+    B: Backend,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Queue")
+            .field("id", &self.id)
+            .field("next_epoch", &self.next_epoch)
+            .finish()
+    }
 }
 
 family_owned!(@NOCAP Queue<B> @ |q: &Self| q.id.family);

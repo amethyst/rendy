@@ -20,10 +20,7 @@ pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
 /// Command buffer wrapper.
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
 /// This way many methods become safe.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct CommandBuffer<B: Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
-    #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
     capability: C,
     state: S,
@@ -31,6 +28,26 @@ pub struct CommandBuffer<B: Backend, C, S, L = PrimaryLevel, R = NoIndividualRes
     reset: R,
     family: FamilyId,
     relevant: relevant::Relevant,
+}
+
+impl<B, C, S, L, R> std::fmt::Debug for CommandBuffer<B, C, S, L, R>
+where
+    B: Backend,
+    C: std::fmt::Debug,
+    S: std::fmt::Debug,
+    L: std::fmt::Debug,
+    R: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandPool")
+            .field("capability", &self.capability)
+            .field("state", &self.state)
+            .field("level", &self.level)
+            .field("reset", &self.reset)
+            .field("family", &self.family)
+            .field("relevant", &self.relevant)
+            .finish()
+    }
 }
 
 family_owned!(CommandBuffer<B, C, S, L, R>);

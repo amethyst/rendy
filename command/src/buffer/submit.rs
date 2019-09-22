@@ -9,20 +9,34 @@ use {
 };
 
 /// Structure contains command buffer ready for submission.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct Submit<
     B: gfx_hal::Backend,
     S = NoSimultaneousUse,
     L = PrimaryLevel,
     P = OutsideRenderPass,
 > {
-    #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
     family: FamilyId,
     simultaneous: S,
     level: L,
     pass_continue: P,
+}
+
+impl<B, S, L, P> std::fmt::Debug for Submit<B, S, L, P>
+where
+    B: gfx_hal::Backend,
+    S: std::fmt::Debug,
+    L: std::fmt::Debug,
+    P: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Submit")
+            .field("family", &self.family)
+            .field("simultaneous", &self.simultaneous)
+            .field("level", &self.level)
+            .field("pass_continue", &self.pass_continue)
+            .finish()
+    }
 }
 
 unsafe impl<B, S, L, P> Send for Submit<B, S, L, P>

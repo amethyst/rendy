@@ -68,13 +68,23 @@ pub struct DispatchCommand {
 }
 
 /// Encoder for recording commands inside or outside renderpass.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct EncoderCommon<'a, B: gfx_hal::Backend, C> {
-    #[derivative(Debug = "ignore")]
     raw: &'a mut B::CommandBuffer,
     capability: C,
     family: FamilyId,
+}
+
+impl<'a, B, C> std::fmt::Debug for EncoderCommon<'a, B, C>
+where
+    B: gfx_hal::Backend,
+    C: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EncoderCommon")
+            .field("capability", &self.capability)
+            .field("family", &self.family)
+            .finish()
+    }
 }
 
 impl<'a, B, C> EncoderCommon<'a, B, C>

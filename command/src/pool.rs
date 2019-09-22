@@ -8,15 +8,28 @@ use {
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
 /// Wraps raw buffers into `CommandCommand buffer`.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct CommandPool<B: Backend, C = QueueType, R = NoIndividualReset> {
-    #[derivative(Debug = "ignore")]
     raw: B::CommandPool,
     capability: C,
     reset: R,
     family: FamilyId,
     relevant: relevant::Relevant,
+}
+
+impl<B, C, R> std::fmt::Debug for CommandPool<B, C, R>
+where
+    B: Backend,
+    C: std::fmt::Debug,
+    R: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandPool")
+            .field("capability", &self.capability)
+            .field("reset", &self.reset)
+            .field("family", &self.family)
+            .field("relevant", &self.relevant)
+            .finish()
+    }
 }
 
 family_owned!(CommandPool<B, C, R>);
