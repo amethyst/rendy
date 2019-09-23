@@ -398,16 +398,24 @@ where
         &self,
         buffer: &mut Buffer<B>,
         offset: u64,
-        content: &[T],
-    ) -> Result<(), MapError> {
+        content: &T,
+    ) -> Result<(), MapError>
+    where
+        T: ?Sized + 'static,
+    {
+        let content_size = std::mem::size_of_val(content);
+
         let content = std::slice::from_raw_parts(
-            content.as_ptr() as *const u8,
-            content.len() * std::mem::size_of::<T>(),
+            {
+                let content_ptr: *const T = content;
+                content_ptr as *const u8
+            },
+            content_size,
         );
 
-        let mut mapped = buffer.map(&self.device, offset..offset + content.len() as u64)?;
+        let mut mapped = buffer.map(&self.device, offset..offset + content_size as u64)?;
         mapped
-            .write(&self.device, 0..content.len() as u64)?
+            .write(&self.device, 0..content_size as u64)?
             .write(content);
         Ok(())
     }
@@ -437,13 +445,17 @@ where
         &self,
         buffer: &Buffer<B>,
         offset: u64,
-        content: &[T],
+        content: &T,
         last: Option<BufferState>,
         next: BufferState,
-    ) -> Result<(), UploadError> {
+    ) -> Result<(), UploadError>
+    where
+        T: ?Sized + 'static,
+    {
         assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
 
-        let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
+        let content_size = std::mem::size_of_val(content) as u64;
+
         let mut staging = self
             .create_buffer(
                 BufferInfo {
@@ -544,17 +556,20 @@ where
         image_layers: SubresourceLayers,
         image_offset: image::Offset,
         image_extent: Extent,
-        content: &[T],
+        content: &T,
         last: impl Into<ImageStateOrLayout>,
         next: ImageState,
-    ) -> Result<(), UploadError> {
+    ) -> Result<(), UploadError>
+    where
+        T: ?Sized + 'static,
+    {
         assert!(image.info().usage.contains(image::Usage::TRANSFER_DST));
         assert_eq!(image.format().surface_desc().aspects, image_layers.aspects);
         assert!(image_layers.layers.start <= image_layers.layers.end);
         assert!(image_layers.layers.end <= image.kind().num_layers());
         assert!(image_layers.level <= image.info().levels);
 
-        let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
+        let content_size = std::mem::size_of_val(content) as u64;
         let format_desc = image.format().surface_desc();
         let texels_count = (image_extent.width / format_desc.dim.0 as u32) as u64
             * (image_extent.height / format_desc.dim.1 as u32) as u64
