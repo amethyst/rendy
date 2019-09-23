@@ -6,15 +6,37 @@ use {
     wavefront_obj::obj,
 };
 
+/// Object loading error.Option
+#[derive(Debug)]
+pub enum ObjError {
+    /// The passed bytes were improper UTF-8 data.
+    Utf8(std::str::Utf8Error),
+    /// Parsing of the obj failed.
+    Parse(wavefront_obj::ParseError),
+}
+
+impl std::error::Error for ObjError {}
+impl std::fmt::Display for ObjError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ObjError::Utf8(e) => write!(f, "{}", e),
+            ObjError::Parse(e) => write!(
+                f,
+                "Error parsing object file at line {}: {}",
+                e.line_number, e.message
+            ),
+        }
+    }
+}
+
 /// Load mesh data from obj.
-pub fn load_from_obj(bytes: &[u8]) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, String> {
-    let string = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
-    obj::parse(string).and_then(load_from_data).map_err(|e| {
-        format!(
-            "Error during parsing obj-file at line '{}': {}",
-            e.line_number, e.message
-        )
-    })
+pub fn load_from_obj(
+    bytes: &[u8],
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
+    let string = std::str::from_utf8(bytes).map_err(ObjError::Utf8)?;
+    obj::parse(string)
+        .and_then(load_from_data)
+        .map_err(ObjError::Parse)
 }
 
 fn load_from_data(
