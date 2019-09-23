@@ -7,23 +7,19 @@ use {
 };
 
 /// Load mesh data from obj.
-pub fn load_from_obj(
-    bytes: &[u8],
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
-    let string = std::str::from_utf8(bytes)?;
-    let set = obj::parse(string).map_err(|e| {
-        failure::format_err!(
+pub fn load_from_obj(bytes: &[u8]) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, String> {
+    let string = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+    obj::parse(string).and_then(load_from_data).map_err(|e| {
+        format!(
             "Error during parsing obj-file at line '{}': {}",
-            e.line_number,
-            e.message
+            e.line_number, e.message
         )
-    })?;
-    load_from_data(set)
+    })
 }
 
 fn load_from_data(
     obj_set: obj::ObjSet,
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, wavefront_obj::ParseError> {
     // Takes a list of objects that contain geometries that contain shapes that contain
     // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.

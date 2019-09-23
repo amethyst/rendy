@@ -465,18 +465,25 @@ where
     }
 }
 
-/// failure::Error type returned by `Mesh::bind` in case of mesh's vertex buffers are incompatible with requested vertex formats.
-#[derive(failure::Fail, Clone, Debug)]
-#[fail(
-    display = "Vertex format {:?} is not compatible with any of {:?}.",
-    not_found, in_formats
-)]
+/// Error type returned by `Mesh::bind` in case of mesh's vertex buffers are incompatible with requested vertex formats.
+#[derive(Clone, Debug)]
 pub struct Incompatible {
     /// Format that was queried but was not found
     pub not_found: VertexFormat,
     /// List of formats that were available at query time
     pub in_formats: Vec<VertexFormat>,
 }
+
+impl std::fmt::Display for Incompatible {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Vertex format {:?} is not compatible with any of {:?}.",
+            self.not_found, self.in_formats
+        )
+    }
+}
+impl std::error::Error for Incompatible {}
 
 /// Helper function to find buffer with compatible format.
 fn find_compatible_buffer(

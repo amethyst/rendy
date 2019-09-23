@@ -27,12 +27,75 @@ pub use self::reflect::SpirvReflection;
 use gfx_hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
 
+/// Error type returned by this module.
+#[derive(Debug)]
+pub enum ShaderError {
+    /// Shaderc could not be initialized.
+    Init,
+    /// The given path is not a valid UTF-8 string.
+    NonUtf8Path(std::path::PathBuf),
+    /// An io error occured.
+    Io(std::io::Error),
+    /// Shaderc returned an error.
+    #[cfg(feature = "shader-compiler")]
+    ShaderC(::shaderc::Error),
+    /// Neither a vertex nor a compute shader has been provided.
+    NoVertComputeProvided,
+    /// A reflection error occured.
+    #[cfg(feature = "spirv-reflection")]
+    Reflect(self::reflect::ReflectError),
+    #[doc(hidden)]
+    #[allow(non_camel_case_types)]
+    __Unexhaustive,
+}
+
+impl std::error::Error for ShaderError {}
+impl std::fmt::Display for ShaderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShaderError::Init => write!(f, "failed to init Shaderc"),
+            ShaderError::NonUtf8Path(path) => {
+                write!(f, "path {:?} is not valid UTF-8 string", path)
+            }
+            ShaderError::Io(e) => write!(f, "{}", e),
+            #[cfg(feature = "shader-compiler")]
+            ShaderError::ShaderC(e) => write!(f, "{}", e),
+            ShaderError::NoVertComputeProvided => {
+                write!(f, "a vertex or compute shader must be provided")
+            }
+            #[cfg(feature = "spirv-reflection")]
+            ShaderError::Reflect(e) => write!(f, "{}", e),
+            ShaderError::__Unexhaustive => unreachable!(),
+        }
+    }
+}
+
+impl From<std::io::Error> for ShaderError {
+    fn from(e: std::io::Error) -> Self {
+        ShaderError::Io(e)
+    }
+}
+
+#[cfg(feature = "shader-compiler")]
+impl From<::shaderc::Error> for ShaderError {
+    fn from(e: ::shaderc::Error) -> Self {
+        ShaderError::ShaderC(e)
+    }
+}
+
+#[cfg(feature = "spirv-reflection")]
+impl From<reflect::ReflectError> for ShaderError {
+    fn from(e: reflect::ReflectError) -> Self {
+        ShaderError::Reflect(e)
+    }
+}
+
 /// Interface to create shader modules from shaders.
 /// Implemented for static shaders via [`compile_to_spirv!`] macro.
 ///
 pub trait Shader {
     /// Get spirv bytecode.
-    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, failure::Error>;
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, ShaderError>;
 
     /// Get the entry point of the shader.
     fn entry(&self) -> &str;
@@ -102,7 +165,7 @@ impl SpirvShader {
 }
 
 impl Shader for SpirvShader {
-    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, failure::Error> {
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, ShaderError> {
         Ok(std::borrow::Cow::Borrowed(&self.spirv))
     }
 
@@ -136,7 +199,7 @@ impl<B: Backend> ShaderSet<B> {
     }
 
     /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in gfx_hal.
-    pub fn raw<'a>(&'a self) -> Result<(gfx_hal::pso::GraphicsShaderSet<'a, B>), failure::Error> {
+    pub fn raw<'a>(&'a self) -> Result<(gfx_hal::pso::GraphicsShaderSet<'a, B>), ShaderError> {
         Ok(gfx_hal::pso::GraphicsShaderSet {
             vertex: self
                 .shaders
@@ -316,7 +379,7 @@ impl ShaderSetBuilder {
 
     /// Add a vertex shader to this shader set
     #[inline(always)]
-    pub fn with_vertex<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
+    pub fn with_vertex<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
         let data = shader.spirv()?;
         self.vertex = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -324,7 +387,7 @@ impl ShaderSetBuilder {
 
     /// Add a fragment shader to this shader set
     #[inline(always)]
-    pub fn with_fragment<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
+    pub fn with_fragment<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
         let data = shader.spirv()?;
         self.fragment = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -332,7 +395,7 @@ impl ShaderSetBuilder {
 
     /// Add a geometry shader to this shader set
     #[inline(always)]
-    pub fn with_geometry<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
+    pub fn with_geometry<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
         let data = shader.spirv()?;
         self.geometry = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -340,7 +403,7 @@ impl ShaderSetBuilder {
 
     /// Add a hull shader to this shader set
     #[inline(always)]
-    pub fn with_hull<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
+    pub fn with_hull<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
         let data = shader.spirv()?;
         self.hull = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -348,7 +411,7 @@ impl ShaderSetBuilder {
 
     /// Add a domain shader to this shader set
     #[inline(always)]
-    pub fn with_domain<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
+    pub fn with_domain<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
         let data = shader.spirv()?;
         self.domain = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -357,7 +420,7 @@ impl ShaderSetBuilder {
     /// Add a compute shader to this shader set.
     /// Note a compute or vertex shader must always exist in a shader set.
     #[inline(always)]
-    pub fn with_compute<S: Shader>(mut self, shader: &S) -> Result<Self, failure::Error> {
+    pub fn with_compute<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
         let data = shader.spirv()?;
         self.compute = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -366,9 +429,9 @@ impl ShaderSetBuilder {
     #[cfg(feature = "spirv-reflection")]
     /// This function processes all shaders provided to the builder and computes and stores full reflection information on the shader.
     /// This includes names, attributes, descriptor sets and push constants used by the shaders, as well as compiling local caches for performance.
-    pub fn reflect(&self) -> Result<SpirvReflection, failure::Error> {
+    pub fn reflect(&self) -> Result<SpirvReflection, ShaderError> {
         if self.vertex.is_none() && self.compute.is_none() {
-            failure::bail!("A vertex or compute shader must be provided");
+            return Err(ShaderError::NoVertComputeProvided);
         }
 
         // We need to combine and merge all the reflections into a single SpirvReflection instance
@@ -392,7 +455,9 @@ impl ShaderSetBuilder {
             reflections.push(SpirvReflection::reflect(&geometry.0, None)?);
         }
 
-        reflect::merge(&reflections)?.compile_cache()
+        reflect::merge(&reflections)?
+            .compile_cache()
+            .map_err(Into::into)
     }
 }
 
@@ -409,7 +474,7 @@ impl<B: Backend> ShaderStorage<B> {
     /// Builds the `EntryPoint` structure used by gfx_hal to determine how to utilize this shader
     pub fn get_entry_point<'a>(
         &'a self,
-    ) -> Result<Option<gfx_hal::pso::EntryPoint<'a, B>>, failure::Error> {
+    ) -> Result<Option<gfx_hal::pso::EntryPoint<'a, B>>, ShaderError> {
         Ok(Some(gfx_hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
@@ -442,6 +507,7 @@ impl<B: Backend> ShaderStorage<B> {
         self.module = None;
     }
 }
+
 impl<B: Backend> Drop for ShaderStorage<B> {
     fn drop(&mut self) {
         if self.module.is_some() {

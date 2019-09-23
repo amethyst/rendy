@@ -24,7 +24,6 @@ rendy-util = { version = "0.4.0", path = "../util" }
 derivative = "1.0"
 either = "1.5"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69" }
-failure = "0.1"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"

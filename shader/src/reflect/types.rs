@@ -5,18 +5,62 @@ use gfx_hal::format::Format;
 use spirv_reflect::types::*;
 use std::collections::HashMap;
 
+#[derive(Copy, Clone, Debug)]
+pub enum ReflectTypeError {
+    UndefinedFormat,
+    UnsupportedConversion,
+    UnrecognizedNumericSignedness(u32),
+    UnrecognizedNumericTypeFlags(ReflectTypeFlags),
+    UnrecognizedNumericTypeWidth(u32),
+    UnrecognizedNumericArrayCount(Format, u32),
+    VertexElement,
+    UnhandledAccelerationStructureNV,
+    UnhandledUndefined,
+}
+
+impl std::error::Error for ReflectTypeError {}
+impl std::fmt::Display for ReflectTypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            ReflectTypeError::UndefinedFormat => write!(f, "undefined format"),
+            ReflectTypeError::UnsupportedConversion => write!(f, "unsupported conversion type"),
+            ReflectTypeError::UnrecognizedNumericSignedness(sign) => {
+                write!(f, "unrecognized numeric signedness {}", sign)
+            }
+            ReflectTypeError::UnrecognizedNumericTypeFlags(flags) => {
+                write!(f, "unrecognized numeric type with flags {:?}", flags)
+            }
+            ReflectTypeError::UnrecognizedNumericTypeWidth(width) => {
+                write!(f, "unrecognized numeric type with width {}", width)
+            }
+            ReflectTypeError::UnrecognizedNumericArrayCount(format, count) => write!(
+                f,
+                "unrecognized numeric array with format {:?} and component count {}",
+                format, count
+            ),
+            ReflectTypeError::VertexElement => write!(f, "Unable to reflect vertex element"),
+            ReflectTypeError::UnhandledAccelerationStructureNV => {
+                write!(f, "We cant handle AccelerationStructureNV descriptor type")
+            }
+            ReflectTypeError::UnhandledUndefined => {
+                write!(f, "We cant handle undefined descriptor types")
+            }
+        }
+    }
+}
+
 /// Workaround extension trait copy of std::convert::From, for simple conversion from spirv-reflect types to gfx_hal types
 pub(crate) trait ReflectInto<T>: Sized {
     /// Attempts to perform a conversion from the provided type into this type
-    fn reflect_into(&self) -> Result<T, failure::Error> {
-        Err(failure::format_err!("Unsupported conversion type"))
+    fn reflect_into(&self) -> Result<T, ReflectTypeError> {
+        Err(ReflectTypeError::UnsupportedConversion)
     }
 }
 
 impl ReflectInto<Format> for ReflectFormat {
-    fn reflect_into(&self) -> Result<Format, failure::Error> {
+    fn reflect_into(&self) -> Result<Format, ReflectTypeError> {
         match self {
-            ReflectFormat::Undefined => Err(failure::format_err!("Undefined Format")),
+            ReflectFormat::Undefined => Err(ReflectTypeError::UndefinedFormat),
             ReflectFormat::R32_UINT => Ok(Format::R32Uint),
             ReflectFormat::R32_SINT => Ok(Format::R32Sint),
             ReflectFormat::R32_SFLOAT => Ok(Format::R32Sfloat),
@@ -36,7 +80,7 @@ impl ReflectInto<Format> for ReflectFormat {
 pub(crate) fn type_element_format(
     flags: ReflectTypeFlags,
     traits: &ReflectTypeDescriptionTraits,
-) -> Result<Format, failure::Error> {
+) -> Result<Format, ReflectTypeError> {
     enum NumTy {
         SInt,
         UInt,
@@ -47,17 +91,12 @@ pub(crate) fn type_element_format(
         match traits.numeric.scalar.signedness {
             0 => NumTy::UInt,
             1 => NumTy::SInt,
-            _ => {
-                failure::bail!(
-                    "Unrecognized numeric signedness {:?}",
-                    traits.numeric.scalar.signedness
-                );
-            }
+            unk => return Err(ReflectTypeError::UnrecognizedNumericSignedness(unk)),
         }
     } else if flags.contains(ReflectTypeFlags::FLOAT) {
         NumTy::Float
     } else {
-        failure::bail!("Unrecognized numeric type with flags {:?}", flags);
+        return Err(ReflectTypeError::UnrecognizedNumericTypeFlags(flags));
     };
 
     let current_type = match (num_ty, traits.numeric.scalar.width) {
@@ -71,12 +110,7 @@ pub(crate) fn type_element_format(
         (NumTy::UInt, 64) => Format::R64Uint,
         (NumTy::Float, 32) => Format::R32Sfloat,
         (NumTy::Float, 64) => Format::R64Sfloat,
-        _ => {
-            failure::bail!(
-                "Unrecognized numeric type with width {}",
-                traits.numeric.scalar.width
-            );
-        }
+        (_, width) => return Err(ReflectTypeError::UnrecognizedNumericTypeWidth(width)),
     };
 
     if traits.numeric.vector.component_count > 1 {
@@ -112,11 +146,10 @@ pub(crate) fn type_element_format(
                 (Format::R64Sfloat, 2) => Format::Rg64Sfloat,
                 (Format::R64Sfloat, 3) => Format::Rgb64Sfloat,
                 (Format::R64Sfloat, 4) => Format::Rgba64Sfloat,
-                _ => {
-                    failure::bail!(
-                        "Unrecognized numeric array with component count {}",
-                        traits.numeric.vector.component_count
-                    );
+                (format, count) => {
+                    return Err(ReflectTypeError::UnrecognizedNumericArrayCount(
+                        format, count,
+                    ))
                 }
             },
         )
@@ -126,7 +159,7 @@ pub(crate) fn type_element_format(
 }
 
 impl ReflectInto<gfx_hal::pso::Element<Format>> for ReflectTypeDescription {
-    fn reflect_into(&self) -> Result<gfx_hal::pso::Element<Format>, failure::Error> {
+    fn reflect_into(&self) -> Result<gfx_hal::pso::Element<Format>, ReflectTypeError> {
         let format = type_element_format(self.type_flags, &self.traits)?;
         Ok(gfx_hal::pso::Element {
             format: format,
@@ -136,7 +169,7 @@ impl ReflectInto<gfx_hal::pso::Element<Format>> for ReflectTypeDescription {
 }
 
 impl ReflectInto<gfx_hal::pso::AttributeDesc> for ReflectInterfaceVariable {
-    fn reflect_into(&self) -> Result<gfx_hal::pso::AttributeDesc, failure::Error> {
+    fn reflect_into(&self) -> Result<gfx_hal::pso::AttributeDesc, ReflectTypeError> {
         // An attribute is not an image format
         Ok(gfx_hal::pso::AttributeDesc {
             location: self.location,
@@ -144,8 +177,8 @@ impl ReflectInto<gfx_hal::pso::AttributeDesc> for ReflectInterfaceVariable {
             element: self
                 .type_description
                 .as_ref()
-                .ok_or_else(|| failure::format_err!("Unable to reflect vertex element"))?
-                .reflect_into()?,
+                .ok_or(ReflectTypeError::VertexElement)
+                .and_then(ReflectInto::reflect_into)?,
         })
     }
 }
@@ -154,7 +187,7 @@ impl ReflectInto<gfx_hal::pso::AttributeDesc> for ReflectInterfaceVariable {
 //
 
 impl ReflectInto<gfx_hal::pso::DescriptorType> for ReflectDescriptorType {
-    fn reflect_into(&self) -> Result<gfx_hal::pso::DescriptorType, failure::Error> {
+    fn reflect_into(&self) -> Result<gfx_hal::pso::DescriptorType, ReflectTypeError> {
         use gfx_hal::pso::DescriptorType;
         use ReflectDescriptorType::*;
 
@@ -170,12 +203,8 @@ impl ReflectInto<gfx_hal::pso::DescriptorType> for ReflectDescriptorType {
             UniformBufferDynamic => Ok(DescriptorType::UniformBufferDynamic),
             StorageBufferDynamic => Ok(DescriptorType::StorageBufferDynamic),
             InputAttachment => Ok(DescriptorType::InputAttachment),
-            AccelerationStructureNV => Err(failure::format_err!(
-                "We cant handle AccelerationStructureNV descriptor type"
-            )),
-            Undefined => Err(failure::format_err!(
-                "We cant handle undefined descriptor types"
-            )),
+            AccelerationStructureNV => Err(ReflectTypeError::UnhandledAccelerationStructureNV),
+            Undefined => Err(ReflectTypeError::UnhandledUndefined),
         }
     }
 }
@@ -183,15 +212,16 @@ impl ReflectInto<gfx_hal::pso::DescriptorType> for ReflectDescriptorType {
 impl ReflectInto<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>> for ReflectDescriptorSet {
     fn reflect_into(
         &self,
-    ) -> Result<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>, failure::Error> {
+    ) -> Result<Vec<gfx_hal::pso::DescriptorSetLayoutBinding>, ReflectTypeError> {
         self.bindings
             .iter()
             .map(|desc| desc.reflect_into())
             .collect::<Result<Vec<_>, _>>()
     }
 }
+
 impl ReflectInto<gfx_hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptorBinding {
-    fn reflect_into(&self) -> Result<gfx_hal::pso::DescriptorSetLayoutBinding, failure::Error> {
+    fn reflect_into(&self) -> Result<gfx_hal::pso::DescriptorSetLayoutBinding, ReflectTypeError> {
         Ok(gfx_hal::pso::DescriptorSetLayoutBinding {
             binding: self.binding,
             ty: self.descriptor_type.reflect_into()?,
@@ -205,7 +235,7 @@ impl ReflectInto<gfx_hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptor
 pub(crate) fn convert_push_constant(
     stage: gfx_hal::pso::ShaderStageFlags,
     variable: &ReflectBlockVariable,
-) -> Result<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>), failure::Error> {
+) -> Result<(gfx_hal::pso::ShaderStageFlags, std::ops::Range<u32>), ReflectTypeError> {
     Ok((
         stage,
         variable.offset..variable.offset / 4 + variable.size / 4,
@@ -239,7 +269,7 @@ pub(crate) fn convert_stage(stage: ReflectShaderStageFlags) -> gfx_hal::pso::Sha
 
 pub(crate) fn generate_attributes(
     attributes: Vec<ReflectInterfaceVariable>,
-) -> Result<HashMap<(String, u8), gfx_hal::pso::AttributeDesc>, failure::Error> {
+) -> Result<HashMap<(String, u8), gfx_hal::pso::AttributeDesc>, ReflectTypeError> {
     let mut out_attributes = HashMap::new();
 
     for attribute in &attributes {

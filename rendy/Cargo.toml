@@ -67,7 +67,6 @@ rendy-texture = { version = "0.4.0", path = "../texture", optional = true }
 rendy-util = { version = "0.4.0", path = "../util" }
 rendy-wsi = { version = "0.4.0", path = "../wsi", optional = true }
 
-failure = "0.1"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69" }
 thread_profiler = "0.3"
 
