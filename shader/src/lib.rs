@@ -99,6 +99,20 @@ impl SpirvShader {
             entry: entrypoint.to_string(),
         }
     }
+
+    /// Create Spir-V shader from bytecode stored as bytes.
+    /// Errors when passed byte array length is not a multiple of 4.
+    pub fn from_bytes(
+        spirv: &[u8],
+        stage: ShaderStageFlags,
+        entrypoint: &str,
+    ) -> std::io::Result<Self> {
+        Ok(Self::new(
+            gfx_hal::pso::read_spirv(std::io::Cursor::new(spirv))?,
+            stage,
+            entrypoint,
+        ))
+    }
 }
 
 impl Shader for SpirvShader {
