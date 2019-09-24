@@ -13,7 +13,7 @@ description = "Rendy's shader compilation tool"
 [features]
 shader-compiler = ["shaderc"]
 spirv-reflection = [ "spirv-reflect" ]
-serde-1 = ["serde", "serde_bytes"]
+serde-1 = ["serde"]
 
 [dependencies]
 smallvec = "0.6"
@@ -25,5 +25,4 @@ rendy-factory = { version = "0.4.0", path = "../factory" }
 rendy-util = { version = "0.4.0", path = "../util" }
 shaderc = { version = "0.5", optional = true }
 serde = { version = "1.0", optional = true, features = ["derive"] }
-serde_bytes = { version = "0.11", optional = true }
 spirv-reflect = { version = "0.2.1", optional = true }
