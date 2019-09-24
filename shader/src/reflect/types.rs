@@ -5,16 +5,26 @@ use gfx_hal::format::Format;
 use spirv_reflect::types::*;
 use std::collections::HashMap;
 
+/// A type reflection error.
 #[derive(Copy, Clone, Debug)]
 pub enum ReflectTypeError {
+    /// Tried reflecting an undefined format.
     UndefinedFormat,
+    /// The conversion isn't supported.
     UnsupportedConversion,
+    /// An unrecognized numeric sign has been encountered.
     UnrecognizedNumericSignedness(u32),
+    /// Unrecognized numeric flags have been encountered.
     UnrecognizedNumericTypeFlags(ReflectTypeFlags),
+    /// An unrecognized numeric width has been encountered.
     UnrecognizedNumericTypeWidth(u32),
+    /// An unrecognized array count for the format has been encountered.
     UnrecognizedNumericArrayCount(Format, u32),
+    /// A vertex element could not be reflected.
     VertexElement,
+    /// A `AccelerationStructureNV` descriptor type has been encountered which cannot be handled.
     UnhandledAccelerationStructureNV,
+    /// An undefined descriptor type has been encountered which cannot be handled.
     UnhandledUndefined,
 }
 

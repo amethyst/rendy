@@ -22,7 +22,7 @@ mod reflect;
 pub use self::shaderc::*;
 
 #[cfg(feature = "spirv-reflection")]
-pub use self::reflect::SpirvReflection;
+pub use self::reflect::{ReflectError, ReflectTypeError, RetrievalKind, SpirvReflection};
 
 use gfx_hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
@@ -39,11 +39,6 @@ pub enum ShaderError {
     /// Shaderc returned an error.
     #[cfg(feature = "shader-compiler")]
     ShaderC(::shaderc::Error),
-    /// Neither a vertex nor a compute shader has been provided.
-    NoVertComputeProvided,
-    /// A reflection error occured.
-    #[cfg(feature = "spirv-reflection")]
-    Reflect(self::reflect::ReflectError),
     #[doc(hidden)]
     #[allow(non_camel_case_types)]
     __Unexhaustive,
@@ -60,11 +55,6 @@ impl std::fmt::Display for ShaderError {
             ShaderError::Io(e) => write!(f, "{}", e),
             #[cfg(feature = "shader-compiler")]
             ShaderError::ShaderC(e) => write!(f, "{}", e),
-            ShaderError::NoVertComputeProvided => {
-                write!(f, "a vertex or compute shader must be provided")
-            }
-            #[cfg(feature = "spirv-reflection")]
-            ShaderError::Reflect(e) => write!(f, "{}", e),
             ShaderError::__Unexhaustive => unreachable!(),
         }
     }
@@ -80,13 +70,6 @@ impl From<std::io::Error> for ShaderError {
 impl From<::shaderc::Error> for ShaderError {
     fn from(e: ::shaderc::Error) -> Self {
         ShaderError::ShaderC(e)
-    }
-}
-
-#[cfg(feature = "spirv-reflection")]
-impl From<reflect::ReflectError> for ShaderError {
-    fn from(e: reflect::ReflectError) -> Self {
-        ShaderError::Reflect(e)
     }
 }
 
@@ -429,9 +412,9 @@ impl ShaderSetBuilder {
     #[cfg(feature = "spirv-reflection")]
     /// This function processes all shaders provided to the builder and computes and stores full reflection information on the shader.
     /// This includes names, attributes, descriptor sets and push constants used by the shaders, as well as compiling local caches for performance.
-    pub fn reflect(&self) -> Result<SpirvReflection, ShaderError> {
+    pub fn reflect(&self) -> Result<SpirvReflection, ReflectError> {
         if self.vertex.is_none() && self.compute.is_none() {
-            return Err(ShaderError::NoVertComputeProvided);
+            return Err(ReflectError::NoVertComputeProvided);
         }
 
         // We need to combine and merge all the reflections into a single SpirvReflection instance
@@ -455,9 +438,7 @@ impl ShaderSetBuilder {
             reflections.push(SpirvReflection::reflect(&geometry.0, None)?);
         }
 
-        reflect::merge(&reflections)?
-            .compile_cache()
-            .map_err(Into::into)
+        reflect::merge(&reflections)?.compile_cache()
     }
 }
 

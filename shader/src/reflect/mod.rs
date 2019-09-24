@@ -8,11 +8,16 @@ pub(crate) mod types;
 pub use types::ReflectTypeError;
 use types::*;
 
+/// The item kind that couldn't be retrieved from spirv-reflect.
 #[derive(Copy, Clone, Debug)]
 pub enum RetrievalKind {
+    /// Input attributes.
     InputAttrib,
+    /// Output attributes.
     OutputAttrib,
+    /// Descriptor sets.
     DescriptorSets,
+    /// Push constants.
     PushConstants,
 }
 
@@ -27,16 +32,25 @@ impl RetrievalKind {
     }
 }
 
-/// Error occurred during reflection.
+/// A reflection error.
 #[derive(Debug)]
 pub enum ReflectError {
+    /// An item could not be retrieved from spirv-reflect.
     Retrieval(RetrievalKind, String),
+    /// A spirv-reflect error occured.
     General(String),
+    /// An attribute by the given name does not exist.
     NameDoesNotExist(String),
+    /// The cache wasn't constructed for the shader.
     CacheNotConstructued(ShaderStageFlags),
+    /// The bindings between the shaders of a set did not match.
     BindingsMismatch(usize),
+    /// The SpirvCachedGfxDescription was not created.
     SpirvCachedGfxDescription,
+    /// An error occured while reflecting a type.
     Type(ReflectTypeError),
+    /// Neither a vertex nor a compute shader has been provided.
+    NoVertComputeProvided,
 }
 
 impl std::error::Error for ReflectError {}
@@ -64,6 +78,9 @@ impl std::fmt::Display for ReflectError {
                 "SpirvCachedGfxDescription not created for this reflection"
             ),
             ReflectError::Type(e) => write!(f, "{}", e),
+            ReflectError::NoVertComputeProvided => {
+                write!(f, "a vertex or compute shader must be provided")
+            }
         }
     }
 }
