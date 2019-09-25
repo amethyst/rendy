@@ -28,48 +28,13 @@ use gfx_hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
 
 /// Error type returned by this module.
-#[derive(Debug)]
-pub enum ShaderError {
-    /// Shaderc could not be initialized.
-    Init,
-    /// The given path is not a valid UTF-8 string.
-    NonUtf8Path(std::path::PathBuf),
-    /// An io error occured.
-    Io(std::io::Error),
-    /// Shaderc returned an error.
-    #[cfg(feature = "shader-compiler")]
-    ShaderC(::shaderc::Error),
-    #[doc(hidden)]
-    #[allow(non_camel_case_types)]
-    __Unexhaustive,
-}
+#[derive(Copy, Clone, Debug)]
+pub enum ShaderError {}
 
 impl std::error::Error for ShaderError {}
 impl std::fmt::Display for ShaderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ShaderError::Init => write!(f, "failed to init Shaderc"),
-            ShaderError::NonUtf8Path(path) => {
-                write!(f, "path {:?} is not valid UTF-8 string", path)
-            }
-            ShaderError::Io(e) => write!(f, "{}", e),
-            #[cfg(feature = "shader-compiler")]
-            ShaderError::ShaderC(e) => write!(f, "{}", e),
-            ShaderError::__Unexhaustive => unreachable!(),
-        }
-    }
-}
-
-impl From<std::io::Error> for ShaderError {
-    fn from(e: std::io::Error) -> Self {
-        ShaderError::Io(e)
-    }
-}
-
-#[cfg(feature = "shader-compiler")]
-impl From<::shaderc::Error> for ShaderError {
-    fn from(e: ::shaderc::Error) -> Self {
-        ShaderError::ShaderC(e)
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {}
     }
 }
 
@@ -77,8 +42,11 @@ impl From<::shaderc::Error> for ShaderError {
 /// Implemented for static shaders via [`compile_to_spirv!`] macro.
 ///
 pub trait Shader {
+    /// The error type returned by the spirv function of this shader.
+    type Error: std::fmt::Debug;
+
     /// Get spirv bytecode.
-    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, ShaderError>;
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, <Self as Shader>::Error>;
 
     /// Get the entry point of the shader.
     fn entry(&self) -> &str;
@@ -148,7 +116,9 @@ impl SpirvShader {
 }
 
 impl Shader for SpirvShader {
-    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, ShaderError> {
+    type Error = ShaderError;
+
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, <Self as Shader>::Error> {
         Ok(std::borrow::Cow::Borrowed(&self.spirv))
     }
 
@@ -362,7 +332,7 @@ impl ShaderSetBuilder {
 
     /// Add a vertex shader to this shader set
     #[inline(always)]
-    pub fn with_vertex<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
+    pub fn with_vertex<S: Shader>(mut self, shader: &S) -> Result<Self, S::Error> {
         let data = shader.spirv()?;
         self.vertex = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -370,7 +340,7 @@ impl ShaderSetBuilder {
 
     /// Add a fragment shader to this shader set
     #[inline(always)]
-    pub fn with_fragment<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
+    pub fn with_fragment<S: Shader>(mut self, shader: &S) -> Result<Self, S::Error> {
         let data = shader.spirv()?;
         self.fragment = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -378,7 +348,7 @@ impl ShaderSetBuilder {
 
     /// Add a geometry shader to this shader set
     #[inline(always)]
-    pub fn with_geometry<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
+    pub fn with_geometry<S: Shader>(mut self, shader: &S) -> Result<Self, S::Error> {
         let data = shader.spirv()?;
         self.geometry = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -386,7 +356,7 @@ impl ShaderSetBuilder {
 
     /// Add a hull shader to this shader set
     #[inline(always)]
-    pub fn with_hull<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
+    pub fn with_hull<S: Shader>(mut self, shader: &S) -> Result<Self, S::Error> {
         let data = shader.spirv()?;
         self.hull = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -394,7 +364,7 @@ impl ShaderSetBuilder {
 
     /// Add a domain shader to this shader set
     #[inline(always)]
-    pub fn with_domain<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
+    pub fn with_domain<S: Shader>(mut self, shader: &S) -> Result<Self, S::Error> {
         let data = shader.spirv()?;
         self.domain = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)
@@ -403,7 +373,7 @@ impl ShaderSetBuilder {
     /// Add a compute shader to this shader set.
     /// Note a compute or vertex shader must always exist in a shader set.
     #[inline(always)]
-    pub fn with_compute<S: Shader>(mut self, shader: &S) -> Result<Self, ShaderError> {
+    pub fn with_compute<S: Shader>(mut self, shader: &S) -> Result<Self, S::Error> {
         let data = shader.spirv()?;
         self.compute = Some((data.to_vec(), shader.entry().to_string()));
         Ok(self)

@@ -1,5 +1,5 @@
 // This module is gated under "shader-compiler" feature
-use super::{Shader, ShaderError};
+use super::Shader;
 use crate::SpirvShader;
 pub use shaderc::{self, ShaderKind, SourceLanguage};
 
@@ -8,6 +8,45 @@ macro_rules! vk_make_version {
         let (major, minor, patch): (u32, u32, u32) = ($major, $minor, $patch);
         (major << 22) | (minor << 12) | patch
     }};
+}
+
+/// Error type returned by shader compiler functionality.
+#[derive(Debug)]
+pub enum ShaderCError {
+    /// Shaderc could not be initialized.
+    Init,
+    /// The given path is not a valid UTF-8 string.
+    NonUtf8Path(std::path::PathBuf),
+    /// An io error occured.
+    Io(std::io::Error),
+    /// Shaderc returned an error.
+    ShaderC(::shaderc::Error),
+}
+
+impl std::error::Error for ShaderCError {}
+impl std::fmt::Display for ShaderCError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShaderCError::Init => write!(f, "failed to init Shaderc"),
+            ShaderCError::NonUtf8Path(path) => {
+                write!(f, "path {:?} is not valid UTF-8 string", path)
+            }
+            ShaderCError::Io(e) => write!(f, "{}", e),
+            ShaderCError::ShaderC(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+impl From<std::io::Error> for ShaderCError {
+    fn from(e: std::io::Error) -> Self {
+        ShaderCError::Io(e)
+    }
+}
+
+impl From<::shaderc::Error> for ShaderCError {
+    fn from(e: ::shaderc::Error) -> Self {
+        ShaderCError::ShaderC(e)
+    }
 }
 
 /// Shader loaded from a source in the filesystem.
@@ -36,7 +75,7 @@ where
     E: AsRef<str>,
 {
     /// Precompile shader source code into Spir-V bytecode.
-    pub fn precompile(&self) -> Result<SpirvShader, ShaderError>
+    pub fn precompile(&self) -> Result<SpirvShader, <Self as Shader>::Error>
     where
         Self: Shader,
     {
@@ -53,21 +92,23 @@ where
     P: AsRef<std::path::Path> + std::fmt::Debug,
     E: AsRef<str>,
 {
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, ShaderError> {
+    type Error = ShaderCError;
+
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, <Self as Shader>::Error> {
         let code = std::fs::read_to_string(&self.path)?;
 
         let artifact = shaderc::Compiler::new()
-            .ok_or(ShaderError::Init)?
+            .ok_or(ShaderCError::Init)?
             .compile_into_spirv(
                 &code,
                 self.kind,
                 self.path
                     .as_ref()
                     .to_str()
-                    .ok_or_else(|| ShaderError::NonUtf8Path(self.path.as_ref().to_owned()))?,
+                    .ok_or_else(|| ShaderCError::NonUtf8Path(self.path.as_ref().to_owned()))?,
                 self.entry.as_ref(),
                 Some({
-                    let mut ops = shaderc::CompileOptions::new().ok_or(ShaderError::Init)?;
+                    let mut ops = shaderc::CompileOptions::new().ok_or(ShaderCError::Init)?;
                     ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                     ops.set_source_language(self.lang);
                     ops.set_generate_debug_info();
@@ -117,7 +158,7 @@ where
     E: AsRef<str>,
 {
     /// Precompile shader source code into Spir-V bytecode.
-    pub fn precompile(&self) -> Result<SpirvShader, ShaderError>
+    pub fn precompile(&self) -> Result<SpirvShader, <Self as Shader>::Error>
     where
         Self: Shader,
     {
@@ -135,19 +176,21 @@ where
     E: AsRef<str>,
     S: AsRef<str> + std::fmt::Debug,
 {
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, ShaderError> {
+    type Error = ShaderCError;
+
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, <Self as Shader>::Error> {
         let artifact = shaderc::Compiler::new()
-            .ok_or(ShaderError::Init)?
+            .ok_or(ShaderCError::Init)?
             .compile_into_spirv(
                 self.source.as_ref(),
                 self.kind,
                 self.path
                     .as_ref()
                     .to_str()
-                    .ok_or_else(|| ShaderError::NonUtf8Path(self.path.as_ref().to_owned()))?,
+                    .ok_or_else(|| ShaderCError::NonUtf8Path(self.path.as_ref().to_owned()))?,
                 self.entry.as_ref(),
                 Some({
-                    let mut ops = shaderc::CompileOptions::new().ok_or(ShaderError::Init)?;
+                    let mut ops = shaderc::CompileOptions::new().ok_or(ShaderCError::Init)?;
                     ops.set_target_env(shaderc::TargetEnv::Vulkan, vk_make_version!(1, 0, 0));
                     ops.set_source_language(self.lang);
                     ops.set_generate_debug_info();
