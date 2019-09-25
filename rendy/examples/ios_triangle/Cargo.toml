@@ -1,0 +1,13 @@
+[package]
+name = "ios-triangle"
+version = "0.1.0"
+authors = ["Brian Schwind <brianmschwind@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "ios_triangle"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+rendy = { path = "../.." }
