@@ -29,7 +29,7 @@ use rendy::{
     memory::Dynamic,
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{SourceShaderInfo, Shader, ShaderKind, SourceLanguage, SpirvShader},
+    shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     wsi::winit::{EventsLoop, Window, WindowBuilder},
 };
 

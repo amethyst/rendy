@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use super::queue::QueueId;
 use crate::Id;
+use std::collections::HashMap;
 
 /// Submission id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

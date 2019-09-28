@@ -244,7 +244,11 @@ where
             }
         }
 
-        Ok(MeshRenderPipeline { align, buffer, sets })
+        Ok(MeshRenderPipeline {
+            align,
+            buffer,
+            sets,
+        })
     }
 }
 
@@ -534,10 +538,7 @@ fn main() {
             {
                 let frames = frames.start - start;
                 let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                fpss.push((
-                    frames * 1_000_000_000 / nanos,
-                    from..scene.objects.len(),
-                ));
+                fpss.push((frames * 1_000_000_000 / nanos, from..scene.objects.len()));
                 checkpoint += elapsed;
                 break;
             }

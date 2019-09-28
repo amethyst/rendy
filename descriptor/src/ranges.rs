@@ -74,7 +74,7 @@ impl DescriptorRanges {
     /// Calculate ranges from bindings, specified with an iterator.
     pub fn from_binding_iter<I>(bindings: I) -> Self
     where
-        I: Iterator<Item = DescriptorSetLayoutBinding>
+        I: Iterator<Item = DescriptorSetLayoutBinding>,
     {
         let mut descs = Self::zero();
 
