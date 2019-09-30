@@ -582,7 +582,7 @@ fn run(
                 WindowEvent::Resized(_dims) => {
                     let started = std::time::Instant::now();
                     graph.take().unwrap().dispose(&mut factory, &());
-                    println!("Graph disposed in: {:?}", started.elapsed());
+                    log::trace!("Graph disposed in: {:?}", started.elapsed());
                     graph = Some(build_graph(&mut factory, &mut families, &window));
                 }
                 _ => {}
@@ -691,7 +691,7 @@ fn build_graph(
 
     let started = std::time::Instant::now();
     let graph = graph_builder.build(factory, families, &()).unwrap();
-    println!("Graph built in: {:?}", started.elapsed());
+    log::trace!("Graph built in: {:?}", started.elapsed());
     graph
 }
 

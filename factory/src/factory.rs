@@ -399,7 +399,10 @@ where
         buffer: &mut Buffer<B>,
         offset: u64,
         content: &[T],
-    ) -> Result<(), MapError> {
+    ) -> Result<(), MapError>
+    where
+        T: 'static + Copy,
+    {
         let content = std::slice::from_raw_parts(
             content.as_ptr() as *const u8,
             content.len() * std::mem::size_of::<T>(),
@@ -440,7 +443,10 @@ where
         content: &[T],
         last: Option<BufferState>,
         next: BufferState,
-    ) -> Result<(), UploadError> {
+    ) -> Result<(), UploadError>
+    where
+        T: 'static + Copy,
+    {
         assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
 
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
@@ -547,7 +553,10 @@ where
         content: &[T],
         last: impl Into<ImageStateOrLayout>,
         next: ImageState,
-    ) -> Result<(), UploadError> {
+    ) -> Result<(), UploadError>
+    where
+        T: 'static + Copy,
+    {
         assert!(image.info().usage.contains(image::Usage::TRANSFER_DST));
         assert_eq!(image.format().surface_desc().aspects, image_layers.aspects);
         assert!(image_layers.layers.start <= image_layers.layers.end);
