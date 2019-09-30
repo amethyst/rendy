@@ -283,7 +283,7 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_module("source_shaders", log::LevelFilter::Trace)
+        .filter_module("triangle", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();
