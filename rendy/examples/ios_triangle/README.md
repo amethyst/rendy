@@ -34,6 +34,7 @@ Some links to reference about this oddity here:
 * Delete `AppDelegate.swift`
 * Delete `SceneDelegate.swift` (if it exists, this is an iOS 13 SDK thing)
 * Delete `ContentView.swift` (if it exists, this is an iOS 13 SDK thing)
+* Delete "Application Scene Manifest" key from `Info.plist` (if it exists, this is an iOS 13 SDK thing)
 
 #### Under Project Settings -> General
 * Clear out "Main interface"
