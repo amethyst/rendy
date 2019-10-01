@@ -118,7 +118,7 @@ impl SpirvShader {
 impl Shader for SpirvShader {
     type Error = ShaderError;
 
-    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, <Self as Shader>::Error> {
+    fn spirv(&self) -> Result<std::borrow::Cow<'_, [u32]>, ShaderError> {
         Ok(std::borrow::Cow::Borrowed(&self.spirv))
     }
 

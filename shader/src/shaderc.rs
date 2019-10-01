@@ -94,7 +94,7 @@ where
 {
     type Error = ShaderCError;
 
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, <Self as Shader>::Error> {
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, ShaderCError> {
         let code = std::fs::read_to_string(&self.path)?;
 
         let artifact = shaderc::Compiler::new()
@@ -178,7 +178,7 @@ where
 {
     type Error = ShaderCError;
 
-    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, <Self as Shader>::Error> {
+    fn spirv(&self) -> Result<std::borrow::Cow<'static, [u32]>, ShaderCError> {
         let artifact = shaderc::Compiler::new()
             .ok_or(ShaderCError::Init)?
             .compile_into_spirv(
