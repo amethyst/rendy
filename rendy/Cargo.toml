@@ -102,7 +102,7 @@ required-features = ["base", "wsi-winit", "shader-compiler"]
 
 [[example]]
 name = "ios_triangle"
-path = "examples/ios_triangle/lib.rs"
+path = "examples/ios_triangle/src/lib.rs"
 crate-type = ["staticlib"]
 required-features = ["base", "wsi-winit", "shader-compiler", "metal"]
 
