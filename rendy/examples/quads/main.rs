@@ -433,7 +433,7 @@ where
                 .upload_buffer(
                     posvelbuff,
                     0,
-                    &POSVEL_DATA[..],
+                    &POSVEL_DATA,
                     None,
                     BufferState {
                         queue: QueueId {
