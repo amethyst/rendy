@@ -26,7 +26,14 @@ use rendy::shader::SpirvReflection;
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
 
+#[cfg(feature = "dx12")]
+type Backend = rendy::dx12::Backend;
+
+#[cfg(feature = "metal")]
 type Backend = rendy::metal::Backend;
+
+#[cfg(feature = "vulkan")]
+type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(

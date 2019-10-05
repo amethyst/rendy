@@ -13,8 +13,8 @@ rustup target add aarch64-apple-ios
 ## Building
 
 ```
-cd rendy/examples/ios_triangle
-cargo build --release --target aarch64-apple-ios --features rendy/metal
+cd rendy/
+cargo build --release --target aarch64-apple-ios --example ios_triangle --features metal
 ```
 
 The build currently fails with a CMake issue complaining about the C compiler not being able to compile and run a simple program.
