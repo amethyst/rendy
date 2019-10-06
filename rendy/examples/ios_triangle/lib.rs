@@ -208,7 +208,7 @@ fn run(
     let started = std::time::Instant::now();
 
     let mut frame = 0u64;
-    let mut elapsed = started.elapsed();
+    let elapsed = started.elapsed();
     let mut graph = Some(graph);
 
     event_loop.run(move |event, _, control_flow| {
@@ -223,11 +223,6 @@ fn run(
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
                     frame += 1;
-                }
-
-                elapsed = started.elapsed();
-                if elapsed >= std::time::Duration::new(5, 0) {
-                    *control_flow = ControlFlow::Exit
                 }
             }
             _ => {}
