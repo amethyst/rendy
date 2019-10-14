@@ -186,7 +186,7 @@ fn premultiply_alpha_2channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) {
 pub fn load_from_image<R>(
     mut reader: R,
     config: ImageTextureConfig,
-) -> Result<TextureBuilder<'static>, failure::Error>
+) -> Result<TextureBuilder<'static>, image::ImageError>
 where
     R: std::io::BufRead + std::io::Seek,
 {

@@ -9,19 +9,27 @@ use {
 
 /// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
-#[derive(Debug, failure::Fail)]
+#[derive(Debug)]
 pub enum HeapsError {
     /// Memory allocation failure.
-    #[fail(display = "{:?}", _0)]
     AllocationError(gfx_hal::device::AllocationError),
-
     /// No memory types among required for resource with requested properties was found.
-    #[fail(
-        display = "Memory type among ({}) with properties ({:?}) not found",
-        _0, _1
-    )]
     NoSuitableMemory(u32, gfx_hal::memory::Properties),
 }
+
+impl std::fmt::Display for HeapsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HeapsError::AllocationError(e) => write!(f, "{:?}", e),
+            HeapsError::NoSuitableMemory(e, e2) => write!(
+                f,
+                "Memory type among ({}) with properties ({:?}) not found",
+                e, e2
+            ),
+        }
+    }
+}
+impl std::error::Error for HeapsError {}
 
 impl From<gfx_hal::device::AllocationError> for HeapsError {
     fn from(error: gfx_hal::device::AllocationError) -> Self {

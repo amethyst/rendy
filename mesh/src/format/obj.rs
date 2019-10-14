@@ -6,24 +6,42 @@ use {
     wavefront_obj::obj,
 };
 
+/// Object loading error.Option
+#[derive(Debug)]
+pub enum ObjError {
+    /// The passed bytes were improper UTF-8 data.
+    Utf8(std::str::Utf8Error),
+    /// Parsing of the obj failed.
+    Parse(wavefront_obj::ParseError),
+}
+
+impl std::error::Error for ObjError {}
+impl std::fmt::Display for ObjError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ObjError::Utf8(e) => write!(f, "{}", e),
+            ObjError::Parse(e) => write!(
+                f,
+                "Error parsing object file at line {}: {}",
+                e.line_number, e.message
+            ),
+        }
+    }
+}
+
 /// Load mesh data from obj.
 pub fn load_from_obj(
     bytes: &[u8],
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
-    let string = std::str::from_utf8(bytes)?;
-    let set = obj::parse(string).map_err(|e| {
-        failure::format_err!(
-            "Error during parsing obj-file at line '{}': {}",
-            e.line_number,
-            e.message
-        )
-    })?;
-    load_from_data(set)
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
+    let string = std::str::from_utf8(bytes).map_err(ObjError::Utf8)?;
+    obj::parse(string)
+        .and_then(load_from_data)
+        .map_err(ObjError::Parse)
 }
 
 fn load_from_data(
     obj_set: obj::ObjSet,
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, failure::Error> {
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, wavefront_obj::ParseError> {
     // Takes a list of objects that contain geometries that contain shapes that contain
     // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.
