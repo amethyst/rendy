@@ -1,6 +1,6 @@
 [package]
 name = "rendy-memory"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
