@@ -7,10 +7,10 @@ pub mod render;
 use {
     crate::{
         command::{Capability, Families, Family, FamilyId, Fence, Queue, Submission, Submittable},
+        core::{rendy_with_metal_backend, rendy_without_metal_backend},
         factory::{Factory, UploadError},
         frame::Frames,
         graph::GraphContext,
-        core::{rendy_with_metal_backend, rendy_without_metal_backend},
         wsi::SwapchainError,
         BufferId, ImageId, NodeId,
     },

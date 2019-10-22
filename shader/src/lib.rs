@@ -67,9 +67,9 @@ pub trait Shader {
     {
         rendy_core::hal::device::Device::create_shader_module(
             factory.device().raw(),
-            &self
-                .spirv()
-                .map_err(|e| rendy_core::hal::device::ShaderError::CompilationFailed(format!("{:?}", e)))?,
+            &self.spirv().map_err(|e| {
+                rendy_core::hal::device::ShaderError::CompilationFailed(format!("{:?}", e))
+            })?,
         )
     }
 }
@@ -99,7 +99,8 @@ mod serde_spirv {
     {
         // Via the serde::Deserialize impl for &[u8].
         let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
-        rendy_core::hal::pso::read_spirv(std::io::Cursor::new(bytes)).map_err(serde::de::Error::custom)
+        rendy_core::hal::pso::read_spirv(std::io::Cursor::new(bytes))
+            .map_err(serde::de::Error::custom)
     }
 }
 
@@ -166,7 +167,9 @@ impl<B: Backend> ShaderSet<B> {
     }
 
     /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in rendy_core::hal.
-    pub fn raw<'a>(&'a self) -> Result<(rendy_core::hal::pso::GraphicsShaderSet<'a, B>), ShaderError> {
+    pub fn raw<'a>(
+        &'a self,
+    ) -> Result<(rendy_core::hal::pso::GraphicsShaderSet<'a, B>), ShaderError> {
         Ok(rendy_core::hal::pso::GraphicsShaderSet {
             vertex: self
                 .shaders

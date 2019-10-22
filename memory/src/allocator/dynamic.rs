@@ -13,8 +13,8 @@ use {
         memory::*,
         util::*,
     },
-    rendy_core::hal::{device::Device as _, Backend},
     hibitset::{BitSet, BitSetLike as _},
+    rendy_core::hal::{device::Device as _, Backend},
 };
 
 /// Memory block allocated from `DynamicAllocator`

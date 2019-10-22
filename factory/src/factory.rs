@@ -5,11 +5,11 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
+        core::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
         descriptor::DescriptorAllocator,
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        core::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
         wsi::{Surface, SwapchainError, Target},
     },
     rendy_core::hal::{

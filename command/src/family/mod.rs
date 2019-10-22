@@ -7,8 +7,8 @@ use {
     crate::{
         buffer::Reset,
         capability::{Capability, QueueType, Supports},
-        pool::CommandPool,
         core::{device_owned, Device, DeviceId},
+        pool::CommandPool,
     },
     rendy_core::hal::Backend,
 };

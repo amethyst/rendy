@@ -190,8 +190,8 @@ pub fn load_from_image<R>(
 where
     R: std::io::BufRead + std::io::Seek,
 {
-    use rendy_core::hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
+    use rendy_core::hal::format::{Component, Swizzle};
 
     let image_format = config.format.map_or_else(
         || {

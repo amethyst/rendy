@@ -4,10 +4,10 @@
 
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
+    core::cast_cow,
     factory::{BufferState, Factory, UploadError},
     memory::{Data, Upload, Write},
     resource::{Buffer, BufferInfo, Escape},
-    core::cast_cow,
     AsVertex, VertexFormat,
 };
 use rendy_core::hal::adapter::PhysicalDevice;
@@ -248,7 +248,8 @@ impl<'a> MeshBuilder<'a> {
             .create_buffer(
                 BufferInfo {
                     size: buffer_size as _,
-                    usage: rendy_core::hal::buffer::Usage::VERTEX | rendy_core::hal::buffer::Usage::TRANSFER_DST,
+                    usage: rendy_core::hal::buffer::Usage::VERTEX
+                        | rendy_core::hal::buffer::Usage::TRANSFER_DST,
                 },
                 Data,
             )

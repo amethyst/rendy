@@ -2,8 +2,8 @@ use std::cmp::min;
 
 use crate::{
     command::FamilyId,
-    memory::{DynamicConfig, HeapsConfig, LinearConfig},
     core::DeviceId,
+    memory::{DynamicConfig, HeapsConfig, LinearConfig},
 };
 
 /// Factory initialization config.

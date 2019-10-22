@@ -13,12 +13,12 @@
 
 use {
     rendy_core::hal::{device::Device as _, window::Extent2D, Backend},
-    rendy_resource::{Image, ImageInfo},
     rendy_core::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
         rendy_with_metal_backend, rendy_with_vulkan_backend, Device, DeviceId, Instance,
         InstanceId,
     },
+    rendy_resource::{Image, ImageInfo},
 };
 
 #[cfg(feature = "winit")]
@@ -176,7 +176,10 @@ where
     }
 
     /// Get surface ideal format.
-    pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> rendy_core::hal::format::Format {
+    pub unsafe fn format(
+        &self,
+        physical_device: &B::PhysicalDevice,
+    ) -> rendy_core::hal::format::Format {
         let (_capabilities, formats, _present_modes) =
             rendy_core::hal::window::Surface::compatibility(&self.raw, physical_device);
         let formats = formats.unwrap();
