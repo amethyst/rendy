@@ -7,7 +7,7 @@ use {
         mapping::{mapped_fitting_range, MappedRange},
         memory::*,
     },
-    gfx_hal::{device::Device as _, Backend},
+    rendy_core::hal::{device::Device as _, Backend},
 };
 
 /// Memory block allocated from `DedicatedAllocator`
@@ -45,7 +45,7 @@ where
     B: Backend,
 {
     #[inline]
-    fn properties(&self) -> gfx_hal::memory::Properties {
+    fn properties(&self) -> rendy_core::hal::memory::Properties {
         self.memory.properties()
     }
 
@@ -63,7 +63,7 @@ where
         &'a mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
+    ) -> Result<MappedRange<'a, B>, rendy_core::hal::device::MapError> {
         assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
@@ -71,7 +71,7 @@ where
 
         if !self.memory.host_visible() {
             //TODO: invalid access error
-            return Err(gfx_hal::device::MapError::MappingFailed);
+            return Err(rendy_core::hal::device::MapError::MappingFailed);
         }
 
         unsafe {
@@ -112,22 +112,22 @@ where
 /// TODO: Check if resource prefers dedicated memory.
 #[derive(Debug)]
 pub struct DedicatedAllocator {
-    memory_type: gfx_hal::MemoryTypeId,
-    memory_properties: gfx_hal::memory::Properties,
+    memory_type: rendy_core::hal::MemoryTypeId,
+    memory_properties: rendy_core::hal::memory::Properties,
     used: u64,
 }
 
 impl DedicatedAllocator {
     /// Get properties required by the allocator.
-    pub fn properties_required() -> gfx_hal::memory::Properties {
-        gfx_hal::memory::Properties::empty()
+    pub fn properties_required() -> rendy_core::hal::memory::Properties {
+        rendy_core::hal::memory::Properties::empty()
     }
 
     /// Create new `LinearAllocator`
     /// for `memory_type` with `memory_properties` specified
     pub fn new(
-        memory_type: gfx_hal::MemoryTypeId,
-        memory_properties: gfx_hal::memory::Properties,
+        memory_type: rendy_core::hal::MemoryTypeId,
+        memory_properties: rendy_core::hal::memory::Properties,
     ) -> Self {
         DedicatedAllocator {
             memory_type,
@@ -153,7 +153,7 @@ where
         device: &B::Device,
         size: u64,
         _align: u64,
-    ) -> Result<(DedicatedBlock<B>, u64), gfx_hal::device::AllocationError> {
+    ) -> Result<(DedicatedBlock<B>, u64), rendy_core::hal::device::AllocationError> {
         let memory = unsafe {
             Memory::from_raw(
                 device.allocate_memory(self.memory_type, size)?,

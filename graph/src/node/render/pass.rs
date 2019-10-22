@@ -20,7 +20,7 @@ use {
         BufferId, ImageId, NodeId,
     },
     either::Either,
-    gfx_hal::{device::Device as _, image::Layout, Backend},
+    rendy_core::hal::{device::Device as _, image::Layout, Backend},
     std::{cmp::min, collections::HashMap},
 };
 
@@ -165,7 +165,7 @@ where
 #[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassBuilder<B, T>>,
-    surface: Option<(Surface<B>, Option<gfx_hal::command::ClearValue>)>,
+    surface: Option<(Surface<B>, Option<rendy_core::hal::command::ClearValue>)>,
 }
 
 impl<B, T> RenderPassNodeBuilder<B, T>
@@ -194,7 +194,7 @@ where
     pub fn add_surface(
         &mut self,
         surface: Surface<B>,
-        clear: Option<gfx_hal::command::ClearValue>,
+        clear: Option<rendy_core::hal::command::ClearValue>,
     ) -> &mut Self {
         assert!(
             self.surface.is_none(),
@@ -208,7 +208,7 @@ where
     pub fn with_surface(
         mut self,
         surface: Surface<B>,
-        clear: Option<gfx_hal::command::ClearValue>,
+        clear: Option<rendy_core::hal::command::ClearValue>,
     ) -> Self {
         self.add_surface(surface, clear);
         self
@@ -226,9 +226,9 @@ where
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
         let empty = BufferAccess {
-            access: gfx_hal::buffer::Access::empty(),
-            usage: gfx_hal::buffer::Usage::empty(),
-            stages: gfx_hal::pso::PipelineStage::empty(),
+            access: rendy_core::hal::buffer::Access::empty(),
+            usage: rendy_core::hal::buffer::Usage::empty(),
+            stages: rendy_core::hal::pso::PipelineStage::empty(),
         };
         let mut buffers = HashMap::new();
 
@@ -248,9 +248,9 @@ where
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
         let empty = ImageAccess {
-            access: gfx_hal::image::Access::empty(),
-            usage: gfx_hal::image::Usage::empty(),
-            stages: gfx_hal::pso::PipelineStage::empty(),
+            access: rendy_core::hal::image::Access::empty(),
+            usage: rendy_core::hal::image::Usage::empty(),
+            stages: rendy_core::hal::pso::PipelineStage::empty(),
             layout: Layout::Undefined,
         };
         let mut attachments = HashMap::new();
@@ -262,9 +262,9 @@ where
                     layout: Layout::ShaderReadOnlyOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::INPUT_ATTACHMENT_READ;
-                entry.usage |= gfx_hal::image::Usage::INPUT_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::FRAGMENT_SHADER;
+                entry.access |= rendy_core::hal::image::Access::INPUT_ATTACHMENT_READ;
+                entry.usage |= rendy_core::hal::image::Usage::INPUT_ATTACHMENT;
+                entry.stages |= rendy_core::hal::pso::PipelineStage::FRAGMENT_SHADER;
             }
 
             for &id in subpass.colors.iter().filter_map(|e| e.as_ref().left()) {
@@ -272,10 +272,10 @@ where
                     layout: Layout::ColorAttachmentOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::COLOR_ATTACHMENT_READ
-                    | gfx_hal::image::Access::COLOR_ATTACHMENT_WRITE;
-                entry.usage |= gfx_hal::image::Usage::COLOR_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+                entry.access |= rendy_core::hal::image::Access::COLOR_ATTACHMENT_READ
+                    | rendy_core::hal::image::Access::COLOR_ATTACHMENT_WRITE;
+                entry.usage |= rendy_core::hal::image::Usage::COLOR_ATTACHMENT;
+                entry.stages |= rendy_core::hal::pso::PipelineStage::COLOR_ATTACHMENT_OUTPUT;
             }
 
             if let Some(id) = subpass.depth_stencil.and_then(Either::left) {
@@ -283,11 +283,11 @@ where
                     layout: Layout::DepthStencilAttachmentOptimal,
                     ..empty
                 });
-                entry.access |= gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
-                    | gfx_hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
-                entry.usage |= gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
-                entry.stages |= gfx_hal::pso::PipelineStage::EARLY_FRAGMENT_TESTS
-                    | gfx_hal::pso::PipelineStage::LATE_FRAGMENT_TESTS;
+                entry.access |= rendy_core::hal::image::Access::DEPTH_STENCIL_ATTACHMENT_READ
+                    | rendy_core::hal::image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
+                entry.usage |= rendy_core::hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
+                entry.stages |= rendy_core::hal::pso::PipelineStage::EARLY_FRAGMENT_TESTS
+                    | rendy_core::hal::pso::PipelineStage::LATE_FRAGMENT_TESTS;
             }
 
             for group in &subpass.groups {
@@ -362,18 +362,18 @@ where
             })
             .collect();
 
-        let mut surface_usage = gfx_hal::image::Usage::empty();
+        let mut surface_usage = rendy_core::hal::image::Usage::empty();
         if surface_color_usage {
-            surface_usage |= gfx_hal::image::Usage::COLOR_ATTACHMENT;
+            surface_usage |= rendy_core::hal::image::Usage::COLOR_ATTACHMENT;
         }
         if surface_depth_usage {
-            surface_usage |= gfx_hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
+            surface_usage |= rendy_core::hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
         }
 
         if surface.is_some() {
             log::debug!("Surface usage {:#?}", surface_usage);
         } else {
-            debug_assert_eq!(surface_usage, gfx_hal::image::Usage::empty());
+            debug_assert_eq!(surface_usage, rendy_core::hal::image::Usage::empty());
         }
 
         attachments.sort();
@@ -415,10 +415,10 @@ where
                                 .device()
                                 .create_image_view(
                                     image.raw(),
-                                    gfx_hal::image::ViewKind::D2,
+                                    rendy_core::hal::image::ViewKind::D2,
                                     image.format(),
-                                    gfx_hal::format::Swizzle::NO,
-                                    gfx_hal::image::SubresourceRange {
+                                    rendy_core::hal::format::Swizzle::NO,
+                                    rendy_core::hal::image::SubresourceRange {
                                         // NOTE: Framebuffer must always be created with only one mip level. If image contains multiple levels,
                                         // only the first one is bound as an attachment.
                                         // TODO: Allow customizing this behaviour to choose which level to bind.
@@ -434,7 +434,7 @@ where
 
                         let surface = surface.take().expect("Render pass should be configured with Surface instance if at least one subpass uses surface attachment");
                         let surface_extent = unsafe {
-                            surface.extent(factory.physical()).unwrap_or(gfx_hal::window::Extent2D { width: framebuffer_width, height: framebuffer_height })
+                            surface.extent(factory.physical()).unwrap_or(rendy_core::hal::window::Extent2D { width: framebuffer_width, height: framebuffer_height })
                         };
 
                         log::debug!("Surface extent {:#?}", surface_extent);
@@ -449,10 +449,10 @@ where
                         let present_mode = *present_modes_caps
                             .iter()
                             .max_by_key(|mode| match mode {
-                                gfx_hal::window::PresentMode::Fifo => 3,
-                                gfx_hal::window::PresentMode::Mailbox => 2,
-                                gfx_hal::window::PresentMode::Relaxed => 1,
-                                gfx_hal::window::PresentMode::Immediate => 0,
+                                rendy_core::hal::window::PresentMode::Fifo => 3,
+                                rendy_core::hal::window::PresentMode::Mailbox => 2,
+                                rendy_core::hal::window::PresentMode::Relaxed => 1,
+                                rendy_core::hal::window::PresentMode::Immediate => 0,
                             })
                             .unwrap();
 
@@ -481,10 +481,10 @@ where
                                 .device()
                                 .create_image_view(
                                     image.raw(),
-                                    gfx_hal::image::ViewKind::D2,
+                                    rendy_core::hal::image::ViewKind::D2,
                                     image.format(),
-                                    gfx_hal::format::Swizzle::NO,
-                                    gfx_hal::image::SubresourceRange {
+                                    rendy_core::hal::format::Swizzle::NO,
+                                    rendy_core::hal::image::SubresourceRange {
                                         aspects: image.format().surface_desc().aspects,
                                         levels: 0 .. 1,
                                         layers: 0 .. 1,
@@ -524,24 +524,24 @@ where
                                 .backbuffer()[0]
                                 .format(),
                             surface_clear,
-                            gfx_hal::image::Layout::Present,
+                            rendy_core::hal::image::Layout::Present,
                             1,
                         ),
                     };
 
-                    gfx_hal::pass::Attachment {
+                    rendy_core::hal::pass::Attachment {
                         format: Some(format),
-                        ops: gfx_hal::pass::AttachmentOps {
+                        ops: rendy_core::hal::pass::AttachmentOps {
                             load: if clear.is_some() {
-                                gfx_hal::pass::AttachmentLoadOp::Clear
+                                rendy_core::hal::pass::AttachmentLoadOp::Clear
                             } else {
-                                gfx_hal::pass::AttachmentLoadOp::Load
+                                rendy_core::hal::pass::AttachmentLoadOp::Load
                             },
-                            store: gfx_hal::pass::AttachmentStoreOp::Store,
+                            store: rendy_core::hal::pass::AttachmentStoreOp::Store,
                         },
-                        stencil_ops: gfx_hal::pass::AttachmentOps::DONT_CARE,
+                        stencil_ops: rendy_core::hal::pass::AttachmentOps::DONT_CARE,
                         layouts: if clear.is_some() {
-                            gfx_hal::image::Layout::Undefined..layout
+                            rendy_core::hal::image::Layout::Undefined..layout
                         } else {
                             layout..layout
                         },
@@ -574,7 +574,7 @@ where
                                         find_attachment_node_image(image_id).layout
                                     }
                                     Either::Right(RenderPassSurface) => {
-                                        gfx_hal::image::Layout::ShaderReadOnlyOptimal
+                                        rendy_core::hal::image::Layout::ShaderReadOnlyOptimal
                                     }
                                 },
                             )
@@ -591,7 +591,7 @@ where
                                         find_attachment_node_image(image_id).layout
                                     }
                                     Either::Right(RenderPassSurface) => {
-                                        gfx_hal::image::Layout::ColorAttachmentOptimal
+                                        rendy_core::hal::image::Layout::ColorAttachmentOptimal
                                     }
                                 },
                             )
@@ -605,7 +605,7 @@ where
                                     find_attachment_node_image(image_id).layout
                                 }
                                 Either::Right(RenderPassSurface) => {
-                                    gfx_hal::image::Layout::DepthStencilAttachmentOptimal
+                                    rendy_core::hal::image::Layout::DepthStencilAttachmentOptimal
                                 }
                             },
                         )
@@ -617,7 +617,7 @@ where
 
             let subpasses: Vec<_> = subpasses
                 .iter()
-                .map(|subpass| gfx_hal::pass::SubpassDesc {
+                .map(|subpass| rendy_core::hal::pass::SubpassDesc {
                     inputs: &subpass.inputs[..],
                     colors: &subpass.colors[..],
                     depth_stencil: subpass.depth_stencil.as_ref(),
@@ -635,7 +635,7 @@ where
                             1,
                             "TODO: Implement subpass dependencies to allow more than one subpass"
                         );
-                        std::iter::empty::<gfx_hal::pass::SubpassDependency>()
+                        std::iter::empty::<rendy_core::hal::pass::SubpassDependency>()
                     })
             }
             .unwrap();
@@ -663,7 +663,7 @@ where
                     .create_framebuffer(
                         &render_pass,
                         views[..attachments.len() - 1].iter().chain(Some(&views[i])),
-                        gfx_hal::image::Extent {
+                        rendy_core::hal::image::Extent {
                             width: framebuffer_width,
                             height: framebuffer_height,
                             depth: framebuffer_layers as u32, // This is gfx-hal BUG as this parameter actually means framebuffer layers number,
@@ -702,7 +702,7 @@ where
                 unsafe {
                     recording.encoder().pipeline_barrier(
                         stages,
-                        gfx_hal::memory::Dependencies::empty(),
+                        rendy_core::hal::memory::Dependencies::empty(),
                         barriers,
                     );
                 }
@@ -728,7 +728,7 @@ where
                 unsafe {
                     recording.encoder().pipeline_barrier(
                         stages,
-                        gfx_hal::memory::Dependencies::empty(),
+                        rendy_core::hal::memory::Dependencies::empty(),
                         barriers,
                     );
                 }
@@ -792,7 +792,7 @@ where
                             aux,
                             framebuffer_width,
                             framebuffer_height,
-                            gfx_hal::pass::Subpass {
+                            rendy_core::hal::pass::Subpass {
                                 index,
                                 main_pass: &render_pass,
                             },
@@ -909,7 +909,7 @@ struct RenderPassNodeCommon<B: Backend, T: ?Sized> {
 
     render_pass: B::RenderPass,
     views: Vec<B::ImageView>,
-    clears: Vec<gfx_hal::command::ClearValue>,
+    clears: Vec<rendy_core::hal::command::ClearValue>,
 
     command_pool: CommandPool<B, Graphics, IndividualReset>,
     command_cirque: CommandCirque<B, Graphics>,
@@ -991,7 +991,7 @@ where
         queue: &mut Queue<B>,
         aux: &T,
         frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, rendy_core::hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
@@ -1048,7 +1048,7 @@ where
                                         factory,
                                         queue.id(),
                                         index,
-                                        gfx_hal::pass::Subpass {
+                                        rendy_core::hal::pass::Subpass {
                                             index: subpass_index,
                                             main_pass: &render_pass,
                                         },
@@ -1077,7 +1077,7 @@ where
                 if let Some(next) = &next {
                     let ref mut for_image = per_image[next[0] as usize];
 
-                    let area = gfx_hal::pso::Rect {
+                    let area = rendy_core::hal::pso::Rect {
                         x: 0,
                         y: 0,
                         w: *framebuffer_width as _,
@@ -1099,7 +1099,7 @@ where
                                 group.draw_inline(
                                     pass_encoder.reborrow(),
                                     index,
-                                    gfx_hal::pass::Subpass {
+                                    rendy_core::hal::pass::Subpass {
                                         index: subpass_index,
                                         main_pass: &render_pass,
                                     },
@@ -1127,7 +1127,7 @@ where
                     .wait(waits.iter().cloned().chain(next.as_ref().map(|n| {
                         (
                             &per_image[n[0] as usize].acquire,
-                            gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                            rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
                         )
                     })))
                     .signal(
@@ -1179,7 +1179,7 @@ where
         queue: &mut Queue<B>,
         aux: &T,
         frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, rendy_core::hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
@@ -1219,7 +1219,7 @@ where
                                     factory,
                                     queue.id(),
                                     index,
-                                    gfx_hal::pass::Subpass {
+                                    rendy_core::hal::pass::Subpass {
                                         index: subpass_index,
                                         main_pass: &render_pass,
                                     },
@@ -1243,7 +1243,7 @@ where
                     encoder.execute_commands(std::iter::once(&barriers.submit));
                 }
 
-                let area = gfx_hal::pso::Rect {
+                let area = rendy_core::hal::pso::Rect {
                     x: 0,
                     y: 0,
                     w: *framebuffer_width as _,
@@ -1261,7 +1261,7 @@ where
                             group.draw_inline(
                                 pass_encoder.reborrow(),
                                 index,
-                                gfx_hal::pass::Subpass {
+                                rendy_core::hal::pass::Subpass {
                                     index: subpass_index,
                                     main_pass: &render_pass,
                                 },

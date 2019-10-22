@@ -1,11 +1,11 @@
 [package]
-name = "rendy-util"
-version = "0.4.0"
+name = "rendy-core"
+version = "0.5.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
 license = "MIT OR Apache-2.0"
-documentation = "https://docs.rs/rendy-util"
+documentation = "https://docs.rs/rendy-core"
 keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's utilities"
@@ -14,9 +14,9 @@ description = "Rendy's utilities"
 serde-1 = ["serde", "gfx-hal/serde"]
 
 # This list of features is common for many of rendy's crates
-# All other crates should transitively enable feature for rendy-util crate
+# All other crates should transitively enable feature for rendy-core crate
 # and not rely on the feature being enabled for that crate directly.
-# To conditionally enable token trees `rendy-util::with_*` macro should be used instead of
+# To conditionally enable token trees `rendy-core::with_*` macro should be used instead of
 # `cfg` attributes.
 empty = ["gfx-backend-empty"]
 dx12 = ["gfx-backend-dx12"]

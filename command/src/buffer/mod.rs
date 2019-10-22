@@ -12,7 +12,7 @@ use {
         capability::{Capability, Supports},
         family::FamilyId,
     },
-    gfx_hal::Backend,
+    rendy_core::hal::Backend,
 };
 
 pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
@@ -125,7 +125,7 @@ where
     }
 
     /// Convert capability level.
-    pub fn with_queue_type(self) -> CommandBuffer<B, gfx_hal::queue::QueueType, S, L, R>
+    pub fn with_queue_type(self) -> CommandBuffer<B, rendy_core::hal::queue::QueueType, S, L, R>
     where
         C: Capability,
     {
@@ -167,7 +167,7 @@ pub unsafe trait BeginInfo<'a, B: Backend, L> {
     type PassRelation: RenderPassRelation<L>;
 
     /// Get command buffer inheritance info.
-    fn inheritance_info(self) -> gfx_hal::command::CommandBufferInheritanceInfo<'a, B>;
+    fn inheritance_info(self) -> rendy_core::hal::command::CommandBufferInheritanceInfo<'a, B>;
 }
 
 unsafe impl<'a, B, L> BeginInfo<'a, B, L> for ()
@@ -177,55 +177,55 @@ where
 {
     type PassRelation = OutsideRenderPass;
 
-    fn inheritance_info(self) -> gfx_hal::command::CommandBufferInheritanceInfo<'a, B> {
-        gfx_hal::command::CommandBufferInheritanceInfo::default()
+    fn inheritance_info(self) -> rendy_core::hal::command::CommandBufferInheritanceInfo<'a, B> {
+        rendy_core::hal::command::CommandBufferInheritanceInfo::default()
     }
 }
 
-unsafe impl<'a, B> BeginInfo<'a, B, SecondaryLevel> for gfx_hal::pass::Subpass<'a, B>
+unsafe impl<'a, B> BeginInfo<'a, B, SecondaryLevel> for rendy_core::hal::pass::Subpass<'a, B>
 where
     B: Backend,
 {
     type PassRelation = RenderPassContinue;
 
-    fn inheritance_info(self) -> gfx_hal::command::CommandBufferInheritanceInfo<'a, B> {
-        gfx_hal::command::CommandBufferInheritanceInfo {
+    fn inheritance_info(self) -> rendy_core::hal::command::CommandBufferInheritanceInfo<'a, B> {
+        rendy_core::hal::command::CommandBufferInheritanceInfo {
             subpass: Some(self),
             framebuffer: None,
-            ..gfx_hal::command::CommandBufferInheritanceInfo::default()
+            ..rendy_core::hal::command::CommandBufferInheritanceInfo::default()
         }
     }
 }
 
 unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel>
-    for (gfx_hal::pass::Subpass<'a, B>, Option<&'a F>)
+    for (rendy_core::hal::pass::Subpass<'a, B>, Option<&'a F>)
 where
     B: Backend,
     F: std::borrow::Borrow<B::Framebuffer>,
 {
     type PassRelation = RenderPassContinue;
 
-    fn inheritance_info(self) -> gfx_hal::command::CommandBufferInheritanceInfo<'a, B> {
-        gfx_hal::command::CommandBufferInheritanceInfo {
+    fn inheritance_info(self) -> rendy_core::hal::command::CommandBufferInheritanceInfo<'a, B> {
+        rendy_core::hal::command::CommandBufferInheritanceInfo {
             subpass: Some(self.0),
             framebuffer: self.1.map(F::borrow),
-            ..gfx_hal::command::CommandBufferInheritanceInfo::default()
+            ..rendy_core::hal::command::CommandBufferInheritanceInfo::default()
         }
     }
 }
 
-unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel> for (gfx_hal::pass::Subpass<'a, B>, &'a F)
+unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel> for (rendy_core::hal::pass::Subpass<'a, B>, &'a F)
 where
     B: Backend,
     F: std::borrow::Borrow<B::Framebuffer>,
 {
     type PassRelation = RenderPassContinue;
 
-    fn inheritance_info(self) -> gfx_hal::command::CommandBufferInheritanceInfo<'a, B> {
-        gfx_hal::command::CommandBufferInheritanceInfo {
+    fn inheritance_info(self) -> rendy_core::hal::command::CommandBufferInheritanceInfo<'a, B> {
+        rendy_core::hal::command::CommandBufferInheritanceInfo {
             subpass: Some(self.0),
             framebuffer: Some(self.1.borrow()),
-            ..gfx_hal::command::CommandBufferInheritanceInfo::default()
+            ..rendy_core::hal::command::CommandBufferInheritanceInfo::default()
         }
     }
 }
@@ -250,7 +250,7 @@ where
     {
         let pass_relation = P::default();
         unsafe {
-            gfx_hal::command::CommandBuffer::begin(
+            rendy_core::hal::command::CommandBuffer::begin(
                 self.raw(),
                 usage.flags() | pass_relation.flags(),
                 info.inheritance_info(),
@@ -268,7 +268,7 @@ where
     /// Finish recording command buffer.
     pub fn finish(mut self) -> CommandBuffer<B, C, ExecutableState<U, P>, L, R> {
         unsafe {
-            gfx_hal::command::CommandBuffer::finish(self.raw());
+            rendy_core::hal::command::CommandBuffer::finish(self.raw());
 
             self.change_state(|s| ExecutableState(s.0, s.1))
         }
@@ -294,9 +294,9 @@ where
     /// was submitted must be complete.
     ///
     /// [`Submit`]: struct.Submit
-    /// [waiting]: ..gfx_hal/device/trait.Device.html#method.wait_for_fences
-    /// [`Fence`]: ..gfx_hal/trait.Backend.html#associatedtype.Fence
-    /// [submitted]: ..gfx_hal/queue/struct.CommandQueue.html#method.submit
+    /// [waiting]: ..rendy_core::hal/device/trait.Device.html#method.wait_for_fences
+    /// [`Fence`]: ..rendy_core::hal/trait.Backend.html#associatedtype.Fence
+    /// [submitted]: ..rendy_core::hal/queue/struct.CommandQueue.html#method.submit
     pub unsafe fn mark_complete(self) -> CommandBuffer<B, C, N, L, R> {
         self.change_state(|PendingState(state)| state)
     }

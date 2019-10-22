@@ -1,7 +1,7 @@
 use {
     super::{submission::*, QueueId},
     crate::{buffer::Submittable, fence::*},
-    gfx_hal::{queue::CommandQueue, Backend},
+    rendy_core::hal::{queue::CommandQueue, Backend},
 };
 
 /// Command queue wrapper.
@@ -53,7 +53,7 @@ where
                 impl IntoIterator<
                     Item = (
                         &'a (impl std::borrow::Borrow<B::Semaphore> + 'a),
-                        gfx_hal::pso::PipelineStage,
+                        rendy_core::hal::pso::PipelineStage,
                     ),
                 >,
                 impl IntoIterator<Item = impl Submittable<B>>,
@@ -67,7 +67,7 @@ where
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
-                gfx_hal::queue::Submission {
+                rendy_core::hal::queue::Submission {
                     command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
                     wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
                     signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
@@ -78,7 +78,7 @@ where
             let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
-                    gfx_hal::queue::Submission {
+                    rendy_core::hal::queue::Submission {
                         command_buffers: submission.submits.into_iter().map(|submit| {
                             assert_eq!(submit.family(), family);
                             submit.raw()
@@ -113,7 +113,7 @@ where
                 impl IntoIterator<
                     Item = (
                         &'a (impl std::borrow::Borrow<B::Semaphore> + 'a),
-                        gfx_hal::pso::PipelineStage,
+                        rendy_core::hal::pso::PipelineStage,
                     ),
                 >,
                 impl IntoIterator<Item = impl Submittable<B>>,
@@ -125,7 +125,7 @@ where
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
-                gfx_hal::queue::Submission {
+                rendy_core::hal::queue::Submission {
                     command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
                     wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
                     signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
@@ -136,7 +136,7 @@ where
             let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
-                    gfx_hal::queue::Submission {
+                    rendy_core::hal::queue::Submission {
                         command_buffers: submission.submits.into_iter().map(|submit| {
                             assert_eq!(submit.family(), family);
                             submit.raw()
@@ -151,7 +151,7 @@ where
     }
 
     /// Wait for queue to finish all pending commands.
-    pub fn wait_idle(&self) -> Result<(), gfx_hal::device::OutOfMemory> {
+    pub fn wait_idle(&self) -> Result<(), rendy_core::hal::device::OutOfMemory> {
         self.raw.wait_idle()
     }
 }

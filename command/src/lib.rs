@@ -16,7 +16,7 @@ macro_rules! family_owned {
         #[allow(unused_qualifications)]
         impl<B, C $(, $args)*> $type<B, C $(, $args)*>
         where
-            B: gfx_hal::Backend,
+            B: rendy_core::hal::Backend,
         {
             /// Get owner id.
             pub fn family_id(&self) -> $crate::FamilyId {
@@ -29,12 +29,12 @@ macro_rules! family_owned {
             }
 
             /// Assert specified device is owner.
-            pub fn assert_device_owner(&self, device: &$crate::util::Device<B>) {
+            pub fn assert_device_owner(&self, device: &$crate::core::Device<B>) {
                 assert_eq!(self.family_id().device, device.id(), "Resource is not owned by specified device");
             }
 
             /// Assert specified instance is owner.
-            pub fn assert_instance_owner(&self, instance: &$crate::util::Instance<B>) {
+            pub fn assert_instance_owner(&self, instance: &$crate::core::Instance<B>) {
                 assert_eq!(self.family_id().device.instance, instance.id(), "Resource is not owned by specified instance");
             }
         }
@@ -48,7 +48,7 @@ macro_rules! family_owned {
         #[allow(unused_qualifications)]
         impl<B, $(, $args)*> $type<B, $(, $args)*>
         where
-            B: gfx_hal::Backend,
+            B: rendy_core::hal::Backend,
         {
             /// Get owner id.
             pub fn family_id(&self) -> $crate::FamilyId {
@@ -61,12 +61,12 @@ macro_rules! family_owned {
             }
 
             /// Assert specified device is owner.
-            pub fn assert_device_owner(&self, device: &$crate::util::Device<B>) {
+            pub fn assert_device_owner(&self, device: &$crate::core::Device<B>) {
                 assert_eq!(self.family_id().device, device.id(), "Resource is not owned by specified device");
             }
 
             /// Assert specified instance is owner.
-            pub fn assert_instance_owner(&self, instance: &$crate::util::Instance<B>) {
+            pub fn assert_instance_owner(&self, instance: &$crate::core::Instance<B>) {
                 assert_eq!(self.family_id().device.instance, instance.id(), "Resource is not owned by specified instance");
             }
         }
@@ -77,7 +77,7 @@ macro_rules! family_owned {
     };
 }
 
-use rendy_util as util;
+use rendy_core as core;
 
 mod buffer;
 mod capability;

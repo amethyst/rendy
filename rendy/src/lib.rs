@@ -13,21 +13,26 @@
 )]
 
 #[doc(inline)]
-pub use rendy_util as util;
+pub use rendy_core as core;
 
-pub use gfx_hal as hal;
+#[doc(inline)]
+pub use rendy_core::hal as hal;
 
 #[cfg(feature = "empty")]
-pub use rendy_util::empty;
+#[doc(inline)]
+pub use rendy_core::empty;
 
 #[cfg(feature = "dx12")]
-pub use rendy_util::dx12;
+#[doc(inline)]
+pub use rendy_core::dx12;
 
 #[cfg(feature = "metal")]
-pub use rendy_util::metal;
+#[doc(inline)]
+pub use rendy_core::metal;
 
 #[cfg(feature = "vulkan")]
-pub use rendy_util::vulkan;
+#[doc(inline)]
+pub use rendy_core::vulkan;
 
 #[cfg(feature = "command")]
 #[doc(inline)]

@@ -37,7 +37,7 @@ struct Fitness {
 
 struct ResolvedNode {
     id: usize,
-    family: gfx_hal::queue::QueueFamilyId,
+    family: rendy_core::hal::queue::QueueFamilyId,
     queues: Range<usize>,
     rev_deps: Vec<usize>,
     buffers: Vec<(usize, State<Buffer>)>,
@@ -48,7 +48,7 @@ impl Default for ResolvedNode {
     fn default() -> Self {
         ResolvedNode {
             id: 0,
-            family: gfx_hal::queue::QueueFamilyId(0),
+            family: rendy_core::hal::queue::QueueFamilyId(0),
             queues: 0..0,
             rev_deps: Vec::new(),
             buffers: Vec::new(),
@@ -68,7 +68,7 @@ struct ChainData<R: Resource> {
     chain: Chain<R>,
     last_link_wait_factor: usize,
     current_link_wait_factor: usize,
-    current_family: Option<gfx_hal::queue::QueueFamilyId>,
+    current_family: Option<rendy_core::hal::queue::QueueFamilyId>,
 }
 impl<R: Resource> Default for ChainData<R> {
     fn default() -> Self {
@@ -90,7 +90,7 @@ struct QueueData {
 /// This function tries to find the most appropriate schedule for nodes execution.
 pub fn collect<Q>(nodes: Vec<Node>, max_queues: Q) -> Chains
 where
-    Q: Fn(gfx_hal::queue::QueueFamilyId) -> usize,
+    Q: Fn(rendy_core::hal::queue::QueueFamilyId) -> usize,
 {
     // Resolve nodes into a form faster to work with.
     let (nodes, mut unscheduled_nodes) = resolve_nodes(nodes, max_queues);
@@ -206,7 +206,7 @@ impl<I: Hash + Eq + Copy> LookupBuilder<I> {
 
 fn resolve_nodes<Q>(nodes: Vec<Node>, max_queues: Q) -> (ResolvedNodeSet, Vec<usize>)
 where
-    Q: Fn(gfx_hal::queue::QueueFamilyId) -> usize,
+    Q: Fn(rendy_core::hal::queue::QueueFamilyId) -> usize,
 {
     let node_count = nodes.len();
 
@@ -387,7 +387,7 @@ fn schedule_node<'a>(
 
 fn add_to_chain<R, S>(
     id: Id,
-    family: gfx_hal::queue::QueueFamilyId,
+    family: rendy_core::hal::queue::QueueFamilyId,
     chain_data: &mut ChainData<R>,
     sid: SubmissionId,
     submission: &mut Submission<S>,

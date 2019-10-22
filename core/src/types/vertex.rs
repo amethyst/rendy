@@ -1,7 +1,7 @@
 //! Built-in vertex formats.
 
 use derivative::Derivative;
-use gfx_hal::format::Format;
+use crate::hal::format::Format;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::{borrow::Cow, fmt::Debug};
@@ -180,11 +180,11 @@ impl VertexFormat {
     /// Convert into gfx digestible type.
     pub fn gfx_vertex_input_desc(
         &self,
-        rate: gfx_hal::pso::VertexInputRate,
+        rate: crate::hal::pso::VertexInputRate,
     ) -> (
-        Vec<gfx_hal::pso::Element<Format>>,
-        gfx_hal::pso::ElemStride,
-        gfx_hal::pso::VertexInputRate,
+        Vec<crate::hal::pso::Element<Format>>,
+        crate::hal::pso::ElemStride,
+        crate::hal::pso::VertexInputRate,
     ) {
         (
             self.attributes
@@ -287,7 +287,7 @@ impl<N: Into<Cow<'static, str>>> AsAttributes for (Format, N) {
 }
 
 /// raw hal type for vertex attribute
-type AttributeElem = gfx_hal::pso::Element<Format>;
+type AttributeElem = crate::hal::pso::Element<Format>;
 
 /// Vertex attribute type.
 #[derive(Clone, Debug, Derivative)]

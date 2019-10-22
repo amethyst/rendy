@@ -2,11 +2,11 @@ use crate::buffer::{NoSimultaneousUse, OutsideRenderPass, PrimaryLevel, Submit, 
 
 #[allow(unused)]
 type NoWaits<B> = std::iter::Empty<(
-    &'static <B as gfx_hal::Backend>::Semaphore,
-    gfx_hal::pso::PipelineStage,
+    &'static <B as rendy_core::hal::Backend>::Semaphore,
+    rendy_core::hal::pso::PipelineStage,
 )>;
 #[allow(unused)]
-type NoSignals<B> = std::iter::Empty<&'static <B as gfx_hal::Backend>::Semaphore>;
+type NoSignals<B> = std::iter::Empty<&'static <B as rendy_core::hal::Backend>::Semaphore>;
 #[allow(unused)]
 type NoSubmits<B> = std::iter::Empty<Submit<B, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass>>;
 
@@ -28,7 +28,7 @@ pub struct Submission<B, W = NoWaits<B>, C = NoSubmits<B>, S = NoSignals<B>> {
 
 impl<B> Submission<B>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// Create new empty submission.
     pub fn new() -> Self {
@@ -43,7 +43,7 @@ where
 
 impl<B, W, S> Submission<B, W, NoSubmits<B>, S>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// Add submits to the submission.
     pub fn submits<C>(self, submits: C) -> Submission<B, W, C, S>
@@ -62,12 +62,12 @@ where
 
 impl<B, C, S> Submission<B, NoWaits<B>, C, S>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// Add waits to the submission.
     pub fn wait<'a, W, E>(self, waits: W) -> Submission<B, W, C, S>
     where
-        W: IntoIterator<Item = (&'a E, gfx_hal::pso::PipelineStage)>,
+        W: IntoIterator<Item = (&'a E, rendy_core::hal::pso::PipelineStage)>,
         E: std::borrow::Borrow<B::Semaphore> + 'a,
     {
         Submission {
@@ -81,7 +81,7 @@ where
 
 impl<B, W, C> Submission<B, W, C, NoSignals<B>>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// Add signals to the submission.
     pub fn signal<'a, S, E>(self, signals: S) -> Submission<B, W, C, S>

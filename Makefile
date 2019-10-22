@@ -2,7 +2,7 @@ RUST_BACKTRACE:=1
 RENDY_BACKEND:=
 
 ifeq ($(OS),Windows_NT)
-	RENDY_BACKEND=dx12
+	RENDY_BACKEND=vulkan
 else
 	UNAME_S:=$(shell uname -s)
 	ifeq ($(UNAME_S),Linux)

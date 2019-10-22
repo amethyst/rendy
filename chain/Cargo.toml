@@ -1,6 +1,6 @@
 [package]
 name = "rendy-chain"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -14,6 +14,6 @@ description = "Rendy's node synchronization tool"
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69" }
+rendy-core = { version = "0.5.0", path = "../core" }
 log = "0.4"
 thread_profiler = "0.3"

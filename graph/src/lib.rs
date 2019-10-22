@@ -16,7 +16,7 @@ use rendy_factory as factory;
 use rendy_frame as frame;
 use rendy_memory as memory;
 use rendy_resource as resource;
-use rendy_util as util;
+use rendy_core as core;
 use rendy_wsi as wsi;
 
 /// Id of the buffer in graph.

@@ -4,7 +4,7 @@
 //! call.
 
 use {
-    gfx_hal::Backend,
+    crate::hal::Backend,
     std::{any::Any, marker::PhantomData, ops::Deref},
 };
 
@@ -79,7 +79,7 @@ where
     B: Backend,
 {
     /// Wrap instance value.
-    pub fn new(instance: impl gfx_hal::Instance) -> Self {
+    pub fn new(instance: impl crate::hal::Instance) -> Self {
         Instance {
             id: new_instance_id(),
             instance: Box::new(instance),
@@ -110,7 +110,7 @@ where
     /// Get reference to typed raw instance.
     pub fn raw_typed<T>(&self) -> Option<&T>
     where
-        T: gfx_hal::Instance,
+        T: crate::hal::Instance,
     {
         if std::any::TypeId::of::<T::Backend>() == std::any::TypeId::of::<B>() {
             Some(
@@ -126,7 +126,7 @@ where
     /// Get mutable reference to typed raw instance.
     pub fn raw_typed_mut<T>(&mut self) -> Option<&mut T>
     where
-        T: gfx_hal::Instance,
+        T: crate::hal::Instance,
     {
         if std::any::TypeId::of::<T::Backend>() == std::any::TypeId::of::<B>() {
             Some(
@@ -225,7 +225,7 @@ macro_rules! device_owned {
         #[allow(unused_qualifications)]
         impl<B $(, $arg)*> $type<B $(, $arg)*>
         where
-            B: gfx_hal::Backend,
+            B: $crate::hal::Backend,
             $(
                 $($arg: $(?$sized)* $($bound)?,)?
             )*
@@ -264,7 +264,7 @@ macro_rules! instance_owned {
         #[allow(unused_qualifications)]
         impl<B $(, $arg)*> $type<B $(, $arg)*>
         where
-            B: gfx_hal::Backend,
+            B: $crate::hal::Backend,
             $(
                 $($arg: $(?$sized)? $($bound)?,)?
             )*

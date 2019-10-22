@@ -11,7 +11,7 @@ pub struct LinkQueueState<R: Resource> {
     pub first: usize,
     pub last: usize,
     pub access: R::Access,
-    pub stages: gfx_hal::pso::PipelineStage,
+    pub stages: rendy_core::hal::pso::PipelineStage,
 }
 
 impl<R> LinkQueueState<R>
@@ -51,7 +51,7 @@ pub struct Link<R: Resource> {
     layout: R::Layout,
 
     /// Combination of all stages.
-    stages: gfx_hal::pso::PipelineStage,
+    stages: rendy_core::hal::pso::PipelineStage,
 
     /// Number of queues involved.
     queue_count: usize,
@@ -60,7 +60,7 @@ pub struct Link<R: Resource> {
     queues: Vec<Option<LinkQueueState<R>>>,
 
     /// Family of queues.
-    family: gfx_hal::queue::QueueFamilyId,
+    family: rendy_core::hal::queue::QueueFamilyId,
 }
 
 /// Node for the link.
@@ -110,7 +110,7 @@ where
 
     /// Get queue family that owns the resource at the link.
     /// All associated submissions must be from the same queue family.
-    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
         self.family
     }
 
@@ -152,7 +152,7 @@ where
     }
 
     // /// Get usage.
-    // pub fn stages(&self) -> gfx_hal::pso::PipelineStage {
+    // pub fn stages(&self) -> rendy_core::hal::pso::PipelineStage {
     //     self.stages
     // }
 

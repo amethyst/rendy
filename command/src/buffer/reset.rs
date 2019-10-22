@@ -11,18 +11,18 @@ pub struct NoIndividualReset;
 /// Specify flags required for command pool creation to allow individual buffer reset.
 pub trait Reset: Copy + Default + std::fmt::Debug + 'static {
     /// Get flags for reset parameter.
-    fn flags(&self) -> gfx_hal::pool::CommandPoolCreateFlags;
+    fn flags(&self) -> rendy_core::hal::pool::CommandPoolCreateFlags;
 }
 
 impl Reset for IndividualReset {
-    fn flags(&self) -> gfx_hal::pool::CommandPoolCreateFlags {
-        gfx_hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL
+    fn flags(&self) -> rendy_core::hal::pool::CommandPoolCreateFlags {
+        rendy_core::hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL
     }
 }
 
 impl Reset for NoIndividualReset {
-    fn flags(&self) -> gfx_hal::pool::CommandPoolCreateFlags {
-        gfx_hal::pool::CommandPoolCreateFlags::empty()
+    fn flags(&self) -> rendy_core::hal::pool::CommandPoolCreateFlags {
+        rendy_core::hal::pool::CommandPoolCreateFlags::empty()
     }
 }
 
