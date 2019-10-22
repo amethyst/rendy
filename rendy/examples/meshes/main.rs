@@ -205,7 +205,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<MeshRenderPipeline<B>, gfx_hal::pso::CreationError> {
+    ) -> Result<MeshRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);

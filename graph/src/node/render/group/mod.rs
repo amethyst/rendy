@@ -13,7 +13,7 @@ use {
         },
         BufferId, ImageId, NodeId,
     },
-    gfx_hal::Backend,
+    rendy_core::hal::Backend,
 };
 
 /// Descriptor for render group
@@ -61,10 +61,10 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
-        subpass: gfx_hal::pass::Subpass<'_, B>,
+        subpass: rendy_core::hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError>;
+    ) -> Result<Box<dyn RenderGroup<B, T>>, rendy_core::hal::pso::CreationError>;
 }
 
 /// One or more graphics pipelines to be called in subpass.
@@ -75,7 +75,7 @@ pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
         factory: &Factory<B>,
         queue: QueueId,
         index: usize,
-        subpass: gfx_hal::pass::Subpass<'_, B>,
+        subpass: rendy_core::hal::pass::Subpass<'_, B>,
         aux: &T,
     ) -> PrepareResult;
 
@@ -84,7 +84,7 @@ pub trait RenderGroup<B: Backend, T: ?Sized>: std::fmt::Debug + Send + Sync {
         &mut self,
         encoder: RenderPassEncoder<'_, B>,
         index: usize,
-        subpass: gfx_hal::pass::Subpass<'_, B>,
+        subpass: rendy_core::hal::pass::Subpass<'_, B>,
         aux: &T,
     );
 
@@ -126,10 +126,10 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
-        subpass: gfx_hal::pass::Subpass<'_, B>,
+        subpass: rendy_core::hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError>;
+    ) -> Result<Box<dyn RenderGroup<B, T>>, rendy_core::hal::pso::CreationError>;
 }
 
 impl<B, T, D> RenderGroupBuilder<B, T> for DescBuilder<B, T, D>
@@ -174,10 +174,10 @@ where
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
-        subpass: gfx_hal::pass::Subpass<'_, B>,
+        subpass: rendy_core::hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, gfx_hal::pso::CreationError> {
+    ) -> Result<Box<dyn RenderGroup<B, T>>, rendy_core::hal::pso::CreationError> {
         self.desc.build(
             ctx,
             factory,

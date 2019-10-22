@@ -3,7 +3,7 @@
 use {
     super::Sampler,
     crate::escape::Handle,
-    gfx_hal::{image::SamplerInfo, Backend},
+    rendy_core::hal::{image::SamplerInfo, Backend},
     std::{
         collections::hash_map::{Entry, HashMap},
         ops::{Deref, DerefMut},
@@ -26,8 +26,8 @@ where
     pub fn get(
         &mut self,
         info: SamplerInfo,
-        create: impl FnOnce() -> Result<Handle<Sampler<B>>, gfx_hal::device::AllocationError>,
-    ) -> Result<Handle<Sampler<B>>, gfx_hal::device::AllocationError> {
+        create: impl FnOnce() -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>,
+    ) -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError> {
         Ok(match self.samplers.entry(info) {
             Entry::Occupied(occupied) => occupied.get().clone(),
             Entry::Vacant(vacant) => {
@@ -44,8 +44,8 @@ where
         read: R,
         upgrade: U,
         info: SamplerInfo,
-        create: impl FnOnce() -> Result<Handle<Sampler<B>>, gfx_hal::device::AllocationError>,
-    ) -> Result<Handle<Sampler<B>>, gfx_hal::device::AllocationError>
+        create: impl FnOnce() -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>,
+    ) -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>
     where
         R: Deref<Target = Self>,
         W: DerefMut<Target = Self>,

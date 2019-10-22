@@ -6,9 +6,9 @@ use {
             PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
         },
         resource::{Buffer, Escape, Handle, Image},
-        util::Device,
+        core::Device,
     },
-    gfx_hal::device::{Device as _, OutOfMemory},
+    rendy_core::hal::device::{Device as _, OutOfMemory},
     std::{collections::VecDeque, iter::once},
 };
 
@@ -19,10 +19,10 @@ pub struct BufferState {
     pub queue: QueueId,
 
     /// Stages when buffer get used.
-    pub stage: gfx_hal::pso::PipelineStage,
+    pub stage: rendy_core::hal::pso::PipelineStage,
 
     /// Access performed by device.
-    pub access: gfx_hal::buffer::Access,
+    pub access: rendy_core::hal::buffer::Access,
 }
 
 impl BufferState {
@@ -30,19 +30,19 @@ impl BufferState {
     pub fn new(queue: QueueId) -> Self {
         BufferState {
             queue,
-            stage: gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
-            access: gfx_hal::buffer::Access::all(),
+            stage: rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
+            access: rendy_core::hal::buffer::Access::all(),
         }
     }
 
     /// Set specific stage.
-    pub fn with_stage(mut self, stage: gfx_hal::pso::PipelineStage) -> Self {
+    pub fn with_stage(mut self, stage: rendy_core::hal::pso::PipelineStage) -> Self {
         self.stage = stage;
         self
     }
 
     /// Set specific access.
-    pub fn with_access(mut self, access: gfx_hal::buffer::Access) -> Self {
+    pub fn with_access(mut self, access: rendy_core::hal::buffer::Access) -> Self {
         self.access = access;
         self
     }
@@ -55,34 +55,34 @@ pub struct ImageState {
     pub queue: QueueId,
 
     /// Stages when image get used.
-    pub stage: gfx_hal::pso::PipelineStage,
+    pub stage: rendy_core::hal::pso::PipelineStage,
 
     /// Access performed by device.
-    pub access: gfx_hal::image::Access,
+    pub access: rendy_core::hal::image::Access,
 
     /// Layout in which image is accessed.
-    pub layout: gfx_hal::image::Layout,
+    pub layout: rendy_core::hal::image::Layout,
 }
 
 impl ImageState {
     /// Create default buffet state.
-    pub fn new(queue: QueueId, layout: gfx_hal::image::Layout) -> Self {
+    pub fn new(queue: QueueId, layout: rendy_core::hal::image::Layout) -> Self {
         ImageState {
             queue,
-            stage: gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
-            access: gfx_hal::image::Access::all(),
+            stage: rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
+            access: rendy_core::hal::image::Access::all(),
             layout,
         }
     }
 
     /// Set specific stage.
-    pub fn with_stage(mut self, stage: gfx_hal::pso::PipelineStage) -> Self {
+    pub fn with_stage(mut self, stage: rendy_core::hal::pso::PipelineStage) -> Self {
         self.stage = stage;
         self
     }
 
     /// Set specific access.
-    pub fn with_access(mut self, access: gfx_hal::image::Access) -> Self {
+    pub fn with_access(mut self, access: rendy_core::hal::image::Access) -> Self {
         self.access = access;
         self
     }
@@ -95,7 +95,7 @@ pub enum ImageStateOrLayout {
     State(ImageState),
 
     /// Layout of image not used by device.
-    Layout(gfx_hal::image::Layout),
+    Layout(rendy_core::hal::image::Layout),
 }
 
 impl ImageStateOrLayout {
@@ -104,7 +104,7 @@ impl ImageStateOrLayout {
     /// This can be used for newly created images.
     /// Or when whole image is updated.
     pub fn undefined() -> Self {
-        ImageStateOrLayout::Layout(gfx_hal::image::Layout::Undefined)
+        ImageStateOrLayout::Layout(rendy_core::hal::image::Layout::Undefined)
     }
 }
 
@@ -114,20 +114,20 @@ impl From<ImageState> for ImageStateOrLayout {
     }
 }
 
-impl From<gfx_hal::image::Layout> for ImageStateOrLayout {
-    fn from(layout: gfx_hal::image::Layout) -> Self {
+impl From<rendy_core::hal::image::Layout> for ImageStateOrLayout {
+    fn from(layout: rendy_core::hal::image::Layout) -> Self {
         ImageStateOrLayout::Layout(layout)
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Uploader<B: gfx_hal::Backend> {
+pub(crate) struct Uploader<B: rendy_core::hal::Backend> {
     family_uploads: Vec<Option<parking_lot::Mutex<FamilyUploads<B>>>>,
 }
 
 impl<B> Uploader<B>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// # Safety
     ///
@@ -151,9 +151,9 @@ where
                 pending: VecDeque::new(),
                 command_buffers: Vec::new(),
                 barriers: Barriers::new(
-                    gfx_hal::pso::PipelineStage::TRANSFER,
-                    gfx_hal::buffer::Access::TRANSFER_WRITE,
-                    gfx_hal::image::Access::TRANSFER_WRITE,
+                    rendy_core::hal::pso::PipelineStage::TRANSFER,
+                    rendy_core::hal::buffer::Access::TRANSFER_WRITE,
+                    rendy_core::hal::image::Access::TRANSFER_WRITE,
                 ),
             }));
         }
@@ -187,8 +187,8 @@ where
         }
 
         family_uploads.barriers.add_buffer(
-            last.map_or(gfx_hal::pso::PipelineStage::empty(), |l| l.stage),
-            gfx_hal::buffer::Access::empty(),
+            last.map_or(rendy_core::hal::pso::PipelineStage::empty(), |l| l.stage),
+            rendy_core::hal::buffer::Access::empty(),
             next.stage,
             next.access,
         );
@@ -198,7 +198,7 @@ where
         encoder.copy_buffer(
             staging.raw(),
             buffer.raw(),
-            Some(gfx_hal::command::BufferCopy {
+            Some(rendy_core::hal::command::BufferCopy {
                 src: 0,
                 dst: offset,
                 size: staging.size(),
@@ -217,11 +217,11 @@ where
     pub(crate) unsafe fn transition_image(
         &self,
         image: Handle<Image<B>>,
-        image_range: gfx_hal::image::SubresourceRange,
+        image_range: rendy_core::hal::image::SubresourceRange,
         last: ImageStateOrLayout,
         next: ImageState,
     ) {
-        use gfx_hal::image::{Access, Layout};
+        use rendy_core::hal::image::{Access, Layout};
 
         let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
@@ -236,7 +236,7 @@ where
                 (last.stage, last.access, last.layout)
             }
             ImageStateOrLayout::Layout(last_layout) => (
-                gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
                 Access::empty(),
                 last_layout,
             ),
@@ -270,14 +270,14 @@ where
         image: Handle<Image<B>>,
         data_width: u32,
         data_height: u32,
-        image_layers: gfx_hal::image::SubresourceLayers,
-        image_offset: gfx_hal::image::Offset,
-        image_extent: gfx_hal::image::Extent,
+        image_layers: rendy_core::hal::image::SubresourceLayers,
+        image_offset: rendy_core::hal::image::Offset,
+        image_extent: rendy_core::hal::image::Extent,
         staging: Escape<Buffer<B>>,
         last: ImageStateOrLayout,
         next: ImageState,
     ) -> Result<(), OutOfMemory> {
-        use gfx_hal::image::{Access, Layout};
+        use rendy_core::hal::image::{Access, Layout};
 
         let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
@@ -291,9 +291,9 @@ where
         };
 
         let whole_level =
-            image_offset == gfx_hal::image::Offset::ZERO && image_extent == whole_extent;
+            image_offset == rendy_core::hal::image::Offset::ZERO && image_extent == whole_extent;
 
-        let image_range = gfx_hal::image::SubresourceRange {
+        let image_range = rendy_core::hal::image::SubresourceRange {
             aspects: image_layers.aspects,
             levels: image_layers.level..image_layers.level + 1,
             layers: image_layers.layers.clone(),
@@ -315,7 +315,7 @@ where
                 )
             }
             ImageStateOrLayout::Layout(last_layout) => (
-                gfx_hal::pso::PipelineStage::TOP_OF_PIPE,
+                rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
                 Access::empty(),
                 if whole_level {
                     Layout::Undefined
@@ -354,7 +354,7 @@ where
             staging.raw(),
             image.raw(),
             target_layout,
-            Some(gfx_hal::command::BufferImageCopy {
+            Some(rendy_core::hal::command::BufferImageCopy {
                 buffer_offset: 0,
                 buffer_width: data_width,
                 buffer_height: data_height,
@@ -410,7 +410,7 @@ where
 }
 
 #[derive(Debug)]
-pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
+pub(crate) struct FamilyUploads<B: rendy_core::hal::Backend> {
     pool: CommandPool<B, Transfer, IndividualReset>,
     command_buffers:
         Vec<[CommandBuffer<B, Transfer, InitialState, PrimaryLevel, IndividualReset>; 2]>,
@@ -421,7 +421,7 @@ pub(crate) struct FamilyUploads<B: gfx_hal::Backend> {
 }
 
 #[derive(Debug)]
-pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
+pub(crate) struct PendingUploads<B: rendy_core::hal::Backend> {
     barrier_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
     command_buffer: CommandBuffer<B, Transfer, PendingOnceState, PrimaryLevel, IndividualReset>,
     staging_buffers: Vec<Escape<Buffer<B>>>,
@@ -429,7 +429,7 @@ pub(crate) struct PendingUploads<B: gfx_hal::Backend> {
 }
 
 #[derive(Debug)]
-struct NextUploads<B: gfx_hal::Backend> {
+struct NextUploads<B: rendy_core::hal::Backend> {
     barrier_buffer:
         CommandBuffer<B, Transfer, RecordingState<OneShot>, PrimaryLevel, IndividualReset>,
     command_buffer:
@@ -440,7 +440,7 @@ struct NextUploads<B: gfx_hal::Backend> {
 
 impl<B> FamilyUploads<B>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     unsafe fn flush(&mut self, family: &mut Family<B>) {
         for (queue, mut next) in self
@@ -519,7 +519,7 @@ where
                     self.pending.push_front(pending);
                     return;
                 }
-                Err(gfx_hal::device::DeviceLost) => {
+                Err(rendy_core::hal::device::DeviceLost) => {
                     panic!("Device lost error is not handled yet");
                 }
                 Ok(true) => {

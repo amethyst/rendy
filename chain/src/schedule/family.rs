@@ -7,13 +7,13 @@ use super::{
 /// All contained queues has identical capabilities.
 #[derive(Clone, Debug)]
 pub struct Family<S> {
-    id: gfx_hal::queue::QueueFamilyId,
+    id: rendy_core::hal::queue::QueueFamilyId,
     queues: Vec<Queue<S>>,
 }
 
 impl<S> Family<S> {
     /// Create new empty `Family`
-    pub fn new(id: gfx_hal::queue::QueueFamilyId) -> Self {
+    pub fn new(id: rendy_core::hal::queue::QueueFamilyId) -> Self {
         Family {
             id,
             queues: Vec::default(),
@@ -21,7 +21,7 @@ impl<S> Family<S> {
     }
 
     /// Get id of the family.
-    pub fn id(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn id(&self) -> rendy_core::hal::queue::QueueFamilyId {
         self.id
     }
 

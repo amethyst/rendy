@@ -125,7 +125,7 @@ where
         self.entry.as_ref()
     }
 
-    fn stage(&self) -> gfx_hal::pso::ShaderStageFlags {
+    fn stage(&self) -> rendy_core::hal::pso::ShaderStageFlags {
         stage_from_kind(&self.kind)
     }
 }
@@ -207,7 +207,7 @@ where
         self.entry.as_ref()
     }
 
-    fn stage(&self) -> gfx_hal::pso::ShaderStageFlags {
+    fn stage(&self) -> rendy_core::hal::pso::ShaderStageFlags {
         stage_from_kind(&self.kind)
     }
 }
@@ -225,8 +225,8 @@ pub type StaticShaderInfo = FileShaderInfo<&'static str, &'static str>;
 /// Shader info with a PathBuf for the path and static string for entry
 pub type PathBufShaderInfo = FileShaderInfo<std::path::PathBuf, &'static str>;
 
-fn stage_from_kind(kind: &ShaderKind) -> gfx_hal::pso::ShaderStageFlags {
-    use gfx_hal::pso::ShaderStageFlags;
+fn stage_from_kind(kind: &ShaderKind) -> rendy_core::hal::pso::ShaderStageFlags {
+    use rendy_core::hal::pso::ShaderStageFlags;
     match kind {
         ShaderKind::Vertex => ShaderStageFlags::VERTEX,
         ShaderKind::Fragment => ShaderStageFlags::FRAGMENT,

@@ -9,10 +9,10 @@ use {
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        util::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
+        core::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
         wsi::{Surface, SwapchainError, Target},
     },
-    gfx_hal::{
+    rendy_core::hal::{
         adapter::{Adapter, Gpu, PhysicalDevice},
         buffer,
         device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
@@ -616,7 +616,7 @@ where
     /// Closure must return surface object created from raw instance provided as closure argument.
     pub unsafe fn create_surface_with<T>(&mut self, f: impl FnOnce(&T) -> B::Surface) -> Surface<B>
     where
-        T: gfx_hal::Instance<Backend = B>,
+        T: rendy_core::hal::Instance<Backend = B>,
     {
         profile_scope!("create_surface");
         Surface::create(&self.instance, f)
@@ -631,9 +631,9 @@ where
         &self,
         surface: &Surface<B>,
     ) -> (
-        gfx_hal::window::SurfaceCapabilities,
-        Option<Vec<gfx_hal::format::Format>>,
-        Vec<gfx_hal::window::PresentMode>,
+        rendy_core::hal::window::SurfaceCapabilities,
+        Option<Vec<rendy_core::hal::format::Format>>,
+        Vec<rendy_core::hal::window::PresentMode>,
     ) {
         profile_scope!("get_surface_compatibility");
 
@@ -676,7 +676,7 @@ where
         surface: Surface<B>,
         extent: Extent2D,
         image_count: u32,
-        present_mode: gfx_hal::window::PresentMode,
+        present_mode: rendy_core::hal::window::PresentMode,
         usage: image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
         profile_scope!("create_target");
@@ -1052,7 +1052,7 @@ where
 #[allow(unused_variables)]
 pub fn init<B>(
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-) -> Result<(Factory<B>, Families<B>), gfx_hal::device::CreationError>
+) -> Result<(Factory<B>, Families<B>), rendy_core::hal::device::CreationError>
 where
     B: Backend,
 {
@@ -1060,17 +1060,17 @@ where
     rendy_backend_match!(B as backend => {
         profile_scope!(concat!("init_factory"));
         let instance = backend::Instance::create("Rendy", 1)
-            .map_err(|_| gfx_hal::device::CreationError::InitializationFailed)?;
-        Ok(crate::util::identical_cast(init_with_instance(instance, config)?))
+            .map_err(|_| rendy_core::hal::device::CreationError::InitializationFailed)?;
+        Ok(crate::core::identical_cast(init_with_instance(instance, config)?))
     });
 }
 
 /// Initialize `Factory` and Queue `Families` associated with Device
 /// using existing `Instance`.
 pub fn init_with_instance<B>(
-    instance: impl gfx_hal::Instance<Backend = B>,
+    instance: impl rendy_core::hal::Instance<Backend = B>,
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-) -> Result<(Factory<B>, Families<B>), gfx_hal::device::CreationError>
+) -> Result<(Factory<B>, Families<B>), rendy_core::hal::device::CreationError>
 where
     B: Backend,
 {
@@ -1081,7 +1081,7 @@ where
 
     if adapters.is_empty() {
         log::warn!("No physical devices found");
-        return Err(gfx_hal::device::CreationError::InitializationFailed);
+        return Err(rendy_core::hal::device::CreationError::InitializationFailed);
     }
 
     log::debug!(
@@ -1180,9 +1180,9 @@ where
         heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
         resources: ManuallyDrop::new(ResourceHub::default()),
         uploader: unsafe { Uploader::new(&device, &families) }
-            .map_err(gfx_hal::device::CreationError::OutOfMemory)?,
+            .map_err(rendy_core::hal::device::CreationError::OutOfMemory)?,
         blitter: unsafe { Blitter::new(&device, &families) }
-            .map_err(gfx_hal::device::CreationError::OutOfMemory)?,
+            .map_err(rendy_core::hal::device::CreationError::OutOfMemory)?,
         families_indices: families.indices().into(),
         epochs,
         device,

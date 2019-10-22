@@ -1,14 +1,14 @@
 //! Buffer usage, creation-info and wrappers.
 
-pub use gfx_hal::buffer::*;
+pub use rendy_core::hal::buffer::*;
 
 use {
     crate::{
         memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
-        util::{device_owned, Device, DeviceId},
+        core::{device_owned, Device, DeviceId},
         CreationError,
     },
-    gfx_hal::{device::Device as _, Backend},
+    rendy_core::hal::{device::Device as _, Backend},
     relevant::Relevant,
 };
 
@@ -38,7 +38,7 @@ pub struct Buffer<B: Backend> {
 
 device_owned!(Buffer<B>);
 /// Alias for the error to create a buffer.
-pub type BufferCreationError = CreationError<gfx_hal::buffer::CreationError>;
+pub type BufferCreationError = CreationError<rendy_core::hal::buffer::CreationError>;
 
 impl<B> Buffer<B>
 where
@@ -127,11 +127,11 @@ where
     /// If this function returns `false` `map` will always return `InvalidAccess`.
     ///
     /// [`map`]: #method.map
-    /// [`InvalidAccess`]: https://docs.rs/gfx-hal/0.1/gfx_hal/mapping/enum.Error.html#InvalidAccess
+    /// [`InvalidAccess`]: https://docs.rs/gfx-hal/0.1/rendy_core::hal/mapping/enum.Error.html#InvalidAccess
     pub fn visible(&self) -> bool {
         self.block
             .properties()
-            .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
+            .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)
     }
 
     /// Map range of the buffer to the CPU accessible memory.
@@ -139,7 +139,7 @@ where
         &'a mut self,
         device: &Device<B>,
         range: std::ops::Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
+    ) -> Result<MappedRange<'a, B>, rendy_core::hal::device::MapError> {
         self.block.map(device, range)
     }
 

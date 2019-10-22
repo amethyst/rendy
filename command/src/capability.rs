@@ -1,6 +1,6 @@
 //! Capability module docs.
 
-pub use gfx_hal::queue::QueueType;
+pub use rendy_core::hal::queue::QueueType;
 
 /// Capable of transfer only.
 #[derive(Clone, Copy, Debug)]

@@ -1,6 +1,6 @@
 use {
     colorful::{core::color_string::CString, Color, Colorful as _},
-    gfx_hal::memory::Properties,
+    rendy_core::hal::memory::Properties,
 };
 
 /// Memory utilization stats.

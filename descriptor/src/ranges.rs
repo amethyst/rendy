@@ -3,7 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
-pub use gfx_hal::pso::{DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorType};
+pub use rendy_core::hal::pso::{DescriptorRangeDesc, DescriptorSetLayoutBinding, DescriptorType};
 
 const DESCRIPTOR_TYPES_COUNT: usize = 11;
 

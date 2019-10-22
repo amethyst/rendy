@@ -1,6 +1,6 @@
 [package]
 name = "rendy-frame"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -11,19 +11,18 @@ categories = ["rendering"]
 description = "Rendy's frame synchronization tool"
 
 [features]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
-rendy-command = { version = "0.4.0", path = "../command" }
-rendy-factory = { version = "0.4.0", path = "../factory" }
-rendy-memory = { version = "0.4.0", path = "../memory" }
-rendy-resource = { version = "0.4.0", path = "../resource" }
-rendy-util = { version = "0.4.0", path = "../util" }
+rendy-command = { version = "0.5.0", path = "../command" }
+rendy-factory = { version = "0.5.0", path = "../factory" }
+rendy-memory = { version = "0.5.0", path = "../memory" }
+rendy-resource = { version = "0.5.0", path = "../resource" }
+rendy-core = { version = "0.5.0", path = "../core" }
 
 derivative = "1.0"
 either = "1.5"
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69" }
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"

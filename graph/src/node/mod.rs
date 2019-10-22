@@ -10,11 +10,11 @@ use {
         factory::{Factory, UploadError},
         frame::Frames,
         graph::GraphContext,
-        util::{rendy_with_metal_backend, rendy_without_metal_backend},
+        core::{rendy_with_metal_backend, rendy_without_metal_backend},
         wsi::SwapchainError,
         BufferId, ImageId, NodeId,
     },
-    gfx_hal::{queue::QueueFamilyId, Backend},
+    rendy_core::hal::{queue::QueueFamilyId, Backend},
 };
 
 /// Buffer access node will perform.
@@ -23,24 +23,24 @@ use {
 #[derive(Clone, Copy, Debug)]
 pub struct BufferAccess {
     /// Access flags.
-    pub access: gfx_hal::buffer::Access,
+    pub access: rendy_core::hal::buffer::Access,
 
     /// Intended usage flags for buffer.
     /// TODO: Could derive from access?
-    pub usage: gfx_hal::buffer::Usage,
+    pub usage: rendy_core::hal::buffer::Usage,
 
     /// Pipeline stages at which buffer is accessd.
-    pub stages: gfx_hal::pso::PipelineStage,
+    pub stages: rendy_core::hal::pso::PipelineStage,
 }
 
 /// Buffer pipeline barrier.
 #[derive(Clone, Debug)]
 pub struct BufferBarrier {
     /// State transition for the buffer.
-    pub states: std::ops::Range<gfx_hal::buffer::State>,
+    pub states: std::ops::Range<rendy_core::hal::buffer::State>,
 
     /// Stages at which buffer is accessd.
-    pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+    pub stages: std::ops::Range<rendy_core::hal::pso::PipelineStage>,
 
     /// Transfer between families.
     pub families: Option<std::ops::Range<QueueFamilyId>>,
@@ -73,20 +73,20 @@ pub struct NodeBuffer {
 #[derive(Clone, Copy, Debug)]
 pub struct ImageAccess {
     /// Access flags.
-    pub access: gfx_hal::image::Access,
+    pub access: rendy_core::hal::image::Access,
 
     /// Intended usage flags for image.
     /// TODO: Could derive from access?
-    pub usage: gfx_hal::image::Usage,
+    pub usage: rendy_core::hal::image::Usage,
 
     /// Preferred layout for access.
     /// Actual layout will be reported int `NodeImage`.
     /// Actual layout is guaranteed to support same operations.
     /// TODO: Could derive from access?
-    pub layout: gfx_hal::image::Layout,
+    pub layout: rendy_core::hal::image::Layout,
 
     /// Pipeline stages at which image is accessd.
-    pub stages: gfx_hal::pso::PipelineStage,
+    pub stages: rendy_core::hal::pso::PipelineStage,
 }
 
 /// Image pipeline barrier.
@@ -95,10 +95,10 @@ pub struct ImageAccess {
 #[derive(Clone, Debug)]
 pub struct ImageBarrier {
     /// State transition for the image.
-    pub states: std::ops::Range<gfx_hal::image::State>,
+    pub states: std::ops::Range<rendy_core::hal::image::State>,
 
     /// Stages at which image is accessd.
-    pub stages: std::ops::Range<gfx_hal::pso::PipelineStage>,
+    pub stages: std::ops::Range<rendy_core::hal::pso::PipelineStage>,
 
     /// Transfer between families.
     pub families: Option<std::ops::Range<QueueFamilyId>>,
@@ -111,13 +111,13 @@ pub struct NodeImage {
     pub id: ImageId,
 
     /// Region of the image that is the transient resource.
-    pub range: gfx_hal::image::SubresourceRange,
+    pub range: rendy_core::hal::image::SubresourceRange,
 
     /// Image state for node.
-    pub layout: gfx_hal::image::Layout,
+    pub layout: rendy_core::hal::image::Layout,
 
     /// Specify that node should clear image to this value.
-    pub clear: Option<gfx_hal::command::ClearValue>,
+    pub clear: Option<rendy_core::hal::command::ClearValue>,
 
     /// Acquire barrier.
     /// Node implementation must insert it before first command that uses the image.
@@ -228,7 +228,7 @@ pub trait DynNode<B: Backend, T: ?Sized>: std::fmt::Debug + Sync + Send {
         queue: &mut Queue<B>,
         aux: &T,
         frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, rendy_core::hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     );
@@ -254,7 +254,7 @@ where
         queue: &mut Queue<B>,
         aux: &T,
         frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, gfx_hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, rendy_core::hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         fence: Option<&mut Fence<B>>,
     ) {
@@ -283,13 +283,13 @@ pub enum NodeBuildError {
     /// Mismatched queue family.
     QueueFamily(FamilyId),
     /// Failed to create an imate view.
-    View(gfx_hal::image::ViewError),
+    View(rendy_core::hal::image::ViewError),
     /// Failed to create a pipeline.
-    Pipeline(gfx_hal::pso::CreationError),
+    Pipeline(rendy_core::hal::pso::CreationError),
     /// Failed to create a swap chain.
     Swapchain(SwapchainError),
     /// Ran out of memory when creating something.
-    OutOfMemory(gfx_hal::device::OutOfMemory),
+    OutOfMemory(rendy_core::hal::device::OutOfMemory),
 }
 
 /// Dynamic node builder that emits `DynNode`.
@@ -438,23 +438,23 @@ pub fn gfx_acquire_barriers<'a, 'b, B: Backend>(
     buffers: impl IntoIterator<Item = &'b NodeBuffer>,
     images: impl IntoIterator<Item = &'b NodeImage>,
 ) -> (
-    std::ops::Range<gfx_hal::pso::PipelineStage>,
-    Vec<gfx_hal::memory::Barrier<'a, B>>,
+    std::ops::Range<rendy_core::hal::pso::PipelineStage>,
+    Vec<rendy_core::hal::memory::Barrier<'a, B>>,
 ) {
-    let mut bstart = gfx_hal::pso::PipelineStage::empty();
-    let mut bend = gfx_hal::pso::PipelineStage::empty();
+    let mut bstart = rendy_core::hal::pso::PipelineStage::empty();
+    let mut bend = rendy_core::hal::pso::PipelineStage::empty();
 
-    let mut istart = gfx_hal::pso::PipelineStage::empty();
-    let mut iend = gfx_hal::pso::PipelineStage::empty();
+    let mut istart = rendy_core::hal::pso::PipelineStage::empty();
+    let mut iend = rendy_core::hal::pso::PipelineStage::empty();
 
-    let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers
+    let barriers: Vec<rendy_core::hal::memory::Barrier<'_, B>> = buffers
         .into_iter()
         .filter_map(|buffer| {
             buffer.acquire.as_ref().map(|acquire| {
                 bstart |= acquire.stages.start;
                 bend |= acquire.stages.end;
 
-                gfx_hal::memory::Barrier::Buffer {
+                rendy_core::hal::memory::Barrier::Buffer {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
                     target: ctx
@@ -470,7 +470,7 @@ pub fn gfx_acquire_barriers<'a, 'b, B: Backend>(
                 istart |= acquire.stages.start;
                 iend |= acquire.stages.end;
 
-                gfx_hal::memory::Barrier::Image {
+                rendy_core::hal::memory::Barrier::Image {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
                     target: ctx.get_image(image.id).expect("Image does not exist").raw(),
@@ -489,23 +489,23 @@ pub fn gfx_release_barriers<'a, B: Backend>(
     buffers: impl IntoIterator<Item = &'a NodeBuffer>,
     images: impl IntoIterator<Item = &'a NodeImage>,
 ) -> (
-    std::ops::Range<gfx_hal::pso::PipelineStage>,
-    Vec<gfx_hal::memory::Barrier<'a, B>>,
+    std::ops::Range<rendy_core::hal::pso::PipelineStage>,
+    Vec<rendy_core::hal::memory::Barrier<'a, B>>,
 ) {
-    let mut bstart = gfx_hal::pso::PipelineStage::empty();
-    let mut bend = gfx_hal::pso::PipelineStage::empty();
+    let mut bstart = rendy_core::hal::pso::PipelineStage::empty();
+    let mut bend = rendy_core::hal::pso::PipelineStage::empty();
 
-    let mut istart = gfx_hal::pso::PipelineStage::empty();
-    let mut iend = gfx_hal::pso::PipelineStage::empty();
+    let mut istart = rendy_core::hal::pso::PipelineStage::empty();
+    let mut iend = rendy_core::hal::pso::PipelineStage::empty();
 
-    let barriers: Vec<gfx_hal::memory::Barrier<'_, B>> = buffers
+    let barriers: Vec<rendy_core::hal::memory::Barrier<'_, B>> = buffers
         .into_iter()
         .filter_map(|buffer| {
             buffer.release.as_ref().map(|release| {
                 bstart |= release.stages.start;
                 bend |= release.stages.end;
 
-                gfx_hal::memory::Barrier::Buffer {
+                rendy_core::hal::memory::Barrier::Buffer {
                     states: release.states.clone(),
                     families: release.families.clone(),
                     target: ctx
@@ -521,7 +521,7 @@ pub fn gfx_release_barriers<'a, B: Backend>(
                 istart |= release.stages.start;
                 iend |= release.stages.end;
 
-                gfx_hal::memory::Barrier::Image {
+                rendy_core::hal::memory::Barrier::Image {
                     states: release.states.clone(),
                     families: release.families.clone(),
                     target: ctx.get_image(image.id).expect("Image does not exist").raw(),
@@ -537,7 +537,7 @@ pub fn gfx_release_barriers<'a, B: Backend>(
 rendy_with_metal_backend! {
     /// Check if backend is metal.
     pub fn is_metal<B: Backend>() -> bool {
-        std::any::TypeId::of::<B>() == std::any::TypeId::of::<rendy_util::metal::Backend>()
+        std::any::TypeId::of::<B>() == std::any::TypeId::of::<rendy_core::metal::Backend>()
     }
 }
 
