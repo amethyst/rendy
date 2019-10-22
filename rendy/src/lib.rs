@@ -16,7 +16,7 @@
 pub use rendy_core as core;
 
 #[doc(inline)]
-pub use rendy_core::hal as hal;
+pub use rendy_core::hal;
 
 #[cfg(feature = "empty")]
 #[doc(inline)]

@@ -136,7 +136,11 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        rendy_core::hal::command::CommandBuffer::bind_vertex_buffers(self.raw, first_binding, buffers)
+        rendy_core::hal::command::CommandBuffer::bind_vertex_buffers(
+            self.raw,
+            first_binding,
+            buffers,
+        )
     }
 
     /// Bind graphics pipeline.
@@ -229,7 +233,12 @@ where
         dependencies: rendy_core::hal::memory::Dependencies,
         barriers: impl IntoIterator<Item = rendy_core::hal::memory::Barrier<'b, B>>,
     ) {
-        rendy_core::hal::command::CommandBuffer::pipeline_barrier(self.raw, stages, dependencies, barriers)
+        rendy_core::hal::command::CommandBuffer::pipeline_barrier(
+            self.raw,
+            stages,
+            dependencies,
+            barriers,
+        )
     }
 
     /// Push graphics constants.
@@ -420,7 +429,9 @@ where
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdClearAttachments.html#vkCmdBeginRenderPass
     pub unsafe fn clear_attachments(
         &mut self,
-        clears: impl IntoIterator<Item = impl std::borrow::Borrow<rendy_core::hal::command::AttachmentClear>>,
+        clears: impl IntoIterator<
+            Item = impl std::borrow::Borrow<rendy_core::hal::command::AttachmentClear>,
+        >,
         rects: impl IntoIterator<Item = impl std::borrow::Borrow<rendy_core::hal::pso::ClearRect>>,
     ) {
         rendy_core::hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);

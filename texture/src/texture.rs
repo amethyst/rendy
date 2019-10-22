@@ -1,6 +1,7 @@
 //! Module for creating a `Texture` from an image
 use {
     crate::{
+        core::{cast_cow, cast_slice},
         factory::{Factory, ImageState, UploadError},
         memory::Data,
         pixel::AsPixel,
@@ -8,7 +9,6 @@ use {
             Escape, Handle, Image, ImageCreationError, ImageInfo, ImageView,
             ImageViewCreationError, ImageViewInfo, Sampler,
         },
-        core::{cast_cow, cast_slice},
     },
     derivative::Derivative,
     rendy_core::hal::{
@@ -244,7 +244,10 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// Set image sampler info.
-    pub fn set_sampler_info(&mut self, sampler_info: rendy_core::hal::image::SamplerInfo) -> &mut Self {
+    pub fn set_sampler_info(
+        &mut self,
+        sampler_info: rendy_core::hal::image::SamplerInfo,
+    ) -> &mut Self {
         self.sampler_info = sampler_info;
         self
     }
@@ -278,8 +281,11 @@ impl<'a> TextureBuilder<'a> {
         profile_scope!("build");
 
         let view_caps = match self.view_kind {
-            rendy_core::hal::image::ViewKind::D2Array => rendy_core::hal::image::ViewCapabilities::KIND_2D_ARRAY,
-            rendy_core::hal::image::ViewKind::Cube | rendy_core::hal::image::ViewKind::CubeArray => {
+            rendy_core::hal::image::ViewKind::D2Array => {
+                rendy_core::hal::image::ViewCapabilities::KIND_2D_ARRAY
+            }
+            rendy_core::hal::image::ViewKind::Cube
+            | rendy_core::hal::image::ViewKind::CubeArray => {
                 rendy_core::hal::image::ViewCapabilities::KIND_CUBE
             }
             _ => rendy_core::hal::image::ViewCapabilities::empty(),

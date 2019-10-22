@@ -1,11 +1,11 @@
 use {
     crate::{
+        core::{device_owned, Device, DeviceId},
         descriptor,
         escape::Handle,
-        core::{device_owned, Device, DeviceId},
     },
-    rendy_core::hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend},
     relevant::Relevant,
+    rendy_core::hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend},
     smallvec::SmallVec,
 };
 

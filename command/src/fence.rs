@@ -1,7 +1,7 @@
 use {
     crate::{
-        family::QueueId,
         core::{device_owned, Device, DeviceId},
+        family::QueueId,
     },
     rendy_core::hal::{device::Device as _, Backend},
 };
@@ -38,7 +38,10 @@ where
     B: Backend,
 {
     /// Create new fence in signaled or unsignaled state.
-    pub fn new(device: &Device<B>, signaled: bool) -> Result<Self, rendy_core::hal::device::OutOfMemory> {
+    pub fn new(
+        device: &Device<B>,
+        signaled: bool,
+    ) -> Result<Self, rendy_core::hal::device::OutOfMemory> {
         let raw = device.raw().create_fence(false)?;
         Ok(Fence {
             device: device.id(),
@@ -87,7 +90,10 @@ where
     /// Reset signaled fence.
     /// Panics if not signaled.
     /// Becomes unsigneled.
-    pub fn reset(&mut self, device: &Device<B>) -> Result<(), rendy_core::hal::device::OutOfMemory> {
+    pub fn reset(
+        &mut self,
+        device: &Device<B>,
+    ) -> Result<(), rendy_core::hal::device::OutOfMemory> {
         self.assert_device_owner(device);
         match self.state {
             FenceState::Signaled => {

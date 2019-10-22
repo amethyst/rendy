@@ -2,6 +2,7 @@ use {
     crate::{
         chain,
         command::{Families, FamilyId, QueueId},
+        core::{device_owned, DeviceId},
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::Data,
@@ -12,7 +13,6 @@ use {
         resource::{
             Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo,
         },
-        core::{device_owned, DeviceId},
         BufferId, ImageId, NodeId,
     },
     rendy_core::hal::{queue::QueueFamilyId, Backend},
@@ -57,7 +57,12 @@ pub enum GraphBuildError {
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
     buffers: Vec<Option<Handle<Buffer<B>>>>,
-    images: Vec<Option<(Handle<Image<B>>, Option<rendy_core::hal::command::ClearValue>)>>,
+    images: Vec<
+        Option<(
+            Handle<Image<B>>,
+            Option<rendy_core::hal::command::ClearValue>,
+        )>,
+    >,
     /// Number of potential frames in flight
     pub frames_in_flight: u32,
 }
@@ -136,7 +141,10 @@ impl<B: Backend> GraphContext<B> {
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
-    ) -> Option<(&Handle<Image<B>>, Option<rendy_core::hal::command::ClearValue>)> {
+    ) -> Option<(
+        &Handle<Image<B>>,
+        Option<rendy_core::hal::command::ClearValue>,
+    )> {
         self.images
             .get(id.0)
             .and_then(|x| x.as_ref())

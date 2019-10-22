@@ -231,7 +231,9 @@ impl ReflectInto<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>> for Refl
 }
 
 impl ReflectInto<rendy_core::hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptorBinding {
-    fn reflect_into(&self) -> Result<rendy_core::hal::pso::DescriptorSetLayoutBinding, ReflectTypeError> {
+    fn reflect_into(
+        &self,
+    ) -> Result<rendy_core::hal::pso::DescriptorSetLayoutBinding, ReflectTypeError> {
         Ok(rendy_core::hal::pso::DescriptorSetLayoutBinding {
             binding: self.binding,
             ty: self.descriptor_type.reflect_into()?,
@@ -252,7 +254,9 @@ pub(crate) fn convert_push_constant(
     ))
 }
 
-pub(crate) fn convert_stage(stage: ReflectShaderStageFlags) -> rendy_core::hal::pso::ShaderStageFlags {
+pub(crate) fn convert_stage(
+    stage: ReflectShaderStageFlags,
+) -> rendy_core::hal::pso::ShaderStageFlags {
     let mut bits = rendy_core::hal::pso::ShaderStageFlags::empty();
 
     if stage.contains(ReflectShaderStageFlags::VERTEX) {

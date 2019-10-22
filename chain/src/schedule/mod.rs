@@ -77,7 +77,10 @@ impl<S> Schedule<S> {
     }
 
     /// Get mutable reference to `Family` instance by the id.
-    pub fn family_mut(&mut self, fid: rendy_core::hal::queue::QueueFamilyId) -> Option<&mut Family<S>> {
+    pub fn family_mut(
+        &mut self,
+        fid: rendy_core::hal::queue::QueueFamilyId,
+    ) -> Option<&mut Family<S>> {
         self.map.get_mut(&fid)
     }
 

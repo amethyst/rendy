@@ -1,7 +1,7 @@
 //! CommandPool module docs.
 
 use {
-    crate::{buffer::*, capability::*, family::FamilyId, core::Device},
+    crate::{buffer::*, capability::*, core::Device, family::FamilyId},
     rendy_core::hal::{device::Device as _, Backend},
 };
 
@@ -43,8 +43,10 @@ where
         C: Capability,
     {
         let reset = R::default();
-        let raw = device
-            .create_command_pool(rendy_core::hal::queue::QueueFamilyId(family.index), reset.flags())?;
+        let raw = device.create_command_pool(
+            rendy_core::hal::queue::QueueFamilyId(family.index),
+            reset.flags(),
+        )?;
         Ok(CommandPool::from_raw(raw, capability, reset, family))
     }
 
@@ -77,8 +79,11 @@ where
     {
         let level = L::default();
 
-        let buffers =
-            rendy_core::hal::pool::CommandPool::allocate_vec(&mut self.raw, count, level.raw_level());
+        let buffers = rendy_core::hal::pool::CommandPool::allocate_vec(
+            &mut self.raw,
+            count,
+            level.raw_level(),
+        );
 
         buffers
             .into_iter()

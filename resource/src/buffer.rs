@@ -4,12 +4,12 @@ pub use rendy_core::hal::buffer::*;
 
 use {
     crate::{
-        memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
         core::{device_owned, Device, DeviceId},
+        memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
         CreationError,
     },
-    rendy_core::hal::{device::Device as _, Backend},
     relevant::Relevant,
+    rendy_core::hal::{device::Device as _, Backend},
 };
 
 /// Buffer info.

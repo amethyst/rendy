@@ -50,7 +50,8 @@ impl MemoryUsage for Data {
     fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
         assert!(properties.contains(rendy_core::hal::memory::Properties::DEVICE_LOCAL));
         0 | ((!properties.contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)) as u32) << 3
-            | ((!properties.contains(rendy_core::hal::memory::Properties::LAZILY_ALLOCATED)) as u32) << 2
+            | ((!properties.contains(rendy_core::hal::memory::Properties::LAZILY_ALLOCATED)) as u32)
+                << 2
             | ((!properties.contains(rendy_core::hal::memory::Properties::CPU_CACHED)) as u32) << 1
             | ((!properties.contains(rendy_core::hal::memory::Properties::COHERENT)) as u32) << 0
     }

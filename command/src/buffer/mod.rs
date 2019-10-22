@@ -214,7 +214,8 @@ where
     }
 }
 
-unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel> for (rendy_core::hal::pass::Subpass<'a, B>, &'a F)
+unsafe impl<'a, B, F> BeginInfo<'a, B, SecondaryLevel>
+    for (rendy_core::hal::pass::Subpass<'a, B>, &'a F)
 where
     B: Backend,
     F: std::borrow::Borrow<B::Framebuffer>,

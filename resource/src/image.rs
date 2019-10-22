@@ -4,13 +4,13 @@ pub use rendy_core::hal::image::*;
 
 use {
     crate::{
+        core::{device_owned, Device, DeviceId},
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
-        core::{device_owned, Device, DeviceId},
         CreationError,
     },
-    rendy_core::hal::{device::Device as _, format, Backend},
     relevant::Relevant,
+    rendy_core::hal::{device::Device as _, format, Backend},
 };
 
 /// Image info.

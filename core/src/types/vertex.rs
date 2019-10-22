@@ -1,7 +1,7 @@
 //! Built-in vertex formats.
 
-use derivative::Derivative;
 use crate::hal::format::Format;
+use derivative::Derivative;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::{borrow::Cow, fmt::Debug};
