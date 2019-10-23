@@ -132,7 +132,7 @@ where
 {
     type Pipeline = QuadsRenderPipeline<B>;
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -189,7 +189,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<QuadsRenderPipeline<B>, gfx_hal::pso::CreationError> {
+    ) -> Result<QuadsRenderPipeline<B>, rendy::hal::pso::CreationError> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
@@ -450,7 +450,7 @@ where
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = unsafe { BOUNCE_COMPUTE.module(factory) }
-            .map_err(gfx_hal::pso::CreationError::Shader)
+            .map_err(rendy::hal::pso::CreationError::Shader)
             .map_err(NodeBuildError::Pipeline)?;
 
         let set_layout = Handle::from(

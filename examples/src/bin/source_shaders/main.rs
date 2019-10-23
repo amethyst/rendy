@@ -12,7 +12,9 @@
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
-    graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
+    graph::{
+        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+    },
     hal,
     memory::Dynamic,
     mesh::PosColor,
@@ -42,16 +44,40 @@ type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
+    "
+    #version 450
+    #extension GL_ARB_separate_shader_objects : enable
+
+    layout(location = 0) in vec3 pos;
+    layout(location = 1) in vec4 color;
+    layout(location = 0) out vec4 frag_color;
+
+    void main() {
+        frag_color = color;
+        gl_Position = vec4(pos, 1.0);
+    }
+    ",
+        "triangle.vert",
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
 
     static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
+    "
+    #version 450
+    #extension GL_ARB_separate_shader_objects : enable
+
+    layout(early_fragment_tests) in;
+
+    layout(location = 0) in vec4 frag_color;
+    layout(location = 0) out vec4 color;
+
+    void main() {
+        color = frag_color;
+    }
+    ",
+        "triangle.frag",
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -86,7 +112,7 @@ where
         None
     }
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -116,7 +142,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<TriangleRenderPipeline<B>, gfx_hal::pso::CreationError> {
+    ) -> Result<TriangleRenderPipeline<B>, rendy::hal::pso::CreationError> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert!(set_layouts.is_empty());
@@ -257,7 +283,7 @@ fn run(
 #[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
-        .filter_module("triangle", log::LevelFilter::Trace)
+        .filter_module("source_shaders", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();
@@ -275,23 +301,30 @@ fn main() {
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 
-    graph_builder.add_node(
-        TriangleRenderPipeline::builder()
-            .into_subpass()
-            .with_color_surface()
-            .into_pass()
-            .with_surface(
-                surface,
-                Some(hal::command::ClearValue {
-                    color: hal::command::ClearColor {
-                        float32: [1.0, 1.0, 1.0, 1.0],
-                    },
-                }),
-            ),
+    let size = window.inner_size().to_physical(window.hidpi_factor());
+
+    let color = graph_builder.create_image(
+        hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
+        1,
+        factory.get_surface_format(&surface),
+        Some(hal::command::ClearValue {
+            color: hal::command::ClearColor {
+                float32: [1.0, 1.0, 1.0, 1.0],
+            },
+        }),
     );
 
+    let pass = graph_builder.add_node(
+        TriangleRenderPipeline::builder()
+            .into_subpass()
+            .with_color(color)
+            .into_pass(),
+    );
+
+    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
+
     let graph = graph_builder
-        .build(&mut factory, &mut families, &())
+        .build(&mut factory, &mut families, &mut ())
         .unwrap();
 
     run(event_loop, factory, families, graph);

@@ -1,0 +1,64 @@
+[package]
+name = "rendy-examples"
+version = "0.4.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/amethyst/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy-examples"
+keywords = ["graphics", "gfx-hal", "rendy"]
+categories = ["rendering"]
+description = "Examples of Rendy usage"
+
+[features]
+empty = ["rendy/empty"]
+dx12 = ["rendy/dx12"]
+metal = ["rendy/metal"]
+vulkan = ["rendy/vulkan"]
+vulkan-x11 = ["vulkan", "rendy/vulkan-x11"]
+no-slow-safety-checks = ["rendy/no-slow-safety-checks"]
+profiler = ["rendy/profiler"]
+
+base = ["rendy/base"]
+wsi-winit = ["rendy/wsi-winit"]
+shader-compiler = ["rendy/shader-compiler"]
+texture-image = ["rendy/texture-image"]
+mesh-obj = ["rendy/mesh-obj"]
+texture-palette = ["rendy/texture-palette"]
+spirv-reflection = ["rendy/spirv-reflection"]
+serde-1 = ["rendy/serde-1"]
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit", "serde-1"]
+
+[dependencies]
+rendy = { version = "0.4.0", path = "../rendy" }
+
+env_logger = "0.6"
+genmesh = "0.6"
+lazy_static = "1.0"
+log = "0.4"
+nalgebra = "0.18"
+palette = "0.4"
+rand = "0.7"
+
+[[bin]]
+name = "triangle"
+required-features = ["base", "wsi-winit", "shader-compiler"]
+
+[[bin]]
+name = "sprite"
+required-features = ["base", "texture-image", "wsi-winit", "shader-compiler"]
+
+[[bin]]
+name = "meshes"
+required-features = ["base", "wsi-winit", "shader-compiler"]
+
+[[bin]]
+name = "quads"
+required-features = ["base", "wsi-winit", "shader-compiler"]
+
+[[bin]]
+name = "source_shaders"
+required-features = ["base", "wsi-winit", "shader-compiler"]
+
+[package.metadata.docs.rs]
+features = ["full"]

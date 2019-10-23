@@ -3,6 +3,7 @@
 members = [
     "command",
     "descriptor",
+    "examples",
     "factory",
     "frame",
     "memory",

@@ -79,25 +79,5 @@ log = "0.4"
 palette = "0.4"
 rand = "0.7"
 
-[[example]]
-name = "triangle"
-required-features = ["base", "wsi-winit", "shader-compiler"]
-
-[[example]]
-name = "sprite"
-required-features = ["base", "texture-image", "wsi-winit", "shader-compiler"]
-
-[[example]]
-name = "meshes"
-required-features = ["base", "wsi-winit", "shader-compiler"]
-
-[[example]]
-name = "quads"
-required-features = ["base", "wsi-winit", "shader-compiler"]
-
-[[example]]
-name = "source_shaders"
-required-features = ["base", "wsi-winit", "shader-compiler"]
-
 [package.metadata.docs.rs]
 features = ["full"]

@@ -147,7 +147,7 @@ where
         &self,
         factory: &mut Factory<B>,
         _scene: &Scene<B>,
-    ) -> rendy_shader::ShaderSet<B> {
+    ) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -205,7 +205,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<MeshRenderPipeline<B>, gfx_hal::pso::CreationError> {
+    ) -> Result<MeshRenderPipeline<B>, rendy::hal::pso::CreationError> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert_eq!(set_layouts.len(), 1);
