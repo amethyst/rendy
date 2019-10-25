@@ -12,6 +12,31 @@ pub fn cast_vec<T: Copy>(mut vec: Vec<T>) -> Vec<u8> {
     unsafe { Vec::from_raw_parts(ptr as _, len, cap) }
 }
 
+/// Safely turn a slice of bytes into a `Vec<u32>`,
+/// intended to make it easy to load SPIR-V bytecode
+/// from a file.  Copies its input, since a `&[u32]`
+/// has aligment constraints that `&[u8]` may not
+/// fulfill.  Always assumes native endianness,
+/// since SPIR-V is defined to be endian-independent.
+/// Panics if the input length does not divide evenly by 4.
+///
+/// TODO: Make it return `Cow<'a, [u32]>` and
+/// only copy the input if necessary.
+pub fn cast_spirv_bytes(bytes: &[u8]) -> Vec<u32> {
+    assert!(
+        bytes.len() % 4 != 0,
+        "cast_spirv_bytes() got input of a length that doesn't fit into u32's!"
+    );
+    let mut accm = Vec::with_capacity(bytes.len() / 4);
+    for chunk in bytes.chunks_exact(4) {
+        let mut arr: [u8; 4] = [0; 4];
+        arr.copy_from_slice(chunk);
+        let i = u32::from_ne_bytes(arr);
+        accm.push(i);
+    }
+    accm
+}
+
 /// Cast slice of some arbitrary type into slice of bytes.
 pub fn cast_slice<T>(slice: &[T]) -> &[u8] {
     let len = std::mem::size_of::<T>() * slice.len();
