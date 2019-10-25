@@ -49,7 +49,7 @@ impl From<::shaderc::Error> for ShaderCError {
     }
 }
 
-/// Shader loaded from a source in the filesystem.
+/// Info necessary to compile a shader from source code stored in the filesystem.
 #[derive(Clone, Copy, Debug)]
 pub struct FileShaderInfo<P, E> {
     path: P,
@@ -59,7 +59,7 @@ pub struct FileShaderInfo<P, E> {
 }
 
 impl<P, E> FileShaderInfo<P, E> {
-    /// New shader.
+    /// Create shader info that will be compiled from the contents of `path`.
     pub fn new(path: P, kind: ShaderKind, lang: SourceLanguage, entry: E) -> Self {
         FileShaderInfo {
             path,
@@ -130,7 +130,7 @@ where
     }
 }
 
-/// Shader loaded from a source in the filesystem.
+/// Info necessary to compile a shader from provided source code.
 #[derive(Clone, Copy, Debug)]
 pub struct SourceCodeShaderInfo<P, E, S> {
     source: S,
@@ -141,7 +141,8 @@ pub struct SourceCodeShaderInfo<P, E, S> {
 }
 
 impl<P, E, S> SourceCodeShaderInfo<P, E, S> {
-    /// New shader.
+    /// Create shader info that will be compiled from the provided `source`. Note that `path` is
+    /// just a name used for diagnostics, and isn't required to be an actual file.
     pub fn new(source: S, path: P, kind: ShaderKind, lang: SourceLanguage, entry: E) -> Self {
         SourceCodeShaderInfo {
             source,
