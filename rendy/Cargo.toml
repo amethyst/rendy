@@ -30,6 +30,7 @@ wsi = ["rendy-wsi"]
 # Common core features
 empty = ["rendy-core/empty"]
 dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
 metal = ["rendy-core/metal"]
 vulkan = ["rendy-core/vulkan"]
 vulkan-x11 = ["vulkan", "rendy-core/vulkan-x11"]

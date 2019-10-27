@@ -21,6 +21,7 @@ serde-1 = ["serde", "gfx-hal/serde"]
 empty = ["gfx-backend-empty"]
 dx12 = ["gfx-backend-dx12"]
 metal = ["gfx-backend-metal"]
+gl = ["gfx-backend-gl"]
 vulkan = ["gfx-backend-vulkan"]
 vulkan-x11 = ["gfx-backend-vulkan/x11"]
 no-slow-safety-checks = []
@@ -40,7 +41,7 @@ raw-window-handle = "0.3"
 [target.'cfg(all(target_os = "windows", not(target_arch = "wasm32")))'.dependencies]
 gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
 
-[target.'cfg(any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios"))))'.dependencies]
+[target.'cfg(any(all(not(target_arch = "wasm32"), target_os = "macos"), all(target_arch = "aarch64", target_os = "ios")))'.dependencies]
 gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
 
 [target.'cfg(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))'.dependencies]

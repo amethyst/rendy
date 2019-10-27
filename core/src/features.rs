@@ -98,11 +98,10 @@ macro_rules! rendy_without_gl_backend {
 #[macro_export]
 #[cfg(all(
     feature = "metal",
-    any(all(
-        target_os = "macos",
-        not(target_arch = "wasm32"),
+    any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")
-    ))
+    )
 ))]
 macro_rules! rendy_with_metal_backend {
     ($($tt:tt)*) => { $($tt)* };
@@ -112,11 +111,10 @@ macro_rules! rendy_with_metal_backend {
 #[macro_export]
 #[cfg(not(all(
     feature = "metal",
-    any(all(
-        target_os = "macos",
-        not(target_arch = "wasm32"),
+    any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")
-    ))
+    )
 )))]
 macro_rules! rendy_with_metal_backend {
     ($($tt:tt)*) => {};
@@ -126,11 +124,10 @@ macro_rules! rendy_with_metal_backend {
 #[macro_export]
 #[cfg(not(all(
     feature = "metal",
-    any(all(
-        target_os = "macos",
-        not(target_arch = "wasm32"),
+    any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")
-    ))
+    )
 )))]
 macro_rules! rendy_without_metal_backend {
     ($($tt:tt)*) => { $($tt)* };
@@ -140,11 +137,10 @@ macro_rules! rendy_without_metal_backend {
 #[macro_export]
 #[cfg(all(
     feature = "metal",
-    any(all(
-        target_os = "macos",
-        not(target_arch = "wasm32"),
+    any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")
-    ))
+    )
 ))]
 macro_rules! rendy_without_metal_backend {
     ($($tt:tt)*) => {};

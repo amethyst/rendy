@@ -17,10 +17,11 @@ serde-1 = [
     "rendy-memory/serde-1",
 ]
 
-empty = ["rendy-core/gfx-backend-empty"]
-dx12 = ["rendy-core/gfx-backend-dx12"]
-metal = ["rendy-core/gfx-backend-metal"]
-vulkan = ["rendy-core/gfx-backend-vulkan"]
+empty = ["rendy-core/empty"]
+dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
+metal = ["rendy-core/metal"]
+vulkan = ["rendy-core/vulkan"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
