@@ -19,19 +19,18 @@ pub use rendy_core as core;
 pub use rendy_core::hal;
 
 #[cfg(feature = "empty")]
-#[doc(inline)]
 pub use rendy_core::empty;
 
-#[cfg(feature = "dx12")]
-#[doc(inline)]
+#[cfg(all(feature = "dx12", all(target_os = "windows", not(target_arch = "wasm32"))))]
 pub use rendy_core::dx12;
 
-#[cfg(feature = "metal")]
-#[doc(inline)]
+#[cfg(feature = "gl")]
+pub use rendy_core::gl;
+
+#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
 pub use rendy_core::metal;
 
-#[cfg(feature = "vulkan")]
-#[doc(inline)]
+#[cfg(all(feature = "vulkan", any(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
 pub use rendy_core::vulkan;
 
 #[cfg(feature = "command")]
