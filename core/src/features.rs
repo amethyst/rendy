@@ -1,28 +1,39 @@
-
 /// Resolve into input AST if dx12 backend is enabled.
 #[macro_export]
-#[cfg(all(feature = "dx12", all(target_os = "windows", not(target_arch = "wasm32"))))]
+#[cfg(all(
+    feature = "dx12",
+    all(target_os = "windows", not(target_arch = "wasm32"))
+))]
 macro_rules! rendy_with_dx12_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if dx12 backend is enabled.
 #[macro_export]
-#[cfg(not(all(feature = "dx12", all(target_os = "windows", not(target_arch = "wasm32")))))]
+#[cfg(not(all(
+    feature = "dx12",
+    all(target_os = "windows", not(target_arch = "wasm32"))
+)))]
 macro_rules! rendy_with_dx12_backend {
     ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if dx12 backend is disabled.
 #[macro_export]
-#[cfg(not(all(feature = "dx12", all(target_os = "windows", not(target_arch = "wasm32")))))]
+#[cfg(not(all(
+    feature = "dx12",
+    all(target_os = "windows", not(target_arch = "wasm32"))
+)))]
 macro_rules! rendy_without_dx12_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if dx12 backend is disabled.
 #[macro_export]
-#[cfg(all(feature = "dx12", all(target_os = "windows", not(target_arch = "wasm32"))))]
+#[cfg(all(
+    feature = "dx12",
+    all(target_os = "windows", not(target_arch = "wasm32"))
+))]
 macro_rules! rendy_without_dx12_backend {
     ($($tt:tt)*) => {};
 }
@@ -85,56 +96,120 @@ macro_rules! rendy_without_gl_backend {
 
 /// Resolve into input AST if metal backend is enabled.
 #[macro_export]
-#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
+#[cfg(all(
+    feature = "metal",
+    any(all(
+        target_os = "macos",
+        not(target_arch = "wasm32"),
+        all(target_arch = "aarch64", target_os = "ios")
+    ))
+))]
 macro_rules! rendy_with_metal_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if metal backend is enabled.
 #[macro_export]
-#[cfg(not(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios"))))))]
+#[cfg(not(all(
+    feature = "metal",
+    any(all(
+        target_os = "macos",
+        not(target_arch = "wasm32"),
+        all(target_arch = "aarch64", target_os = "ios")
+    ))
+)))]
 macro_rules! rendy_with_metal_backend {
     ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if metal backend is disabled.
 #[macro_export]
-#[cfg(not(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios"))))))]
+#[cfg(not(all(
+    feature = "metal",
+    any(all(
+        target_os = "macos",
+        not(target_arch = "wasm32"),
+        all(target_arch = "aarch64", target_os = "ios")
+    ))
+)))]
 macro_rules! rendy_without_metal_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if metal backend is disabled.
 #[macro_export]
-#[cfg(all(feature = "metal", any(all(target_os = "macos", not(target_arch = "wasm32"), all(target_arch = "aarch64", target_os = "ios")))))]
+#[cfg(all(
+    feature = "metal",
+    any(all(
+        target_os = "macos",
+        not(target_arch = "wasm32"),
+        all(target_arch = "aarch64", target_os = "ios")
+    ))
+))]
 macro_rules! rendy_without_metal_backend {
     ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if vulkan backend is enabled.
 #[macro_export]
-#[cfg(all(feature = "vulkan", all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32"))))]
+#[cfg(all(
+    feature = "vulkan",
+    all(
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
+    )
+))]
 macro_rules! rendy_with_vulkan_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if vulkan backend is enabled.
 #[macro_export]
-#[cfg(not(all(feature = "vulkan", all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
+#[cfg(not(all(
+    feature = "vulkan",
+    all(
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
+    )
+)))]
 macro_rules! rendy_with_vulkan_backend {
     ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if vulkan backend is disabled.
 #[macro_export]
-#[cfg(not(all(feature = "vulkan", all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))))]
+#[cfg(not(all(
+    feature = "vulkan",
+    all(
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
+    )
+)))]
 macro_rules! rendy_without_vulkan_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if vulkan backend is disabled.
 #[macro_export]
-#[cfg(all(feature = "vulkan", all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32"))))]
+#[cfg(all(
+    feature = "vulkan",
+    all(
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
+    )
+))]
 macro_rules! rendy_without_vulkan_backend {
     ($($tt:tt)*) => {};
 }
@@ -157,7 +232,7 @@ macro_rules! rendy_wasm32 {
 #[macro_export]
 #[cfg(target_arch = "wasm32")]
 macro_rules! rendy_not_wasm32 {
-    ($($tt:tt)*) => { };
+    ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if target architecture is not "wasm32"
