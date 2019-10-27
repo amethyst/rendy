@@ -13,7 +13,8 @@ use {
         command::{Families, QueueId, RenderPassEncoder},
         factory::{Config, Factory, ImageState},
         graph::{
-            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
+            NodeImage,
         },
         hal::{self, device::Device as _},
         memory::Dynamic,

@@ -16,7 +16,9 @@ use {
         hal::{
             adapter::{Adapter, Gpu, PhysicalDevice},
             buffer,
-            device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
+            device::{
+                AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor,
+            },
             format, image,
             pso::DescriptorSetLayoutBinding,
             window::{Extent2D, InitError, Surface as GfxSurface},
@@ -717,7 +719,10 @@ where
     }
 
     /// Create rendering surface from window handle.
-    pub fn create_surface(&mut self, handle: &impl HasRawWindowHandle) -> Result<Surface<B>, InitError> {
+    pub fn create_surface(
+        &mut self,
+        handle: &impl HasRawWindowHandle,
+    ) -> Result<Surface<B>, InitError> {
         profile_scope!("create_surface");
         Surface::new(&self.instance, handle)
     }

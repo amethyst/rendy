@@ -39,8 +39,6 @@ use {
     },
 };
 
-
-
 #[cfg(feature = "spirv-reflection")]
 use rendy::shader::SpirvReflection;
 

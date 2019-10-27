@@ -23,12 +23,12 @@ use {
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     },
+    std::{cmp::min, mem::size_of, time},
     winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
     },
-    std::{cmp::min, mem::size_of, time},
 };
 
 #[cfg(feature = "spirv-reflection")]

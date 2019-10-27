@@ -14,7 +14,8 @@ use {
         command::{Families, QueueId, RenderPassEncoder},
         factory::{Config, Factory},
         graph::{
-            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer,
+            NodeImage,
         },
         hal,
         memory::Dynamic,

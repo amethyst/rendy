@@ -18,7 +18,9 @@ use {
         window::{Extent2D, Surface as _, SurfaceCapabilities},
         Backend, Instance as _,
     },
-    rendy_core::{device_owned, instance_owned, Device, DeviceId, Instance, InstanceId, HasRawWindowHandle},
+    rendy_core::{
+        device_owned, instance_owned, Device, DeviceId, HasRawWindowHandle, Instance, InstanceId,
+    },
     rendy_resource::{Image, ImageInfo},
 };
 

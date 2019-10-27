@@ -33,7 +33,7 @@ pub use gfx_backend_metal as metal;
 pub use gfx_backend_vulkan as vulkan;
 
 #[doc(inline)]
-pub use raw_window_handle::{RawWindowHandle, HasRawWindowHandle};
+pub use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
 #[macro_use]
 mod features;
