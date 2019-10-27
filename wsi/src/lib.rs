@@ -12,17 +12,17 @@
 )]
 
 use {
-    gfx_hal::{device::Device as _, window::Extent2D, Backend},
-    rendy_resource::{Image, ImageInfo},
-    rendy_util::{
+    rendy_core::hal::{device::Device as _, window::Extent2D, Backend},
+    rendy_core::{
         device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
         rendy_with_metal_backend, rendy_with_vulkan_backend, Device, DeviceId, Instance,
         InstanceId,
     },
+    rendy_resource::{Image, ImageInfo},
 };
 
 #[cfg(feature = "winit")]
-use rendy_util::rendy_backend_match;
+use rendy_core::rendy_backend_match;
 
 #[cfg(feature = "winit")]
 pub use winit;
@@ -31,10 +31,10 @@ rendy_with_empty_backend! {
     mod gfx_backend_empty {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
-            _instance: &rendy_util::empty::Instance,
+            _instance: &rendy_core::empty::Instance,
             _window: &winit::window::Window,
-        ) -> rendy_util::empty::Surface {
-            rendy_util::empty::Surface
+        ) -> rendy_core::empty::Surface {
+            rendy_core::empty::Surface
         }
     }
 }
@@ -43,9 +43,9 @@ rendy_with_dx12_backend! {
     mod gfx_backend_dx12 {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
-            instance: &rendy_util::dx12::Instance,
+            instance: &rendy_core::dx12::Instance,
             window: &winit::window::Window,
-        ) -> <rendy_util::dx12::Backend as gfx_hal::Backend>::Surface {
+        ) -> <rendy_core::dx12::Backend as rendy_core::hal::Backend>::Surface {
             instance.create_surface(window)
         }
     }
@@ -55,9 +55,9 @@ rendy_with_metal_backend! {
     mod gfx_backend_metal {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
-            instance: &rendy_util::metal::Instance,
+            instance: &rendy_core::metal::Instance,
             window: &winit::window::Window,
-        ) -> <rendy_util::metal::Backend as gfx_hal::Backend>::Surface {
+        ) -> <rendy_core::metal::Backend as rendy_core::hal::Backend>::Surface {
             instance.create_surface(window)
         }
     }
@@ -67,9 +67,9 @@ rendy_with_vulkan_backend! {
     mod gfx_backend_vulkan {
         #[cfg(feature = "winit")]
         pub(super) fn create_surface(
-            instance: &rendy_util::vulkan::Instance,
+            instance: &rendy_core::vulkan::Instance,
             window: &winit::window::Window,
-        ) -> <rendy_util::vulkan::Backend as gfx_hal::Backend>::Surface {
+        ) -> <rendy_core::vulkan::Backend as rendy_core::hal::Backend>::Surface {
             instance.create_surface(window)
         }
     }
@@ -79,11 +79,11 @@ rendy_with_vulkan_backend! {
 #[derive(Debug)]
 pub enum SwapchainError {
     /// Internal error in gfx-hal.
-    Create(gfx_hal::window::CreationError),
+    Create(rendy_core::hal::window::CreationError),
     /// Present mode is not supported.
-    BadPresentMode(gfx_hal::window::PresentMode),
+    BadPresentMode(rendy_core::hal::window::PresentMode),
     /// Image count is not supported.
-    BadImageCount(gfx_hal::window::SwapImageIndex),
+    BadImageCount(rendy_core::hal::window::SwapImageIndex),
 }
 
 #[cfg(feature = "winit")]
@@ -92,7 +92,7 @@ fn create_surface<B: Backend>(
     instance: &Instance<B>,
     window: &winit::window::Window,
 ) -> B::Surface {
-    use rendy_util::identical_cast;
+    use rendy_core::identical_cast;
 
     // We perform identical type transmute.
     rendy_backend_match!(B {
@@ -151,7 +151,7 @@ where
     /// Closure must return surface object created from raw instance provided as closure argument.
     pub unsafe fn create<T>(instance: &Instance<B>, f: impl FnOnce(&T) -> B::Surface) -> Self
     where
-        T: gfx_hal::Instance<Backend = B>,
+        T: rendy_core::hal::Instance<Backend = B>,
     {
         Surface {
             raw: f(instance.raw_typed().expect("Wrong instance type")),
@@ -176,9 +176,12 @@ where
     }
 
     /// Get surface ideal format.
-    pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> gfx_hal::format::Format {
+    pub unsafe fn format(
+        &self,
+        physical_device: &B::PhysicalDevice,
+    ) -> rendy_core::hal::format::Format {
         let (_capabilities, formats, _present_modes) =
-            gfx_hal::window::Surface::compatibility(&self.raw, physical_device);
+            rendy_core::hal::window::Surface::compatibility(&self.raw, physical_device);
         let formats = formats.unwrap();
 
         *formats
@@ -188,7 +191,7 @@ where
                 let desc = base.0.desc();
                 (
                     !desc.is_compressed(),
-                    base.1 == gfx_hal::format::ChannelType::Srgb,
+                    base.1 == rendy_core::hal::format::ChannelType::Srgb,
                     desc.bits,
                 )
             })
@@ -203,11 +206,11 @@ where
         &self,
         physical_device: &B::PhysicalDevice,
     ) -> (
-        gfx_hal::window::SurfaceCapabilities,
-        Option<Vec<gfx_hal::format::Format>>,
-        Vec<gfx_hal::window::PresentMode>,
+        rendy_core::hal::window::SurfaceCapabilities,
+        Option<Vec<rendy_core::hal::format::Format>>,
+        Vec<rendy_core::hal::window::PresentMode>,
     ) {
-        gfx_hal::window::Surface::compatibility(&self.raw, physical_device)
+        rendy_core::hal::window::Surface::compatibility(&self.raw, physical_device)
     }
 
     /// Cast surface into render target.
@@ -217,8 +220,8 @@ where
         device: &Device<B>,
         suggest_extent: Extent2D,
         image_count: u32,
-        present_mode: gfx_hal::window::PresentMode,
-        usage: gfx_hal::image::Usage,
+        present_mode: rendy_core::hal::window::PresentMode,
+        usage: rendy_core::hal::image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
         assert_eq!(
             device.id().instance,
@@ -255,8 +258,8 @@ unsafe fn create_swapchain<B: Backend>(
     device: &Device<B>,
     suggest_extent: Extent2D,
     image_count: u32,
-    present_mode: gfx_hal::window::PresentMode,
-    usage: gfx_hal::image::Usage,
+    present_mode: rendy_core::hal::window::PresentMode,
+    usage: rendy_core::hal::image::Usage,
 ) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), SwapchainError> {
     let (capabilities, formats, present_modes) = surface.compatibility(physical_device);
 
@@ -284,7 +287,7 @@ unsafe fn create_swapchain<B: Backend>(
             let desc = base.0.desc();
             (
                 !desc.is_compressed(),
-                base.1 == gfx_hal::format::ChannelType::Srgb,
+                base.1 == rendy_core::hal::format::ChannelType::Srgb,
                 desc.bits,
             )
         })
@@ -321,7 +324,7 @@ unsafe fn create_swapchain<B: Backend>(
     let (swapchain, images) = device
         .create_swapchain(
             &mut surface.raw,
-            gfx_hal::window::SwapchainConfig {
+            rendy_core::hal::window::SwapchainConfig {
                 present_mode,
                 format,
                 extent,
@@ -329,10 +332,10 @@ unsafe fn create_swapchain<B: Backend>(
                 image_layers: 1,
                 image_usage: usage,
                 composite_alpha: [
-                    gfx_hal::window::CompositeAlpha::INHERIT,
-                    gfx_hal::window::CompositeAlpha::OPAQUE,
-                    gfx_hal::window::CompositeAlpha::PREMULTIPLIED,
-                    gfx_hal::window::CompositeAlpha::POSTMULTIPLIED,
+                    rendy_core::hal::window::CompositeAlpha::INHERIT,
+                    rendy_core::hal::window::CompositeAlpha::OPAQUE,
+                    rendy_core::hal::window::CompositeAlpha::PREMULTIPLIED,
+                    rendy_core::hal::window::CompositeAlpha::POSTMULTIPLIED,
                 ]
                 .iter()
                 .find(|&bit| capabilities.composite_alpha & *bit == *bit)
@@ -349,11 +352,11 @@ unsafe fn create_swapchain<B: Backend>(
             Image::create_from_swapchain(
                 device.id(),
                 ImageInfo {
-                    kind: gfx_hal::image::Kind::D2(extent.width, extent.height, 1, 1),
+                    kind: rendy_core::hal::image::Kind::D2(extent.width, extent.height, 1, 1),
                     levels: 1,
                     format,
-                    tiling: gfx_hal::image::Tiling::Optimal,
-                    view_caps: gfx_hal::image::ViewCapabilities::empty(),
+                    tiling: rendy_core::hal::image::Tiling::Optimal,
+                    view_caps: rendy_core::hal::image::ViewCapabilities::empty(),
                     usage,
                 },
                 image,
@@ -372,8 +375,8 @@ pub struct Target<B: Backend> {
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Vec<Image<B>>>,
     extent: Extent2D,
-    present_mode: gfx_hal::window::PresentMode,
-    usage: gfx_hal::image::Usage,
+    present_mode: rendy_core::hal::window::PresentMode,
+    usage: rendy_core::hal::image::Usage,
     relevant: relevant::Relevant,
 }
 
@@ -474,7 +477,7 @@ where
     /// # Safety
     ///
     /// Trait usage should not violate this type valid usage.
-    pub unsafe fn swapchain_mut(&mut self) -> &mut impl gfx_hal::window::Swapchain<B> {
+    pub unsafe fn swapchain_mut(&mut self) -> &mut impl rendy_core::hal::window::Swapchain<B> {
         self.swapchain.as_mut().expect("Swapchain already disposed")
     }
 
@@ -491,7 +494,7 @@ where
     }
 
     /// Get image usage flags.
-    pub fn usage(&self) -> gfx_hal::image::Usage {
+    pub fn usage(&self) -> rendy_core::hal::image::Usage {
         self.usage
     }
 
@@ -499,12 +502,12 @@ where
     pub unsafe fn next_image(
         &mut self,
         signal: &B::Semaphore,
-    ) -> Result<NextImages<'_, B>, gfx_hal::window::AcquireError> {
-        let index = gfx_hal::window::Swapchain::acquire_image(
+    ) -> Result<NextImages<'_, B>, rendy_core::hal::window::AcquireError> {
+        let index = rendy_core::hal::window::Swapchain::acquire_image(
             // Missing swapchain is equivalent to OutOfDate, as it has to be recreated anyway.
             self.swapchain
                 .as_mut()
-                .ok_or(gfx_hal::window::AcquireError::OutOfDate)?,
+                .ok_or(rendy_core::hal::window::AcquireError::OutOfDate)?,
             !0,
             Some(signal),
             None,
@@ -539,9 +542,9 @@ where
     /// Use specific presentation error type.
     pub unsafe fn present<'b>(
         self,
-        queue: &mut impl gfx_hal::queue::CommandQueue<B>,
+        queue: &mut impl rendy_core::hal::queue::CommandQueue<B>,
         wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>,
-    ) -> Result<Option<gfx_hal::window::Suboptimal>, gfx_hal::window::PresentError>
+    ) -> Result<Option<rendy_core::hal::window::Suboptimal>, rendy_core::hal::window::PresentError>
     where
         'a: 'b,
     {

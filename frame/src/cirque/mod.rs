@@ -141,7 +141,7 @@ impl<T, I, P> Cirque<T, I, P> {
 
     /// Get `CirqueRef` for specified frames range.
     /// Allocate new instance in initial state if no ready values exist.
-    pub fn get<B: gfx_hal::Backend>(
+    pub fn get<B: rendy_core::hal::Backend>(
         &mut self,
         frames: &Frames<B>,
         alloc: impl FnOnce() -> I,

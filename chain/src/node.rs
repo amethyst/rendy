@@ -15,7 +15,7 @@ pub struct State<R: Resource> {
     pub layout: R::Layout,
 
     /// Stages at which resource is accessed.
-    pub stages: gfx_hal::pso::PipelineStage,
+    pub stages: rendy_core::hal::pso::PipelineStage,
 
     /// Usage flags required for resource.
     pub usage: R::Usage,
@@ -34,7 +34,7 @@ pub struct Node {
     pub id: usize,
 
     /// Family required to execute the node.
-    pub family: gfx_hal::queue::QueueFamilyId,
+    pub family: rendy_core::hal::queue::QueueFamilyId,
 
     /// Dependencies of the node.
     /// Those are indices of other nodes in array.
@@ -49,7 +49,7 @@ pub struct Node {
 
 impl Node {
     /// Get family on which this node will be executed.
-    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
         self.family
     }
 

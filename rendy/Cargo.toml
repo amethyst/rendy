@@ -1,6 +1,6 @@
 [package]
 name = "rendy"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -12,7 +12,7 @@ categories = ["rendering"]
 readme = "../README.md"
 
 [features]
-serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-util/serde-1"]
+serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-core/serde-1"]
 
 # Rendy subcrates
 command = ["rendy-command"]
@@ -27,13 +27,13 @@ resource = ["rendy-resource", "memory"]
 texture = ["rendy-texture", "factory"]
 wsi = ["rendy-wsi"]
 
-# Common util features
-empty = ["rendy-util/gfx-backend-empty"]
-dx12 = ["rendy-util/gfx-backend-dx12"]
-metal = ["rendy-util/gfx-backend-metal"]
-vulkan = ["rendy-util/gfx-backend-vulkan"]
-vulkan-x11 = ["vulkan", "rendy-util/vulkan-x11"]
-no-slow-safety-checks = ["rendy-util/no-slow-safety-checks"]
+# Common core features
+empty = ["rendy-core/gfx-backend-empty"]
+dx12 = ["rendy-core/gfx-backend-dx12"]
+metal = ["rendy-core/gfx-backend-metal"]
+vulkan = ["rendy-core/gfx-backend-vulkan"]
+vulkan-x11 = ["vulkan", "rendy-core/vulkan-x11"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 # Base feature enables all subcrates
@@ -47,27 +47,26 @@ shader-compiler = ["rendy-shader/shader-compiler"]
 spirv-reflection = ["rendy-shader/spirv-reflection" ]
 wsi-winit = ["rendy-wsi/winit"]
 
-# Full feature set - all listed features except rendy-util's.
+# Full feature set - all listed features except rendy-core's.
 full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit", "serde-1"]
 
 # Default feature set includes all subcrates and few commonly used features.
 default = [ "base", "shader-compiler", "spirv-reflection", "wsi-winit" ]
 
 [dependencies]
-rendy-command = { version = "0.4.0", path = "../command", optional = true }
-rendy-descriptor = { version = "0.4.0", path = "../descriptor", optional = true }
-rendy-factory = { version = "0.4.0", path = "../factory", optional = true }
-rendy-frame = { version = "0.4.0", path = "../frame", optional = true }
-rendy-graph = { version = "0.4.0", path = "../graph", optional = true }
-rendy-memory = { version = "0.4.0", path = "../memory", optional = true }
-rendy-mesh = { version = "0.4.0", path = "../mesh", optional = true }
-rendy-shader = { version = "0.4.0", path = "../shader", optional = true }
-rendy-resource = { version = "0.4.0", path = "../resource", optional = true }
-rendy-texture = { version = "0.4.0", path = "../texture", optional = true }
-rendy-util = { version = "0.4.0", path = "../util" }
-rendy-wsi = { version = "0.4.0", path = "../wsi", optional = true }
+rendy-command = { version = "0.5.0", path = "../command", optional = true }
+rendy-descriptor = { version = "0.5.0", path = "../descriptor", optional = true }
+rendy-factory = { version = "0.5.0", path = "../factory", optional = true }
+rendy-frame = { version = "0.5.0", path = "../frame", optional = true }
+rendy-graph = { version = "0.5.0", path = "../graph", optional = true }
+rendy-memory = { version = "0.5.0", path = "../memory", optional = true }
+rendy-mesh = { version = "0.5.0", path = "../mesh", optional = true }
+rendy-shader = { version = "0.5.0", path = "../shader", optional = true }
+rendy-resource = { version = "0.5.0", path = "../resource", optional = true }
+rendy-texture = { version = "0.5.0", path = "../texture", optional = true }
+rendy-core = { version = "0.5.0", path = "../core" }
+rendy-wsi = { version = "0.5.0", path = "../wsi", optional = true }
 
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3d5db15661127c8cad8d85522a68ec36c82f6e69" }
 thread_profiler = "0.3"
 
 [dev-dependencies]

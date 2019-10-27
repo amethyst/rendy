@@ -51,9 +51,9 @@ let buffer = factory
     .create_buffer(
         BufferInfo {
             size: buffer_frame_size(align) * frames as u64,
-            usage: gfx_hal::buffer::Usage::UNIFORM
-                | gfx_hal::buffer::Usage::INDIRECT
-                | gfx_hal::buffer::Usage::VERTEX,
+            usage: rendy_core::hal::buffer::Usage::UNIFORM
+                | rendy_core::hal::buffer::Usage::INDIRECT
+                | rendy_core::hal::buffer::Usage::VERTEX,
         },
         Dynamic,
     )
@@ -88,6 +88,6 @@ The code for these can be found in `rendy/memory/usage.rs`.
 
 ## Useful Links
 
-[Usage Types in gfx_hal](https://docs.rs/gfx-hal/0.1.0/gfx_hal/buffer/struct.Usage.html)
+[Usage Types in rendy_core::hal](https://docs.rs/gfx-hal/0.1.0/rendy_core::hal/buffer/struct.Usage.html)
 [Vulkan Vertex Buffers](https://vulkan-tutorial.com/Vertex_buffers)
 [Vulkan Indirect Draw](https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndirect.html)

@@ -11,9 +11,9 @@
     unused_import_braces,
     unused_qualifications
 )]
+use rendy_core as core;
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;
-use rendy_util as util;
 
 mod buffer;
 mod escape;
@@ -33,5 +33,5 @@ pub enum CreationError<E> {
     /// Failed to allocate memory.
     Allocate(memory::HeapsError),
     /// Failed to bind object memory.
-    Bind(gfx_hal::device::BindError),
+    Bind(rendy_core::hal::device::BindError),
 }

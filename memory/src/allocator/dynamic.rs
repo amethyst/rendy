@@ -13,8 +13,8 @@ use {
         memory::*,
         util::*,
     },
-    gfx_hal::{device::Device as _, Backend},
     hibitset::{BitSet, BitSetLike as _},
+    rendy_core::hal::{device::Device as _, Backend},
 };
 
 /// Memory block allocated from `DynamicAllocator`
@@ -55,7 +55,7 @@ where
     B: Backend,
 {
     #[inline]
-    fn properties(&self) -> gfx_hal::memory::Properties {
+    fn properties(&self) -> rendy_core::hal::memory::Properties {
         self.shared_memory().properties()
     }
 
@@ -74,14 +74,14 @@ where
         &'a mut self,
         _device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
+    ) -> Result<MappedRange<'a, B>, rendy_core::hal::device::MapError> {
         debug_assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
         if !self.shared_memory().host_visible() {
             //TODO: invalid access error
-            return Err(gfx_hal::device::MapError::MappingFailed);
+            return Err(rendy_core::hal::device::MapError::MappingFailed);
         }
 
         if let Some(ptr) = self.ptr {
@@ -89,10 +89,10 @@ where
                 let mapping = unsafe { MappedRange::from_raw(self.shared_memory(), ptr, range) };
                 Ok(mapping)
             } else {
-                Err(gfx_hal::device::MapError::OutOfBounds)
+                Err(rendy_core::hal::device::MapError::OutOfBounds)
             }
         } else {
-            Err(gfx_hal::device::MapError::MappingFailed)
+            Err(rendy_core::hal::device::MapError::MappingFailed)
         }
     }
 
@@ -121,10 +121,10 @@ pub struct DynamicConfig {
 #[derive(Debug)]
 pub struct DynamicAllocator<B: Backend> {
     /// Memory type that this allocator allocates.
-    memory_type: gfx_hal::MemoryTypeId,
+    memory_type: rendy_core::hal::MemoryTypeId,
 
     /// Memory properties of the memory type.
-    memory_properties: gfx_hal::memory::Properties,
+    memory_properties: rendy_core::hal::memory::Properties,
 
     /// All requests are rounded up to multiple of this value.
     block_size_granularity: u64,
@@ -181,8 +181,8 @@ where
     /// for `memory_type` with `memory_properties` specified,
     /// with `DynamicConfig` provided.
     pub fn new(
-        memory_type: gfx_hal::MemoryTypeId,
-        memory_properties: gfx_hal::memory::Properties,
+        memory_type: rendy_core::hal::MemoryTypeId,
+        memory_properties: rendy_core::hal::memory::Properties,
         config: DynamicConfig,
     ) -> Self {
         log::trace!(
@@ -212,7 +212,7 @@ where
             "Min device allocation must be less than or equalt to max chunk size"
         );
 
-        if memory_properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
+        if memory_properties.contains(rendy_core::hal::memory::Properties::CPU_VISIBLE) {
             debug_assert!(
                 fits_usize(config.max_chunk_size),
                 "Max chunk size must fit usize for mapping"
@@ -241,7 +241,7 @@ where
         device: &B::Device,
         block_size: u64,
         chunk_size: u64,
-    ) -> Result<Chunk<B>, gfx_hal::device::AllocationError> {
+    ) -> Result<Chunk<B>, rendy_core::hal::device::AllocationError> {
         log::trace!(
             "Allocate chunk of size: {} for blocks of size {} from device",
             chunk_size,
@@ -255,12 +255,12 @@ where
 
             let mapping = if self
                 .memory_properties
-                .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
+                .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)
             {
                 log::trace!("Map new memory object");
                 match device.map_memory(&raw, 0..chunk_size) {
                     Ok(mapping) => Some(NonNull::new_unchecked(mapping)),
-                    Err(gfx_hal::device::MapError::OutOfMemory(error)) => {
+                    Err(rendy_core::hal::device::MapError::OutOfMemory(error)) => {
                         device.free_memory(raw);
                         return Err(error.into());
                     }
@@ -281,7 +281,7 @@ where
         device: &B::Device,
         block_size: u64,
         total_blocks: u64,
-    ) -> Result<(Chunk<B>, u64), gfx_hal::device::AllocationError> {
+    ) -> Result<(Chunk<B>, u64), rendy_core::hal::device::AllocationError> {
         log::trace!(
             "Allocate chunk for blocks of size {} ({} total blocks allocated)",
             block_size,
@@ -362,7 +362,7 @@ where
         block_size: u64,
         count: u32,
         align: u64,
-    ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
+    ) -> Result<(DynamicBlock<B>, u64), rendy_core::hal::device::AllocationError> {
         log::trace!(
             "Allocate {} consecutive blocks for size {} from the entry",
             count,
@@ -385,7 +385,7 @@ where
         }
 
         if size_entry.chunks.vacant_entry().key() > max_chunks_per_size() {
-            return Err(gfx_hal::device::OutOfMemory::Host.into());
+            return Err(rendy_core::hal::device::OutOfMemory::Host.into());
         }
 
         let total_blocks = size_entry.total_blocks;
@@ -415,7 +415,7 @@ where
         device: &B::Device,
         block_size: u64,
         align: u64,
-    ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
+    ) -> Result<(DynamicBlock<B>, u64), rendy_core::hal::device::AllocationError> {
         log::trace!("Allocate block of size {}", block_size);
 
         debug_assert_eq!(block_size % self.block_size_granularity, 0);
@@ -455,7 +455,7 @@ where
                 unsafe {
                     if self
                         .memory_properties
-                        .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
+                        .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)
                     {
                         log::trace!("Unmap memory: {:#?}", boxed);
                         device.unmap_memory(boxed.raw());
@@ -523,7 +523,7 @@ where
         device: &B::Device,
         size: u64,
         align: u64,
-    ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
+    ) -> Result<(DynamicBlock<B>, u64), rendy_core::hal::device::AllocationError> {
         debug_assert!(size <= self.max_allocation());
         debug_assert!(align.is_power_of_two());
         let aligned_size = ((size - 1) | (align - 1) | (self.block_size_granularity - 1)) + 1;

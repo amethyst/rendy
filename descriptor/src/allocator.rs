@@ -1,6 +1,6 @@
 use {
     crate::ranges::*,
-    gfx_hal::{
+    rendy_core::hal::{
         device::{Device, OutOfMemory},
         pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
         Backend,

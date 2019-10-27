@@ -4,7 +4,7 @@ use super::submission::{Submission, SubmissionId};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct QueueId {
     /// Family id of the queue.
-    pub family: gfx_hal::queue::QueueFamilyId,
+    pub family: rendy_core::hal::queue::QueueFamilyId,
 
     /// Index of the queue.
     pub index: usize,
@@ -12,7 +12,7 @@ pub struct QueueId {
 
 impl QueueId {
     /// Create queue id from family id and index.
-    pub fn new(family: gfx_hal::queue::QueueFamilyId, index: usize) -> Self {
+    pub fn new(family: rendy_core::hal::queue::QueueFamilyId, index: usize) -> Self {
         QueueId {
             family: family,
             index,
@@ -20,7 +20,7 @@ impl QueueId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> gfx_hal::queue::QueueFamilyId {
+    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
         self.family
     }
 

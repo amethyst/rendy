@@ -28,7 +28,7 @@ pub enum Kind {
 }
 
 /// Allocator trait implemented for various allocators.
-pub trait Allocator<B: gfx_hal::Backend> {
+pub trait Allocator<B: rendy_core::hal::Backend> {
     /// Block type returned by allocator.
     type Block: Block<B>;
 
@@ -42,7 +42,7 @@ pub trait Allocator<B: gfx_hal::Backend> {
         device: &B::Device,
         size: u64,
         align: u64,
-    ) -> Result<(Self::Block, u64), gfx_hal::device::AllocationError>;
+    ) -> Result<(Self::Block, u64), rendy_core::hal::device::AllocationError>;
 
     /// Free block of memory.
     /// Returns amount of memory returned to the device.

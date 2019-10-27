@@ -3,9 +3,9 @@
 mod cache;
 
 use {
-    crate::util::{device_owned, Device, DeviceId},
-    gfx_hal::{device::Device as _, image::SamplerInfo, Backend},
+    crate::core::{device_owned, Device, DeviceId},
     relevant::Relevant,
+    rendy_core::hal::{device::Device as _, image::SamplerInfo, Backend},
 };
 
 pub use crate::sampler::cache::SamplerCache;
@@ -29,7 +29,7 @@ where
     pub fn create(
         device: &Device<B>,
         info: SamplerInfo,
-    ) -> Result<Self, gfx_hal::device::AllocationError> {
+    ) -> Result<Self, rendy_core::hal::device::AllocationError> {
         // TODO: Check info is valid.
         let raw = unsafe { device.create_sampler(info.clone()) }?;
         Ok(Sampler {

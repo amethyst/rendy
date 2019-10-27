@@ -69,14 +69,14 @@ impl FramesRange {
 
 /// Timeline of frames, complete, pending and next.
 #[derive(Debug)]
-pub struct Frames<B: gfx_hal::Backend> {
+pub struct Frames<B: rendy_core::hal::Backend> {
     pending: std::collections::VecDeque<Fences<B>>,
     next: u64,
 }
 
 impl<B> Frames<B>
 where
-    B: gfx_hal::Backend,
+    B: rendy_core::hal::Backend,
 {
     /// Create new `Frames` instance.
     pub fn new() -> Self {
@@ -147,7 +147,7 @@ where
             let count = self.pending.len() - (self.next - target.index - 1) as usize;
             let ready = factory.wait_for_fences(
                 self.pending.iter_mut().take(count).flatten(),
-                gfx_hal::device::WaitFor::All,
+                rendy_core::hal::device::WaitFor::All,
                 !0,
             );
             assert_eq!(ready, Ok(true));
@@ -162,7 +162,7 @@ where
     pub fn dispose(mut self, factory: &mut Factory<B>) {
         let ready = factory.wait_for_fences(
             self.pending.iter_mut().flatten(),
-            gfx_hal::device::WaitFor::All,
+            rendy_core::hal::device::WaitFor::All,
             !0,
         );
         assert_eq!(ready, Ok(true));

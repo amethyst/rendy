@@ -40,8 +40,8 @@ pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
 /// # Example
 ///
 /// ```
-/// # extern crate rendy_util;
-/// # use rendy_util::identical_cast;
+/// # extern crate rendy_core;
+/// # use rendy_core::identical_cast;
 /// # use std::any::TypeId;
 /// # fn foo<T: 'static>() {
 /// if TypeId::of::<T>() == TypeId::of::<u32>() {
