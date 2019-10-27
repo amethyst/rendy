@@ -26,4 +26,3 @@ derivative = "1.0"
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
-winit = { version = "0.20.0-alpha3", optional = true }

@@ -18,12 +18,9 @@ use {
         window::{Extent2D, Surface as _, SurfaceCapabilities},
         Backend, Instance as _,
     },
-    rendy_core::{device_owned, instance_owned, Device, DeviceId, Instance, InstanceId},
+    rendy_core::{device_owned, instance_owned, Device, DeviceId, Instance, InstanceId, HasRawWindowHandle},
     rendy_resource::{Image, ImageInfo},
 };
-
-#[cfg(feature = "winit")]
-pub use winit;
 
 /// Error creating a new swapchain.
 #[derive(Debug)]
@@ -60,12 +57,11 @@ where
     B: Backend,
 {
     /// Create surface for the window.
-    #[cfg(feature = "winit")]
     pub fn new(
         instance: &Instance<B>,
-        window: &winit::window::Window,
+        handle: &impl HasRawWindowHandle,
     ) -> Result<Self, rendy_core::hal::window::InitError> {
-        let raw = unsafe { instance.create_surface(window) }?;
+        let raw = unsafe { instance.create_surface(handle) }?;
         Ok(Surface {
             raw,
             instance: instance.id(),
@@ -488,32 +484,4 @@ where
     fn index(&self, index: usize) -> &u32 {
         &self.targets[index].1
     }
-}
-
-/// Resolve into input AST if winit support is enabled.
-#[cfg(feature = "winit")]
-#[macro_export]
-macro_rules! with_winit {
-    ($($t:tt)*) => { $($t)* };
-}
-
-/// Resolve into input AST if winit support is enabled.
-#[cfg(not(feature = "winit"))]
-#[macro_export]
-macro_rules! with_winit {
-    ($($t:tt)*) => {};
-}
-
-/// Resolve into input AST if winit support is disabled.
-#[cfg(not(feature = "winit"))]
-#[macro_export]
-macro_rules! without_winit {
-    ($($t:tt)*) => { $($t)* };
-}
-
-/// Resolve into input AST if winit support is disabled.
-#[cfg(feature = "winit")]
-#[macro_export]
-macro_rules! without_winit {
-    ($($t:tt)*) => {};
 }

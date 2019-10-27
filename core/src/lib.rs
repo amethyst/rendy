@@ -32,6 +32,9 @@ pub use gfx_backend_metal as metal;
 #[doc(inline)]
 pub use gfx_backend_vulkan as vulkan;
 
+#[doc(inline)]
+pub use raw_window_handle::{RawWindowHandle, HasRawWindowHandle};
+
 #[macro_use]
 mod features;
 mod casts;

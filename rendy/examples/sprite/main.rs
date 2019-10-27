@@ -8,19 +8,21 @@
     allow(unused)
 )]
 
-use rendy::{
-    command::{Families, QueueId, RenderPassEncoder},
-    factory::{Config, Factory, ImageState},
-    graph::{
-        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+use {
+    rendy::{
+        command::{Families, QueueId, RenderPassEncoder},
+        factory::{Config, Factory, ImageState},
+        graph::{
+            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+        },
+        hal::{self, device::Device as _},
+        memory::Dynamic,
+        mesh::PosTex,
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
+        texture::{image::ImageTextureConfig, Texture},
     },
-    hal::{self, device::Device as _},
-    memory::Dynamic,
-    mesh::PosTex,
-    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-    texture::{image::ImageTextureConfig, Texture},
-    wsi::winit::{
+    winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,

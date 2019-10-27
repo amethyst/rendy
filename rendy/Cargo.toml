@@ -45,13 +45,12 @@ texture-image = ["texture", "rendy-texture/image"]
 texture-palette = ["texture", "rendy-texture/palette"]
 shader-compiler = ["rendy-shader/shader-compiler"]
 spirv-reflection = ["rendy-shader/spirv-reflection" ]
-wsi-winit = ["rendy-wsi/winit"]
 
 # Full feature set - all listed features except rendy-core's.
-full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "wsi-winit", "serde-1"]
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler", "serde-1"]
 
 # Default feature set includes all subcrates and few commonly used features.
-default = [ "base", "shader-compiler", "spirv-reflection", "wsi-winit" ]
+default = [ "base", "shader-compiler", "spirv-reflection" ]
 
 [dependencies]
 rendy-command = { version = "0.5.0", path = "../command", optional = true }
@@ -77,26 +76,27 @@ lazy_static = "1.0"
 log = "0.4"
 palette = "0.4"
 rand = "0.7"
+winit = "0.20.0-alpha4"
 
 [[example]]
 name = "triangle"
-required-features = ["base", "wsi-winit", "shader-compiler"]
+required-features = ["base", "shader-compiler"]
 
 [[example]]
 name = "sprite"
-required-features = ["base", "texture-image", "wsi-winit", "shader-compiler"]
+required-features = ["base", "texture-image", "shader-compiler"]
 
 [[example]]
 name = "meshes"
-required-features = ["base", "wsi-winit", "shader-compiler"]
+required-features = ["base", "shader-compiler"]
 
 [[example]]
 name = "quads"
-required-features = ["base", "wsi-winit", "shader-compiler"]
+required-features = ["base", "shader-compiler"]
 
 [[example]]
 name = "source_shaders"
-required-features = ["base", "wsi-winit", "shader-compiler"]
+required-features = ["base", "shader-compiler"]
 
 [package.metadata.docs.rs]
 features = ["full"]

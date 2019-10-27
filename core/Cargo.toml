@@ -37,3 +37,4 @@ log = "0.4"
 parking_lot = "0.9"
 serde = { version = "1.0", optional = true, features = ["derive"] }
 thread_profiler = "0.3"
+raw-window-handle = "0.3"

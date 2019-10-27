@@ -8,34 +8,38 @@
     allow(unused)
 )]
 
-use rendy::{
-    command::{
-        CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
-        MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
-    },
-    factory::{BufferState, Config, Factory},
-    frame::Frames,
-    graph::{
-        gfx_acquire_barriers, gfx_release_barriers,
-        present::PresentNode,
-        render::{
-            Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
-            SimpleGraphicsPipelineDesc,
+use {
+    rendy::{
+        command::{
+            CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
+            MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
         },
-        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
-        NodeDesc, NodeImage, NodeSubmittable,
+        factory::{BufferState, Config, Factory},
+        frame::Frames,
+        graph::{
+            gfx_acquire_barriers, gfx_release_barriers,
+            present::PresentNode,
+            render::{
+                Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
+                SimpleGraphicsPipelineDesc,
+            },
+            BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
+            NodeDesc, NodeImage, NodeSubmittable,
+        },
+        hal::{self, device::Device as _},
+        memory::Dynamic,
+        mesh::Color,
+        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+        shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     },
-    hal::{self, device::Device as _},
-    memory::Dynamic,
-    mesh::Color,
-    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-    wsi::winit::{
+    winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{Window, WindowBuilder},
     },
 };
+
+
 
 #[cfg(feature = "spirv-reflection")]
 use rendy::shader::SpirvReflection;

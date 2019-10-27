@@ -59,7 +59,7 @@ pipeline {
                         echo 'Beginning tests...'
                         // TODO: Once we support DX12, we should switch to it from vulkan for windows
                         // FIXME: Can't test "full" because of problems with shaderc compilation on windows box
-                        bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo test --all --no-default-features --features "base mesh-obj texture-image texture-palette spirv-reflection wsi-winit serde-1 vulkan"'
+                        bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo test --all --no-default-features --features "base mesh-obj texture-image texture-palette spirv-reflection serde-1 vulkan"'
                         echo 'Tests done!'
                     }
                 }

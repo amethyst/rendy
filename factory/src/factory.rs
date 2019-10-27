@@ -12,14 +12,17 @@ use {
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
         wsi::{Surface, SwapchainError, Target},
     },
-    rendy_core::hal::{
-        adapter::{Adapter, Gpu, PhysicalDevice},
-        buffer,
-        device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
-        format, image,
-        pso::DescriptorSetLayoutBinding,
-        window::{Extent2D, InitError, Surface as GfxSurface},
-        Backend, Features, Instance as _, Limits,
+    rendy_core::{
+        hal::{
+            adapter::{Adapter, Gpu, PhysicalDevice},
+            buffer,
+            device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
+            format, image,
+            pso::DescriptorSetLayoutBinding,
+            window::{Extent2D, InitError, Surface as GfxSurface},
+            Backend, Features, Instance as _, Limits,
+        },
+        HasRawWindowHandle,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -713,6 +716,12 @@ where
         target.dispose(&self.device)
     }
 
+    /// Create rendering surface from window handle.
+    pub fn create_surface(&mut self, handle: &impl HasRawWindowHandle) -> Result<Surface<B>, InitError> {
+        profile_scope!("create_surface");
+        Surface::new(&self.instance, handle)
+    }
+
     /// Check if queue family supports presentation to the specified surface.
     pub fn surface_support(&self, family: FamilyId, surface: &Surface<B>) -> bool {
         surface.assert_instance_owner(&self.instance);
@@ -1202,17 +1211,4 @@ where
     };
 
     Ok((factory, families))
-}
-
-rendy_wsi::with_winit! {
-    impl<B> Factory<B>
-    where
-        B: Backend,
-    {
-        /// Create rendering surface from window.
-        pub fn create_surface(&mut self, window: &rendy_wsi::winit::window::Window) -> Result<Surface<B>, InitError> {
-            profile_scope!("create_surface");
-            Surface::new(&self.instance, window)
-        }
-    }
 }

@@ -9,18 +9,20 @@
     allow(unused)
 )]
 
-use rendy::{
-    command::{Families, QueueId, RenderPassEncoder},
-    factory::{Config, Factory},
-    graph::{
-        present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+use {
+    rendy::{
+        command::{Families, QueueId, RenderPassEncoder},
+        factory::{Config, Factory},
+        graph::{
+            present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
+        },
+        hal,
+        memory::Dynamic,
+        mesh::PosColor,
+        resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
+        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     },
-    hal,
-    memory::Dynamic,
-    mesh::PosColor,
-    resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
-    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-    wsi::winit::{
+    winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
