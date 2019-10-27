@@ -12,11 +12,13 @@
 )]
 
 use {
-    rendy_core::hal::{device::Device as _, window::{Extent2D, SurfaceCapabilities, Surface as _}, Backend, format::Format, Instance as _},
-    rendy_core::{
-        device_owned, instance_owned, Device, DeviceId, Instance,
-        InstanceId,
+    rendy_core::hal::{
+        device::Device as _,
+        format::Format,
+        window::{Extent2D, Surface as _, SurfaceCapabilities},
+        Backend, Instance as _,
     },
+    rendy_core::{device_owned, instance_owned, Device, DeviceId, Instance, InstanceId},
     rendy_resource::{Image, ImageInfo},
 };
 
@@ -59,10 +61,11 @@ where
 {
     /// Create surface for the window.
     #[cfg(feature = "winit")]
-    pub fn new(instance: &Instance<B>, window: &winit::window::Window) -> Result<Self, rendy_core::hal::window::InitError> {
-        let raw = unsafe {
-            instance.create_surface(window)
-        }?;
+    pub fn new(
+        instance: &Instance<B>,
+        window: &winit::window::Window,
+    ) -> Result<Self, rendy_core::hal::window::InitError> {
+        let raw = unsafe { instance.create_surface(window) }?;
         Ok(Surface {
             raw,
             instance: instance.id(),
@@ -74,7 +77,10 @@ where
     /// # Safety
     ///
     /// Closure must return surface object created from raw instance provided as closure argument.
-    pub unsafe fn create(instance: &Instance<B>, f: impl FnOnce(&B::Instance) -> B::Surface) -> Self {
+    pub unsafe fn create(
+        instance: &Instance<B>,
+        f: impl FnOnce(&B::Instance) -> B::Surface,
+    ) -> Self {
         Surface {
             raw: f(instance.raw()),
             instance: instance.id(),
@@ -97,10 +103,7 @@ where
     }
 
     /// Get surface ideal format.
-    pub unsafe fn format(
-        &self,
-        physical_device: &B::PhysicalDevice,
-    ) -> Format {
+    pub unsafe fn format(&self, physical_device: &B::PhysicalDevice) -> Format {
         if let Some(formats) = self.raw.supported_formats(physical_device) {
             *formats
                 .iter()
@@ -136,10 +139,7 @@ where
     /// ## Safety
     ///
     /// - `physical_device` must be created from same `Instance` as the `Surface`
-    pub unsafe fn capabilities(
-        &self,
-        physical_device: &B::PhysicalDevice,
-    ) -> SurfaceCapabilities {
+    pub unsafe fn capabilities(&self, physical_device: &B::PhysicalDevice) -> SurfaceCapabilities {
         self.raw.capabilities(physical_device)
     }
 

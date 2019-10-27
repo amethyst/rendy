@@ -18,8 +18,8 @@ use {
         device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
         format, image,
         pso::DescriptorSetLayoutBinding,
-        window::{Extent2D, Surface as GfxSurface, InitError},
-        Backend, Features, Limits, Instance as _,
+        window::{Extent2D, InitError, Surface as GfxSurface},
+        Backend, Features, Instance as _, Limits,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -614,7 +614,10 @@ where
     /// # Safety
     ///
     /// Closure must return surface object created from raw instance provided as closure argument.
-    pub unsafe fn create_surface_with(&mut self, f: impl FnOnce(&B::Instance) -> B::Surface) -> Surface<B> {
+    pub unsafe fn create_surface_with(
+        &mut self,
+        f: impl FnOnce(&B::Instance) -> B::Surface,
+    ) -> Surface<B> {
         profile_scope!("create_surface");
         Surface::create(&self.instance, f)
     }

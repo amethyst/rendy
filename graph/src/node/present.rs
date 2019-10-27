@@ -69,9 +69,11 @@ where
     /// `PresentBuilder::image_count()` and `PresentBuilder::present_mode()`.
     pub fn builder(factory: &Factory<B>, surface: Surface<B>, image: ImageId) -> PresentBuilder<B> {
         use rendy_core::hal::window::PresentMode;
-        
+
         let caps = factory.get_surface_capabilities(&surface);
-        let image_count = 3.min(*caps.image_count.end()).max(*caps.image_count.start());
+        let image_count = 3
+            .min(*caps.image_count.end())
+            .max(*caps.image_count.start());
 
         let present_mode = match () {
             _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
@@ -328,7 +330,8 @@ where
             PresentMode::MAILBOX,
             PresentMode::RELAXED,
             PresentMode::IMMEDIATE,
-        ].iter()
+        ]
+        .iter()
         .cloned()
         .filter(|&mode| self.caps.present_modes.contains(mode))
         .filter_map(|mode| present_modes_priority(mode).map(|p| (p, mode)))
