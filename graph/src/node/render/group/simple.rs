@@ -34,7 +34,7 @@ pub struct Pipeline {
     pub depth_stencil: rendy_core::hal::pso::DepthStencilDesc,
 
     /// Rasterizer for pipeline.
-    pub rasterizer: gfx_hal::pso::Rasterizer,
+    pub rasterizer: rendy_core::hal::pso::Rasterizer,
 
     /// Primitive to use in the input assembler.
     pub input_assembler_desc: rendy_core::hal::pso::InputAssemblerDesc,
@@ -84,8 +84,8 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Rasterizer desc.
-    fn rasterizer(&self) -> gfx_hal::pso::Rasterizer {
-        gfx_hal::pso::Rasterizer::FILL
+    fn rasterizer(&self) -> rendy_core::hal::pso::Rasterizer {
+        rendy_core::hal::pso::Rasterizer::FILL
     }
 
     /// Get vertex input.
