@@ -12,68 +12,16 @@
 )]
 
 use {
-    rendy_core::hal::{device::Device as _, window::Extent2D, Backend},
+    rendy_core::hal::{device::Device as _, window::{Extent2D, SurfaceCapabilities, Surface as _}, Backend, format::Format, Instance as _},
     rendy_core::{
-        device_owned, instance_owned, rendy_with_dx12_backend, rendy_with_empty_backend,
-        rendy_with_metal_backend, rendy_with_vulkan_backend, Device, DeviceId, Instance,
+        device_owned, instance_owned, Device, DeviceId, Instance,
         InstanceId,
     },
     rendy_resource::{Image, ImageInfo},
 };
 
 #[cfg(feature = "winit")]
-use rendy_core::rendy_backend_match;
-
-#[cfg(feature = "winit")]
 pub use winit;
-
-rendy_with_empty_backend! {
-    mod gfx_backend_empty {
-        #[cfg(feature = "winit")]
-        pub(super) fn create_surface(
-            _instance: &rendy_core::empty::Instance,
-            _window: &winit::window::Window,
-        ) -> rendy_core::empty::Surface {
-            rendy_core::empty::Surface
-        }
-    }
-}
-
-rendy_with_dx12_backend! {
-    mod gfx_backend_dx12 {
-        #[cfg(feature = "winit")]
-        pub(super) fn create_surface(
-            instance: &rendy_core::dx12::Instance,
-            window: &winit::window::Window,
-        ) -> <rendy_core::dx12::Backend as rendy_core::hal::Backend>::Surface {
-            instance.create_surface(window)
-        }
-    }
-}
-
-rendy_with_metal_backend! {
-    mod gfx_backend_metal {
-        #[cfg(feature = "winit")]
-        pub(super) fn create_surface(
-            instance: &rendy_core::metal::Instance,
-            window: &winit::window::Window,
-        ) -> <rendy_core::metal::Backend as rendy_core::hal::Backend>::Surface {
-            instance.create_surface(window)
-        }
-    }
-}
-
-rendy_with_vulkan_backend! {
-    mod gfx_backend_vulkan {
-        #[cfg(feature = "winit")]
-        pub(super) fn create_surface(
-            instance: &rendy_core::vulkan::Instance,
-            window: &winit::window::Window,
-        ) -> <rendy_core::vulkan::Backend as rendy_core::hal::Backend>::Surface {
-            instance.create_surface(window)
-        }
-    }
-}
 
 /// Error creating a new swapchain.
 #[derive(Debug)]
@@ -84,31 +32,6 @@ pub enum SwapchainError {
     BadPresentMode(rendy_core::hal::window::PresentMode),
     /// Image count is not supported.
     BadImageCount(rendy_core::hal::window::SwapImageIndex),
-}
-
-#[cfg(feature = "winit")]
-#[allow(unused)]
-fn create_surface<B: Backend>(
-    instance: &Instance<B>,
-    window: &winit::window::Window,
-) -> B::Surface {
-    use rendy_core::identical_cast;
-
-    // We perform identical type transmute.
-    rendy_backend_match!(B {
-        empty => {
-            identical_cast(gfx_backend_empty::create_surface(instance.raw_typed().unwrap(), window))
-        }
-        dx12 => {
-            identical_cast(gfx_backend_dx12::create_surface(instance.raw_typed().unwrap(), window))
-        }
-        metal => {
-            identical_cast(gfx_backend_metal::create_surface(instance.raw_typed().unwrap(), window))
-        }
-        vulkan => {
-            identical_cast(gfx_backend_vulkan::create_surface(instance.raw_typed().unwrap(), window))
-        }
-    })
 }
 
 /// Rendering target bound to window.
@@ -136,12 +59,14 @@ where
 {
     /// Create surface for the window.
     #[cfg(feature = "winit")]
-    pub fn new(instance: &Instance<B>, window: &winit::window::Window) -> Self {
-        let raw = create_surface::<B>(instance, &window);
-        Surface {
+    pub fn new(instance: &Instance<B>, window: &winit::window::Window) -> Result<Self, rendy_core::hal::window::InitError> {
+        let raw = unsafe {
+            instance.create_surface(window)
+        }?;
+        Ok(Surface {
             raw,
             instance: instance.id(),
-        }
+        })
     }
 
     /// Create surface from `instance`.
@@ -149,12 +74,9 @@ where
     /// # Safety
     ///
     /// Closure must return surface object created from raw instance provided as closure argument.
-    pub unsafe fn create<T>(instance: &Instance<B>, f: impl FnOnce(&T) -> B::Surface) -> Self
-    where
-        T: rendy_core::hal::Instance<Backend = B>,
-    {
+    pub unsafe fn create(instance: &Instance<B>, f: impl FnOnce(&B::Instance) -> B::Surface) -> Self {
         Surface {
-            raw: f(instance.raw_typed().expect("Wrong instance type")),
+            raw: f(instance.raw()),
             instance: instance.id(),
         }
     }
@@ -171,46 +93,54 @@ where
 
     /// Get current extent of the surface.
     pub unsafe fn extent(&self, physical_device: &B::PhysicalDevice) -> Option<Extent2D> {
-        let (capabilities, _formats, _present_modes) = self.compatibility(physical_device);
-        capabilities.current_extent
+        self.capabilities(physical_device).current_extent
     }
 
     /// Get surface ideal format.
     pub unsafe fn format(
         &self,
         physical_device: &B::PhysicalDevice,
-    ) -> rendy_core::hal::format::Format {
-        let (_capabilities, formats, _present_modes) =
-            rendy_core::hal::window::Surface::compatibility(&self.raw, physical_device);
-        let formats = formats.unwrap();
-
-        *formats
-            .iter()
-            .max_by_key(|format| {
-                let base = format.base_format();
-                let desc = base.0.desc();
-                (
-                    !desc.is_compressed(),
-                    base.1 == rendy_core::hal::format::ChannelType::Srgb,
-                    desc.bits,
-                )
-            })
-            .expect("At least one format must be supported by the surface")
+    ) -> Format {
+        if let Some(formats) = self.raw.supported_formats(physical_device) {
+            *formats
+                .iter()
+                .max_by_key(|format| {
+                    let base = format.base_format();
+                    let desc = base.0.desc();
+                    (
+                        !desc.is_compressed(),
+                        base.1 == rendy_core::hal::format::ChannelType::Srgb,
+                        desc.bits,
+                    )
+                })
+                .expect("At least one format must be supported by the surface")
+        } else {
+            Format::Rgba8Srgb
+        }
     }
 
-    /// Get surface compatibility
+    /// Get formats supported by surface
     ///
     /// ## Safety
+    ///
     /// - `physical_device` must be created from same `Instance` as the `Surface`
-    pub unsafe fn compatibility(
+    pub unsafe fn supported_formats(
         &self,
         physical_device: &B::PhysicalDevice,
-    ) -> (
-        rendy_core::hal::window::SurfaceCapabilities,
-        Option<Vec<rendy_core::hal::format::Format>>,
-        Vec<rendy_core::hal::window::PresentMode>,
-    ) {
-        rendy_core::hal::window::Surface::compatibility(&self.raw, physical_device)
+    ) -> Option<Vec<Format>> {
+        self.raw.supported_formats(physical_device)
+    }
+
+    /// Get formats supported by surface
+    ///
+    /// ## Safety
+    ///
+    /// - `physical_device` must be created from same `Instance` as the `Surface`
+    pub unsafe fn capabilities(
+        &self,
+        physical_device: &B::PhysicalDevice,
+    ) -> SurfaceCapabilities {
+        self.raw.capabilities(physical_device)
     }
 
     /// Cast surface into render target.
@@ -261,12 +191,13 @@ unsafe fn create_swapchain<B: Backend>(
     present_mode: rendy_core::hal::window::PresentMode,
     usage: rendy_core::hal::image::Usage,
 ) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), SwapchainError> {
-    let (capabilities, formats, present_modes) = surface.compatibility(physical_device);
+    let capabilities = surface.capabilities(physical_device);
+    let format = surface.format(physical_device);
 
-    if !present_modes.contains(&present_mode) {
+    if !capabilities.present_modes.contains(present_mode) {
         log::warn!(
             "Present mode is not supported. Supported: {:#?}, requested: {:#?}",
-            present_modes,
+            capabilities.present_modes,
             present_mode,
         );
         return Err(SwapchainError::BadPresentMode(present_mode));
@@ -274,26 +205,11 @@ unsafe fn create_swapchain<B: Backend>(
 
     log::trace!(
         "Surface present modes: {:#?}. Pick {:#?}",
-        present_modes,
+        capabilities.present_modes,
         present_mode
     );
 
-    let formats = formats.unwrap();
-
-    let format = *formats
-        .iter()
-        .max_by_key(|format| {
-            let base = format.base_format();
-            let desc = base.0.desc();
-            (
-                !desc.is_compressed(),
-                base.1 == rendy_core::hal::format::ChannelType::Srgb,
-                desc.bits,
-            )
-        })
-        .unwrap();
-
-    log::trace!("Surface formats: {:#?}. Pick {:#?}", formats, format);
+    log::trace!("Surface chosen format {:#?}", format);
 
     if image_count < *capabilities.image_count.start()
         || image_count > *capabilities.image_count.end()
@@ -331,16 +247,16 @@ unsafe fn create_swapchain<B: Backend>(
                 image_count,
                 image_layers: 1,
                 image_usage: usage,
-                composite_alpha: [
-                    rendy_core::hal::window::CompositeAlpha::INHERIT,
-                    rendy_core::hal::window::CompositeAlpha::OPAQUE,
-                    rendy_core::hal::window::CompositeAlpha::PREMULTIPLIED,
-                    rendy_core::hal::window::CompositeAlpha::POSTMULTIPLIED,
+                composite_alpha_mode: [
+                    rendy_core::hal::window::CompositeAlphaMode::INHERIT,
+                    rendy_core::hal::window::CompositeAlphaMode::OPAQUE,
+                    rendy_core::hal::window::CompositeAlphaMode::PREMULTIPLIED,
+                    rendy_core::hal::window::CompositeAlphaMode::POSTMULTIPLIED,
                 ]
                 .iter()
-                .find(|&bit| capabilities.composite_alpha & *bit == *bit)
                 .cloned()
-                .expect("No CompositeAlpha modes supported"),
+                .find(|&bit| capabilities.composite_alpha_modes.contains(bit))
+                .expect("No CompositeAlphaMode modes supported"),
             },
             None,
         )

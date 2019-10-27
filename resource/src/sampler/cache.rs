@@ -3,7 +3,7 @@
 use {
     super::Sampler,
     crate::escape::Handle,
-    rendy_core::hal::{image::SamplerInfo, Backend},
+    rendy_core::hal::{image::SamplerDesc, Backend},
     std::{
         collections::hash_map::{Entry, HashMap},
         ops::{Deref, DerefMut},
@@ -14,7 +14,7 @@ use {
 #[derive(Debug, derivative::Derivative)]
 #[derivative(Default(bound = ""))]
 pub struct SamplerCache<B: Backend> {
-    samplers: HashMap<SamplerInfo, Handle<Sampler<B>>>,
+    samplers: HashMap<SamplerDesc, Handle<Sampler<B>>>,
 }
 
 impl<B> SamplerCache<B>
@@ -25,7 +25,7 @@ where
     /// Create new one using closure provided.
     pub fn get(
         &mut self,
-        info: SamplerInfo,
+        info: SamplerDesc,
         create: impl FnOnce() -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>,
     ) -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError> {
         Ok(match self.samplers.entry(info) {
@@ -43,7 +43,7 @@ where
     pub fn get_with_upgradable_lock<R, W, U>(
         read: R,
         upgrade: U,
-        info: SamplerInfo,
+        info: SamplerDesc,
         create: impl FnOnce() -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>,
     ) -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>
     where

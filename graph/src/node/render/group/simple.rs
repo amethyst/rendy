@@ -103,8 +103,9 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Returns the InputAssemblerDesc. Defaults to a TriangleList with Restart disabled, can be overriden.
     fn input_assembler(&self) -> rendy_core::hal::pso::InputAssemblerDesc {
         rendy_core::hal::pso::InputAssemblerDesc {
-            primitive: rendy_core::hal::Primitive::TriangleList,
-            primitive_restart: rendy_core::hal::pso::PrimitiveRestart::Disabled,
+            primitive: rendy_core::hal::pso::Primitive::TriangleList,
+            with_adjacency: false,
+            restart_index: None,
         }
     }
 

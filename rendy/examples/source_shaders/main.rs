@@ -297,7 +297,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let surface = factory.create_surface(&window);
+    let surface = factory.create_surface(&window).unwrap();
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 

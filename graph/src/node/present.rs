@@ -68,29 +68,26 @@ where
     /// You can query the real image count and present mode which will be used with
     /// `PresentBuilder::image_count()` and `PresentBuilder::present_mode()`.
     pub fn builder(factory: &Factory<B>, surface: Surface<B>, image: ImageId) -> PresentBuilder<B> {
-        let (caps, _f, present_modes_caps) = factory.get_surface_compatibility(&surface);
+        use rendy_core::hal::window::PresentMode;
+        
+        let caps = factory.get_surface_capabilities(&surface);
+        let image_count = 3.min(*caps.image_count.end()).max(*caps.image_count.start());
 
-        let img_count_caps = caps.image_count;
-        let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());
-
-        let present_mode = *present_modes_caps
-            .iter()
-            .max_by_key(|mode| match mode {
-                rendy_core::hal::window::PresentMode::Fifo => 3,
-                rendy_core::hal::window::PresentMode::Mailbox => 2,
-                rendy_core::hal::window::PresentMode::Relaxed => 1,
-                rendy_core::hal::window::PresentMode::Immediate => 0,
-            })
-            .unwrap();
+        let present_mode = match () {
+            _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
+            _ if caps.present_modes.contains(PresentMode::MAILBOX) => PresentMode::MAILBOX,
+            _ if caps.present_modes.contains(PresentMode::RELAXED) => PresentMode::RELAXED,
+            _ if caps.present_modes.contains(PresentMode::IMMEDIATE) => PresentMode::IMMEDIATE,
+            _ => panic!("No known present modes found"),
+        };
 
         PresentBuilder {
             surface,
             image,
             dependencies: Vec::new(),
             image_count,
-            img_count_caps,
             present_mode,
-            present_modes_caps,
+            caps,
             blit_filter: rendy_core::hal::image::Filter::Nearest,
         }
     }
@@ -262,9 +259,8 @@ pub struct PresentBuilder<B: rendy_core::hal::Backend> {
     surface: Surface<B>,
     image: ImageId,
     image_count: u32,
-    img_count_caps: std::ops::RangeInclusive<u32>,
-    present_modes_caps: Vec<rendy_core::hal::window::PresentMode>,
     present_mode: rendy_core::hal::window::PresentMode,
+    caps: rendy_core::hal::window::SurfaceCapabilities,
     dependencies: Vec<NodeId>,
     blit_filter: rendy_core::hal::image::Filter,
 }
@@ -294,8 +290,8 @@ where
     /// building to see the final image count.
     pub fn with_image_count(mut self, image_count: u32) -> Self {
         let image_count = image_count
-            .min(*self.img_count_caps.end())
-            .max(*self.img_count_caps.start());
+            .min(*self.caps.image_count.end())
+            .max(*self.caps.image_count.start());
         self.image_count = image_count;
         self
     }
@@ -325,21 +321,28 @@ where
     where
         PF: Fn(rendy_core::hal::window::PresentMode) -> Option<usize>,
     {
-        if !self
-            .present_modes_caps
-            .iter()
-            .any(|m| present_modes_priority(*m).is_some())
-        {
+        use rendy_core::hal::window::PresentMode;
+
+        let priority_mode = [
+            PresentMode::FIFO,
+            PresentMode::MAILBOX,
+            PresentMode::RELAXED,
+            PresentMode::IMMEDIATE,
+        ].iter()
+        .cloned()
+        .filter(|&mode| self.caps.present_modes.contains(mode))
+        .filter_map(|mode| present_modes_priority(mode).map(|p| (p, mode)))
+        .max_by_key(|&(p, _)| p);
+
+        if let Some((_, mode)) = priority_mode {
+            self.present_mode = mode;
+        } else {
             panic!(
                 "No desired PresentModes are supported. Supported: {:#?}",
-                self.present_modes_caps
+                self.caps.present_modes
             );
         }
-        self.present_mode = *self
-            .present_modes_caps
-            .iter()
-            .max_by_key(|&mode| present_modes_priority(*mode))
-            .unwrap();
+
         self
     }
 

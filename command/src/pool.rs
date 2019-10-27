@@ -2,7 +2,7 @@
 
 use {
     crate::{buffer::*, capability::*, core::Device, family::FamilyId},
-    rendy_core::hal::{device::Device as _, Backend},
+    rendy_core::hal::{device::Device as _, Backend, pool::CommandPool as _},
 };
 
 /// Simple pool wrapper.
@@ -79,11 +79,12 @@ where
     {
         let level = L::default();
 
-        let buffers = rendy_core::hal::pool::CommandPool::allocate_vec(
-            &mut self.raw,
-            count,
-            level.raw_level(),
-        );
+        let buffers = unsafe {
+            self.raw.allocate_vec(
+                count,
+                level.raw_level(),
+            )
+        };
 
         buffers
             .into_iter()
@@ -112,7 +113,7 @@ where
             .map(|buffer| buffer.into_raw())
             .collect::<Vec<_>>();
 
-        rendy_core::hal::pool::CommandPool::free(&mut self.raw, buffers);
+        self.raw.free(buffers);
     }
 
     /// Reset all buffers of this pool.

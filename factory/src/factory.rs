@@ -18,8 +18,8 @@ use {
         device::{AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor},
         format, image,
         pso::DescriptorSetLayoutBinding,
-        window::{Extent2D, Surface as GfxSurface},
-        Backend, Features, Limits,
+        window::{Extent2D, Surface as GfxSurface, InitError},
+        Backend, Features, Limits, Instance as _,
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
@@ -326,7 +326,7 @@ where
     /// [`destroy_relevant_sampler`]: #method.destroy_relevant_sampler
     pub fn create_relevant_sampler(
         &self,
-        info: SamplerInfo,
+        info: SamplerDesc,
     ) -> Result<Sampler<B>, AllocationError> {
         Sampler::create(&self.device, info)
     }
@@ -353,7 +353,7 @@ where
     /// This function (unlike [`create_relevant_sampler`]) returns value that can be dropped.
     ///
     /// [`create_relevant_sampler`]: #method.create_relevant_sampler
-    pub fn create_sampler(&self, info: SamplerInfo) -> Result<Escape<Sampler<B>>, AllocationError> {
+    pub fn create_sampler(&self, info: SamplerDesc) -> Result<Escape<Sampler<B>>, AllocationError> {
         let sampler = self.create_relevant_sampler(info)?;
         Ok(self.resources.samplers.escape(sampler))
     }
@@ -364,7 +364,7 @@ where
     ///
     /// [`create_sampler`]: #method.create_sampler
     /// [`create_relevant_sampler`]: #method.create_relevant_sampler
-    pub fn get_sampler(&self, info: SamplerInfo) -> Result<Handle<Sampler<B>>, AllocationError> {
+    pub fn get_sampler(&self, info: SamplerDesc) -> Result<Handle<Sampler<B>>, AllocationError> {
         let samplers = &self.resources.samplers;
         let device = &self.device;
 
@@ -614,12 +614,24 @@ where
     /// # Safety
     ///
     /// Closure must return surface object created from raw instance provided as closure argument.
-    pub unsafe fn create_surface_with<T>(&mut self, f: impl FnOnce(&T) -> B::Surface) -> Surface<B>
-    where
-        T: rendy_core::hal::Instance<Backend = B>,
-    {
+    pub unsafe fn create_surface_with(&mut self, f: impl FnOnce(&B::Instance) -> B::Surface) -> Surface<B> {
         profile_scope!("create_surface");
         Surface::create(&self.instance, f)
+    }
+
+    /// Get formats supported by the Surface
+    ///
+    /// # Panics
+    ///
+    /// Panics if `surface` was not created by this `Factory`
+    pub fn get_surface_formats(
+        &self,
+        surface: &Surface<B>,
+    ) -> Option<Vec<rendy_core::hal::format::Format>> {
+        profile_scope!("get_surface_compatibility");
+
+        surface.assert_instance_owner(&self.instance);
+        unsafe { surface.supported_formats(&self.adapter.physical_device) }
     }
 
     /// Get compatibility of Surface
@@ -627,18 +639,14 @@ where
     /// # Panics
     ///
     /// Panics if `surface` was not created by this `Factory`
-    pub fn get_surface_compatibility(
+    pub fn get_surface_capabilities(
         &self,
         surface: &Surface<B>,
-    ) -> (
-        rendy_core::hal::window::SurfaceCapabilities,
-        Option<Vec<rendy_core::hal::format::Format>>,
-        Vec<rendy_core::hal::window::PresentMode>,
-    ) {
+    ) -> rendy_core::hal::window::SurfaceCapabilities {
         profile_scope!("get_surface_compatibility");
 
         surface.assert_instance_owner(&self.instance);
-        unsafe { surface.compatibility(&self.adapter.physical_device) }
+        unsafe { surface.capabilities(&self.adapter.physical_device) }
     }
 
     /// Get surface format.
@@ -1061,14 +1069,14 @@ where
         profile_scope!(concat!("init_factory"));
         let instance = backend::Instance::create("Rendy", 1)
             .map_err(|_| rendy_core::hal::device::CreationError::InitializationFailed)?;
-        Ok(crate::core::identical_cast(init_with_instance(instance, config)?))
+        Ok(crate::core::identical_cast::<(Factory<backend::Backend>, _), _>(init_with_instance(instance, config)?))
     });
 }
 
 /// Initialize `Factory` and Queue `Families` associated with Device
 /// using existing `Instance`.
 pub fn init_with_instance<B>(
-    instance: impl rendy_core::hal::Instance<Backend = B>,
+    instance: B::Instance,
     config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
 ) -> Result<(Factory<B>, Families<B>), rendy_core::hal::device::CreationError>
 where
@@ -1114,7 +1122,7 @@ where
         }
     );
 
-    let instance = Instance::new(instance);
+    let instance = Instance::<B>::new(instance);
     let device_id = DeviceId::new(instance.id());
 
     let (device, families) = {
@@ -1199,7 +1207,7 @@ rendy_wsi::with_winit! {
         B: Backend,
     {
         /// Create rendering surface from window.
-        pub fn create_surface(&mut self, window: &rendy_wsi::winit::window::Window) -> Surface<B> {
+        pub fn create_surface(&mut self, window: &rendy_wsi::winit::window::Window) -> Result<Surface<B>, InitError> {
             profile_scope!("create_surface");
             Surface::new(&self.instance, window)
         }

@@ -643,7 +643,7 @@ fn build_graph(
     families: &mut Families<Backend>,
     window: &Window,
 ) -> Graph<Backend, ()> {
-    let surface = factory.create_surface(window);
+    let surface = factory.create_surface(window).unwrap();
 
     let mut graph_builder = GraphBuilder::<Backend, ()>::new();
 

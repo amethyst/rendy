@@ -98,9 +98,9 @@ pub struct ImageTextureConfig {
     pub repr: Repr,
     pub kind: TextureKind,
     #[derivative(Default(
-        value = "rendy_core::hal::image::SamplerInfo::new(rendy_core::hal::image::Filter::Linear, rendy_core::hal::image::WrapMode::Clamp)"
+        value = "rendy_core::hal::image::SamplerDesc::new(rendy_core::hal::image::Filter::Linear, rendy_core::hal::image::WrapMode::Clamp)"
     ))]
-    pub sampler_info: rendy_core::hal::image::SamplerInfo,
+    pub sampler_info: rendy_core::hal::image::SamplerDesc,
     #[derivative(Default(value = "false"))]
     /// Automatically generate mipmaps for this image
     pub generate_mips: bool,

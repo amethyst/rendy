@@ -5,7 +5,7 @@ mod cache;
 use {
     crate::core::{device_owned, Device, DeviceId},
     relevant::Relevant,
-    rendy_core::hal::{device::Device as _, image::SamplerInfo, Backend},
+    rendy_core::hal::{device::Device as _, image::SamplerDesc, Backend},
 };
 
 pub use crate::sampler::cache::SamplerCache;
@@ -15,7 +15,7 @@ pub use crate::sampler::cache::SamplerCache;
 pub struct Sampler<B: Backend> {
     device: DeviceId,
     raw: B::Sampler,
-    info: SamplerInfo,
+    info: SamplerDesc,
     relevant: Relevant,
 }
 
@@ -28,10 +28,10 @@ where
     /// Create new sampler.
     pub fn create(
         device: &Device<B>,
-        info: SamplerInfo,
+        info: SamplerDesc,
     ) -> Result<Self, rendy_core::hal::device::AllocationError> {
         // TODO: Check info is valid.
-        let raw = unsafe { device.create_sampler(info.clone()) }?;
+        let raw = unsafe { device.create_sampler(&info) }?;
         Ok(Sampler {
             device: device.id(),
             raw,

@@ -5,7 +5,7 @@
 
 use {
     crate::hal::Backend,
-    std::{any::Any, marker::PhantomData, ops::Deref},
+    std::ops::{Deref, DerefMut},
 };
 
 #[cfg(not(feature = "no-slow-safety-checks"))]
@@ -69,9 +69,8 @@ impl InstanceId {
 
 /// Raw instance wrapper with id.
 pub struct Instance<B: Backend> {
-    instance: Box<dyn Any + Send + Sync>,
+    instance: B::Instance,
     id: InstanceId,
-    marker: PhantomData<B>,
 }
 
 impl<B> Instance<B>
@@ -79,11 +78,10 @@ where
     B: Backend,
 {
     /// Wrap instance value.
-    pub fn new(instance: impl crate::hal::Instance) -> Self {
+    pub fn new(instance: B::Instance) -> Self {
         Instance {
             id: new_instance_id(),
-            instance: Box::new(instance),
-            marker: PhantomData,
+            instance,
         }
     }
 }
@@ -98,45 +96,33 @@ where
     }
 
     /// Get reference to raw instance.
-    pub fn raw(&self) -> &dyn Any {
-        &*self.instance
+    pub fn raw(&self) -> &B::Instance {
+        &self.instance
     }
 
     /// Get mutable reference to raw instance.
-    pub fn raw_mut(&mut self) -> &mut dyn Any {
-        &mut *self.instance
+    pub fn raw_mut(&mut self) -> &mut B::Instance {
+        &mut self.instance
     }
+}
 
-    /// Get reference to typed raw instance.
-    pub fn raw_typed<T>(&self) -> Option<&T>
-    where
-        T: crate::hal::Instance,
-    {
-        if std::any::TypeId::of::<T::Backend>() == std::any::TypeId::of::<B>() {
-            Some(
-                self.instance
-                    .downcast_ref::<T>()
-                    .expect("Bad instance wrapper"),
-            )
-        } else {
-            None
-        }
+impl<B> Deref for Instance<B>
+where
+    B: Backend,
+{
+    type Target = B::Instance;
+
+    fn deref(&self) -> &B::Instance {
+        self.raw()
     }
+}
 
-    /// Get mutable reference to typed raw instance.
-    pub fn raw_typed_mut<T>(&mut self) -> Option<&mut T>
-    where
-        T: crate::hal::Instance,
-    {
-        if std::any::TypeId::of::<T::Backend>() == std::any::TypeId::of::<B>() {
-            Some(
-                self.instance
-                    .downcast_mut::<T>()
-                    .expect("Bad instance wrapper"),
-            )
-        } else {
-            None
-        }
+impl<B> DerefMut for Instance<B>
+where
+    B: Backend,
+{
+    fn deref_mut(&mut self) -> &mut B::Instance {
+        self.raw_mut()
     }
 }
 

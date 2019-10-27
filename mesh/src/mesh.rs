@@ -84,7 +84,7 @@ pub struct MeshBuilder<'a> {
     vertices: smallvec::SmallVec<[RawVertices<'a>; 16]>,
     #[cfg_attr(feature = "serde", serde(borrow))]
     indices: Option<RawIndices<'a>>,
-    prim: rendy_core::hal::Primitive,
+    prim: rendy_core::hal::pso::Primitive,
 }
 
 #[derive(Clone, Debug)]
@@ -116,7 +116,7 @@ impl<'a> MeshBuilder<'a> {
         MeshBuilder {
             vertices: smallvec::SmallVec::new(),
             indices: None,
-            prim: rendy_core::hal::Primitive::TriangleList,
+            prim: rendy_core::hal::pso::Primitive::TriangleList,
         }
     }
 
@@ -194,7 +194,7 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn with_prim_type(mut self, prim: rendy_core::hal::Primitive) -> Self {
+    pub fn with_prim_type(mut self, prim: rendy_core::hal::pso::Primitive) -> Self {
         self.prim = prim;
         self
     }
@@ -202,7 +202,7 @@ impl<'a> MeshBuilder<'a> {
     /// Sets the primitive type of the mesh.
     ///
     /// By default, meshes are constructed as triangle lists.
-    pub fn set_prim_type(&mut self, prim: rendy_core::hal::Primitive) -> &mut Self {
+    pub fn set_prim_type(&mut self, prim: rendy_core::hal::pso::Primitive) -> &mut Self {
         self.prim = prim;
         self
     }
@@ -353,7 +353,7 @@ pub struct Mesh<B: rendy_core::hal::Backend> {
     vertex_buffer: Escape<Buffer<B>>,
     vertex_layouts: Vec<VertexBufferLayout>,
     index_buffer: Option<IndexBuffer<B>>,
-    prim: rendy_core::hal::Primitive,
+    prim: rendy_core::hal::pso::Primitive,
     len: u32,
 }
 
@@ -366,8 +366,8 @@ where
         MeshBuilder::new()
     }
 
-    /// rendy_core::hal::Primitive type of the `Mesh`
-    pub fn primitive(&self) -> rendy_core::hal::Primitive {
+    /// rendy_core::hal::pso::Primitive type of the `Mesh`
+    pub fn primitive(&self) -> rendy_core::hal::pso::Primitive {
         self.prim
     }
 

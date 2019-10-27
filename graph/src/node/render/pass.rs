@@ -335,6 +335,8 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
+        use rendy_core::hal::window::PresentMode;
+
         let mut surface_color_usage = false;
         let mut surface_depth_usage = false;
 
@@ -444,17 +446,15 @@ where
                             return Err(NodeBuildError::QueueFamily(family.id()));
                         }
 
-                        let (caps, _f, present_modes_caps) = factory.get_surface_compatibility(&surface);
+                        let caps = factory.get_surface_capabilities(&surface);
 
-                        let present_mode = *present_modes_caps
-                            .iter()
-                            .max_by_key(|mode| match mode {
-                                rendy_core::hal::window::PresentMode::Fifo => 3,
-                                rendy_core::hal::window::PresentMode::Mailbox => 2,
-                                rendy_core::hal::window::PresentMode::Relaxed => 1,
-                                rendy_core::hal::window::PresentMode::Immediate => 0,
-                            })
-                            .unwrap();
+                        let present_mode = match () {
+                            _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
+                            _ if caps.present_modes.contains(PresentMode::MAILBOX) => PresentMode::MAILBOX,
+                            _ if caps.present_modes.contains(PresentMode::RELAXED) => PresentMode::RELAXED,
+                            _ if caps.present_modes.contains(PresentMode::IMMEDIATE) => PresentMode::IMMEDIATE,
+                            _ => panic!("No known present modes found"),
+                        };
 
                         let img_count_caps = caps.image_count;
                         let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());

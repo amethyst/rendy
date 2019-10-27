@@ -102,7 +102,7 @@ pub struct TextureBuilder<'a> {
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
-    sampler_info: rendy_core::hal::image::SamplerInfo,
+    sampler_info: rendy_core::hal::image::SamplerDesc,
     swizzle: Swizzle,
     mip_levels: MipLevels,
     premultiplied: bool,
@@ -118,7 +118,7 @@ impl<'a> TextureBuilder<'a> {
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
             data_height: 0,
-            sampler_info: rendy_core::hal::image::SamplerInfo::new(
+            sampler_info: rendy_core::hal::image::SamplerDesc::new(
                 rendy_core::hal::image::Filter::Linear,
                 rendy_core::hal::image::WrapMode::Clamp,
             ),
@@ -238,7 +238,7 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// With image sampler info.
-    pub fn with_sampler_info(mut self, sampler_info: rendy_core::hal::image::SamplerInfo) -> Self {
+    pub fn with_sampler_info(mut self, sampler_info: rendy_core::hal::image::SamplerDesc) -> Self {
         self.set_sampler_info(sampler_info);
         self
     }
@@ -246,7 +246,7 @@ impl<'a> TextureBuilder<'a> {
     /// Set image sampler info.
     pub fn set_sampler_info(
         &mut self,
-        sampler_info: rendy_core::hal::image::SamplerInfo,
+        sampler_info: rendy_core::hal::image::SamplerDesc,
     ) -> &mut Self {
         self.sampler_info = sampler_info;
         self
