@@ -36,11 +36,10 @@ pub use gfx_backend_empty as empty;
 
 #[cfg(all(
     feature = "metal",
-    any(all(
-        target_os = "macos",
-        not(target_arch = "wasm32"),
+    any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")
-    ))
+    )
 ))]
 #[doc(inline)]
 pub use gfx_backend_metal as metal;

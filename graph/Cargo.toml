@@ -13,6 +13,7 @@ description = "Rendy's render graph"
 [features]
 empty = ["rendy-core/empty"]
 dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
 metal = ["rendy-core/metal"]
 vulkan = ["rendy-core/vulkan"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
