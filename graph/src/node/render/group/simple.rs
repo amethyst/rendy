@@ -33,6 +33,9 @@ pub struct Pipeline {
     /// Depth stencil for pipeline.
     pub depth_stencil: gfx_hal::pso::DepthStencilDesc,
 
+    /// Rasterizer for pipeline.
+    pub rasterizer: gfx_hal::pso::Rasterizer,
+
     /// Primitive to use in the input assembler.
     pub input_assembler_desc: gfx_hal::pso::InputAssemblerDesc,
 }
@@ -80,6 +83,11 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         })
     }
 
+    /// Rasterizer desc.
+    fn rasterizer(&self) -> gfx_hal::pso::Rasterizer {
+        gfx_hal::pso::Rasterizer::FILL
+    }
+
     /// Get vertex input.
     fn vertices(
         &self,
@@ -117,6 +125,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
             depth_stencil: self
                 .depth_stencil()
                 .unwrap_or(gfx_hal::pso::DepthStencilDesc::default()),
+            rasterizer: self.rasterizer(),
             input_assembler_desc: self.input_assembler(),
         }
     }
@@ -297,7 +306,7 @@ where
             factory.device().create_graphics_pipelines(
                 Some(gfx_hal::pso::GraphicsPipelineDesc {
                     shaders,
-                    rasterizer: gfx_hal::pso::Rasterizer::FILL,
+                    rasterizer: pipeline.rasterizer,
                     vertex_buffers,
                     attributes,
                     input_assembler: pipeline.input_assembler_desc,
