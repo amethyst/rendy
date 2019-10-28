@@ -78,7 +78,7 @@ lazy_static::lazy_static! {
 struct Light {
     pos: nalgebra::Vector3<f32>,
     pad: f32,
-    intencity: f32,
+    intensity: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -288,7 +288,7 @@ where
                             let mut array = [Light {
                                 pad: 0.0,
                                 pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
-                                intencity: 0.0,
+                                intensity: 0.0,
                             }; MAX_LIGHTS];
                             let count = min(scene.lights.len(), 32);
                             array[..count].copy_from_slice(&scene.lights[..count]);
@@ -449,22 +449,22 @@ fn main() {
             Light {
                 pad: 0.0,
                 pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
-                intencity: 10.0,
+                intensity: 10.0,
             },
             Light {
                 pad: 0.0,
                 pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
-                intencity: 140.0,
+                intensity: 140.0,
             },
             Light {
                 pad: 0.0,
                 pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
-                intencity: 100.0,
+                intensity: 100.0,
             },
             Light {
                 pad: 0.0,
                 pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
-                intencity: 160.0,
+                intensity: 160.0,
             },
         ],
     };
