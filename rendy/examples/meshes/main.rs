@@ -111,19 +111,23 @@ const UNIFORM_SIZE: u64 = size_of::<UniformArgs>() as u64;
 const MODELS_SIZE: u64 = size_of::<Model>() as u64 * MAX_OBJECTS as u64;
 const INDIRECT_SIZE: u64 = size_of::<DrawIndexedCommand>() as u64;
 
-const fn buffer_frame_size(align: u64) -> u64 {
-    ((UNIFORM_SIZE + MODELS_SIZE + INDIRECT_SIZE - 1) / align + 1) * align
+fn iceil(value: u64, scale: u64) -> u64 {
+    ((value - 1) / scale + 1) * scale
 }
 
-const fn uniform_offset(index: usize, align: u64) -> u64 {
+fn buffer_frame_size(align: u64) -> u64 {
+    iceil(UNIFORM_SIZE + MODELS_SIZE + INDIRECT_SIZE, align)
+}
+
+fn uniform_offset(index: usize, align: u64) -> u64 {
     buffer_frame_size(align) * index as u64
 }
 
-const fn models_offset(index: usize, align: u64) -> u64 {
+fn models_offset(index: usize, align: u64) -> u64 {
     uniform_offset(index, align) + UNIFORM_SIZE
 }
 
-const fn indirect_offset(index: usize, align: u64) -> u64 {
+fn indirect_offset(index: usize, align: u64) -> u64 {
     models_offset(index, align) + MODELS_SIZE
 }
 
