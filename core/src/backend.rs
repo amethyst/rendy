@@ -121,7 +121,7 @@ impl EnabledBackend {
                 ))
             ))]
             _ if tid == vulkan_backend_type_id() => EnabledBackend::Vulkan,
-            _ => panic!("Unsupported gfx-hal backed"),
+            _ => panic!("Unsupported gfx-hal backend"),
         }
     }
 }
