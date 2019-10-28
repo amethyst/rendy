@@ -554,9 +554,12 @@ fn main() {
             _ => {}
         }
 
-        if *control_flow == ControlFlow::Exit && graph.is_some() {
+        if *control_flow == ControlFlow::Exit {
             log::info!("FPS: {:#?}", fpss);
-            graph.take().unwrap().dispose(&mut factory, &scene);
+            if let Some(graph) = graph.take() {
+                graph.dispose(&mut factory, &scene);
+            }
+            drop(scene.object_mesh.take());
         }
     });
 }
