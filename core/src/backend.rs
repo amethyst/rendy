@@ -90,6 +90,7 @@ pub enum EnabledBackend {
 impl EnabledBackend {
     /// Check which backend is it.
     pub fn which<B: crate::hal::Backend>() -> Self {
+        #[allow(unused_variables)]
         let tid = TypeId::of::<B>();
         match () {
             #[cfg(all(
@@ -398,14 +399,16 @@ macro_rules! rendy_backend {
         $(Gl => $gl_code:block)?
         $(Metal => $metal_code:block)?
         $(Vulkan => $vulkan_code:block)?
-    }) => {{
+        $(_ => $code:block)?
+    }) => {{#[allow(unreachable_code)]
         || -> _ {
-            use $enum_type as EnumType;
-            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12 = $target { let res = { $dx12_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty = $target { let res = { $empty_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl = $target { let res = { $gl_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal = $target { let res = { $metal_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan = $target { let res = { $vulkan_code }; #[allow(unreachable_code)] { return res; } }))?;
+            #[allow(unused)] use $enum_type as EnumType;
+            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12 = $target { return { $dx12_code }; }))?;
+            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty = $target { return { $empty_code }; }))?;
+            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl = $target { return { $gl_code }; }))?;
+            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal = $target { return { $metal_code }; }))?;
+            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan = $target { return { $vulkan_code }; }))?;
+            $({ return { $code }; })?
             unreachable!()
         }()
     }};
@@ -415,43 +418,23 @@ macro_rules! rendy_backend {
         $(Empty($empty_pat:pat) => $empty_code:block)?
         $(Gl($gl_pat:pat) => $gl_code:block)?
         $(Metal($metal_pat:pat) => $metal_code:block)?
-        $(Vulkan($vulkan_pat:pat) => $vulkan_code:block)?
-    }) => {{
+        $(Vulkan($vulkan_pat:pat) => $vulkan_code:block$)?
+        $(_($(use $back:ident;)? $pat:pat) => $code:block)?
+    }) => {{#[allow(unreachable_code)]
         || -> _ {
-            use $enum_type as EnumType;
-            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12($dx12_pat) = $target { let res = { $dx12_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty($empty_pat) = $target { let res = { $empty_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl($gl_pat) = $target { let res = { $gl_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal($metal_pat) = $target { let res = { $metal_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan($vulkan_pat) = $target { let res = { $vulkan_code }; #[allow(unreachable_code)] { return res; } }))?;
-            unreachable!()
-        }()
-    }};
+            #[allow(unused)] use $enum_type as EnumType;
+            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12($dx12_pat) = $target { return { $dx12_code }; }))?;
+            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty($empty_pat) = $target { return { $empty_code }; }))?;
+            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl($gl_pat) = $target { return { $gl_code }; }))?;
+            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal($metal_pat) = $target { return { $metal_code }; }))?;
+            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan($vulkan_pat) = $target { return { $vulkan_code }; }))?;
 
-    (match ($target:expr) : $enum_type:path {
-        _($pat:pat) => $code:block
-    }) => {{
-        || -> _ {
-            use $enum_type as EnumType;
-            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12($pat) = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty($pat) = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl($pat) = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal($pat) = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan($pat) = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            unreachable!()
-        }()
-    }};
+            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12($pat) = $target { $(use $crate::dx12 as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty($pat) = $target { $(use $crate::empty as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl($pat) = $target { $(use $crate::gl as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal($pat) = $target { $(use $crate::metal as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan($pat) = $target { $(use $crate::vulkan as $back;)? return { $code }; }))?;
 
-    (match ($target:expr) : $enum_type:path {
-        _ => $code:block
-    }) => {{
-        || -> _ {
-            use $enum_type as EnumType;
-            $($crate::rendy_with_dx12_backend!(if let EnumType :: Dx12 = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_empty_backend!(if let EnumType :: Empty = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_gl_backend!(if let EnumType :: Gl = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_metal_backend!(if let EnumType :: Metal = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_vulkan_backend!(if let EnumType :: Vulkan = $target { let res = { $code }; #[allow(unreachable_code)] { return res; } }))?;
             unreachable!()
         }()
     }};
@@ -462,30 +445,21 @@ macro_rules! rendy_backend {
         $(Gl => $gl_code:block)?
         $(Metal => $metal_code:block)?
         $(Vulkan => $vulkan_code:block)?
-    }) => {{
+        $(_$((use $back:ident;))? => $code:block)?
+    }) => {{#[allow(unreachable_code)]
         || -> _ {
-            $($crate::rendy_with_dx12_backend!(if let $crate::EnabledBackend::Dx12 = $crate::EnabledBackend::which::<$target>() { let res = { $dx12_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_empty_backend!(if let $crate::EnabledBackend::Empty = $crate::EnabledBackend::which::<$target>() { let res = { $empty_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_gl_backend!(if let $crate::EnabledBackend::Gl = $crate::EnabledBackend::which::<$target>() { let res = { $gl_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_metal_backend!(if let $crate::EnabledBackend::Metal = $crate::EnabledBackend::which::<$target>() { let res = { $metal_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_vulkan_backend!(if let $crate::EnabledBackend::Vulkan = $crate::EnabledBackend::which::<$target>() { let res = { $vulkan_code }; #[allow(unreachable_code)] { return res; } }))?;
-            unreachable!()
-        }()
-    }};
-
-    (type $target:path {
-        $(Dx12($dx12_back:ident) => $dx12_code:block)?
-        $(Empty($empty_back:ident) => $empty_code:block)?
-        $(Gl($gl_back:ident) => $gl_code:block)?
-        $(Metal($metal_back:ident) => $metal_code:block)?
-        $(Vulkan($vulkan_back:ident) => $vulkan_code:block)?
-    }) => {{
-        || -> _ {
-            $($crate::rendy_with_dx12_backend!(if let $crate::EnabledBackend::Dx12 = $crate::EnabledBackend::which::<$target>() { use $crate::dx12 as $dx12_back; let res = { $dx12_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_empty_backend!(if let $crate::EnabledBackend::Empty = $crate::EnabledBackend::which::<$target>() { use $crate::empty as $empty_back; let res = { $empty_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_gl_backend!(if let $crate::EnabledBackend::Gl = $crate::EnabledBackend::which::<$target>() { use $crate::gl as $gl_back; let res = { $gl_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_metal_backend!(if let $crate::EnabledBackend::Metal = $crate::EnabledBackend::which::<$target>() { use $crate::metal as $metal_back; let res = { $metal_code }; #[allow(unreachable_code)] { return res; } }))?;
-            $($crate::rendy_with_vulkan_backend!(if let $crate::EnabledBackend::Vulkan = $crate::EnabledBackend::which::<$target>() { use $crate::vulkan as $vulkan_back; let res = { $vulkan_code }; #[allow(unreachable_code)] { return res; } }))?;
+            $($crate::rendy_with_dx12_backend!(if let $crate::EnabledBackend::Dx12 = $crate::EnabledBackend::which::<$target>() { return { $dx12_code }; }))?;
+            $($crate::rendy_with_empty_backend!(if let $crate::EnabledBackend::Empty = $crate::EnabledBackend::which::<$target>() { return { $empty_code }; }))?;
+            $($crate::rendy_with_gl_backend!(if let $crate::EnabledBackend::Gl = $crate::EnabledBackend::which::<$target>() { return { $gl_code }; }))?;
+            $($crate::rendy_with_metal_backend!(if let $crate::EnabledBackend::Metal = $crate::EnabledBackend::which::<$target>() { return { $metal_code }; }))?;
+            $($crate::rendy_with_vulkan_backend!(if let $crate::EnabledBackend::Vulkan = $crate::EnabledBackend::which::<$target>() { return { $vulkan_code }; }))?;
+            
+            $($crate::rendy_with_dx12_backend!(if let $crate::EnabledBackend::Dx12 = $crate::EnabledBackend::which::<$target>() { $(use $crate::dx12 as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_empty_backend!(if let $crate::EnabledBackend::Empty = $crate::EnabledBackend::which::<$target>() { $(use $crate::empty as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_gl_backend!(if let $crate::EnabledBackend::Gl = $crate::EnabledBackend::which::<$target>() { $(use $crate::gl as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_metal_backend!(if let $crate::EnabledBackend::Metal = $crate::EnabledBackend::which::<$target>() { $(use $crate::metal as $back;)? return { $code }; }))?;
+            $($crate::rendy_with_vulkan_backend!(if let $crate::EnabledBackend::Vulkan = $crate::EnabledBackend::which::<$target>() { $(use $crate::vulkan as $back;)? return { $code }; }))?;
+            
             unreachable!()
         }()
     }};

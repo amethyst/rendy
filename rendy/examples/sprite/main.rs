@@ -3,11 +3,6 @@
 //! This examples shows how to render a sprite on a white background.
 //!
 
-#![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
-    allow(unused)
-)]
-
 use {
     rendy::{
         command::{Families, QueueId, RenderPassEncoder},
@@ -22,11 +17,13 @@ use {
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
         texture::{image::ImageTextureConfig, Texture},
-    },
-    winit::{
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
+        init::{
+            winit::{
+                event::{Event, WindowEvent},
+                event_loop::{ControlFlow, EventLoop},
+                window::WindowBuilder,
+            },
+        }
     },
 };
 
@@ -37,15 +34,6 @@ use rendy::shader::SpirvReflection;
 use rendy::mesh::AsVertex;
 
 use std::{fs::File, io::BufReader};
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
@@ -318,12 +306,11 @@ where
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(
+fn run<B: hal::Backend>(
     event_loop: EventLoop<()>,
-    mut factory: Factory<Backend>,
-    mut families: Families<Backend>,
-    graph: Graph<Backend, ()>,
+    mut factory: Factory<B>,
+    mut families: Families<B>,
+    graph: Graph<B, ()>,
 ) {
     let started = std::time::Instant::now();
 
@@ -376,7 +363,6 @@ fn run(
     });
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("sprite", log::LevelFilter::Trace)
@@ -384,49 +370,42 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
-
     let event_loop = EventLoop::new();
-
     let window = WindowBuilder::new()
         .with_title("Rendy example")
-        .build(&event_loop)
-        .unwrap();
+        .with_inner_size((960, 640).into());
 
-    let surface = factory.create_surface(&window).unwrap();
+    rendy::init_windowed_and_then!((&config, window, &event_loop)
+        (mut factory, mut families, surface, window) => {
 
-    let mut graph_builder = GraphBuilder::<Backend, ()>::new();
+            let mut graph_builder = GraphBuilder::<_, ()>::new();
 
-    let size = window.inner_size().to_physical(window.hidpi_factor());
+            let size = window.inner_size().to_physical(window.hidpi_factor());
 
-    let color = graph_builder.create_image(
-        hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
-        1,
-        factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue {
-            color: hal::command::ClearColor {
-                float32: [1.0, 1.0, 1.0, 1.0],
-            },
-        }),
-    );
+            let color = graph_builder.create_image(
+                hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
+                1,
+                factory.get_surface_format(&surface),
+                Some(hal::command::ClearValue {
+                    color: hal::command::ClearColor {
+                        float32: [1.0, 1.0, 1.0, 1.0],
+                    },
+                }),
+            );
 
-    let pass = graph_builder.add_node(
-        SpriteGraphicsPipeline::builder()
-            .into_subpass()
-            .with_color(color)
-            .into_pass(),
-    );
+            let pass = graph_builder.add_node(
+                SpriteGraphicsPipeline::builder()
+                    .into_subpass()
+                    .with_color(color)
+                    .into_pass(),
+            );
 
-    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
+            graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
-    let graph = graph_builder
-        .build(&mut factory, &mut families, &())
-        .unwrap();
+            let graph = graph_builder
+                .build(&mut factory, &mut families, &())
+                .unwrap();
 
-    run(event_loop, factory, families, graph);
-}
-
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
-fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
+            run(event_loop, factory, families, graph);
+        }).unwrap()
 }

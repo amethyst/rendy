@@ -23,10 +23,7 @@ pub use gfx_hal as hal;
 #[doc(inline)]
 pub use gfx_backend_dx12 as dx12;
 
-#[cfg(all(
-    feature = "gl",
-    all(target_os = "windows", not(target_arch = "wasm32"))
-))]
+#[cfg(feature = "gl")]
 #[doc(inline)]
 pub use gfx_backend_gl as gl;
 

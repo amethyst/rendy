@@ -4,26 +4,23 @@
 //! Nothing fancy. Just prove that `rendy` works.
 //!
 
-#![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
-    allow(unused)
-)]
-
 use {
     rendy::{
         command::{Families, QueueId, RenderPassEncoder},
         factory::{Config, Factory},
         graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-        hal,
+        hal::{self, Backend},
         memory::Dynamic,
         mesh::PosColor,
         resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
-        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
-    },
-    winit::{
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
+        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},    
+        init::{
+            winit::{
+                event::{Event, WindowEvent},
+                event_loop::{ControlFlow, EventLoop},
+                window::WindowBuilder,
+            },
+        },
     },
 };
 
@@ -32,15 +29,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
@@ -206,12 +194,11 @@ where
     fn dispose(self, _factory: &mut Factory<B>, _aux: &T) {}
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(
+fn run<B: Backend>(
     event_loop: EventLoop<()>,
-    mut factory: Factory<Backend>,
-    mut families: Families<Backend>,
-    graph: Graph<Backend, ()>,
+    mut factory: Factory<B>,
+    mut families: Families<B>,
+    graph: Graph<B, ()>,
 ) {
     let started = std::time::Instant::now();
 
@@ -256,50 +243,46 @@ fn run(
     });
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("triangle", log::LevelFilter::Trace)
         .init();
 
     let config: Config = Default::default();
-
-    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
-
     let event_loop = EventLoop::new();
-
     let window = WindowBuilder::new()
-        .with_title("Rendy example")
-        .build(&event_loop)
-        .unwrap();
+        .with_inner_size((960, 640).into())
+        .with_title("Rendy example");
 
-    let surface = factory.create_surface(&window).unwrap();
+    rendy::init_windowed_and_then!((&config, window, &event_loop)
+        (mut factory, mut families, surface, window) => {
+            let mut graph_builder = GraphBuilder::<_, ()>::new();
+            let (width, height) = window.inner_size().to_physical(window.hidpi_factor()).into();
 
-    let mut graph_builder = GraphBuilder::<Backend, ()>::new();
+            graph_builder.add_node(
+                TriangleRenderPipeline::builder()
+                    .into_subpass()
+                    .with_color_surface()
+                    .into_pass()
+                    .with_surface(
+                        surface,
+                        hal::window::Extent2D {
+                            width,
+                            height,
+                        },
+                        Some(hal::command::ClearValue {
+                            color: hal::command::ClearColor {
+                                float32: [1.0, 1.0, 1.0, 1.0],
+                            },
+                        }),
+                    ),
+            );
 
-    graph_builder.add_node(
-        TriangleRenderPipeline::builder()
-            .into_subpass()
-            .with_color_surface()
-            .into_pass()
-            .with_surface(
-                surface,
-                Some(hal::command::ClearValue {
-                    color: hal::command::ClearColor {
-                        float32: [1.0, 1.0, 1.0, 1.0],
-                    },
-                }),
-            ),
-    );
+            let graph = graph_builder
+                .build(&mut factory, &mut families, &())
+                .unwrap();
 
-    let graph = graph_builder
-        .build(&mut factory, &mut families, &())
-        .unwrap();
-
-    run(event_loop, factory, families, graph);
-}
-
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
-fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
+            run(event_loop, factory, families, graph);
+        }
+    ).unwrap();
 }

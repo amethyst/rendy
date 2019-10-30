@@ -75,13 +75,24 @@ where
     /// # Safety
     ///
     /// Closure must return surface object created from raw instance provided as closure argument.
-    pub unsafe fn create(
+    pub unsafe fn new_with(
         instance: &Instance<B>,
         f: impl FnOnce(&B::Instance) -> B::Surface,
     ) -> Self {
         Surface {
             raw: f(instance.raw()),
             instance: instance.id(),
+        }
+    }
+
+    /// Create surface from raw parts.
+    pub unsafe fn from_raw(
+        surface: B::Surface,
+        instance: InstanceId,
+    ) -> Self {
+        Surface {
+            raw: surface,
+            instance,
         }
     }
 }

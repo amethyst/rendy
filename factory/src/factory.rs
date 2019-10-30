@@ -5,7 +5,7 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
-        core::{rendy_backend_match, rendy_with_slow_safety_checks, Device, DeviceId, Instance},
+        core::{rendy_with_slow_safety_checks, Device, DeviceId, Instance, InstanceId},
         descriptor::DescriptorAllocator,
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
@@ -18,6 +18,7 @@ use {
             buffer,
             device::{
                 AllocationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory, WaitFor,
+                CreationError,
             },
             format, image,
             pso::DescriptorSetLayoutBinding,
@@ -95,6 +96,30 @@ pub enum UploadError {
     Upload(OutOfMemory),
 }
 
+enum InstanceOrId<B: Backend> {
+    Instance(Instance<B>),
+    Id(InstanceId),
+}
+
+impl<B> InstanceOrId<B>
+where
+    B: Backend,
+{
+    fn id(&self) -> InstanceId {
+        match self {
+            InstanceOrId::Instance(instance) => instance.id(),
+            InstanceOrId::Id(id) => *id,
+        }
+    }
+
+    fn instance(&self) -> Option<&Instance<B>> {
+        match self {
+            InstanceOrId::Instance(instance) => Some(instance),
+            InstanceOrId::Id(_) => None,
+        }
+    }
+}
+
 /// Higher level device interface.
 /// Manges memory, resources and queue families.
 #[derive(derivative::Derivative)]
@@ -112,7 +137,7 @@ pub struct Factory<B: Backend> {
     #[derivative(Debug = "ignore")]
     adapter: Adapter<B>,
     #[derivative(Debug = "ignore")]
-    instance: Instance<B>,
+    instance: InstanceOrId<B>,
 }
 
 #[allow(unused)]
@@ -614,6 +639,15 @@ where
         &self.blitter
     }
 
+    /// Create rendering surface from window handle.
+    pub fn create_surface(
+        &mut self,
+        handle: &impl HasRawWindowHandle,
+    ) -> Result<Surface<B>, InitError> {
+        profile_scope!("create_surface");
+        Surface::new(self.instance.instance().expect("Cannot create surface without instance"), handle)
+    }
+
     /// Create rendering surface from window.
     ///
     /// # Safety
@@ -624,7 +658,7 @@ where
         f: impl FnOnce(&B::Instance) -> B::Surface,
     ) -> Surface<B> {
         profile_scope!("create_surface");
-        Surface::create(&self.instance, f)
+        Surface::new_with(self.instance.instance().expect("Cannot create surface without instance"), f)
     }
 
     /// Get formats supported by the Surface
@@ -638,7 +672,7 @@ where
     ) -> Option<Vec<rendy_core::hal::format::Format>> {
         profile_scope!("get_surface_compatibility");
 
-        surface.assert_instance_owner(&self.instance);
+        assert_eq!(surface.instance_id(), self.instance.id(), "Resource is not owned by specified instance");
         unsafe { surface.supported_formats(&self.adapter.physical_device) }
     }
 
@@ -653,7 +687,7 @@ where
     ) -> rendy_core::hal::window::SurfaceCapabilities {
         profile_scope!("get_surface_compatibility");
 
-        surface.assert_instance_owner(&self.instance);
+        assert_eq!(surface.instance_id(), self.instance.id(), "Resource is not owned by specified instance");
         unsafe { surface.capabilities(&self.adapter.physical_device) }
     }
 
@@ -665,8 +699,16 @@ where
     pub fn get_surface_format(&self, surface: &Surface<B>) -> format::Format {
         profile_scope!("get_surface_format");
 
-        surface.assert_instance_owner(&self.instance);
+        assert_eq!(surface.instance_id(), self.instance.id(), "Resource is not owned by specified instance");
         unsafe { surface.format(&self.adapter.physical_device) }
+    }
+
+    /// Check if queue family supports presentation to the specified surface.
+    pub fn surface_support(&self, family: FamilyId, surface: &Surface<B>) -> bool {
+        assert_eq!(surface.instance_id(), self.instance.id(), "Resource is not owned by specified instance");
+        surface
+            .raw()
+            .supports_queue_family(&self.adapter.queue_families[family.index])
     }
 
     /// Destroy surface returning underlying window back to the caller.
@@ -675,7 +717,7 @@ where
     ///
     /// Panics if `surface` was not created by this `Factory`
     pub fn destroy_surface(&mut self, surface: Surface<B>) {
-        surface.assert_instance_owner(&self.instance);
+        assert_eq!(surface.instance_id(), self.instance.id(), "Resource is not owned by specified instance");
         drop(surface);
     }
 
@@ -716,23 +758,6 @@ where
     /// Target images must not be used by pending commands or referenced anywhere.
     pub unsafe fn destroy_target(&self, target: Target<B>) -> Surface<B> {
         target.dispose(&self.device)
-    }
-
-    /// Create rendering surface from window handle.
-    pub fn create_surface(
-        &mut self,
-        handle: &impl HasRawWindowHandle,
-    ) -> Result<Surface<B>, InitError> {
-        profile_scope!("create_surface");
-        Surface::new(&self.instance, handle)
-    }
-
-    /// Check if queue family supports presentation to the specified surface.
-    pub fn surface_support(&self, family: FamilyId, surface: &Surface<B>) -> bool {
-        surface.assert_instance_owner(&self.instance);
-        surface
-            .raw()
-            .supports_queue_family(&self.adapter.queue_families[family.index])
     }
 
     /// Get raw device.
@@ -1060,6 +1085,11 @@ where
     pub fn memory_utilization(&self) -> TotalMemoryUtilization {
         self.heaps.lock().utilization()
     }
+
+    /// Get Factory's instance id.
+    pub fn instance_id(&self) -> InstanceId {
+        self.device.id().instance
+    }
 }
 
 impl<B> std::ops::Deref for Factory<B>
@@ -1073,29 +1103,27 @@ where
     }
 }
 
-/// Initialize `Factory` and Queue `Families` associated with Device.
-#[allow(unused_variables)]
-pub fn init<B>(
-    config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-) -> Result<(Factory<B>, Families<B>), rendy_core::hal::device::CreationError>
-where
-    B: Backend,
-{
-    log::debug!("Creating factory");
-    rendy_backend_match!(B as backend => {
-        profile_scope!(concat!("init_factory"));
-        let instance = backend::Instance::create("Rendy", 1)
-            .map_err(|_| rendy_core::hal::device::CreationError::InitializationFailed)?;
-        Ok(crate::core::identical_cast::<(Factory<backend::Backend>, _), _>(init_with_instance(instance, config)?))
-    });
-}
 
 /// Initialize `Factory` and Queue `Families` associated with Device
 /// using existing `Instance`.
 pub fn init_with_instance<B>(
-    instance: B::Instance,
-    config: Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-) -> Result<(Factory<B>, Families<B>), rendy_core::hal::device::CreationError>
+    instance: Instance<B>,
+    config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
+) -> Result<(Factory<B>, Families<B>), CreationError>
+where
+    B: Backend,
+{
+    let (mut factory, families) = init_with_instance_ref(&instance, config)?;
+    factory.instance = InstanceOrId::Instance(instance);
+    Ok((factory, families))
+}
+
+/// Initialize `Factory` and Queue `Families` associated with Device
+/// using existing `Instance`.
+pub fn init_with_instance_ref<B>(
+    instance: &Instance<B>,
+    config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
+) -> Result<(Factory<B>, Families<B>), CreationError>
 where
     B: Backend,
 {
@@ -1139,7 +1167,6 @@ where
         }
     );
 
-    let instance = Instance::<B>::new(instance);
     let device_id = DeviceId::new(instance.id());
 
     let (device, families) = {
@@ -1212,7 +1239,7 @@ where
         epochs,
         device,
         adapter,
-        instance,
+        instance: InstanceOrId::Id(instance.id()),
     };
 
     Ok((factory, families))

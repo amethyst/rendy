@@ -84,12 +84,12 @@ where
             instance,
         }
     }
-}
 
-impl<B> Instance<B>
-where
-    B: Backend,
-{
+    /// Wrap instance value.
+    pub unsafe fn from_raw(instance: B::Instance, id: InstanceId) -> Self {
+        Instance { id, instance }
+    }
+    
     /// Get instance id.
     pub fn id(&self) -> InstanceId {
         self.id
@@ -103,6 +103,11 @@ where
     /// Get mutable reference to raw instance.
     pub fn raw_mut(&mut self) -> &mut B::Instance {
         &mut self.instance
+    }
+
+    /// Get inner raw instance
+    pub fn into_raw(self) -> B::Instance {
+        self.instance
     }
 }
 
@@ -190,6 +195,11 @@ where
     /// Get mutable reference to raw device.
     pub fn raw_mut(&mut self) -> &mut B::Device {
         &mut self.device
+    }
+
+    /// Get inner raw device
+    pub fn into_raw(self) -> B::Device {
+        self.device
     }
 }
 
