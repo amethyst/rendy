@@ -1,6 +1,6 @@
 use {
     crate::ranges::*,
-    rendy_core::hal::{
+    gfx_hal::{
         device::{Device, OutOfMemory},
         pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
         Backend,
@@ -56,10 +56,8 @@ struct Allocation<B: Backend> {
     pools: Vec<u64>,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 struct DescriptorPool<B: Backend> {
-    #[derivative(Debug = "ignore")]
     raw: B::DescriptorPool,
     size: u32,
 
