@@ -6,7 +6,7 @@ ifeq ($(OS),Windows_NT)
 else
 	UNAME_S:=$(shell uname -s)
 	ifeq ($(UNAME_S),Linux)
-		RENDY_BACKEND=vulkan-x11
+		RENDY_BACKEND=vulkan
 	endif
 	ifeq ($(UNAME_S),Darwin)
 		RENDY_BACKEND=metal

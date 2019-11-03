@@ -1,0 +1,28 @@
+[package]
+name = "rendy-init"
+version = "0.5.0"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/amethyst/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy-init"
+keywords = ["graphics", "gfx-hal", "rendy"]
+categories = ["rendering"]
+description = "Rendy's easy initialization tool"
+
+[features]
+empty = ["rendy-core/empty"]
+dx12 = ["rendy-core/dx12"]
+gl = ["rendy-core/gl"]
+metal = ["rendy-core/metal"]
+vulkan = ["rendy-core/vulkan"]
+no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
+
+[dependencies]
+rendy-command = { version = "0.5.0", path = "../command" }
+rendy-factory = { version = "0.5.0", path = "../factory" }
+rendy-core = { version = "0.5.0", path = "../core" }
+rendy-wsi = { version = "0.5.0", path = "../wsi" }
+winit = { version = "0.20.0-alpha4", optional = true, features = ["web-sys"] }
+log = "0.4"
+smallvec = "0.6"

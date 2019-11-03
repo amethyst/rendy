@@ -5,6 +5,7 @@ members = [
     "descriptor",
     "factory",
     "frame",
+    "init",
     "memory",
     "mesh",
     "rendy",

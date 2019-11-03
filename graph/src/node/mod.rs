@@ -7,7 +7,6 @@ pub mod render;
 use {
     crate::{
         command::{Capability, Families, Family, FamilyId, Fence, Queue, Submission, Submittable},
-        core::{rendy_with_metal_backend, rendy_without_metal_backend},
         factory::{Factory, UploadError},
         frame::Frames,
         graph::GraphContext,
@@ -532,18 +531,4 @@ pub fn gfx_release_barriers<'a, B: Backend>(
         .collect();
 
     (bstart | istart..bend | iend, barriers)
-}
-
-rendy_with_metal_backend! {
-    /// Check if backend is metal.
-    pub fn is_metal<B: Backend>() -> bool {
-        std::any::TypeId::of::<B>() == std::any::TypeId::of::<rendy_core::metal::Backend>()
-    }
-}
-
-rendy_without_metal_backend! {
-    /// Check if backend is metal.
-    pub fn is_metal<B: Backend>() -> bool {
-        false
-    }
 }

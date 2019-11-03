@@ -3,7 +3,7 @@ use {
         command::Encoder,
         resource::{Handle, Image},
     },
-    rendy_core::hal::{self, buffer, image, memory::Barrier, pso, Backend},
+    rendy_core::hal::{buffer, image, memory::Barrier, pso, Backend},
     std::ops::Range,
 };
 

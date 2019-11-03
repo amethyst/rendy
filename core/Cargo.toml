@@ -23,13 +23,12 @@ dx12 = ["gfx-backend-dx12"]
 metal = ["gfx-backend-metal"]
 gl = ["gfx-backend-gl"]
 vulkan = ["gfx-backend-vulkan"]
-vulkan-x11 = ["gfx-backend-vulkan/x11"]
 no-slow-safety-checks = []
 
 [dependencies]
 gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b" }
 gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
-gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
+gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", features = ["glutin"], optional = true }
 derivative = "1.0"
 lazy_static = "1.0"
 log = "0.4"
@@ -45,4 +44,4 @@ gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e82
 gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
 
 [target.'cfg(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))'.dependencies]
-gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", features = ["x11"], optional = true }

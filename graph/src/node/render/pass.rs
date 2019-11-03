@@ -5,6 +5,10 @@ use {
             Graphics, IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
             SecondaryLevel, SimultaneousUse, Submission, Submit,
         },
+        core::{
+            hal::{device::Device as _, image::Layout, Backend},
+            uses_pipeline_barriers,
+        },
         factory::Factory,
         frame::{
             cirque::{CirqueRef, CommandCirque},
@@ -12,7 +16,7 @@ use {
         },
         graph::GraphContext,
         node::{
-            gfx_acquire_barriers, gfx_release_barriers, is_metal,
+            gfx_acquire_barriers, gfx_release_barriers,
             render::group::{RenderGroup, RenderGroupBuilder},
             BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuildError, NodeBuilder, NodeImage,
         },
@@ -20,7 +24,6 @@ use {
         BufferId, ImageId, NodeId,
     },
     either::Either,
-    rendy_core::hal::{device::Device as _, image::Layout, Backend},
     std::{cmp::min, collections::HashMap},
 };
 
@@ -165,7 +168,11 @@ where
 #[derivative(Default(bound = ""), Debug(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassBuilder<B, T>>,
-    surface: Option<(Surface<B>, Option<rendy_core::hal::command::ClearValue>)>,
+    surface: Option<(
+        Surface<B>,
+        rendy_core::hal::window::Extent2D,
+        Option<rendy_core::hal::command::ClearValue>,
+    )>,
 }
 
 impl<B, T> RenderPassNodeBuilder<B, T>
@@ -194,13 +201,14 @@ where
     pub fn add_surface(
         &mut self,
         surface: Surface<B>,
+        suggested_extent: rendy_core::hal::window::Extent2D,
         clear: Option<rendy_core::hal::command::ClearValue>,
     ) -> &mut Self {
         assert!(
             self.surface.is_none(),
             "Only one surface can be attachend to rende pass"
         );
-        self.surface = Some((surface, clear));
+        self.surface = Some((surface, suggested_extent, clear));
         self
     }
 
@@ -208,9 +216,10 @@ where
     pub fn with_surface(
         mut self,
         surface: Surface<B>,
+        suggested_extent: rendy_core::hal::window::Extent2D,
         clear: Option<rendy_core::hal::command::ClearValue>,
     ) -> Self {
-        self.add_surface(surface, clear);
+        self.add_surface(surface, suggested_extent, clear);
         self
     }
 }
@@ -340,7 +349,9 @@ where
         let mut surface_color_usage = false;
         let mut surface_depth_usage = false;
 
-        let (mut surface, surface_clear) = self.surface.map_or((None, None), |(s, c)| (Some(s), c));
+        let (mut surface, suggested_extent, surface_clear) = self
+            .surface
+            .map_or((None, None, None), |(s, e, c)| (Some(s), Some(e), c));
         log::debug!(
             "Build render pass node {} surface",
             surface.as_ref().map_or("without", |_| "with")
@@ -436,7 +447,7 @@ where
 
                         let surface = surface.take().expect("Render pass should be configured with Surface instance if at least one subpass uses surface attachment");
                         let surface_extent = unsafe {
-                            surface.extent(factory.physical()).unwrap_or(rendy_core::hal::window::Extent2D { width: framebuffer_width, height: framebuffer_height })
+                            surface.extent(factory.physical()).unwrap_or(suggested_extent.expect("Must be set with surface"))
                         };
 
                         log::debug!("Surface extent {:#?}", surface_extent);
@@ -692,7 +703,7 @@ where
 
         let command_cirque = CommandCirque::new();
 
-        let acquire = if !is_metal::<B>() {
+        let acquire = if uses_pipeline_barriers::<B>(factory.device()) {
             let (stages, barriers) = gfx_acquire_barriers(ctx, &buffers, &images);
 
             if !barriers.is_empty() {
@@ -718,7 +729,7 @@ where
             None
         };
 
-        let release = if !is_metal::<B>() {
+        let release = if uses_pipeline_barriers::<B>(factory.device()) {
             let (stages, barriers) = gfx_release_barriers(ctx, &buffers, &images);
 
             if !barriers.is_empty() {

@@ -3,40 +3,33 @@
 //! It uses compute node to move quads and simple render pass to draw them.
 //!
 
-#![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
-    allow(unused)
-)]
-
-use {
-    rendy::{
-        command::{
-            CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
-            MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
-        },
-        factory::{BufferState, Config, Factory},
-        frame::Frames,
-        graph::{
-            gfx_acquire_barriers, gfx_release_barriers,
-            present::PresentNode,
-            render::{
-                Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
-                SimpleGraphicsPipelineDesc,
-            },
-            BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
-            NodeDesc, NodeImage, NodeSubmittable,
-        },
-        hal::{self, device::Device as _},
-        memory::Dynamic,
-        mesh::Color,
-        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
+use rendy::{
+    command::{
+        CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
+        MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    winit::{
+    factory::{BufferState, Config, Factory},
+    frame::Frames,
+    graph::{
+        gfx_acquire_barriers, gfx_release_barriers,
+        render::{
+            Layout, PrepareResult, RenderGroupBuilder, SimpleGraphicsPipeline,
+            SimpleGraphicsPipelineDesc,
+        },
+        BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
+        NodeDesc, NodeImage, NodeSubmittable,
+    },
+    hal::{self, device::Device as _},
+    init::winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{Window, WindowBuilder},
     },
+    init::AnyWindowedRendy,
+    memory::Dynamic,
+    mesh::Color,
+    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+    shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -44,15 +37,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -562,113 +546,23 @@ where
     }
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn run(
-    event_loop: EventLoop<()>,
-    mut factory: Factory<Backend>,
-    mut families: Families<Backend>,
-    window: Window,
-) {
-    let mut graph = Some(build_graph(&mut factory, &mut families, &window));
-
-    let started = std::time::Instant::now();
-
-    let mut frame = 0u64;
-    let mut elapsed = started.elapsed();
-
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::Resized(_dims) => {
-                    let started = std::time::Instant::now();
-                    graph.take().unwrap().dispose(&mut factory, &());
-                    log::trace!("Graph disposed in: {:?}", started.elapsed());
-                    graph = Some(build_graph(&mut factory, &mut families, &window));
-                }
-                _ => {}
-            },
-            Event::EventsCleared => {
-                factory.maintain(&mut families);
-                if let Some(ref mut graph) = graph {
-                    graph.run(&mut factory, &mut families, &());
-                    frame += 1;
-                }
-
-                elapsed = started.elapsed();
-                if elapsed >= std::time::Duration::new(5, 0) {
-                    *control_flow = ControlFlow::Exit
-                }
-            }
-            _ => {}
-        }
-
-        if *control_flow == ControlFlow::Exit && graph.is_some() {
-            let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-
-            log::info!(
-                "Elapsed: {:?}. Frames: {}. FPS: {}",
-                elapsed,
-                frame,
-                frame * 1_000_000_000 / elapsed_ns
-            );
-
-            graph.take().unwrap().dispose(&mut factory, &());
-        }
-    });
-}
-
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn main() {
-    env_logger::Builder::from_default_env()
-        .filter_module("quads", log::LevelFilter::Trace)
-        .init();
-
-    let config: Config = Default::default();
-
-    let (factory, families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
-
-    let event_loop = EventLoop::new();
-
-    let window = WindowBuilder::new()
-        .with_title("Rendy example")
-        .build(&event_loop)
-        .unwrap();
-
-    run(event_loop, factory, families, window);
-}
-
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
-fn build_graph(
-    factory: &mut Factory<Backend>,
-    families: &mut Families<Backend>,
+fn build_graph<B: hal::Backend>(
+    factory: &mut Factory<B>,
+    families: &mut Families<B>,
+    surface: rendy::wsi::Surface<B>,
     window: &Window,
-) -> Graph<Backend, ()> {
-    let surface = factory.create_surface(window).unwrap();
-
-    let mut graph_builder = GraphBuilder::<Backend, ()>::new();
+) -> Graph<B, ()> {
+    let mut graph_builder = GraphBuilder::<B, ()>::new();
 
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
     let size = window.inner_size().to_physical(window.hidpi_factor());
     let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
 
-    let color = graph_builder.create_image(
-        window_kind,
-        1,
-        factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue {
-            color: hal::command::ClearColor {
-                float32: [1.0, 1.0, 1.0, 1.0],
-            },
-        }),
-    );
-
     let depth = graph_builder.create_image(
         window_kind,
         1,
-        hal::format::Format::D16Unorm,
+        hal::format::Format::D32Sfloat,
         Some(hal::command::ClearValue {
             depth_stencil: hal::command::ClearDepthStencil {
                 depth: 1.0,
@@ -679,17 +573,27 @@ fn build_graph(
 
     let grav = graph_builder.add_node(GravBounceDesc.builder().with_buffer(posvel));
 
-    let pass = graph_builder.add_node(
+    graph_builder.add_node(
         QuadsRenderPipeline::builder()
             .with_buffer(posvel)
             .with_dependency(grav)
             .into_subpass()
-            .with_color(color)
+            .with_color_surface()
             .with_depth_stencil(depth)
-            .into_pass(),
+            .into_pass()
+            .with_surface(
+                surface,
+                hal::window::Extent2D {
+                    width: size.width as _,
+                    height: size.height as _,
+                },
+                Some(hal::command::ClearValue {
+                    color: hal::command::ClearColor {
+                        float32: [1.0, 1.0, 1.0, 1.0],
+                    },
+                }),
+            ),
     );
-
-    graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
     let started = std::time::Instant::now();
     let graph = graph_builder.build(factory, families, &()).unwrap();
@@ -697,7 +601,64 @@ fn build_graph(
     graph
 }
 
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
 fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
+    let config: Config = Default::default();
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new()
+        .with_inner_size((960, 640).into())
+        .with_title("Rendy example");
+
+    let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
+    rendy::with_any_windowed_rendy!((rendy)
+        (mut factory, mut families, surface, window) => {
+            let mut graph = Some(build_graph(&mut factory, &mut families, surface, &window));
+
+            let started = std::time::Instant::now();
+
+            let mut frame = 0u64;
+            let mut elapsed = started.elapsed();
+
+            event_loop.run(move |event, _, control_flow| {
+                *control_flow = ControlFlow::Poll;
+                match event {
+                    Event::WindowEvent { event, .. } => match event {
+                        WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                        WindowEvent::Resized(_dims) => {
+                            let started = std::time::Instant::now();
+                            graph.take().unwrap().dispose(&mut factory, &());
+                            log::trace!("Graph disposed in: {:?}", started.elapsed());
+                            return;
+                        }
+                        _ => {}
+                    },
+                    Event::EventsCleared => {
+                        factory.maintain(&mut families);
+                        if let Some(ref mut graph) = graph {
+                            graph.run(&mut factory, &mut families, &());
+                            frame += 1;
+                        }
+
+                        elapsed = started.elapsed();
+                        if elapsed >= std::time::Duration::new(5, 0) {
+                            *control_flow = ControlFlow::Exit
+                        }
+                    }
+                    _ => {}
+                }
+
+                if *control_flow == ControlFlow::Exit && graph.is_some() {
+                    let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+
+                    log::info!(
+                        "Elapsed: {:?}. Frames: {}. FPS: {}",
+                        elapsed,
+                        frame,
+                        frame * 1_000_000_000 / elapsed_ns
+                    );
+
+                    graph.take().unwrap().dispose(&mut factory, &());
+                }
+            });
+        }
+    );
 }

@@ -2,23 +2,8 @@
 //! Basic example initializes core type of the rendy - `Factory` and exits.
 //!
 
-#![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
-    allow(unused)
-)]
+use rendy::{factory::Config, init::AnyWindowedRendy};
 
-use rendy::factory::{Config, Factory};
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
-
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("init", log::LevelFilter::Trace)
@@ -26,12 +11,10 @@ fn main() {
 
     let config: Config = Default::default();
 
-    let (factory, families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
-    drop(families);
-    drop(factory);
-}
+    let event_loop = rendy::init::winit::event_loop::EventLoop::new();
+    let window = rendy::init::winit::window::WindowBuilder::new().with_title("Rendy example");
 
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
-fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
+    let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
+
+    rendy::with_any_windowed_rendy!((rendy) (_, _, _, _) => {});
 }

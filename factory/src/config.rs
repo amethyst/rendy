@@ -50,7 +50,7 @@ pub unsafe trait QueuesConfigure {
 
     /// Configure.
     fn configure(
-        self,
+        &self,
         device: DeviceId,
         families: &[impl rendy_core::hal::queue::QueueFamily],
     ) -> Self::Families;
@@ -73,7 +73,7 @@ unsafe impl QueuesConfigure for OneGraphicsQueue {
     type Priorities = [f32; 1];
     type Families = Option<(FamilyId, [f32; 1])>;
     fn configure(
-        self,
+        &self,
         device: DeviceId,
         families: &[impl rendy_core::hal::queue::QueueFamily],
     ) -> Option<(FamilyId, [f32; 1])> {
@@ -103,14 +103,14 @@ unsafe impl QueuesConfigure for SavedQueueConfig {
     type Priorities = Vec<f32>;
     type Families = Vec<(FamilyId, Vec<f32>)>;
     fn configure(
-        self,
+        &self,
         device: DeviceId,
         _: &[impl rendy_core::hal::queue::QueueFamily],
     ) -> Vec<(FamilyId, Vec<f32>)> {
         // TODO: FamilyId should be stored directly once it become serializable.
         self.0
-            .into_iter()
-            .map(|(id, vec)| (FamilyId { device, index: id }, vec))
+            .iter()
+            .map(|(id, vec)| (FamilyId { device, index: *id }, vec.clone()))
             .collect()
     }
 }
@@ -131,7 +131,7 @@ pub unsafe trait HeapsConfigure {
 
     /// Configure.
     fn configure(
-        self,
+        &self,
         properties: &rendy_core::hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps);
 }
@@ -153,7 +153,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
     type Heaps = Vec<u64>;
 
     fn configure(
-        self,
+        &self,
         properties: &rendy_core::hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps) {
         let _1mb = 1024 * 1024;
@@ -213,10 +213,10 @@ unsafe impl HeapsConfigure for SavedHeapsConfig {
     type Heaps = Vec<u64>;
 
     fn configure(
-        self,
+        &self,
         _properties: &rendy_core::hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps) {
-        (self.types, self.heaps)
+        (self.types.clone(), self.heaps.clone())
     }
 }
 

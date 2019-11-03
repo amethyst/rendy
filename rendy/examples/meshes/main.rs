@@ -4,31 +4,26 @@
 //! Nothing fancy. Just prove that `rendy` works.
 //!
 
-#![cfg_attr(
-    not(any(feature = "dx12", feature = "metal", feature = "vulkan")),
-    allow(unused)
-)]
 use {
     genmesh::generators::{IndexedPolygon, SharedVertex},
     rand::distributions::{Distribution, Uniform},
     rendy::{
         command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
         factory::{Config, Factory},
-        graph::{
-            present::PresentNode, render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
-        },
+        graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
         hal::{self, adapter::PhysicalDevice as _, device::Device as _},
+        init::winit::{
+            event::{Event, WindowEvent},
+            event_loop::{ControlFlow, EventLoop},
+            window::WindowBuilder,
+        },
+        init::AnyWindowedRendy,
         memory::Dynamic,
         mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
         shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     },
     std::{cmp::min, mem::size_of, time},
-    winit::{
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
-    },
 };
 
 #[cfg(feature = "spirv-reflection")]
@@ -36,15 +31,6 @@ use rendy::shader::SpirvReflection;
 
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-#[cfg(feature = "dx12")]
-type Backend = rendy::dx12::Backend;
-
-#[cfg(feature = "metal")]
-type Backend = rendy::metal::Backend;
-
-#[cfg(feature = "vulkan")]
-type Backend = rendy::vulkan::Backend;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
@@ -376,199 +362,185 @@ where
     fn dispose(self, _factory: &mut Factory<B>, _scene: &Scene<B>) {}
 }
 
-#[cfg(any(feature = "dx12", feature = "metal", feature = "vulkan"))]
 fn main() {
     env_logger::Builder::from_default_env()
         .filter_module("meshes", log::LevelFilter::Trace)
         .init();
 
-    let config: Config = Default::default();
-
-    let (mut factory, mut families): (Factory<Backend>, _) = rendy::factory::init(config).unwrap();
-
     let event_loop = EventLoop::new();
-
     let window = WindowBuilder::new()
-        .with_title("Rendy example")
-        .build(&event_loop)
-        .unwrap();
+        .with_inner_size((960, 640).into())
+        .with_title("Rendy example");
 
-    let surface = factory.create_surface(&window).unwrap();
+    let config: Config = Default::default();
+    let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
+    rendy::with_any_windowed_rendy!((rendy)
+        use back; (mut factory, mut families, surface, window) => {
 
-    let mut graph_builder = GraphBuilder::<Backend, Scene<Backend>>::new();
+        let mut graph_builder = GraphBuilder::<_, Scene<_>>::new();
 
-    let size = window.inner_size().to_physical(window.hidpi_factor());
-    let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
-    let aspect = size.width / size.height;
+        let size = window.inner_size().to_physical(window.hidpi_factor());
+        let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
+        let aspect = size.width / size.height;
 
-    let color = graph_builder.create_image(
-        window_kind,
-        1,
-        factory.get_surface_format(&surface),
-        Some(hal::command::ClearValue {
-            color: hal::command::ClearColor {
-                float32: [1.0, 1.0, 1.0, 1.0],
+        let depth = graph_builder.create_image(
+            window_kind,
+            1,
+            hal::format::Format::D32Sfloat,
+            Some(hal::command::ClearValue {
+                depth_stencil: hal::command::ClearDepthStencil {
+                    depth: 1.0,
+                    stencil: 0,
+                },
+            }),
+        );
+
+        let pass = graph_builder.add_node(
+            MeshRenderPipeline::builder()
+                .into_subpass()
+                .with_color_surface()
+                .with_depth_stencil(depth)
+                .into_pass()
+                .with_surface(
+                    surface,
+                    hal::window::Extent2D {
+                        width: size.width as _,
+                        height: size.height as _,
+                    },
+                    Some(hal::command::ClearValue {
+                        color: hal::command::ClearColor {
+                            float32: [1.0, 1.0, 1.0, 1.0],
+                        },
+                    }),
+                ),
+        );
+
+        let mut scene = Scene {
+            camera: Camera {
+                proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
+                view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
             },
-        }),
-    );
+            object_mesh: None,
+            objects: vec![],
+            lights: vec![
+                Light {
+                    pad: 0.0,
+                    pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
+                    intensity: 10.0,
+                },
+                Light {
+                    pad: 0.0,
+                    pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
+                    intensity: 140.0,
+                },
+                Light {
+                    pad: 0.0,
+                    pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
+                    intensity: 100.0,
+                },
+                Light {
+                    pad: 0.0,
+                    pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
+                    intensity: 160.0,
+                },
+            ],
+        };
 
-    let depth = graph_builder.create_image(
-        window_kind,
-        1,
-        hal::format::Format::D16Unorm,
-        Some(hal::command::ClearValue {
-            depth_stencil: hal::command::ClearDepthStencil {
-                depth: 1.0,
-                stencil: 0,
-            },
-        }),
-    );
+        log::info!("{:#?}", scene);
 
-    let pass = graph_builder.add_node(
-        MeshRenderPipeline::builder()
-            .into_subpass()
-            .with_color(color)
-            .with_depth_stencil(depth)
-            .into_pass(),
-    );
+        let graph = graph_builder
+            .build(&mut factory, &mut families, &scene)
+            .unwrap();
 
-    let present_builder = PresentNode::builder(&factory, surface, color).with_dependency(pass);
+        let icosphere = genmesh::generators::IcoSphere::subdivide(4);
+        let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter())
+            .map(|i| i as u32)
+            .collect();
+        let vertices: Vec<_> = icosphere
+            .shared_vertex_iter()
+            .map(|v| PosColorNorm {
+                position: v.pos.into(),
+                color: [
+                    (v.pos.x + 1.0) / 2.0,
+                    (v.pos.y + 1.0) / 2.0,
+                    (v.pos.z + 1.0) / 2.0,
+                    1.0,
+                ]
+                .into(),
+                normal: v.normal.into(),
+            })
+            .collect();
 
-    let frames = present_builder.image_count();
+        scene.object_mesh = Some(
+            Mesh::<back::Backend>::builder()
+                .with_indices(&indices[..])
+                .with_vertices(&vertices[..])
+                .build(graph.node_queue(pass), &factory)
+                .unwrap(),
+        );
 
-    graph_builder.add_node(present_builder);
+        let started = time::Instant::now();
 
-    let mut scene = Scene {
-        camera: Camera {
-            proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
-            view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
-        },
-        object_mesh: None,
-        objects: vec![],
-        lights: vec![
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(0.0, 0.0, 0.0),
-                intensity: 10.0,
-            },
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(0.0, 20.0, -20.0),
-                intensity: 140.0,
-            },
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(-20.0, 0.0, -60.0),
-                intensity: 100.0,
-            },
-            Light {
-                pad: 0.0,
-                pos: nalgebra::Vector3::new(20.0, -30.0, -100.0),
-                intensity: 160.0,
-            },
-        ],
-    };
+        let mut rng = rand::thread_rng();
+        let rxy = Uniform::new(-1.0, 1.0);
+        let rz = Uniform::new(0.0, 185.0);
 
-    log::info!("{:#?}", scene);
+        let mut fpss = Vec::new();
+        let mut checkpoint = started;
 
-    let graph = graph_builder
-        .with_frames_in_flight(frames)
-        .build(&mut factory, &mut families, &scene)
-        .unwrap();
+        let mut frame = 0u64;
+        let mut start = frame;
+        let mut from = 0;
+        let mut graph = Some(graph);
 
-    let icosphere = genmesh::generators::IcoSphere::subdivide(4);
-    let indices: Vec<_> = genmesh::Vertices::vertices(icosphere.indexed_polygon_iter())
-        .map(|i| i as u32)
-        .collect();
-    let vertices: Vec<_> = icosphere
-        .shared_vertex_iter()
-        .map(|v| PosColorNorm {
-            position: v.pos.into(),
-            color: [
-                (v.pos.x + 1.0) / 2.0,
-                (v.pos.y + 1.0) / 2.0,
-                (v.pos.z + 1.0) / 2.0,
-                1.0,
-            ]
-            .into(),
-            normal: v.normal.into(),
-        })
-        .collect();
+        event_loop.run(move |event, _, control_flow| {
+            *control_flow = ControlFlow::Poll;
+            match event {
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    _ => {}
+                },
+                Event::EventsCleared => {
+                    factory.maintain(&mut families);
+                    if let Some(ref mut graph) = graph {
+                        graph.run(&mut factory, &mut families, &scene);
+                        frame += 1;
+                    }
 
-    scene.object_mesh = Some(
-        Mesh::<Backend>::builder()
-            .with_indices(&indices[..])
-            .with_vertices(&vertices[..])
-            .build(graph.node_queue(pass), &factory)
-            .unwrap(),
-    );
+                    if scene.objects.len() < MAX_OBJECTS {
+                        scene.objects.push({
+                            let z = rz.sample(&mut rng);
+                            nalgebra::Transform3::identity()
+                                * nalgebra::Translation3::new(
+                                    rxy.sample(&mut rng) * (z / 2.0 + 4.0),
+                                    rxy.sample(&mut rng) * (z / 2.0 + 4.0),
+                                    -z,
+                                )
+                        })
+                    } else {
+                        *control_flow = ControlFlow::Exit
+                    }
 
-    let started = time::Instant::now();
-
-    let mut rng = rand::thread_rng();
-    let rxy = Uniform::new(-1.0, 1.0);
-    let rz = Uniform::new(0.0, 185.0);
-
-    let mut fpss = Vec::new();
-    let mut checkpoint = started;
-
-    let mut frame = 0u64;
-    let mut start = frame;
-    let mut from = 0;
-    let mut graph = Some(graph);
-
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    let elapsed = checkpoint.elapsed();
+                    if elapsed >= std::time::Duration::new(5, 0) || *control_flow == ControlFlow::Exit {
+                        let frames = frame - start;
+                        let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+                        fpss.push((frames * 1_000_000_000 / nanos, from..scene.objects.len()));
+                        checkpoint += elapsed;
+                        start = frame;
+                        from = scene.objects.len();
+                    }
+                }
                 _ => {}
-            },
-            Event::EventsCleared => {
-                factory.maintain(&mut families);
-                if let Some(ref mut graph) = graph {
-                    graph.run(&mut factory, &mut families, &scene);
-                    frame += 1;
-                }
-
-                if scene.objects.len() < MAX_OBJECTS {
-                    scene.objects.push({
-                        let z = rz.sample(&mut rng);
-                        nalgebra::Transform3::identity()
-                            * nalgebra::Translation3::new(
-                                rxy.sample(&mut rng) * (z / 2.0 + 4.0),
-                                rxy.sample(&mut rng) * (z / 2.0 + 4.0),
-                                -z,
-                            )
-                    })
-                } else {
-                    *control_flow = ControlFlow::Exit
-                }
-
-                let elapsed = checkpoint.elapsed();
-                if elapsed >= std::time::Duration::new(5, 0) || *control_flow == ControlFlow::Exit {
-                    let frames = frame - start;
-                    let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                    fpss.push((frames * 1_000_000_000 / nanos, from..scene.objects.len()));
-                    checkpoint += elapsed;
-                    start = frame;
-                    from = scene.objects.len();
-                }
             }
-            _ => {}
-        }
 
-        if *control_flow == ControlFlow::Exit {
-            log::info!("FPS: {:#?}", fpss);
-            if let Some(graph) = graph.take() {
-                graph.dispose(&mut factory, &scene);
+            if *control_flow == ControlFlow::Exit {
+                log::info!("FPS: {:#?}", fpss);
+                if let Some(graph) = graph.take() {
+                    graph.dispose(&mut factory, &scene);
+                }
+                drop(scene.object_mesh.take());
             }
-            drop(scene.object_mesh.take());
-        }
+        });
     });
-}
-
-#[cfg(not(any(feature = "dx12", feature = "metal", feature = "vulkan")))]
-fn main() {
-    panic!("Specify feature: { dx12, metal, vulkan }");
 }
