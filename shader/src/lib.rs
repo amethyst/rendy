@@ -158,7 +158,7 @@ where
 {
     fn default() -> Self {
         ShaderSet {
-            shaders: HashMap::default()
+            shaders: HashMap::default(),
         }
     }
 }

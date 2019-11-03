@@ -217,10 +217,7 @@ where
     pub repr: <C as PixelRepr<S, T>>::Repr,
 }
 
-impl<C, S, T> Copy for Pixel<C, S, T>
-where
-    C: PixelRepr<S, T>,
-{}
+impl<C, S, T> Copy for Pixel<C, S, T> where C: PixelRepr<S, T> {}
 
 impl<C, S, T> Clone for Pixel<C, S, T>
 where
@@ -228,7 +225,7 @@ where
 {
     fn clone(&self) -> Self {
         Pixel {
-            repr: self.repr.clone()
+            repr: self.repr.clone(),
         }
     }
 }
@@ -238,9 +235,7 @@ where
     C: PixelRepr<S, T>,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Pixel")
-            .field("repr", &self.repr)
-            .finish()
+        fmt.debug_struct("Pixel").field("repr", &self.repr).finish()
     }
 }
 
@@ -250,7 +245,7 @@ where
 {
     fn default() -> Self {
         Pixel {
-            repr: C::Repr::default()
+            repr: C::Repr::default(),
         }
     }
 }

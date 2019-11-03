@@ -41,16 +41,10 @@ pub enum TextureKind {
     D1,
     D1Array,
     D2,
-    D2Array {
-        layers: u16,
-    },
-    D3 {
-        depth: u32,
-    },
+    D2Array { layers: u16 },
+    D3 { depth: u32 },
     Cube,
-    CubeArray {
-        layers: u16,
-    },
+    CubeArray { layers: u16 },
 }
 
 impl Default for TextureKind {
@@ -118,7 +112,10 @@ impl Default for ImageTextureConfig {
             format: None,
             repr: Repr::default(),
             kind: TextureKind::default(),
-            sampler_info: rendy_core::hal::image::SamplerDesc::new(rendy_core::hal::image::Filter::Linear, rendy_core::hal::image::WrapMode::Clamp),
+            sampler_info: rendy_core::hal::image::SamplerDesc::new(
+                rendy_core::hal::image::Filter::Linear,
+                rendy_core::hal::image::WrapMode::Clamp,
+            ),
             generate_mips: false,
             premultiply_alpha: false,
         }

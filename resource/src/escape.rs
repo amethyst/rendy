@@ -161,7 +161,7 @@ pub struct Handle<T> {
 impl<T> Clone for Handle<T> {
     fn clone(&self) -> Self {
         Handle {
-            inner: self.inner.clone()
+            inner: self.inner.clone(),
         }
     }
 }
