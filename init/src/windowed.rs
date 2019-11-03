@@ -1,13 +1,10 @@
-
 use {
     super::{Rendy, RendyInitError, BASIC_PRIORITY},
     rendy_command::Families,
     rendy_core::{
         backend_enum,
         hal::{self, device::CreationError, Backend, UnsupportedBackend},
-        rendy_backend,
-        rendy_with_gl_backend,
-        EnabledBackend,
+        rendy_backend, rendy_with_gl_backend, EnabledBackend,
     },
     rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure},
     rendy_wsi::Surface,
@@ -90,7 +87,7 @@ impl std::error::Error for WindowedRendyInitError {
             WindowedRendyInitError::RendyInitError(err) => Some(err),
             WindowedRendyInitError::Winit(err) => Some(err),
             WindowedRendyInitError::WindowInitError(_err) => None, //Should be `Some(err)`
-            WindowedRendyInitError::Other(_err) => None, //Should be `Some(err)`
+            WindowedRendyInitError::Other(_err) => None,           //Should be `Some(err)`
         }
     }
 }
@@ -127,6 +124,7 @@ impl<B: Backend> WindowedRendy<B> {
 }
 
 impl<B: Backend> WindowedRendy<B> {
+    #[rustfmt::skip]
     pub fn init<T: 'static>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: WindowBuilder,
@@ -135,15 +133,12 @@ impl<B: Backend> WindowedRendy<B> {
         #![allow(unused_variables)]
 
         rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-            Gl => {
-                identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop))
-            }
-            _ => {
-                Self::init_non_gl(config, Cow::Owned(window_builder), event_loop)
-            }
+            Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop)) }
+            _ => { Self::init_non_gl(config, Cow::Owned(window_builder), event_loop) }
         })
     }
 
+    #[rustfmt::skip]
     pub fn init_ref_builder<T: 'static>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: &WindowBuilder,
@@ -152,12 +147,8 @@ impl<B: Backend> WindowedRendy<B> {
         #![allow(unused_variables)]
 
         rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-            Gl => {
-                identical_cast(WindowedRendy::init_gl(config, window_builder.clone(), event_loop))
-            }
-            _ => {
-                Self::init_non_gl(config, Cow::Borrowed(window_builder), event_loop)
-            }
+            Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder.clone(), event_loop)) }
+            _ => { Self::init_non_gl(config, Cow::Borrowed(window_builder), event_loop) }
         })
     }
 }

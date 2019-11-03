@@ -444,6 +444,7 @@ macro_rules! rendy_backend {
 /// Check if specified backend would use pipeline barriers or using them is futile.
 /// Piece of internal knowledge.
 #[inline]
+#[rustfmt::skip]
 pub fn uses_pipeline_barriers<B: crate::hal::Backend>(_device: &B::Device) -> bool {
     rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
         Gl => { false }
