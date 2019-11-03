@@ -11,7 +11,7 @@ categories = ["rendering"]
 description = "Rendy's descriptor allocator"
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b" }
+gfx-hal = { version = "0.4" }
 log = "0.4"
 relevant = { version = "0.4", features = ["log", "backtrace"] }
 smallvec = "0.6"
