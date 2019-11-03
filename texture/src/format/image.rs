@@ -1,16 +1,14 @@
 //! Module that turns an image into a `Texture`
 
 use crate::{pixel, MipLevels, TextureBuilder};
-use derivative::Derivative;
 
 use std::num::NonZeroU8;
 
 // reexport for easy usage in ImageTextureConfig
 pub use image::ImageFormat;
 
-#[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derivative(Default)]
 pub enum Repr {
     Float,
     Unorm,
@@ -19,8 +17,13 @@ pub enum Repr {
     Iscaled,
     Uint,
     Int,
-    #[derivative(Default)]
     Srgb,
+}
+
+impl Default for Repr {
+    fn default() -> Self {
+        Repr::Srgb
+    }
 }
 
 /// A description how to interpret loaded texture.
@@ -32,13 +35,11 @@ pub enum Repr {
 ///
 /// 1D arrays are treated as a sequence of rows, each being an array entry.
 /// 1D images are treated as a single sequence of pixels.
-#[derive(Derivative, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derivative(Default)]
 pub enum TextureKind {
     D1,
     D1Array,
-    #[derivative(Default)]
     D2,
     D2Array {
         layers: u16,
@@ -50,6 +51,12 @@ pub enum TextureKind {
     CubeArray {
         layers: u16,
     },
+}
+
+impl Default for TextureKind {
+    fn default() -> Self {
+        TextureKind::D2
+    }
 }
 
 impl TextureKind {
@@ -82,13 +89,12 @@ impl TextureKind {
     }
 }
 
-#[derive(Derivative, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
     serde(default)
 )]
-#[derivative(Default)]
 pub struct ImageTextureConfig {
     /// Interpret the image as given format.
     /// When `None`, format is determined automatically based on magic bytes.
@@ -97,18 +103,26 @@ pub struct ImageTextureConfig {
     pub format: Option<ImageFormat>,
     pub repr: Repr,
     pub kind: TextureKind,
-    #[derivative(Default(
-        value = "rendy_core::hal::image::SamplerDesc::new(rendy_core::hal::image::Filter::Linear, rendy_core::hal::image::WrapMode::Clamp)"
-    ))]
     pub sampler_info: rendy_core::hal::image::SamplerDesc,
-    #[derivative(Default(value = "false"))]
     /// Automatically generate mipmaps for this image
     pub generate_mips: bool,
-    #[derivative(Default(value = "false"))]
     /// Premultiply the alpha channel of the image, if there is one. Note that this
     /// means an image stored with non-premultiplied alpha will become premultiplied,
     /// rather than indicating that the supplied image is premultiplied to begin with.
     pub premultiply_alpha: bool,
+}
+
+impl Default for ImageTextureConfig {
+    fn default() -> Self {
+        ImageTextureConfig {
+            format: None,
+            repr: Repr::default(),
+            kind: TextureKind::default(),
+            sampler_info: rendy_core::hal::image::SamplerDesc::new(rendy_core::hal::image::Filter::Linear, rendy_core::hal::image::WrapMode::Clamp),
+            generate_mips: false,
+            premultiply_alpha: false,
+        }
+    }
 }
 
 #[cfg(feature = "serde")]

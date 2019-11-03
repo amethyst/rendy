@@ -9,15 +9,13 @@ use {
 };
 
 /// Structure contains command buffer ready for submission.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Submit<
     B: rendy_core::hal::Backend,
     S = NoSimultaneousUse,
     L = PrimaryLevel,
     P = OutsideRenderPass,
 > {
-    #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
     family: FamilyId,
     simultaneous: S,

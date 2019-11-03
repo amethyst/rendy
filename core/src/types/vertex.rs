@@ -1,7 +1,6 @@
 //! Built-in vertex formats.
 
 use crate::hal::format::Format;
-use derivative::Derivative;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::{borrow::Cow, fmt::Debug};
@@ -290,21 +289,34 @@ impl<N: Into<Cow<'static, str>>> AsAttributes for (Format, N) {
 type AttributeElem = crate::hal::pso::Element<Format>;
 
 /// Vertex attribute type.
-#[derive(Clone, Debug, Derivative)]
-#[derivative(PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Attribute {
     /// globally unique identifier for attribute's semantic
     uuid: AttrUuid,
     /// hal type with offset and format
     element: AttributeElem,
     /// Attribute array index. Matrix attributes are treated like array of vectors.
-    #[derivative(PartialEq = "ignore")]
-    #[derivative(Hash = "ignore")]
     index: u8,
     /// Attribute name as used in the shader
-    #[derivative(PartialEq = "ignore")]
-    #[derivative(Hash = "ignore")]
     name: Cow<'static, str>,
+}
+
+impl PartialEq for Attribute {
+    fn eq(&self, other: &Self) -> bool {
+        self.uuid == other.uuid && self.element == other.element
+    }
+}
+
+impl Eq for Attribute {}
+
+impl std::hash::Hash for Attribute {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: std::hash::Hasher,
+    {
+        self.uuid.hash(state);
+        self.element.hash(state);
+    }
 }
 
 impl Attribute {

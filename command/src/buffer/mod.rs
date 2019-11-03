@@ -20,10 +20,8 @@ pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
 /// Command buffer wrapper.
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.
 /// This way many methods become safe.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct CommandBuffer<B: Backend, C, S, L = PrimaryLevel, R = NoIndividualReset> {
-    #[derivative(Debug = "ignore")]
     raw: std::ptr::NonNull<B::CommandBuffer>,
     capability: C,
     state: S,

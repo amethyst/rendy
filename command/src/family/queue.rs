@@ -5,10 +5,8 @@ use {
 };
 
 /// Command queue wrapper.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Queue<B: Backend> {
-    #[derivative(Debug = "ignore")]
     raw: B::CommandQueue,
     id: QueueId,
     next_epoch: u64,

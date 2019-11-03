@@ -10,7 +10,6 @@ use {
             ImageViewCreationError, ImageViewInfo, Sampler,
         },
     },
-    derivative::Derivative,
     rendy_core::hal::{
         format::{Component, Format, Swizzle},
         image, Backend,
@@ -90,15 +89,13 @@ pub enum BuildError {
 }
 
 /// Generics-free texture builder.
-#[derive(Clone, Derivative)]
-#[derivative(Debug)]
+#[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// Struct for staging data in preparation of building a `Texture`
 pub struct TextureBuilder<'a> {
     kind: image::Kind,
     view_kind: image::ViewKind,
     format: Format,
-    #[derivative(Debug = "ignore")]
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
@@ -106,6 +103,23 @@ pub struct TextureBuilder<'a> {
     swizzle: Swizzle,
     mip_levels: MipLevels,
     premultiplied: bool,
+}
+
+impl<'a> std::fmt::Debug for TextureBuilder<'a> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("TextureBuilder")
+            .field("kind", &self.kind)
+            .field("view_kind", &self.view_kind)
+            .field("format", &self.format)
+            .field("data", &"<raw-data>")
+            .field("data_width", &self.data_width)
+            .field("data_height", &self.data_height)
+            .field("sampler_info", &self.sampler_info)
+            .field("swizzle", &self.swizzle)
+            .field("mip_levels", &self.mip_levels)
+            .field("premultiplied", &self.premultiplied)
+            .finish()
+    }
 }
 
 impl<'a> TextureBuilder<'a> {

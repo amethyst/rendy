@@ -68,10 +68,8 @@ pub struct DispatchCommand {
 }
 
 /// Encoder for recording commands inside or outside renderpass.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct EncoderCommon<'a, B: rendy_core::hal::Backend, C> {
-    #[derivative(Debug = "ignore")]
     raw: &'a mut B::CommandBuffer,
     capability: C,
     family: FamilyId,

@@ -8,10 +8,8 @@ use {
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.
 /// Wraps raw buffers into `CommandCommand buffer`.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct CommandPool<B: Backend, C = QueueType, R = NoIndividualReset> {
-    #[derivative(Debug = "ignore")]
     raw: B::CommandPool,
     capability: C,
     reset: R,

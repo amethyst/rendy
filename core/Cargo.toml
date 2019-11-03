@@ -29,7 +29,6 @@ no-slow-safety-checks = []
 gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b" }
 gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", optional = true }
 gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx", rev = "46386475f7e823e807ec984c372ffe04dcc0a22b", features = ["glutin"], optional = true }
-derivative = "1.0"
 lazy_static = "1.0"
 log = "0.4"
 parking_lot = "0.9"

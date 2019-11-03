@@ -93,7 +93,7 @@ impl From<ReflectTypeError> for ReflectError {
 
 #[derive(Clone, Debug)]
 pub(crate) struct SpirvCachedGfxDescription {
-    pub vertices: (Vec<(u32, String, u8, rendy_core::hal::format::Format)>),
+    pub vertices: Vec<(u32, String, u8, rendy_core::hal::format::Format)>,
     pub layout: Layout,
 }
 

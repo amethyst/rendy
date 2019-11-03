@@ -32,8 +32,7 @@ use {
     thread_profiler::profile_scope,
 };
 
-#[derive(Debug, derivative::Derivative)]
-#[derivative(Default(bound = ""))]
+#[derive(Debug)]
 struct ResourceHub<B: Backend> {
     buffers: ResourceTracker<Buffer<B>>,
     images: ResourceTracker<Image<B>>,
@@ -42,6 +41,23 @@ struct ResourceHub<B: Backend> {
     sets: ResourceTracker<DescriptorSet<B>>,
     samplers: ResourceTracker<Sampler<B>>,
     samplers_cache: parking_lot::RwLock<SamplerCache<B>>,
+}
+
+impl<B> Default for ResourceHub<B>
+where
+    B: Backend,
+{
+    fn default() -> Self {
+        ResourceHub {
+            buffers: ResourceTracker::default(),
+            images: ResourceTracker::default(),
+            views: ResourceTracker::default(),
+            layouts: ResourceTracker::default(),
+            sets: ResourceTracker::default(),
+            samplers: ResourceTracker::default(),
+            samplers_cache: parking_lot::RwLock::new(SamplerCache::default()),
+        }
+    }
 }
 
 impl<B> ResourceHub<B>
@@ -96,6 +112,7 @@ pub enum UploadError {
     Upload(OutOfMemory),
 }
 
+#[derive(Debug)]
 enum InstanceOrId<B: Backend> {
     Instance(Instance<B>),
     Id(InstanceId),
@@ -122,8 +139,7 @@ where
 
 /// Higher level device interface.
 /// Manges memory, resources and queue families.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Factory<B: Backend> {
     descriptor_allocator: ManuallyDrop<parking_lot::Mutex<DescriptorAllocator<B>>>,
     heaps: ManuallyDrop<parking_lot::Mutex<Heaps<B>>>,
@@ -132,11 +148,8 @@ pub struct Factory<B: Backend> {
     uploader: Uploader<B>,
     blitter: Blitter<B>,
     families_indices: Vec<usize>,
-    #[derivative(Debug = "ignore")]
     device: Device<B>,
-    #[derivative(Debug = "ignore")]
     adapter: Adapter<B>,
-    #[derivative(Debug = "ignore")]
     instance: InstanceOrId<B>,
 }
 

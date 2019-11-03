@@ -44,8 +44,7 @@ pub struct QueueId {
 /// Family of the command queues.
 /// Queues from one family can share resources and execute command buffers associated with the family.
 /// All queues of the family have same capabilities.
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub struct Family<B: Backend, C = QueueType> {
     id: FamilyId,
     queues: Vec<Queue<B>>,

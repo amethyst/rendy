@@ -319,14 +319,28 @@ pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
 }
 
 /// Builder for the node.
-#[derive(derivative::Derivative)]
-#[derivative(Debug(bound = "N: std::fmt::Debug"))]
 pub struct DescBuilder<B: Backend, T: ?Sized, N> {
     desc: N,
     buffers: Vec<BufferId>,
     images: Vec<ImageId>,
     dependencies: Vec<NodeId>,
     marker: std::marker::PhantomData<fn(B, &T)>,
+}
+
+impl<B, T, N> std::fmt::Debug for DescBuilder<B, T, N>
+where
+    B: Backend,
+    T: ?Sized,
+    N: std::fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("DescBuilder")
+            .field("desc", &self.desc)
+            .field("buffers", &self.buffers)
+            .field("images", &self.images)
+            .field("dependencies", &self.dependencies)
+            .finish()
+    }
 }
 
 impl<B, T, N> DescBuilder<B, T, N>
