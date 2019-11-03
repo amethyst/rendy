@@ -1,13 +1,13 @@
-#[allow(unused)]
+
 use {
-    super::{pick_backend, Rendy, RendyInitError, BASIC_PRIORITY},
+    super::{Rendy, RendyInitError, BASIC_PRIORITY},
     rendy_command::Families,
     rendy_core::{
         backend_enum,
-        hal::{self, device::CreationError, Backend, Instance as _, UnsupportedBackend},
-        identical_cast, rendy_backend, rendy_not_wasm32, rendy_wasm32, rendy_with_dx12_backend,
-        rendy_with_empty_backend, rendy_with_gl_backend, rendy_with_metal_backend,
-        rendy_with_vulkan_backend, EnabledBackend, Instance,
+        hal::{self, device::CreationError, Backend, UnsupportedBackend},
+        rendy_backend,
+        rendy_with_gl_backend,
+        EnabledBackend,
     },
     rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure},
     rendy_wsi::Surface,
@@ -17,6 +17,10 @@ use {
         window::{Window, WindowBuilder},
     },
 };
+
+rendy_with_gl_backend! {
+    use rendy_core::{identical_cast, rendy_not_wasm32, rendy_wasm32};
+}
 
 pub use winit;
 
@@ -80,7 +84,16 @@ impl std::fmt::Display for WindowedRendyInitError {
     }
 }
 
-impl std::error::Error for WindowedRendyInitError {}
+impl std::error::Error for WindowedRendyInitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            WindowedRendyInitError::RendyInitError(err) => Some(err),
+            WindowedRendyInitError::Winit(err) => Some(err),
+            WindowedRendyInitError::WindowInitError(_err) => None, //Should be `Some(err)`
+            WindowedRendyInitError::Other(_err) => None, //Should be `Some(err)`
+        }
+    }
+}
 
 #[derive(Debug)]
 /// Initialized rendy instance with window.
@@ -93,11 +106,14 @@ pub struct WindowedRendy<B: Backend> {
 }
 
 impl<B: Backend> WindowedRendy<B> {
+    #[allow(dead_code)]
     fn init_non_gl<T>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: Cow<WindowBuilder>,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
+        #![allow(unused_variables)]
+
         let mut rendy = Rendy::<B>::init(config)?;
         let window = window_builder.into_owned().build(event_loop)?;
         let surface = rendy.factory.create_surface(&window)?;
@@ -116,9 +132,9 @@ impl<B: Backend> WindowedRendy<B> {
         window_builder: WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unreachable_code)]
+        #![allow(unused_variables)]
 
-        rendy_backend!(type B {
+        rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
             Gl => {
                 identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop))
             }
@@ -133,9 +149,9 @@ impl<B: Backend> WindowedRendy<B> {
         window_builder: &WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unreachable_code)]
+        #![allow(unused_variables)]
 
-        rendy_backend!(type B {
+        rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
             Gl => {
                 identical_cast(WindowedRendy::init_gl(config, window_builder.clone(), event_loop))
             }
@@ -146,19 +162,56 @@ impl<B: Backend> WindowedRendy<B> {
     }
 }
 
-backend_enum! { #[derive(Debug)] pub enum AnyWindowedRendy(WindowedRendy); }
-
-pub trait WithAnyWindowedRendy {
-    type Output;
-    fn run<B: Backend>(self, rendy: WindowedRendy<B>) -> Self::Output;
+/// Error type that may be returned by `AnyWindowedRendy::init_auto`
+pub struct WindowedRendyAutoInitError {
+    pub errors: Vec<(EnabledBackend, WindowedRendyInitError)>,
 }
+
+impl std::fmt::Debug for WindowedRendyAutoInitError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, fmt)
+    }
+}
+
+impl std::fmt::Display for WindowedRendyAutoInitError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if fmt.alternate() {
+            if self.errors.is_empty() {
+                writeln!(fmt, "No enabled backends among:")?;
+                for &backend in &BASIC_PRIORITY {
+                    writeln!(fmt, "  {:#}", backend)?;
+                }
+            } else {
+                writeln!(fmt, "Initialization failed for all backends")?;
+                for (backend, error) in &self.errors {
+                    writeln!(fmt, "  {:#}: {:#}", backend, error)?;
+                }
+            }
+        } else {
+            if self.errors.is_empty() {
+                write!(fmt, "No enabled backends among:")?;
+                for &backend in &BASIC_PRIORITY {
+                    write!(fmt, "  {}", backend)?;
+                }
+            } else {
+                write!(fmt, "Initialization failed for all backends")?;
+                for (backend, error) in &self.errors {
+                    write!(fmt, "  {}: {}", backend, error)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+backend_enum! { #[derive(Debug)] pub enum AnyWindowedRendy(WindowedRendy); }
 
 impl AnyWindowedRendy {
     pub fn init_auto<T>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: WindowBuilder,
         event_loop: &EventLoop<T>,
-    ) -> Result<Self, Vec<(EnabledBackend, WindowedRendyInitError)>> {
+    ) -> Result<Self, WindowedRendyAutoInitError> {
         let mut errors = Vec::with_capacity(5);
 
         for backend in BASIC_PRIORITY
@@ -171,7 +224,7 @@ impl AnyWindowedRendy {
             }
         }
 
-        Err(errors)
+        Err(WindowedRendyAutoInitError { errors })
     }
 
     #[rustfmt::skip]
@@ -181,6 +234,7 @@ impl AnyWindowedRendy {
         window_builder: WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
+        #![allow(unused_variables)]
         rendy_backend!(match (back): EnabledBackend {
             Dx12 => { Ok(AnyWindowedRendy::Dx12(WindowedRendy::<rendy_core::dx12::Backend>::init(config, window_builder, event_loop)?)) }
             Empty => { Ok(AnyWindowedRendy::Empty(WindowedRendy::<rendy_core::empty::Backend>::init(config, window_builder, event_loop)?)) }
@@ -197,21 +251,13 @@ impl AnyWindowedRendy {
         window_builder: &WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
+        #![allow(unused_variables)]
         rendy_backend!(match (back): EnabledBackend {
             Dx12 => { Ok(AnyWindowedRendy::Dx12(WindowedRendy::<rendy_core::dx12::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
             Empty => { Ok(AnyWindowedRendy::Empty(WindowedRendy::<rendy_core::empty::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
             Gl => { Ok(AnyWindowedRendy::Gl(WindowedRendy::<rendy_core::gl::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
             Metal => { Ok(AnyWindowedRendy::Metal(WindowedRendy::<rendy_core::metal::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
             Vulkan => { Ok(AnyWindowedRendy::Vulkan(WindowedRendy::<rendy_core::vulkan::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
-        })
-    }
-
-    pub fn run<T>(self, with: T) -> T::Output
-    where
-        T: WithAnyWindowedRendy,
-    {
-        rendy_backend!(match (self): AnyWindowedRendy {
-            _(rendy) => { with.run(rendy) }
         })
     }
 }
@@ -226,7 +272,7 @@ rendy_with_gl_backend! {
     rendy_not_wasm32! {
         impl WindowedRendy<rendy_core::gl::Backend> {
             pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
-                use hal::format::AsFormat;
+                use {hal::format::AsFormat, rendy_core::Instance};
 
                 let windowed_context = unsafe {
                     let builder = rendy_core::gl::config_context(
@@ -262,7 +308,7 @@ rendy_with_gl_backend! {
             pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
                 let window = window_builder.build(event_loop)?;
                 let surface = rendy_core::gl::Surface::from_raw_handle(&window);
-                let instance = Instance::new(surface);
+                let instance = rendy_core::Instance::new(surface);
 
                 let (factory, families) = rendy_factory::init_with_instance_ref(&instance, config)?;
                 let surface = unsafe { wrap_surface(&factory, instance.into_raw()) };

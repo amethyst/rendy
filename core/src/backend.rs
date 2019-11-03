@@ -439,38 +439,13 @@ macro_rules! rendy_backend {
             unreachable!()
         }()
     }};
-
-    (type $target:path {
-        $(Dx12 => $dx12_code:block)?
-        $(Empty => $empty_code:block)?
-        $(Gl => $gl_code:block)?
-        $(Metal => $metal_code:block)?
-        $(Vulkan => $vulkan_code:block)?
-        $($(use $back:ident;)?_ => $code:block)?
-    }) => {{#[allow(unreachable_code, irrefutable_let_patterns)]
-        || -> _ {
-            $($crate::rendy_with_dx12_backend!(if let $crate::EnabledBackend::Dx12 = $crate::EnabledBackend::which::<$target>() { return { $dx12_code }; });)?
-            $($crate::rendy_with_empty_backend!(if let $crate::EnabledBackend::Empty = $crate::EnabledBackend::which::<$target>() { return { $empty_code }; });)?
-            $($crate::rendy_with_gl_backend!(if let $crate::EnabledBackend::Gl = $crate::EnabledBackend::which::<$target>() { return { $gl_code }; });)?
-            $($crate::rendy_with_metal_backend!(if let $crate::EnabledBackend::Metal = $crate::EnabledBackend::which::<$target>() { return { $metal_code }; });)?
-            $($crate::rendy_with_vulkan_backend!(if let $crate::EnabledBackend::Vulkan = $crate::EnabledBackend::which::<$target>() { return { $vulkan_code }; });)?
-
-            $($crate::rendy_with_dx12_backend!(if let $crate::EnabledBackend::Dx12 = $crate::EnabledBackend::which::<$target>() { $(use $crate::dx12 as $back;)? return { $code }; });)?
-            $($crate::rendy_with_empty_backend!(if let $crate::EnabledBackend::Empty = $crate::EnabledBackend::which::<$target>() { $(use $crate::empty as $back;)? return { $code }; });)?
-            $($crate::rendy_with_gl_backend!(if let $crate::EnabledBackend::Gl = $crate::EnabledBackend::which::<$target>() { $(use $crate::gl as $back;)? return { $code }; });)?
-            $($crate::rendy_with_metal_backend!(if let $crate::EnabledBackend::Metal = $crate::EnabledBackend::which::<$target>() { $(use $crate::metal as $back;)? return { $code }; });)?
-            $($crate::rendy_with_vulkan_backend!(if let $crate::EnabledBackend::Vulkan = $crate::EnabledBackend::which::<$target>() { $(use $crate::vulkan as $back;)? return { $code }; });)?
-
-            unreachable!()
-        }()
-    }};
 }
 
 /// Check if specified backend would use pipeline barriers or using them is futile.
 /// Piece of internal knowledge.
 #[inline]
 pub fn uses_pipeline_barriers<B: crate::hal::Backend>(_device: &B::Device) -> bool {
-    rendy_backend!(type B {
+    rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
         Gl => { false }
         Metal => { false }
         _ => { true }

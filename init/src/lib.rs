@@ -4,18 +4,17 @@
 //! It is still possible to construct everything manually if your case is not supported by this module.
 //!
 
-#[allow(unused)]
+// #[allow(unused)]
 use {
     rendy_command::Families,
     rendy_core::{
         backend_enum,
         hal::{device::CreationError, Backend, Instance as _, UnsupportedBackend},
-        identical_cast, rendy_backend, rendy_not_wasm32, rendy_wasm32, rendy_with_dx12_backend,
+        rendy_backend, rendy_with_dx12_backend,
         rendy_with_empty_backend, rendy_with_gl_backend, rendy_with_metal_backend,
         rendy_with_vulkan_backend, EnabledBackend, Instance,
     },
     rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure},
-    rendy_wsi::Surface,
 };
 
 #[cfg(feature = "winit")]
@@ -55,7 +54,14 @@ impl std::fmt::Display for RendyInitError {
     }
 }
 
-impl std::error::Error for RendyInitError {}
+impl std::error::Error for RendyInitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            RendyInitError::CreationError(_err) => None, // Should be `Some(err)`
+            RendyInitError::UnsupportedBackend(_err) => None, // Should be `Some(err)`
+        }
+    }
+}
 
 /// Initialized rendy instance without window.
 /// Create with `Rendy::init`.
@@ -78,9 +84,46 @@ impl<B: Backend> Rendy<B> {
     }
 }
 
-pub trait WithAnyRendy {
-    type Output;
-    fn run<B: Backend>(self, rendy: Rendy<B>) -> Self::Output;
+/// Error type that may be returned by `AnyRendy::init_auto`
+pub struct RendyAutoInitError {
+    pub errors: Vec<(EnabledBackend, RendyInitError)>,
+}
+
+impl std::fmt::Debug for RendyAutoInitError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, fmt)
+    }
+}
+
+impl std::fmt::Display for RendyAutoInitError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if fmt.alternate() {
+            if self.errors.is_empty() {
+                writeln!(fmt, "No enabled backends among:")?;
+                for &backend in &BASIC_PRIORITY {
+                    writeln!(fmt, "  {:#}", backend)?;
+                }
+            } else {
+                writeln!(fmt, "Initialization failed for all backends")?;
+                for (backend, error) in &self.errors {
+                    writeln!(fmt, "  {:#}: {:#}", backend, error)?;
+                }
+            }
+        } else {
+            if self.errors.is_empty() {
+                write!(fmt, "No enabled backends among:")?;
+                for &backend in &BASIC_PRIORITY {
+                    write!(fmt, "  {}", backend)?;
+                }
+            } else {
+                write!(fmt, "Initialization failed for all backends")?;
+                for (backend, error) in &self.errors {
+                    write!(fmt, "  {}: {}", backend, error)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 backend_enum! { #[derive(Debug)] pub enum AnyRendy(Rendy); }
@@ -88,7 +131,7 @@ backend_enum! { #[derive(Debug)] pub enum AnyRendy(Rendy); }
 impl AnyRendy {
     pub fn init_auto(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
-    ) -> Result<Self, Vec<(EnabledBackend, RendyInitError)>> {
+    ) -> Result<Self, RendyAutoInitError> {
         let mut errors = Vec::with_capacity(5);
 
         for backend in BASIC_PRIORITY
@@ -101,7 +144,7 @@ impl AnyRendy {
             }
         }
 
-        Err(errors)
+        Err(RendyAutoInitError { errors })
     }
 
     #[rustfmt::skip]
@@ -109,6 +152,7 @@ impl AnyRendy {
         back: EnabledBackend,
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
     ) -> Result<Self, RendyInitError> {
+        #![allow(unused_variables)]
         rendy_backend!(match (back): EnabledBackend {
             Dx12 => { Ok(AnyRendy::Dx12(Rendy::<rendy_core::dx12::Backend>::init(config)?)) }
             Empty => { Ok(AnyRendy::Empty(Rendy::<rendy_core::empty::Backend>::init(config)?)) }
@@ -117,19 +161,11 @@ impl AnyRendy {
             Vulkan => { Ok(AnyRendy::Vulkan(Rendy::<rendy_core::vulkan::Backend>::init(config)?)) }
         })
     }
-
-    pub fn run<T>(self, with: T) -> T::Output
-    where
-        T: WithAnyRendy,
-    {
-        rendy_backend!(match (self): AnyRendy {
-            _(rendy) => { with.run(rendy) }
-        })
-    }
 }
 
 /// Get available backends
 pub fn available_backends() -> smallvec::SmallVec<[EnabledBackend; 5]> {
+    #[allow(unused_mut)]
     let mut backends = smallvec::SmallVec::<[EnabledBackend; 5]>::new();
     rendy_with_dx12_backend!(backends.push(EnabledBackend::Dx12));
     rendy_with_empty_backend!(backends.push(EnabledBackend::Empty));
