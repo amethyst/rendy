@@ -8,20 +8,31 @@ use {
         memory::*,
         util::*,
     },
-    rendy_core::hal::{device::Device as _, Backend},
+    gfx_hal::{device::Device as _, Backend},
+    std::sync::Arc,
 };
 
 /// Memory block allocated from `LinearAllocator`
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
 pub struct LinearBlock<B: Backend> {
-    // #[derivative(Debug(format_with = "::memory::memory_ptr_fmt"))]
-    memory: *const Memory<B>,
+    memory: Arc<Memory<B>>,
     linear_index: u64,
     ptr: NonNull<u8>,
     range: Range<u64>,
-    #[derivative(Debug = "ignore")]
     relevant: relevant::Relevant,
+}
+
+impl<B> std::fmt::Debug for LinearBlock<B>
+where
+    B: Backend,
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("LinearBlock")
+            .field("memory", &*self.memory)
+            .field("linear_index", &self.linear_index)
+            .field("ptr", &self.ptr)
+            .field("range", &self.range)
+            .finish()
+    }
 }
 
 unsafe impl<B> Send for LinearBlock<B> where B: Backend {}
@@ -31,11 +42,6 @@ impl<B> LinearBlock<B>
 where
     B: Backend,
 {
-    fn shared_memory(&self) -> &Memory<B> {
-        // Memory won't be freed until last block created from it deallocated.
-        unsafe { &*self.memory }
-    }
-
     fn size(&self) -> u64 {
         self.range.end - self.range.start
     }
@@ -50,13 +56,13 @@ where
     B: Backend,
 {
     #[inline]
-    fn properties(&self) -> rendy_core::hal::memory::Properties {
-        self.shared_memory().properties()
+    fn properties(&self) -> gfx_hal::memory::Properties {
+        self.memory.properties()
     }
 
     #[inline]
     fn memory(&self) -> &B::Memory {
-        self.shared_memory().raw()
+        self.memory.raw()
     }
 
     #[inline]
@@ -69,27 +75,27 @@ where
         &'a mut self,
         _device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, rendy_core::hal::device::MapError> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
         assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
-        if !self.shared_memory().host_visible() {
+        if !self.memory.host_visible() {
             //TODO: invalid access error
-            return Err(rendy_core::hal::device::MapError::MappingFailed);
+            return Err(gfx_hal::device::MapError::MappingFailed);
         }
 
         if let Some((ptr, range)) = mapped_sub_range(self.ptr, self.range.clone(), range) {
-            let mapping = unsafe { MappedRange::from_raw(self.shared_memory(), ptr, range) };
+            let mapping = unsafe { MappedRange::from_raw(&*self.memory, ptr, range) };
             Ok(mapping)
         } else {
-            Err(rendy_core::hal::device::MapError::OutOfBounds)
+            Err(gfx_hal::device::MapError::OutOfBounds)
         }
     }
 
     #[inline]
     fn unmap(&mut self, _device: &B::Device) {
-        debug_assert!(self.shared_memory().host_visible());
+        debug_assert!(self.memory.host_visible());
     }
 }
 
@@ -113,20 +119,18 @@ pub struct LinearConfig {
 /// But holding single block will completely stop memory recycling.
 #[derive(Debug)]
 pub struct LinearAllocator<B: Backend> {
-    memory_type: rendy_core::hal::MemoryTypeId,
-    memory_properties: rendy_core::hal::memory::Properties,
+    memory_type: gfx_hal::MemoryTypeId,
+    memory_properties: gfx_hal::memory::Properties,
     linear_size: u64,
     offset: u64,
     lines: VecDeque<Line<B>>,
 }
 
-#[derive(derivative::Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 struct Line<B: Backend> {
     used: u64,
     free: u64,
-    #[derivative(Debug = "ignore")]
-    memory: Box<Memory<B>>,
+    memory: Arc<Memory<B>>,
     ptr: NonNull<u8>,
 }
 
@@ -138,8 +142,8 @@ where
     B: Backend,
 {
     /// Get properties required by the `LinearAllocator`.
-    pub fn properties_required() -> rendy_core::hal::memory::Properties {
-        rendy_core::hal::memory::Properties::CPU_VISIBLE
+    pub fn properties_required() -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     /// Maximum allocation size.
@@ -151,8 +155,8 @@ where
     /// for `memory_type` with `memory_properties` specified,
     /// with `LinearConfig` provided.
     pub fn new(
-        memory_type: rendy_core::hal::MemoryTypeId,
-        memory_properties: rendy_core::hal::memory::Properties,
+        memory_type: gfx_hal::MemoryTypeId,
+        memory_properties: gfx_hal::memory::Properties,
         config: LinearConfig,
     ) -> Self {
         log::trace!(
@@ -197,11 +201,16 @@ where
             self.offset += 1;
 
             unsafe {
-                // trace!("Unmap memory: {:#?}", line.memory);
-                device.unmap_memory(line.memory.raw());
+                match Arc::try_unwrap(line.memory) {
+                    Ok(memory) => {
+                        // trace!("Unmap memory: {:#?}", line.memory);
+                        device.unmap_memory(memory.raw());
 
-                freed += line.memory.size();
-                device.free_memory(line.memory.into_raw());
+                        freed += memory.size();
+                        device.free_memory(memory.into_raw());
+                    }
+                    Err(_) => log::error!("Allocated `Line` was freed, but memory is still shared and never will be destroyed"),
+                }
             }
         }
         freed
@@ -223,10 +232,10 @@ where
         device: &B::Device,
         size: u64,
         align: u64,
-    ) -> Result<(LinearBlock<B>, u64), rendy_core::hal::device::AllocationError> {
+    ) -> Result<(LinearBlock<B>, u64), gfx_hal::device::AllocationError> {
         debug_assert!(self
             .memory_properties
-            .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE));
+            .contains(gfx_hal::memory::Properties::CPU_VISIBLE));
 
         assert!(size <= self.linear_size);
         assert!(align <= self.linear_size);
@@ -245,7 +254,7 @@ where
                 return Ok((
                     LinearBlock {
                         linear_index: self.offset + count - 1,
-                        memory: &*line.memory,
+                        memory: line.memory.clone(),
                         ptr,
                         range,
                         relevant: relevant::Relevant,
@@ -260,7 +269,7 @@ where
 
             let ptr = match device.map_memory(&raw, 0..self.linear_size) {
                 Ok(ptr) => NonNull::new_unchecked(ptr),
-                Err(rendy_core::hal::device::MapError::OutOfMemory(error)) => {
+                Err(gfx_hal::device::MapError::OutOfMemory(error)) => {
                     device.free_memory(raw);
                     return Err(error.into());
                 }
@@ -276,7 +285,7 @@ where
             used: size,
             free: 0,
             ptr,
-            memory: Box::new(memory),
+            memory: Arc::new(memory),
         };
 
         let (ptr, range) = mapped_sub_range(ptr, 0..self.linear_size, 0..size)
@@ -284,7 +293,7 @@ where
 
         let block = LinearBlock {
             linear_index: self.offset + count,
-            memory: &*line.memory,
+            memory: line.memory.clone(),
             ptr,
             range,
             relevant: relevant::Relevant,

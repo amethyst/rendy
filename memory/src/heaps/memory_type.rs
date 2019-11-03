@@ -1,11 +1,11 @@
 use {
     super::{BlockFlavor, HeapsConfig},
     crate::{allocator::*, usage::MemoryUsage, utilization::*},
-    rendy_core::hal::memory::Properties,
+    gfx_hal::memory::Properties,
 };
 
 #[derive(Debug)]
-pub(super) struct MemoryType<B: rendy_core::hal::Backend> {
+pub(super) struct MemoryType<B: gfx_hal::Backend> {
     heap_index: usize,
     properties: Properties,
     dedicated: DedicatedAllocator,
@@ -18,10 +18,10 @@ pub(super) struct MemoryType<B: rendy_core::hal::Backend> {
 
 impl<B> MemoryType<B>
 where
-    B: rendy_core::hal::Backend,
+    B: gfx_hal::Backend,
 {
     pub(super) fn new(
-        memory_type: rendy_core::hal::MemoryTypeId,
+        memory_type: gfx_hal::MemoryTypeId,
         heap_index: usize,
         properties: Properties,
         config: HeapsConfig,
@@ -59,7 +59,7 @@ where
         usage: impl MemoryUsage,
         size: u64,
         align: u64,
-    ) -> Result<(BlockFlavor<B>, u64), rendy_core::hal::device::AllocationError> {
+    ) -> Result<(BlockFlavor<B>, u64), gfx_hal::device::AllocationError> {
         let (block, allocated) = self.alloc_impl(device, usage, size, align)?;
         self.effective += block.size();
         self.used += allocated;
@@ -72,7 +72,7 @@ where
         usage: impl MemoryUsage,
         size: u64,
         align: u64,
-    ) -> Result<(BlockFlavor<B>, u64), rendy_core::hal::device::AllocationError> {
+    ) -> Result<(BlockFlavor<B>, u64), gfx_hal::device::AllocationError> {
         match (self.dynamic.as_mut(), self.linear.as_mut()) {
             (Some(dynamic), Some(linear)) => {
                 if dynamic.max_allocation() >= size

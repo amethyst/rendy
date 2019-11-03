@@ -3,7 +3,7 @@ pub(crate) mod write;
 
 use {
     crate::{memory::Memory, util::fits_usize},
-    rendy_core::hal::{device::Device as _, Backend},
+    gfx_hal::{device::Device as _, Backend},
     std::{ops::Range, ptr::NonNull},
 };
 
@@ -57,7 +57,7 @@ where
     //     memory: &'a Memory<B>,
     //     device: &B::Device,
     //     range: Range<u64>,
-    // ) -> Result<Self, rendy_core::hal::device::MapError> {
+    // ) -> Result<Self, gfx_hal::device::MapError> {
     //     assert!(
     //         range.start < range.end,
     //         "Memory mapping region must have valid size"
@@ -123,7 +123,7 @@ where
         &'b mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<&'b [T], rendy_core::hal::device::MapError>
+    ) -> Result<&'b [T], gfx_hal::device::MapError>
     where
         'a: 'b,
         T: Copy,
@@ -138,7 +138,7 @@ where
         );
 
         let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
-            .ok_or_else(|| rendy_core::hal::device::MapError::OutOfBounds)?;
+            .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
         let size = (range.end - range.start) as usize;
 
@@ -161,7 +161,7 @@ where
         &'b mut self,
         device: &'b B::Device,
         range: Range<u64>,
-    ) -> Result<impl Write<T> + 'b, rendy_core::hal::device::MapError>
+    ) -> Result<impl Write<T> + 'b, gfx_hal::device::MapError>
     where
         'a: 'b,
         T: Copy,
@@ -176,7 +176,7 @@ where
         );
 
         let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
-            .ok_or_else(|| rendy_core::hal::device::MapError::OutOfBounds)?;
+            .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
         let size = (range.end - range.start) as usize;
 
@@ -263,7 +263,7 @@ where
     pub unsafe fn write<'b, U: 'b>(
         &'b mut self,
         range: Range<u64>,
-    ) -> Result<impl Write<U> + 'b, rendy_core::hal::device::MapError>
+    ) -> Result<impl Write<U> + 'b, gfx_hal::device::MapError>
     where
         U: Copy,
     {
@@ -277,7 +277,7 @@ where
         );
 
         let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
-            .ok_or_else(|| rendy_core::hal::device::MapError::OutOfBounds)?;
+            .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
         let size = (range.end - range.start) as usize;
 

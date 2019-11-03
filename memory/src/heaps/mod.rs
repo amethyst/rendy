@@ -12,9 +12,9 @@ use {
 #[derive(Debug)]
 pub enum HeapsError {
     /// Memory allocation failure.
-    AllocationError(rendy_core::hal::device::AllocationError),
+    AllocationError(gfx_hal::device::AllocationError),
     /// No memory types among required for resource with requested properties was found.
-    NoSuitableMemory(u32, rendy_core::hal::memory::Properties),
+    NoSuitableMemory(u32, gfx_hal::memory::Properties),
 }
 
 impl std::fmt::Display for HeapsError {
@@ -31,14 +31,14 @@ impl std::fmt::Display for HeapsError {
 }
 impl std::error::Error for HeapsError {}
 
-impl From<rendy_core::hal::device::AllocationError> for HeapsError {
-    fn from(error: rendy_core::hal::device::AllocationError) -> Self {
+impl From<gfx_hal::device::AllocationError> for HeapsError {
+    fn from(error: gfx_hal::device::AllocationError) -> Self {
         HeapsError::AllocationError(error)
     }
 }
 
-impl From<rendy_core::hal::device::OutOfMemory> for HeapsError {
-    fn from(error: rendy_core::hal::device::OutOfMemory) -> Self {
+impl From<gfx_hal::device::OutOfMemory> for HeapsError {
+    fn from(error: gfx_hal::device::OutOfMemory) -> Self {
         HeapsError::AllocationError(error.into())
     }
 }
@@ -56,19 +56,19 @@ pub struct HeapsConfig {
 
 /// Heaps available on particular physical device.
 #[derive(Debug)]
-pub struct Heaps<B: rendy_core::hal::Backend> {
+pub struct Heaps<B: gfx_hal::Backend> {
     types: Vec<MemoryType<B>>,
     heaps: Vec<MemoryHeap>,
 }
 
 impl<B> Heaps<B>
 where
-    B: rendy_core::hal::Backend,
+    B: gfx_hal::Backend,
 {
-    /// This must be called with `rendy_core::hal::memory::Properties` fetched from physical device.
+    /// This must be called with `gfx_hal::memory::Properties` fetched from physical device.
     pub unsafe fn new<P, H>(types: P, heaps: H) -> Self
     where
-        P: IntoIterator<Item = (rendy_core::hal::memory::Properties, u32, HeapsConfig)>,
+        P: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
     {
         let heaps = heaps
@@ -88,7 +88,7 @@ where
                         fits_usize(heap_index),
                         "Number of memory types must fit in u32 limit"
                     );
-                    let memory_type = rendy_core::hal::MemoryTypeId(index);
+                    let memory_type = gfx_hal::MemoryTypeId(index);
                     let heap_index = heap_index as usize;
                     assert!(heap_index < heaps.len());
                     MemoryType::new(memory_type, heap_index, properties, config)
@@ -142,7 +142,7 @@ where
                 .max_by_key(|&(_, _, fitness)| fitness)
                 .ok_or_else(|| {
                     log::error!("All suitable heaps are exhausted. {:#?}", self);
-                    rendy_core::hal::device::OutOfMemory::Device
+                    gfx_hal::device::OutOfMemory::Device
                 })?
         };
 
@@ -175,7 +175,7 @@ where
         let ref mut memory_heap = self.heaps[memory_type.heap_index()];
 
         if memory_heap.available() < size {
-            return Err(rendy_core::hal::device::OutOfMemory::Device.into());
+            return Err(gfx_hal::device::OutOfMemory::Device.into());
         }
 
         let (block, allocated) = memory_type.alloc(device, usage, size, align)?;
@@ -222,14 +222,14 @@ where
 
 /// Memory block allocated from `Heaps`.
 #[derive(Debug)]
-pub struct MemoryBlock<B: rendy_core::hal::Backend> {
+pub struct MemoryBlock<B: gfx_hal::Backend> {
     block: BlockFlavor<B>,
     memory_index: u32,
 }
 
 impl<B> MemoryBlock<B>
 where
-    B: rendy_core::hal::Backend,
+    B: gfx_hal::Backend,
 {
     /// Get memory type id.
     pub fn memory_type(&self) -> u32 {
@@ -238,7 +238,7 @@ where
 }
 
 #[derive(Debug)]
-enum BlockFlavor<B: rendy_core::hal::Backend> {
+enum BlockFlavor<B: gfx_hal::Backend> {
     Dedicated(DedicatedBlock<B>),
     Linear(LinearBlock<B>),
     Dynamic(DynamicBlock<B>),
@@ -277,7 +277,7 @@ macro_rules! any_block {
 
 impl<B> BlockFlavor<B>
 where
-    B: rendy_core::hal::Backend,
+    B: gfx_hal::Backend,
 {
     #[inline]
     fn size(&self) -> u64 {
@@ -293,10 +293,10 @@ where
 
 impl<B> Block<B> for MemoryBlock<B>
 where
-    B: rendy_core::hal::Backend,
+    B: gfx_hal::Backend,
 {
     #[inline]
-    fn properties(&self) -> rendy_core::hal::memory::Properties {
+    fn properties(&self) -> gfx_hal::memory::Properties {
         any_block!(&self.block => block.properties())
     }
 
@@ -314,7 +314,7 @@ where
         &'a mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<MappedRange<'a, B>, rendy_core::hal::device::MapError> {
+    ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
         any_block!(&mut self.block => block.map(device, range))
     }
 

@@ -6,14 +6,14 @@ use crate::allocator::Kind;
 /// Memory usage trait.
 pub trait MemoryUsage: std::fmt::Debug {
     /// Get set of properties required for the usage.
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties;
+    fn properties_required(&self) -> gfx_hal::memory::Properties;
 
     /// Get comparable fitness value for memory properties.
     ///
     /// # Panics
     ///
     /// This function will panic if properties set doesn't contain required properties.
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32;
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32;
 
     /// Get comparable fitness value for memory allocator.
     fn allocator_fitness(&self, kind: Kind) -> u32;
@@ -24,10 +24,10 @@ where
     T: std::ops::Deref + std::fmt::Debug,
     T::Target: MemoryUsage,
 {
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties {
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
         (&**self).properties_required()
     }
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
         (&**self).memory_fitness(properties)
     }
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -42,18 +42,17 @@ where
 pub struct Data;
 
 impl MemoryUsage for Data {
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties {
-        rendy_core::hal::memory::Properties::DEVICE_LOCAL
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::DEVICE_LOCAL
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
-        assert!(properties.contains(rendy_core::hal::memory::Properties::DEVICE_LOCAL));
-        0 | ((!properties.contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)) as u32) << 3
-            | ((!properties.contains(rendy_core::hal::memory::Properties::LAZILY_ALLOCATED)) as u32)
-                << 2
-            | ((!properties.contains(rendy_core::hal::memory::Properties::CPU_CACHED)) as u32) << 1
-            | ((!properties.contains(rendy_core::hal::memory::Properties::COHERENT)) as u32) << 0
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL));
+        0 | ((!properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE)) as u32) << 3
+            | ((!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED)) as u32) << 2
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 1
+            | ((!properties.contains(gfx_hal::memory::Properties::COHERENT)) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -73,18 +72,18 @@ impl MemoryUsage for Data {
 pub struct Dynamic;
 
 impl MemoryUsage for Dynamic {
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties {
-        rendy_core::hal::memory::Properties::CPU_VISIBLE
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
-        assert!(properties.contains(rendy_core::hal::memory::Properties::CPU_VISIBLE));
-        assert!(!properties.contains(rendy_core::hal::memory::Properties::LAZILY_ALLOCATED));
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
 
-        0 | (properties.contains(rendy_core::hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
-            | (properties.contains(rendy_core::hal::memory::Properties::COHERENT) as u32) << 1
-            | ((!properties.contains(rendy_core::hal::memory::Properties::CPU_CACHED)) as u32) << 0
+        0 | (properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -103,18 +102,18 @@ impl MemoryUsage for Dynamic {
 pub struct Upload;
 
 impl MemoryUsage for Upload {
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties {
-        rendy_core::hal::memory::Properties::CPU_VISIBLE
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
-        assert!(properties.contains(rendy_core::hal::memory::Properties::CPU_VISIBLE));
-        assert!(!properties.contains(rendy_core::hal::memory::Properties::LAZILY_ALLOCATED));
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
 
-        0 | ((!properties.contains(rendy_core::hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
-            | (properties.contains(rendy_core::hal::memory::Properties::COHERENT) as u32) << 1
-            | ((!properties.contains(rendy_core::hal::memory::Properties::CPU_CACHED)) as u32) << 0
+        0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -133,18 +132,18 @@ impl MemoryUsage for Upload {
 pub struct Download;
 
 impl MemoryUsage for Download {
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties {
-        rendy_core::hal::memory::Properties::CPU_VISIBLE
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
+        gfx_hal::memory::Properties::CPU_VISIBLE
     }
 
     #[inline]
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
-        assert!(properties.contains(rendy_core::hal::memory::Properties::CPU_VISIBLE));
-        assert!(!properties.contains(rendy_core::hal::memory::Properties::LAZILY_ALLOCATED));
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
+        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
+        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
 
-        0 | ((!properties.contains(rendy_core::hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
-            | (properties.contains(rendy_core::hal::memory::Properties::CPU_CACHED) as u32) << 1
-            | (properties.contains(rendy_core::hal::memory::Properties::COHERENT) as u32) << 0
+        0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
+            | (properties.contains(gfx_hal::memory::Properties::CPU_CACHED) as u32) << 1
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 0
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -182,7 +181,7 @@ pub enum MemoryUsageValue {
 
 /// Memory usage trait.
 impl MemoryUsage for MemoryUsageValue {
-    fn properties_required(&self) -> rendy_core::hal::memory::Properties {
+    fn properties_required(&self) -> gfx_hal::memory::Properties {
         match self {
             MemoryUsageValue::Data => Data.properties_required(),
             MemoryUsageValue::Dynamic => Dynamic.properties_required(),
@@ -191,7 +190,7 @@ impl MemoryUsage for MemoryUsageValue {
         }
     }
 
-    fn memory_fitness(&self, properties: rendy_core::hal::memory::Properties) -> u32 {
+    fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
         match self {
             MemoryUsageValue::Data => Data.memory_fitness(properties),
             MemoryUsageValue::Dynamic => Dynamic.memory_fitness(properties),
