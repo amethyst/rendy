@@ -1,6 +1,6 @@
 [package]
 name = "rendy-memory"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -17,7 +17,7 @@ serde-1 = ["serde", "gfx-hal/serde"]
 gfx-hal = { version = "0.4" }
 log = "0.4"
 hibitset = {version = "0.6", default-features = false}
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 serde = { version = "1.0", optional = true, features = ["derive"] }
 smallvec = "0.6"
 slab = "0.4"
