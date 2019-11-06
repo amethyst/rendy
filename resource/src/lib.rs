@@ -26,7 +26,7 @@ mod sampler;
 pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};
 
 /// Error creating a resource.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CreationError<E> {
     /// Failed to create an object.
     Create(E),
@@ -34,4 +34,30 @@ pub enum CreationError<E> {
     Allocate(memory::HeapsError),
     /// Failed to bind object memory.
     Bind(rendy_core::hal::device::BindError),
+}
+
+impl<E> std::fmt::Display for CreationError<E>
+where
+    E: std::fmt::Debug,
+{
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CreationError::Create(_err) => write!(fmt, "Failed to create object"), // Uncomment after gfx-0.4.1 std::fmt::Display::fmt(err, fmt),
+            CreationError::Allocate(err) => write!(fmt, "Failed to create object: {}", err),
+            CreationError::Bind(err) => write!(fmt, "Failed to create object: {:?}", err),
+        }
+    }
+}
+
+impl<E> std::error::Error for CreationError<E>
+where
+    E: std::error::Error + 'static,
+{
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CreationError::Create(err) => Some(err),
+            CreationError::Allocate(err) => Some(err),
+            CreationError::Bind(err) => Some(err),
+        }
+    }
 }

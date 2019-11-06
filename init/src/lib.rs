@@ -23,7 +23,7 @@ mod windowed;
 pub use windowed::*;
 
 /// Error during rendy initialization
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RendyInitError {
     /// Gfx creation error.
     CreationError(CreationError),

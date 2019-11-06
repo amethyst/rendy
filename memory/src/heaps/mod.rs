@@ -9,7 +9,7 @@ use {
 
 /// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum HeapsError {
     /// Memory allocation failure.
     AllocationError(gfx_hal::device::AllocationError),

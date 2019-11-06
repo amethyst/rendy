@@ -23,6 +23,6 @@ rendy-core = { version = "0.5.0", path = "../core" }
 
 either = "1.5"
 log = "0.4"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 smallvec = "0.6"
 thread_profiler = "0.3"

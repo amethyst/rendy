@@ -467,7 +467,7 @@ where
 }
 
 /// Error type returned by `Mesh::bind` in case of mesh's vertex buffers are incompatible with requested vertex formats.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Incompatible {
     /// Format that was queried but was not found
     pub not_found: VertexFormat,

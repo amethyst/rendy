@@ -9,7 +9,7 @@ pub use types::ReflectTypeError;
 use types::*;
 
 /// The item kind that couldn't be retrieved from spirv-reflect.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum RetrievalKind {
     /// Input attributes.
     InputAttrib,
@@ -33,7 +33,7 @@ impl RetrievalKind {
 }
 
 /// A reflection error.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ReflectError {
     /// An item could not be retrieved from spirv-reflect.
     Retrieval(RetrievalKind, String),

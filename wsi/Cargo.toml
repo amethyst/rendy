@@ -24,5 +24,5 @@ rendy-resource = { version = "0.5.0", path = "../resource" }
 rendy-core = { version = "0.5.0", path = "../core" }
 
 log = "0.4"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 smallvec = "0.6"

@@ -7,7 +7,7 @@ use {
 };
 
 /// Object loading error.Option
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ObjError {
     /// The passed bytes were improper UTF-8 data.
     Utf8(std::str::Utf8Error),

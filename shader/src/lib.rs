@@ -28,7 +28,7 @@ use rendy_core::hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
 
 /// Error type returned by this module.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ShaderError {}
 
 impl std::error::Error for ShaderError {}

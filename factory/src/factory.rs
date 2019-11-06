@@ -102,7 +102,7 @@ where
 }
 
 /// Failure uploading a buffer or an image.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum UploadError {
     /// Failed to create the staging buffer.
     Create(BufferCreationError),
@@ -110,6 +110,26 @@ pub enum UploadError {
     Map(MapError),
     /// Failed to upload the data.
     Upload(OutOfMemory),
+}
+
+impl std::fmt::Display for UploadError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UploadError::Create(err) => write!(fmt, "Upload failed: {:?}", err),
+            UploadError::Map(err) => write!(fmt, "Upload failed: {:?}", err),
+            UploadError::Upload(err) => write!(fmt, "Upload failed: {:?}", err),
+        }
+    }
+}
+
+impl std::error::Error for UploadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            UploadError::Create(err) => Some(err),
+            UploadError::Map(err) => Some(err),
+            UploadError::Upload(err) => Some(err),
+        }
+    }
 }
 
 #[derive(Debug)]

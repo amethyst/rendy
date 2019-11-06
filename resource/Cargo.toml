@@ -16,7 +16,7 @@ no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 [dependencies]
 crossbeam-channel = "0.3"
 log = "0.4"
-relevant = { version = "0.4", features = ["log", "backtrace"] }
+relevant = { version = "0.4", features = ["log"] }
 rendy-descriptor = { version = "0.5.0", path = "../descriptor" }
 rendy-memory = { version = "0.5.0", path = "../memory" }
 rendy-core = { version = "0.5.0", path = "../core" }
