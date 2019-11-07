@@ -18,6 +18,6 @@ crossbeam-channel = "0.3"
 log = "0.4"
 relevant = { version = "0.4", features = ["log"] }
 rendy-descriptor = { version = "0.5.1", path = "../descriptor" }
-rendy-memory = { version = "0.5.1", path = "../memory" }
+rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-core = { version = "0.5.1", path = "../core" }
 smallvec = "0.6"

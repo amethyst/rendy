@@ -18,7 +18,7 @@ no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command" }
-rendy-memory = { version = "0.5.1", path = "../memory" }
+rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-factory = { version = "0.5.1", path = "../factory" }
 rendy-core = { version = "0.5.1", path = "../core" }

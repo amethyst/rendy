@@ -17,7 +17,7 @@ profiler = ["thread_profiler/thread_profiler"]
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command" }
 rendy-factory = { version = "0.5.1", path = "../factory" }
-rendy-memory = { version = "0.5.1", path = "../memory" }
+rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-core = { version = "0.5.1", path = "../core" }
 

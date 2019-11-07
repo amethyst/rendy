@@ -61,7 +61,7 @@ rendy-factory = { version = "0.5.1", path = "../factory", optional = true }
 rendy-frame = { version = "0.5.1", path = "../frame", optional = true }
 rendy-graph = { version = "0.5.1", path = "../graph", optional = true }
 rendy-init = { version = "0.5.1", path = "../init", optional = true }
-rendy-memory = { version = "0.5.1", path = "../memory", optional = true }
+rendy-memory = { version = "0.5.2", path = "../memory", optional = true }
 rendy-mesh = { version = "0.5.1", path = "../mesh", optional = true }
 rendy-shader = { version = "0.5.1", path = "../shader", optional = true }
 rendy-resource = { version = "0.5.1", path = "../resource", optional = true }
