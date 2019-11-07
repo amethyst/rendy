@@ -33,7 +33,7 @@ impl RetrievalKind {
 }
 
 /// A reflection error.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReflectError {
     /// An item could not be retrieved from spirv-reflect.
     Retrieval(RetrievalKind, String),

@@ -235,7 +235,7 @@ impl From<EnabledBackend> for Backend {
 }
 
 /// Unknown backend errors.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseBackendError(String);
 
 impl std::fmt::Display for ParseBackendError {

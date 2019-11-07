@@ -6,7 +6,7 @@ use spirv_reflect::types::*;
 use std::collections::HashMap;
 
 /// A type reflection error.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ReflectTypeError {
     /// Tried reflecting an undefined format.
     UndefinedFormat,
