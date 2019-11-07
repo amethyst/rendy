@@ -1,6 +1,6 @@
 [package]
 name = "rendy-core"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"

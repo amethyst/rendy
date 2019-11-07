@@ -1,6 +1,6 @@
 [package]
 name = "rendy-init"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -19,10 +19,10 @@ vulkan = ["rendy-core/vulkan"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 
 [dependencies]
-rendy-command = { version = "0.5.0", path = "../command" }
-rendy-factory = { version = "0.5.0", path = "../factory" }
-rendy-core = { version = "0.5.0", path = "../core" }
-rendy-wsi = { version = "0.5.0", path = "../wsi" }
+rendy-command = { version = "0.5.1", path = "../command" }
+rendy-factory = { version = "0.5.1", path = "../factory" }
+rendy-core = { version = "0.5.1", path = "../core" }
+rendy-wsi = { version = "0.5.1", path = "../wsi" }
 winit = { version = "0.20.0-alpha4", optional = true, features = ["web-sys"] }
 log = "0.4"
 smallvec = "0.6"

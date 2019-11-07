@@ -1,6 +1,6 @@
 [package]
 name = "rendy-wsi"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -19,9 +19,9 @@ vulkan = ["rendy-core/vulkan"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 
 [dependencies]
-rendy-memory = { version = "0.5.0", path = "../memory" }
-rendy-resource = { version = "0.5.0", path = "../resource" }
-rendy-core = { version = "0.5.0", path = "../core" }
+rendy-memory = { version = "0.5.1", path = "../memory" }
+rendy-resource = { version = "0.5.1", path = "../resource" }
+rendy-core = { version = "0.5.1", path = "../core" }
 
 log = "0.4"
 relevant = { version = "0.4", features = ["log"] }

@@ -1,6 +1,6 @@
 [package]
 name = "rendy"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["omni-viral <scareaangel@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
@@ -55,19 +55,19 @@ full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflectio
 default = [ "base", "shader-compiler", "spirv-reflection" ]
 
 [dependencies]
-rendy-command = { version = "0.5.0", path = "../command", optional = true }
-rendy-descriptor = { version = "0.5.0", path = "../descriptor", optional = true }
-rendy-factory = { version = "0.5.0", path = "../factory", optional = true }
-rendy-frame = { version = "0.5.0", path = "../frame", optional = true }
-rendy-graph = { version = "0.5.0", path = "../graph", optional = true }
-rendy-init = { version = "0.5.0", path = "../init", optional = true }
-rendy-memory = { version = "0.5.0", path = "../memory", optional = true }
-rendy-mesh = { version = "0.5.0", path = "../mesh", optional = true }
-rendy-shader = { version = "0.5.0", path = "../shader", optional = true }
-rendy-resource = { version = "0.5.0", path = "../resource", optional = true }
-rendy-texture = { version = "0.5.0", path = "../texture", optional = true }
-rendy-core = { version = "0.5.0", path = "../core" }
-rendy-wsi = { version = "0.5.0", path = "../wsi", optional = true }
+rendy-command = { version = "0.5.1", path = "../command", optional = true }
+rendy-descriptor = { version = "0.5.1", path = "../descriptor", optional = true }
+rendy-factory = { version = "0.5.1", path = "../factory", optional = true }
+rendy-frame = { version = "0.5.1", path = "../frame", optional = true }
+rendy-graph = { version = "0.5.1", path = "../graph", optional = true }
+rendy-init = { version = "0.5.1", path = "../init", optional = true }
+rendy-memory = { version = "0.5.1", path = "../memory", optional = true }
+rendy-mesh = { version = "0.5.1", path = "../mesh", optional = true }
+rendy-shader = { version = "0.5.1", path = "../shader", optional = true }
+rendy-resource = { version = "0.5.1", path = "../resource", optional = true }
+rendy-texture = { version = "0.5.1", path = "../texture", optional = true }
+rendy-core = { version = "0.5.1", path = "../core" }
+rendy-wsi = { version = "0.5.1", path = "../wsi", optional = true }
 
 thread_profiler = "0.3"
 
