@@ -16,7 +16,7 @@ spirv-reflection = [ "spirv-reflect" ]
 serde-1 = ["serde", "rendy-core/serde-1"]
 
 [dependencies]
-smallvec = "0.6"
+smallvec = "1.0"
 log = "0.4"
 rendy-factory = { version = "0.5.1", path = "../factory" }
 rendy-core = { version = "0.5.1", path = "../core" }

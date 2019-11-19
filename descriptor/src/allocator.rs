@@ -308,7 +308,7 @@ where
                 extend.extend(
                     Iterator::zip(
                         self.allocation.pools.drain(..),
-                        self.allocation.sets.drain(),
+                        self.allocation.sets.drain(..),
                     )
                     .map(|(pool, set)| DescriptorSet {
                         raw: set,
@@ -327,16 +327,15 @@ where
                             // same pool, continue
                         }
                         Some(last) => {
-                            let sets = &mut self.allocation.sets;
                             // Free contiguous range of sets from one pool in one go.
-                            bucket.free((index + 1..sets.len()).map(|_| sets.pop().unwrap()), last);
+                            bucket.free(self.allocation.sets.drain(index + 1..), last);
                         }
                         None => last = Some(pool),
                     }
                 }
 
                 if let Some(last) = last {
-                    bucket.free(self.allocation.sets.drain(), last);
+                    bucket.free(self.allocation.sets.drain(0..), last);
                 }
 
                 Err(err)
@@ -370,7 +369,7 @@ where
                         .expect("Set should be allocated from this allocator");
                     debug_assert!(bucket.total >= raw_sets.len() as u64);
 
-                    bucket.free(raw_sets.drain(), *pool);
+                    bucket.free(raw_sets.drain(..), *pool);
                     *pool = set.pool;
                     *ranges = set.ranges;
                     raw_sets.push(set.raw);
