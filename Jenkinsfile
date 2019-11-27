@@ -37,8 +37,8 @@ pipeline {
                     steps {
                         withCredentials([string(credentialsId: 'codecov_token', variable: 'CODECOV_TOKEN')]) {
                             echo 'Building to calculate coverage'
-                            sh 'cd rendy && cargo test --all --all-features'
                             sh 'cd tests && cargo build --bin gl --bin vulkan'
+                            sh 'cd rendy && cargo test --all-targets --all-features'
                             echo 'Calculating code coverage...'
                             sh 'for file in target/debug/rendy*[^\\.d]; do mkdir -p \"target/cov/$(basename $file)\"; kcov --exclude-pattern=/.cargo,/usr/lib --verify \"target/cov/$(basename $file)\" \"$file\" || true; done'
                             echo "Uploading coverage..."
@@ -58,10 +58,10 @@ pipeline {
                     steps {
                         bat 'C:\\Users\\root\\.cargo\\bin\\cargo update'
                         echo 'Beginning tests...'
+                        bat 'cd tests && cargo build --bin dx12 --bin gl --bin vulkan'
                         // TODO: Once we support DX12, we should switch to it from vulkan for windows
                         // FIXME: Can't test "full" because of problems with shaderc compilation on windows box
-                        bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo test --all --no-default-features --features "base mesh-obj texture-image texture-palette spirv-reflection serde-1 dx12 gl vulkan"'
-                        bat 'cd tests && cargo build --bin dx12 --bin gl --bin vulkan'
+                        bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo test --all-targets --no-default-features --features "base mesh-obj texture-image texture-palette spirv-reflection serde-1 dx12 gl vulkan"'
                         echo 'Tests done!'
                     }
                 }
@@ -75,8 +75,8 @@ pipeline {
                     }
                     steps {
                         echo 'Beginning tests...'
-                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo test --all --all-features'
                         sh 'cd tests && /Users/jenkins/.cargo/bin/cargo build --bin gl --bin metal'
+                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo test --all-targets --all-features'
                         echo 'Tests done!'
                     }
                 }
