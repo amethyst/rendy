@@ -69,13 +69,11 @@ pub enum EnabledBackend {
     /// Vulkan backend.
     #[cfg(all(
         feature = "vulkan",
-        all(
-            any(
-                target_os = "windows",
-                all(unix, not(any(target_os = "macos", target_os = "ios")))
-            ),
-            not(target_arch = "wasm32")
-        )
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
     ))]
     Vulkan,
 }
@@ -105,13 +103,11 @@ impl EnabledBackend {
             _ if tid == metal_backend_type_id() => EnabledBackend::Metal,
             #[cfg(all(
                 feature = "vulkan",
-                all(
-                    any(
-                        target_os = "windows",
-                        all(unix, not(any(target_os = "macos", target_os = "ios")))
-                    ),
-                    not(target_arch = "wasm32")
-                )
+                any(
+                    target_os = "windows",
+                    all(unix, not(any(target_os = "macos", target_os = "ios")))
+                ),
+                not(target_arch = "wasm32")
             ))]
             _ if tid == vulkan_backend_type_id() => EnabledBackend::Vulkan,
             _ => panic!("Unsupported gfx-hal backend"),
@@ -143,13 +139,11 @@ impl std::fmt::Display for EnabledBackend {
             EnabledBackend::Metal => "metal",
             #[cfg(all(
                 feature = "vulkan",
-                all(
-                    any(
-                        target_os = "windows",
-                        all(unix, not(any(target_os = "macos", target_os = "ios")))
-                    ),
-                    not(target_arch = "wasm32")
-                )
+                any(
+                    target_os = "windows",
+                    all(unix, not(any(target_os = "macos", target_os = "ios")))
+                ),
+                not(target_arch = "wasm32")
             ))]
             EnabledBackend::Vulkan => "vulkan",
         })

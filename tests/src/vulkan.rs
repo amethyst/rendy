@@ -1,3 +1,5 @@
-pub use rendy::core::vulkan;
+pub use rendy::core::{EnabledBackend, vulkan::Backend};
 
-fn main() {}
+fn main() {
+    println!("{:#?}", EnabledBackend::which::<Backend>());
+}
