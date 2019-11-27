@@ -102,7 +102,6 @@ impl std::fmt::Display for RendyAutoInitError {
                 for &backend in BASIC_PRIORITY {
                     writeln!(fmt, "  {:#}", backend)?;
                 }
-
                 if !UNAVAILABLE.is_empty() {
                     writeln!(fmt, "Following backends are unavailable:")?;
                     for &backend in UNAVAILABLE {
@@ -117,21 +116,26 @@ impl std::fmt::Display for RendyAutoInitError {
             }
         } else {
             if self.errors.is_empty() {
-                write!(fmt, "No enabled backends among available:")?;
-                for &backend in BASIC_PRIORITY {
-                    write!(fmt, "  {}", backend)?;
+                write!(fmt, "No enabled backends among available: ")?;
+                if let Some(&backend) = BASIC_PRIORITY.first() {
+                    write!(fmt, "{}", backend)?;
                 }
-
+                for &backend in BASIC_PRIORITY.iter().skip(1) {
+                    write!(fmt, ", {}", backend)?;
+                }
                 if !UNAVAILABLE.is_empty() {
-                    writeln!(fmt, "Following backends are unavailable:")?;
-                    for &backend in UNAVAILABLE {
-                        writeln!(fmt, "  {}", backend)?;
+                    write!(fmt, ". Following backends are unavailable: ")?;
+                    if let Some(&backend) = UNAVAILABLE.first() {
+                        write!(fmt, "{}", backend)?;
+                    }
+                    for &backend in UNAVAILABLE.iter().skip(1) {
+                        write!(fmt, ", {}", backend)?;
                     }
                 }
             } else {
                 write!(fmt, "Initialization failed for all backends")?;
                 for (backend, error) in &self.errors {
-                    write!(fmt, "  {}: {}", backend, error)?;
+                    write!(fmt, " {}: {}", backend, error)?;
                 }
             }
         }

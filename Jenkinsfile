@@ -39,7 +39,7 @@ pipeline {
                             echo 'Building to calculate coverage'
                             sh 'cd tests && cargo build --bin gl --bin vulkan'
                             sh 'cd rendy && cargo test --all-targets --all-features'
-                            sh 'cd rendy && cargo run --example init --features init,vulkan'
+                            sh 'cd rendy && cargo run --example init --no-default-features --features init,vulkan'
                             echo 'Calculating code coverage...'
                             sh 'for file in target/debug/rendy*[^\\.d]; do mkdir -p \"target/cov/$(basename $file)\"; kcov --exclude-pattern=/.cargo,/usr/lib --verify \"target/cov/$(basename $file)\" \"$file\" || true; done'
                             echo "Uploading coverage..."
@@ -79,7 +79,7 @@ pipeline {
                         echo 'Beginning tests...'
                         sh 'cd tests && /Users/jenkins/.cargo/bin/cargo build --bin gl --bin metal'
                         sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo test --all-targets --all-features'
-                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo run --example init --features init,metal'
+                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo run --example init --no-default-features --features init,metal'
                         echo 'Tests done!'
                     }
                 }
