@@ -15,5 +15,6 @@ members = [
     "chain",
     "graph",
     "core",
+    "tests",
     "texture",
 ]

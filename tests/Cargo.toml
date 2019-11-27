@@ -1,0 +1,28 @@
+[package]
+name = "rendy-tests"
+version = "0.5.1"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/amethyst/rendy"
+license = "MIT OR Apache-2.0"
+description = "Rendy's basic tests"
+categories = ["rendering"]
+
+[dependencies]
+rendy = { version = "0.5.1", path = "../rendy", features = ["dx12", "gl", "metal", "vulkan"], default-features = false }
+
+[[bin]]
+name = "dx12"
+path = "src/dx12.rs"
+
+[[bin]]
+name = "gl"
+path = "src/gl.rs"
+
+[[bin]]
+name = "metal"
+path = "src/metal.rs"
+
+[[bin]]
+name = "vulkan"
+path = "src/vulkan.rs"
