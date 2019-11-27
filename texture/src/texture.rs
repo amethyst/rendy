@@ -88,6 +88,32 @@ pub enum BuildError {
     Sampler(rendy_core::hal::device::AllocationError),
 }
 
+impl std::fmt::Display for BuildError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuildError::Format(format) => write!(fmt, "Format unsupported: {:?}", format),
+            BuildError::Image(err) => write!(fmt, "Texture build failed: {:?}", err),
+            BuildError::Upload(err) => write!(fmt, "Texture build failed: {:?}", err),
+            BuildError::ImageView(err) => write!(fmt, "Texture build failed: {:?}", err),
+            BuildError::Mipmap(err) => write!(fmt, "Texture build failed: {:?}", err),
+            BuildError::Sampler(err) => write!(fmt, "Texture build failed: {:?}", err),
+        }
+    }
+}
+
+impl std::error::Error for BuildError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            BuildError::Format(_) => None,
+            BuildError::Image(err) => Some(err),
+            BuildError::Upload(err) => Some(err),
+            BuildError::ImageView(err) => Some(err),
+            BuildError::Mipmap(err) => Some(err),
+            BuildError::Sampler(err) => Some(err),
+        }
+    }
+}
+
 /// Generics-free texture builder.
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
