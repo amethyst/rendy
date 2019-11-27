@@ -437,19 +437,18 @@ pub fn uses_pipeline_barriers<B: crate::hal::Backend>(_device: &B::Device) -> bo
     })
 }
 
-
 #[test]
 fn test_enabled_backends() {
-    crate::rendy_with_dx12_backend!{
+    crate::rendy_with_dx12_backend! {
         assert_eq!(EnabledBackend::which::<crate::dx12::Backend>(), std::convert::TryFrom::try_from(Backend::Dx12).expect("Must be enabled"));
     }
-    crate::rendy_with_gl_backend!{
+    crate::rendy_with_gl_backend! {
         assert_eq!(EnabledBackend::which::<crate::gl::Backend>(), std::convert::TryFrom::try_from(Backend::Gl).expect("Must be enabled"));
     }
-    crate::rendy_with_metal_backend!{
+    crate::rendy_with_metal_backend! {
         assert_eq!(EnabledBackend::which::<crate::metal::Backend>(), std::convert::TryFrom::try_from(Backend::Metal).expect("Must be enabled"));
     }
-    crate::rendy_with_vulkan_backend!{
+    crate::rendy_with_vulkan_backend! {
         assert_eq!(EnabledBackend::which::<crate::vulkan::Backend>(), std::convert::TryFrom::try_from(Backend::Vulkan).expect("Must be enabled"));
     }
 }
