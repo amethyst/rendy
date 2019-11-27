@@ -2,7 +2,7 @@
 //! Basic example initializes core type of the rendy - `Factory` and exits.
 //!
 
-use rendy::{factory::Config, init::AnyWindowedRendy};
+use rendy::{factory::Config, init::AnyRendy};
 
 fn main() {
     env_logger::Builder::from_default_env()
@@ -10,11 +10,7 @@ fn main() {
         .init();
 
     let config: Config = Default::default();
+    let rendy = AnyRendy::init_auto(&config).unwrap();
 
-    let event_loop = rendy::init::winit::event_loop::EventLoop::new();
-    let window = rendy::init::winit::window::WindowBuilder::new().with_title("Rendy example");
-
-    let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
-
-    rendy::with_any_windowed_rendy!((rendy) (_, _, _, _) => {});
+    rendy::with_any_rendy!((rendy) (_, _) => {});
 }

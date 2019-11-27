@@ -39,7 +39,7 @@ pipeline {
                             echo 'Building to calculate coverage'
                             sh 'cd tests && cargo build --bin gl --bin vulkan'
                             sh 'cd rendy && cargo test --all-targets --all-features'
-                            sh 'cd rendy && cargo run --example init --all-features'
+                            sh 'cd rendy && cargo run --example init --features init,vulkan'
                             echo 'Calculating code coverage...'
                             sh 'for file in target/debug/rendy*[^\\.d]; do mkdir -p \"target/cov/$(basename $file)\"; kcov --exclude-pattern=/.cargo,/usr/lib --verify \"target/cov/$(basename $file)\" \"$file\" || true; done'
                             echo "Uploading coverage..."
@@ -63,7 +63,7 @@ pipeline {
                         // TODO: Once we support DX12, we should switch to it from vulkan for windows
                         // FIXME: Can't test "full" because of problems with shaderc compilation on windows box
                         bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo test --all-targets --no-default-features --features "base mesh-obj texture-image texture-palette spirv-reflection serde-1 dx12 gl vulkan"'
-                        bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo run --example init --no-default-features --features "base mesh-obj texture-image texture-palette spirv-reflection serde-1 dx12 gl vulkan"'
+                        bat 'cd rendy && C:\\Users\\root\\.cargo\\bin\\cargo run --example init --no-default-features --features init,dx12"'
                         echo 'Tests done!'
                     }
                 }
@@ -79,7 +79,7 @@ pipeline {
                         echo 'Beginning tests...'
                         sh 'cd tests && /Users/jenkins/.cargo/bin/cargo build --bin gl --bin metal'
                         sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo test --all-targets --all-features'
-                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo run --example init --all-features'
+                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo run --example init --features init,metal'
                         echo 'Tests done!'
                     }
                 }

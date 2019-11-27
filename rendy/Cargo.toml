@@ -82,7 +82,7 @@ rand = "0.7"
 
 [[example]]
 name = "init"
-required-features = ["base", "init-winit"]
+required-features = ["init"]
 
 [[example]]
 name = "triangle"
