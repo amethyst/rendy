@@ -53,6 +53,44 @@ pub enum GraphBuildError {
     Node(NodeBuildError),
 }
 
+impl std::fmt::Display for GraphBuildError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GraphBuildError::Buffer(err) => write!(
+                fmt,
+                "Failed to build graph because of failure to create a buffer: {:?}",
+                err
+            ),
+            GraphBuildError::Image(err) => write!(
+                fmt,
+                "Failed to build graph because of failure to create an image: {:?}",
+                err
+            ),
+            GraphBuildError::Semaphore(err) => write!(
+                fmt,
+                "Failed to build graph because of failure to create a semaphore: {:?}",
+                err
+            ),
+            GraphBuildError::Node(err) => write!(
+                fmt,
+                "Failed to build graph because of failure to build a node: {:?}",
+                err
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GraphBuildError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            GraphBuildError::Buffer(err) => Some(err),
+            GraphBuildError::Image(err) => Some(err),
+            GraphBuildError::Semaphore(err) => Some(err),
+            GraphBuildError::Node(err) => Some(err),
+        }
+    }
+}
+
 /// Graphics context contains all transient resources managed by graph.
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {

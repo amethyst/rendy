@@ -279,7 +279,7 @@ where
 pub enum NodeBuildError {
     /// Filed to uplaod the data.
     Upload(UploadError),
-    /// Mismatched queue family.
+    /// Mismatched or unsupported queue family.
     QueueFamily(FamilyId),
     /// Failed to create an imate view.
     View(rendy_core::hal::image::ViewError),
@@ -291,6 +291,55 @@ pub enum NodeBuildError {
     OutOfMemory(rendy_core::hal::device::OutOfMemory),
 }
 
+impl std::fmt::Display for NodeBuildError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NodeBuildError::Upload(err) => write!(
+                fmt,
+                "Failed to build node because of failure to upload data: {:?}",
+                err
+            ),
+            NodeBuildError::QueueFamily(family) => write!(
+                fmt,
+                "Failed to build node because of mismatched or unsupported queue family: {:?}",
+                family
+            ),
+            NodeBuildError::View(err) => write!(
+                fmt,
+                "Failed to build node because of failure to create an image view: {:?}",
+                err
+            ),
+            NodeBuildError::Pipeline(err) => write!(
+                fmt,
+                "Failed to build node because of failure to create a pipeline: {:?}",
+                err
+            ),
+            NodeBuildError::Swapchain(err) => write!(
+                fmt,
+                "Failed to build node because of failure to create swapchain: {:?}",
+                err
+            ),
+            NodeBuildError::OutOfMemory(err) => write!(
+                fmt,
+                "Failed to build node because device ran out of memory while attempting to build: {:?}",
+                err
+            ),
+        }
+    }
+}
+
+impl std::error::Error for NodeBuildError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            NodeBuildError::Upload(err) => Some(err),
+            NodeBuildError::QueueFamily(_) => None,
+            NodeBuildError::View(err) => Some(err),
+            NodeBuildError::Pipeline(err) => Some(err),
+            NodeBuildError::Swapchain(err) => Some(err),
+            NodeBuildError::OutOfMemory(err) => Some(err),
+        }
+    }
+}
 /// Dynamic node builder that emits `DynNode`.
 pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Pick family for this node to be executed onto.
