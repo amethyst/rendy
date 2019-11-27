@@ -1,4 +1,4 @@
-pub use rendy::core::{EnabledBackend, gl::Backend};
+pub use rendy::core::{gl::Backend, EnabledBackend};
 
 fn main() {
     println!("{:#?}", EnabledBackend::which::<Backend>());

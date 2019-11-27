@@ -1,4 +1,4 @@
-pub use rendy::core::{EnabledBackend, dx12::Backend};
+pub use rendy::core::{dx12::Backend, EnabledBackend};
 
 fn main() {
     println!("{:#?}", EnabledBackend::which::<Backend>());
