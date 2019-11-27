@@ -210,13 +210,11 @@ impl From<EnabledBackend> for Backend {
             EnabledBackend::Metal => Backend::Metal,
             #[cfg(all(
                 feature = "vulkan",
-                all(
-                    any(
-                        target_os = "windows",
-                        all(unix, not(any(target_os = "macos", target_os = "ios")))
-                    ),
-                    not(target_arch = "wasm32")
-                )
+                any(
+                    target_os = "windows",
+                    all(unix, not(any(target_os = "macos", target_os = "ios")))
+                ),
+                not(target_arch = "wasm32")
             ))]
             EnabledBackend::Vulkan => Backend::Vulkan,
         }
@@ -278,22 +276,19 @@ impl std::convert::TryFrom<Backend> for EnabledBackend {
             Backend::Gl => Ok(EnabledBackend::Gl),
             #[cfg(all(
                 feature = "metal",
-                any(all(
-                    target_os = "macos",
-                    not(target_arch = "wasm32"),
+                any(
+                    all(not(target_arch = "wasm32"), target_os = "macos"),
                     all(target_arch = "aarch64", target_os = "ios")
-                ))
+                )
             ))]
             Backend::Metal => Ok(EnabledBackend::Metal),
             #[cfg(all(
                 feature = "vulkan",
-                all(
-                    any(
-                        target_os = "windows",
-                        all(unix, not(any(target_os = "macos", target_os = "ios")))
-                    ),
-                    not(target_arch = "wasm32")
-                )
+                any(
+                    target_os = "windows",
+                    all(unix, not(any(target_os = "macos", target_os = "ios")))
+                ),
+                not(target_arch = "wasm32")
             ))]
             Backend::Vulkan => Ok(EnabledBackend::Vulkan),
             not_enabled => Err(NotEnabled(not_enabled)),

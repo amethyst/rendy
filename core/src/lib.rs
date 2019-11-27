@@ -43,13 +43,11 @@ pub use gfx_backend_metal as metal;
 
 #[cfg(all(
     feature = "vulkan",
-    all(
-        any(
-            target_os = "windows",
-            all(unix, not(any(target_os = "macos", target_os = "ios")))
-        ),
-        not(target_arch = "wasm32")
-    )
+    any(
+        target_os = "windows",
+        all(unix, not(any(target_os = "macos", target_os = "ios")))
+    ),
+    not(target_arch = "wasm32")
 ))]
 #[doc(inline)]
 pub use gfx_backend_vulkan as vulkan;
