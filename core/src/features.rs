@@ -1,43 +1,27 @@
 /// Resolve into input AST if dx12 backend is enabled.
 #[macro_export]
-#[cfg(all(
-    feature = "dx12",
-    target_os = "windows",
-    not(target_arch = "wasm32")
-))]
+#[cfg(all(feature = "dx12", target_os = "windows", not(target_arch = "wasm32")))]
 macro_rules! rendy_with_dx12_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if dx12 backend is enabled.
 #[macro_export]
-#[cfg(not(all(
-    feature = "dx12",
-    target_os = "windows",
-    not(target_arch = "wasm32")
-)))]
+#[cfg(not(all(feature = "dx12", target_os = "windows", not(target_arch = "wasm32"))))]
 macro_rules! rendy_with_dx12_backend {
     ($($tt:tt)*) => {};
 }
 
 /// Resolve into input AST if dx12 backend is disabled.
 #[macro_export]
-#[cfg(not(all(
-    feature = "dx12",
-    target_os = "windows",
-    not(target_arch = "wasm32")
-)))]
+#[cfg(not(all(feature = "dx12", target_os = "windows", not(target_arch = "wasm32"))))]
 macro_rules! rendy_without_dx12_backend {
     ($($tt:tt)*) => { $($tt)* };
 }
 
 /// Resolve into input AST if dx12 backend is disabled.
 #[macro_export]
-#[cfg(all(
-    feature = "dx12",
-    target_os = "windows",
-    not(target_arch = "wasm32")
-))]
+#[cfg(all(feature = "dx12", target_os = "windows", not(target_arch = "wasm32")))]
 macro_rules! rendy_without_dx12_backend {
     ($($tt:tt)*) => {};
 }

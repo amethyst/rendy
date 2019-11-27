@@ -197,13 +197,8 @@ pub const BASIC_PRIORITY: &'static [rendy_core::Backend] = &[
         not(target_arch = "wasm32")
     ))]
     rendy_core::Backend::Vulkan,
-
-    #[cfg(all(
-        target_os = "windows",
-        not(target_arch = "wasm32")
-    ))]
+    #[cfg(all(target_os = "windows", not(target_arch = "wasm32")))]
     rendy_core::Backend::Dx12,
-    
     #[cfg(any(
         all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")
@@ -221,13 +216,8 @@ pub const UNAVAILABLE: &'static [rendy_core::Backend] = &[
         not(target_arch = "wasm32")
     )))]
     rendy_core::Backend::Vulkan,
-
-    #[cfg(not(all(
-        target_os = "windows",
-        not(target_arch = "wasm32")
-    )))]
+    #[cfg(not(all(target_os = "windows", not(target_arch = "wasm32"))))]
     rendy_core::Backend::Dx12,
-    
     #[cfg(not(any(
         all(not(target_arch = "wasm32"), target_os = "macos"),
         all(target_arch = "aarch64", target_os = "ios")

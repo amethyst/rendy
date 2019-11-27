@@ -1,10 +1,6 @@
 use std::any::TypeId;
 
-#[cfg(all(
-    feature = "dx12",
-    target_os = "windows",
-    not(target_arch = "wasm32")
-))]
+#[cfg(all(feature = "dx12", target_os = "windows", not(target_arch = "wasm32")))]
 fn dx12_backend_type_id() -> TypeId {
     TypeId::of::<crate::dx12::Backend>()
 }

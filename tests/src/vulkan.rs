@@ -1,7 +1,3 @@
-
 pub use rendy::core::vulkan;
 
-fn main() {
-
-}
-
+fn main() {}

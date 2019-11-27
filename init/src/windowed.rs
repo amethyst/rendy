@@ -168,22 +168,15 @@ impl std::fmt::Display for WindowedRendyAutoInitError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if fmt.alternate() {
             if self.errors.is_empty() {
-                if self.errors.is_empty() {
-                    writeln!(fmt, "No enabled backends among available:")?;
-                    for &backend in BASIC_PRIORITY {
+                writeln!(fmt, "No enabled backends among available:")?;
+                for &backend in BASIC_PRIORITY {
+                    writeln!(fmt, "  {:#}", backend)?;
+                }
+
+                if !UNAVAILABLE.is_empty() {
+                    writeln!(fmt, "Following backends are unavailable:")?;
+                    for &backend in UNAVAILABLE {
                         writeln!(fmt, "  {:#}", backend)?;
-                    }
-    
-                    if !UNAVAILABLE.is_empty() {
-                        writeln!(fmt, "Following backends are unavailable:")?;
-                        for &backend in UNAVAILABLE {
-                            writeln!(fmt, "  {:#}", backend)?;
-                        }
-                    }
-                } else {
-                    writeln!(fmt, "Initialization failed for all backends")?;
-                    for (backend, error) in &self.errors {
-                        writeln!(fmt, "  {:#}: {:#}", backend, error)?;
                     }
                 }
             } else {
@@ -194,18 +187,17 @@ impl std::fmt::Display for WindowedRendyAutoInitError {
             }
         } else {
             if self.errors.is_empty() {
-                if self.errors.is_empty() {
-                    write!(fmt, "No enabled backends among available:")?;
-                    for &backend in BASIC_PRIORITY {
-                        write!(fmt, "  {}", backend)?;
+                write!(fmt, "No enabled backends among available:")?;
+                for &backend in BASIC_PRIORITY {
+                    write!(fmt, "  {}", backend)?;
+                }
+
+                if !UNAVAILABLE.is_empty() {
+                    writeln!(fmt, "Following backends are unavailable:")?;
+                    for &backend in UNAVAILABLE {
+                        writeln!(fmt, "  {}", backend)?;
                     }
-    
-                    if !UNAVAILABLE.is_empty() {
-                        writeln!(fmt, "Following backends are unavailable:")?;
-                        for &backend in UNAVAILABLE {
-                            writeln!(fmt, "  {}", backend)?;
-                        }
-                    }
+                }
             } else {
                 write!(fmt, "Initialization failed for all backends")?;
                 for (backend, error) in &self.errors {

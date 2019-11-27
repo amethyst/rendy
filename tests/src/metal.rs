@@ -1,7 +1,3 @@
-
 pub use rendy::core::metal;
 
-fn main() {
-
-}
-
+fn main() {}
