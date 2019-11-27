@@ -2,7 +2,8 @@ use std::any::TypeId;
 
 #[cfg(all(
     feature = "dx12",
-    all(target_os = "windows", not(target_arch = "wasm32"))
+    target_os = "windows",
+    not(target_arch = "wasm32")
 ))]
 fn dx12_backend_type_id() -> TypeId {
     TypeId::of::<crate::dx12::Backend>()
@@ -31,13 +32,11 @@ fn metal_backend_type_id() -> TypeId {
 
 #[cfg(all(
     feature = "vulkan",
-    any(all(
-        any(
-            target_os = "windows",
-            all(unix, not(any(target_os = "macos", target_os = "ios")))
-        ),
-        not(target_arch = "wasm32")
-    ))
+    any(
+        target_os = "windows",
+        all(unix, not(any(target_os = "macos", target_os = "ios")))
+    ),
+    not(target_arch = "wasm32")
 ))]
 fn vulkan_backend_type_id() -> TypeId {
     TypeId::of::<crate::vulkan::Backend>()

@@ -2,7 +2,8 @@
 #[macro_export]
 #[cfg(all(
     feature = "dx12",
-    all(target_os = "windows", not(target_arch = "wasm32"))
+    target_os = "windows",
+    not(target_arch = "wasm32")
 ))]
 macro_rules! rendy_with_dx12_backend {
     ($($tt:tt)*) => { $($tt)* };
@@ -12,7 +13,8 @@ macro_rules! rendy_with_dx12_backend {
 #[macro_export]
 #[cfg(not(all(
     feature = "dx12",
-    all(target_os = "windows", not(target_arch = "wasm32"))
+    target_os = "windows",
+    not(target_arch = "wasm32")
 )))]
 macro_rules! rendy_with_dx12_backend {
     ($($tt:tt)*) => {};
@@ -22,7 +24,8 @@ macro_rules! rendy_with_dx12_backend {
 #[macro_export]
 #[cfg(not(all(
     feature = "dx12",
-    all(target_os = "windows", not(target_arch = "wasm32"))
+    target_os = "windows",
+    not(target_arch = "wasm32")
 )))]
 macro_rules! rendy_without_dx12_backend {
     ($($tt:tt)*) => { $($tt)* };
@@ -32,7 +35,8 @@ macro_rules! rendy_without_dx12_backend {
 #[macro_export]
 #[cfg(all(
     feature = "dx12",
-    all(target_os = "windows", not(target_arch = "wasm32"))
+    target_os = "windows",
+    not(target_arch = "wasm32")
 ))]
 macro_rules! rendy_without_dx12_backend {
     ($($tt:tt)*) => {};
@@ -150,13 +154,11 @@ macro_rules! rendy_without_metal_backend {
 #[macro_export]
 #[cfg(all(
     feature = "vulkan",
-    all(
-        any(
-            target_os = "windows",
-            all(unix, not(any(target_os = "macos", target_os = "ios")))
-        ),
-        not(target_arch = "wasm32")
-    )
+    any(
+        target_os = "windows",
+        all(unix, not(any(target_os = "macos", target_os = "ios")))
+    ),
+    not(target_arch = "wasm32")
 ))]
 macro_rules! rendy_with_vulkan_backend {
     ($($tt:tt)*) => { $($tt)* };
@@ -166,13 +168,11 @@ macro_rules! rendy_with_vulkan_backend {
 #[macro_export]
 #[cfg(not(all(
     feature = "vulkan",
-    all(
-        any(
-            target_os = "windows",
-            all(unix, not(any(target_os = "macos", target_os = "ios")))
-        ),
-        not(target_arch = "wasm32")
-    )
+    any(
+        target_os = "windows",
+        all(unix, not(any(target_os = "macos", target_os = "ios")))
+    ),
+    not(target_arch = "wasm32")
 )))]
 macro_rules! rendy_with_vulkan_backend {
     ($($tt:tt)*) => {};
@@ -182,13 +182,11 @@ macro_rules! rendy_with_vulkan_backend {
 #[macro_export]
 #[cfg(not(all(
     feature = "vulkan",
-    all(
-        any(
-            target_os = "windows",
-            all(unix, not(any(target_os = "macos", target_os = "ios")))
-        ),
-        not(target_arch = "wasm32")
-    )
+    any(
+        target_os = "windows",
+        all(unix, not(any(target_os = "macos", target_os = "ios")))
+    ),
+    not(target_arch = "wasm32")
 )))]
 macro_rules! rendy_without_vulkan_backend {
     ($($tt:tt)*) => { $($tt)* };
@@ -198,13 +196,11 @@ macro_rules! rendy_without_vulkan_backend {
 #[macro_export]
 #[cfg(all(
     feature = "vulkan",
-    all(
-        any(
-            target_os = "windows",
-            all(unix, not(any(target_os = "macos", target_os = "ios")))
-        ),
-        not(target_arch = "wasm32")
-    )
+    any(
+        target_os = "windows",
+        all(unix, not(any(target_os = "macos", target_os = "ios")))
+    ),
+    not(target_arch = "wasm32")
 ))]
 macro_rules! rendy_without_vulkan_backend {
     ($($tt:tt)*) => {};

@@ -98,9 +98,16 @@ impl std::fmt::Display for RendyAutoInitError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if fmt.alternate() {
             if self.errors.is_empty() {
-                writeln!(fmt, "No enabled backends among:")?;
-                for &backend in &BASIC_PRIORITY {
+                writeln!(fmt, "No enabled backends among available:")?;
+                for &backend in BASIC_PRIORITY {
                     writeln!(fmt, "  {:#}", backend)?;
+                }
+
+                if !UNAVAILABLE.is_empty() {
+                    writeln!(fmt, "Following backends are unavailable:")?;
+                    for &backend in UNAVAILABLE {
+                        writeln!(fmt, "  {:#}", backend)?;
+                    }
                 }
             } else {
                 writeln!(fmt, "Initialization failed for all backends")?;
@@ -110,9 +117,16 @@ impl std::fmt::Display for RendyAutoInitError {
             }
         } else {
             if self.errors.is_empty() {
-                write!(fmt, "No enabled backends among:")?;
-                for &backend in &BASIC_PRIORITY {
+                write!(fmt, "No enabled backends among available:")?;
+                for &backend in BASIC_PRIORITY {
                     write!(fmt, "  {}", backend)?;
+                }
+
+                if !UNAVAILABLE.is_empty() {
+                    writeln!(fmt, "Following backends are unavailable:")?;
+                    for &backend in UNAVAILABLE {
+                        writeln!(fmt, "  {}", backend)?;
+                    }
                 }
             } else {
                 write!(fmt, "Initialization failed for all backends")?;
@@ -174,11 +188,51 @@ pub fn available_backends() -> smallvec::SmallVec<[EnabledBackend; 5]> {
     backends
 }
 
-pub const BASIC_PRIORITY: [rendy_core::Backend; 4] = [
+pub const BASIC_PRIORITY: &'static [rendy_core::Backend] = &[
+    #[cfg(all(
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
+    ))]
     rendy_core::Backend::Vulkan,
+
+    #[cfg(all(
+        target_os = "windows",
+        not(target_arch = "wasm32")
+    ))]
     rendy_core::Backend::Dx12,
+    
+    #[cfg(any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
+        all(target_arch = "aarch64", target_os = "ios")
+    ))]
     rendy_core::Backend::Metal,
     rendy_core::Backend::Gl,
+];
+
+pub const UNAVAILABLE: &'static [rendy_core::Backend] = &[
+    #[cfg(not(all(
+        any(
+            target_os = "windows",
+            all(unix, not(any(target_os = "macos", target_os = "ios")))
+        ),
+        not(target_arch = "wasm32")
+    )))]
+    rendy_core::Backend::Vulkan,
+
+    #[cfg(not(all(
+        target_os = "windows",
+        not(target_arch = "wasm32")
+    )))]
+    rendy_core::Backend::Dx12,
+    
+    #[cfg(not(any(
+        all(not(target_arch = "wasm32"), target_os = "macos"),
+        all(target_arch = "aarch64", target_os = "ios")
+    )))]
+    rendy_core::Backend::Metal,
 ];
 
 pub fn pick_backend(
