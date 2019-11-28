@@ -142,7 +142,7 @@ where
 
         let size = (range.end - range.start) as usize;
 
-        if self.coherent.0 {
+        if !self.coherent.0 {
             device
                 .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
         }
@@ -179,12 +179,6 @@ where
             .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
         let size = (range.end - range.start) as usize;
-
-        if !self.coherent.0 {
-            device
-                .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
-        }
-
         let slice = mapped_slice_mut::<T>(ptr, size);
 
         let ref memory = self.memory;
