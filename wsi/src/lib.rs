@@ -35,6 +35,37 @@ pub enum SwapchainError {
     BadImageCount(rendy_core::hal::window::SwapImageIndex),
 }
 
+impl std::fmt::Display for SwapchainError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SwapchainError::Create(err) => write!(
+                fmt,
+                "Failed to create swapchain because of a window creation error: {:?}",
+                err
+            ),
+            SwapchainError::BadPresentMode(present_mode) => write!(
+                fmt,
+                "Failed to create swapchain because requested present mode is not supported: {:?}",
+                present_mode
+            ),
+            SwapchainError::BadImageCount(image_count) => write!(
+                fmt,
+                "Failed to create swapchain because requested image count is not supported: {:?}",
+                image_count
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SwapchainError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            SwapchainError::Create(err) => Some(err),
+            SwapchainError::BadPresentMode(_) => None,
+            SwapchainError::BadImageCount(_) => None,
+        }
+    }
+}
 /// Rendering target bound to window.
 pub struct Surface<B: Backend> {
     raw: B::Surface,
