@@ -170,10 +170,10 @@ where
         &self,
         device: &Device<B>,
         buffer: &Buffer<B>,
-        offset: u64,
         staging: Escape<Buffer<B>>,
         last: Option<BufferState>,
         next: BufferState,
+        ranges: impl IntoIterator<Item = rendy_core::hal::command::BufferCopy>,
     ) -> Result<(), OutOfMemory> {
         let mut family_uploads = self.family_uploads[next.queue.family.index]
             .as_ref()
@@ -198,11 +198,7 @@ where
         encoder.copy_buffer(
             staging.raw(),
             buffer.raw(),
-            Some(rendy_core::hal::command::BufferCopy {
-                src: 0,
-                dst: offset,
-                size: staging.size(),
-            }),
+            ranges,
         );
 
         next_upload.staging_buffers.push(staging);

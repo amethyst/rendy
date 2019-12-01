@@ -4,7 +4,7 @@ pub(crate) mod write;
 use {
     crate::{memory::Memory, util::fits_usize},
     gfx_hal::{device::Device as _, Backend},
-    std::{ops::Range, ptr::NonNull},
+    std::{ops::Range, ptr::NonNull, mem::MaybeUninit},
 };
 
 pub(crate) use self::range::{
@@ -118,12 +118,11 @@ where
     /// # Safety
     ///
     /// * Caller must ensure that device won't write to the memory region until the borrowing ends.
-    /// * `T` Must be plain-old-data type compatible with data in mapped region.
     pub unsafe fn read<'b, T>(
         &'b mut self,
         device: &B::Device,
         range: Range<u64>,
-    ) -> Result<&'b [T], gfx_hal::device::MapError>
+    ) -> Result<&'b [MaybeUninit<T>], gfx_hal::device::MapError>
     where
         'a: 'b,
         T: Copy,

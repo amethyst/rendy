@@ -28,7 +28,7 @@ use {
         HasRawWindowHandle,
     },
     smallvec::SmallVec,
-    std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
+    std::{borrow::BorrowMut, cmp::max, mem::{ManuallyDrop, size_of_val}},
     thread_profiler::profile_scope,
 };
 
@@ -442,7 +442,7 @@ where
     /// Update content of the buffer bound to host visible memory.
     /// This function (unlike [`upload_buffer`]) update content immediatelly.
     ///
-    /// Buffers allocated from host-invisible memory types cannot be
+    /// Buffers allocated not from host-invisible memory types cannot be
     /// updated via this function.
     ///
     /// Updated content will be automatically made visible to device operations
@@ -450,7 +450,7 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if buffer size is less than `offset` + size of `content`.
+    /// Panics if buffer size is less than `offset + size_of_val(content)`.
     ///
     /// # Safety
     ///
@@ -468,7 +468,7 @@ where
     {
         let content = std::slice::from_raw_parts(
             content.as_ptr() as *const u8,
-            content.len() * std::mem::size_of::<T>(),
+            size_of_val(content),
         );
 
         let mut mapped = buffer.map(&self.device, offset..offset + content.len() as u64)?;
@@ -512,7 +512,7 @@ where
     {
         assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
 
-        let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
+        let content_size = size_of_val(content) as u64;
         let mut staging = self
             .create_buffer(
                 BufferInfo {
@@ -527,7 +527,11 @@ where
             .map_err(UploadError::Map)?;
 
         self.uploader
-            .upload_buffer(&self.device, buffer, offset, staging, last, next)
+            .upload_buffer(&self.device, buffer, staging, last, next, Some(rendy_core::hal::command::BufferCopy {
+                src: 0,
+                dst: offset,
+                size: content_size,
+            }))
             .map_err(UploadError::Upload)
     }
 
@@ -548,15 +552,15 @@ where
     pub unsafe fn upload_from_staging_buffer(
         &self,
         buffer: &Buffer<B>,
-        offset: u64,
         staging: Escape<Buffer<B>>,
         last: Option<BufferState>,
         next: BufferState,
+        ranges: impl IntoIterator<Item = rendy_core::hal::command::BufferCopy>,
     ) -> Result<(), OutOfMemory> {
         assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
         assert!(staging.info().usage.contains(buffer::Usage::TRANSFER_SRC));
         self.uploader
-            .upload_buffer(&self.device, buffer, offset, staging, last, next)
+            .upload_buffer(&self.device, buffer, staging, last, next, ranges)
     }
 
     /// Update image layers content with provided data.
