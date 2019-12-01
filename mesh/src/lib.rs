@@ -22,14 +22,14 @@ use rendy_factory as factory;
 use rendy_memory as memory;
 use rendy_resource as resource;
 
-mod format;
 mod builder;
-mod r#static;
 mod dynamic;
+mod format;
+mod r#static;
 
-pub use rendy_core::types::vertex::*;
 pub use crate::format::*;
-pub use crate::{builder::*, r#static::*, dynamic::*};
+pub use crate::{builder::*, dynamic::*, r#static::*};
+pub use rendy_core::types::vertex::*;
 
 fn index_stride(ty: rendy_core::hal::IndexType) -> usize {
     match ty {
@@ -101,4 +101,3 @@ fn is_slice_sorted_by_key<'a, T, K: Ord>(slice: &'a [T], f: impl Fn(&'a T) -> K)
     }
     true
 }
-

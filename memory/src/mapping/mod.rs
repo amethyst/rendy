@@ -4,7 +4,7 @@ pub(crate) mod write;
 use {
     crate::{memory::Memory, util::fits_usize},
     gfx_hal::{device::Device as _, Backend},
-    std::{ops::Range, ptr::NonNull, mem::MaybeUninit},
+    std::{mem::MaybeUninit, ops::Range, ptr::NonNull},
 };
 
 pub(crate) use self::range::{

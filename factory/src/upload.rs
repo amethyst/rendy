@@ -195,11 +195,7 @@ where
 
         let next_upload = family_uploads.next_upload(device, next.queue.index)?;
         let mut encoder = next_upload.command_buffer.encoder();
-        encoder.copy_buffer(
-            staging.raw(),
-            buffer.raw(),
-            ranges,
-        );
+        encoder.copy_buffer(staging.raw(), buffer.raw(), ranges);
 
         next_upload.staging_buffers.push(staging);
 

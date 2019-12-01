@@ -1,5 +1,9 @@
 //! Contains functions for casting
-use std::{any::TypeId, borrow::Cow, mem::{size_of, align_of}};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    mem::{align_of, size_of},
+};
 
 /// Cast vec of some arbitrary type into vec of bytes.
 /// Can lead to UB if allocator changes. Use with caution.

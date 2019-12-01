@@ -1,17 +1,24 @@
-
 use crate::{
-    index_stride,
+    align_by,
     command::QueueId,
-    core::{cast_arbitrary_slice, cast_vec, cast_cow, hal::{Backend, IndexType}},
+    core::{
+        cast_arbitrary_slice, cast_cow, cast_vec,
+        hal::{Backend, IndexType},
+    },
+    dynamic::{DynamicIndices, DynamicMesh, DynamicVertices},
     factory::{BufferState, Factory, UploadError},
+    index_stride,
     memory::{Data, Upload, Write},
+    r#static::{IndexBuffer, Mesh, VertexBufferLayout},
     resource::BufferInfo,
     AsVertex, VertexFormat,
-    r#static::{IndexBuffer, Mesh, VertexBufferLayout}, align_by,
-    dynamic::{DynamicMesh, DynamicVertices, DynamicIndices},
 };
 use rendy_core::hal::adapter::PhysicalDevice;
-use std::{any::TypeId, borrow::Cow, mem::{align_of, MaybeUninit}};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    mem::{align_of, MaybeUninit},
+};
 
 /// Abstracts over two types of indices and their absence.
 #[derive(Debug)]
@@ -83,22 +90,42 @@ struct RawVertices<'a> {
     ty: TypeId,
 }
 
-#[derive(Clone, Copy)] #[repr(C, align(1))] struct Aligned1(u8);
-#[derive(Clone, Copy)] #[repr(C, align(2))] struct Aligned2(u8);
-#[derive(Clone, Copy)] #[repr(C, align(4))] struct Aligned4(u8);
-#[derive(Clone, Copy)] #[repr(C, align(8))] struct Aligned8(u8);
-#[derive(Clone, Copy)] #[repr(C, align(16))] struct Aligned16(u8);
-#[derive(Clone, Copy)] #[repr(C, align(32))] struct Aligned32(u8);
-#[derive(Clone, Copy)] #[repr(C, align(64))] struct Aligned64(u8);
-#[derive(Clone, Copy)] #[repr(C, align(128))] struct Aligned128(u8);
-#[derive(Clone, Copy)] #[repr(C, align(256))] struct Aligned256(u8);
-#[derive(Clone, Copy)] #[repr(C, align(512))] struct Aligned512(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(1))]
+struct Aligned1(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(2))]
+struct Aligned2(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(4))]
+struct Aligned4(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(8))]
+struct Aligned8(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(16))]
+struct Aligned16(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(32))]
+struct Aligned32(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(64))]
+struct Aligned64(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(128))]
+struct Aligned128(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(256))]
+struct Aligned256(u8);
+#[derive(Clone, Copy)]
+#[repr(C, align(512))]
+struct Aligned512(u8);
 
 impl RawVertices<'_> {
     fn into_owned(self) -> RawVertices<'static> {
         let bytes = match self.bytes {
-            Cow::Borrowed(bytes) => {
-                unsafe { match self.align {
+            Cow::Borrowed(bytes) => unsafe {
+                match self.align {
                     1 => cast_vec(Vec::<Aligned1>::from(cast_arbitrary_slice(bytes))),
                     2 => cast_vec(Vec::<Aligned2>::from(cast_arbitrary_slice(bytes))),
                     4 => cast_vec(Vec::<Aligned4>::from(cast_arbitrary_slice(bytes))),
@@ -110,7 +137,7 @@ impl RawVertices<'_> {
                     256 => cast_vec(Vec::<Aligned256>::from(cast_arbitrary_slice(bytes))),
                     512 => cast_vec(Vec::<Aligned512>::from(cast_arbitrary_slice(bytes))),
                     _ => panic!("Too aligned"),
-                } }
+                }
             },
             Cow::Owned(owned) => owned,
         };
@@ -125,8 +152,8 @@ impl RawVertices<'_> {
 
     fn into_dynamic(self) -> DynamicVertices {
         let bytes = match self.bytes {
-            Cow::Borrowed(bytes) => {
-                unsafe { match self.align {
+            Cow::Borrowed(bytes) => unsafe {
+                match self.align {
                     1 => cast_vec(Vec::<Aligned1>::from(cast_arbitrary_slice(bytes))),
                     2 => cast_vec(Vec::<Aligned2>::from(cast_arbitrary_slice(bytes))),
                     4 => cast_vec(Vec::<Aligned4>::from(cast_arbitrary_slice(bytes))),
@@ -138,7 +165,7 @@ impl RawVertices<'_> {
                     256 => cast_vec(Vec::<Aligned256>::from(cast_arbitrary_slice(bytes))),
                     512 => cast_vec(Vec::<Aligned512>::from(cast_arbitrary_slice(bytes))),
                     _ => panic!("Too aligned"),
-                } }
+                }
             },
             Cow::Owned(owned) => owned,
         };
@@ -165,11 +192,11 @@ struct RawIndices<'a> {
 impl RawIndices<'_> {
     fn into_owned(self) -> RawIndices<'static> {
         let bytes = match self.bytes {
-            Cow::Borrowed(bytes) => {
-                unsafe { match self.ty {
+            Cow::Borrowed(bytes) => unsafe {
+                match self.ty {
                     IndexType::U16 => cast_vec(Vec::<u16>::from(cast_arbitrary_slice(bytes))),
                     IndexType::U32 => cast_vec(Vec::<u32>::from(cast_arbitrary_slice(bytes))),
-                } }
+                }
             },
             Cow::Owned(owned) => owned,
         };
@@ -182,11 +209,11 @@ impl RawIndices<'_> {
 
     fn into_dynamic(self) -> DynamicIndices {
         let bytes = match self.bytes {
-            Cow::Borrowed(bytes) => {
-                unsafe { match self.ty {
+            Cow::Borrowed(bytes) => unsafe {
+                match self.ty {
                     IndexType::U16 => cast_vec(Vec::<u16>::from(cast_arbitrary_slice(bytes))),
                     IndexType::U32 => cast_vec(Vec::<u32>::from(cast_arbitrary_slice(bytes))),
-                } }
+                }
             },
             Cow::Owned(owned) => owned,
         };
@@ -198,7 +225,6 @@ impl RawIndices<'_> {
         }
     }
 }
-
 
 impl<'a> MeshBuilder<'a> {
     /// Create empty builder.
@@ -347,7 +373,8 @@ impl<'a> MeshBuilder<'a> {
         let mut writer = unsafe {
             // New staging buffer cannot be accessed by device.
             mapped.write(factory, 0..aligned_size)
-        }.map_err(UploadError::Map)?;
+        }
+        .map_err(UploadError::Map)?;
 
         let staging_slice: &mut [MaybeUninit<u8>] = unsafe {
             // Slize is never read.
@@ -362,8 +389,12 @@ impl<'a> MeshBuilder<'a> {
                 let size = v.format.stride as usize * len;
                 unsafe {
                     debug_assert!(v.bytes.len() >= size); // "Ensured by `len` calculation
-                    // `staging_slice` size is sum of all `size`s in this loop + alignment.
-                    std::ptr::copy_nonoverlapping(v.bytes.as_ptr(), staging_slice.as_mut_ptr().add(offset) as *mut u8, size);
+                                                          // `staging_slice` size is sum of all `size`s in this loop + alignment.
+                    std::ptr::copy_nonoverlapping(
+                        v.bytes.as_ptr(),
+                        staging_slice.as_mut_ptr().add(offset) as *mut u8,
+                        size,
+                    );
                 }
                 let this_offset = offset;
                 offset += size;
@@ -391,7 +422,7 @@ impl<'a> MeshBuilder<'a> {
                         src: 0,
                         dst: 0,
                         size: buffer_size as u64,
-                    })
+                    }),
                 )
                 .map_err(UploadError::Upload)?;
         }
@@ -400,10 +431,7 @@ impl<'a> MeshBuilder<'a> {
 
         let index_buffer = match self.indices {
             None => None,
-            Some(RawIndices {
-                ref bytes,
-                ty,
-            }) => {
+            Some(RawIndices { ref bytes, ty }) => {
                 len = bytes.len() / index_stride(ty);
                 let mut buffer = factory
                     .create_buffer(
@@ -442,16 +470,20 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Builds and returns the new dynamic mesh.
-    /// 
+    ///
     /// A mesh expects all vertex buffers to have the same number of elements.
     /// If those are not equal, the length of smallest vertex buffer is selected
-    /// 
+    ///
     /// Note that contents of index buffer is not validated.
-    /// 
+    ///
     /// In addition dynamic mesh can be modified and new vertices added.
     /// Set of vertex attributes or presense of index buffer cannot be changed.
     /// To apply modifications to underlying GPU buffers `DynamicMesh::update` must be called.
-    pub fn build_dynamic<B>(self, queue: QueueId, factory: &Factory<B>) -> Result<DynamicMesh<B>, UploadError>
+    pub fn build_dynamic<B>(
+        self,
+        queue: QueueId,
+        factory: &Factory<B>,
+    ) -> Result<DynamicMesh<B>, UploadError>
     where
         B: Backend,
     {
@@ -459,7 +491,11 @@ impl<'a> MeshBuilder<'a> {
 
         Ok(DynamicMesh {
             mesh,
-            vertices: self.vertices.into_iter().map(RawVertices::into_dynamic).collect(),
+            vertices: self
+                .vertices
+                .into_iter()
+                .map(RawVertices::into_dynamic)
+                .collect(),
             indices: self.indices.map(RawIndices::into_dynamic),
         })
     }

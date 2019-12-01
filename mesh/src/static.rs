@@ -1,11 +1,10 @@
-
 use crate::{
-    Incompatible, is_slice_sorted, is_slice_sorted_by_key, is_compatible,
+    builder::MeshBuilder,
     command::{EncoderCommon, Graphics, RenderPassEncoder, Supports},
     core::hal::Backend,
+    is_compatible, is_slice_sorted, is_slice_sorted_by_key,
     resource::{Buffer, Escape},
-    VertexFormat,
-    builder::MeshBuilder,
+    Incompatible, VertexFormat,
 };
 
 /// Helper function to find buffer with compatible format.
@@ -36,7 +35,6 @@ pub(crate) struct IndexBuffer<B: Backend> {
     pub(crate) buffer: Escape<Buffer<B>>,
     pub(crate) ty: rendy_core::hal::IndexType,
 }
-
 
 /// Single mesh is a collection of buffer ranges that provides available attributes.
 /// Usually exactly one mesh is used per draw call.
@@ -100,7 +98,9 @@ where
         }
 
         let buffer = self.vertex_buffer.raw();
-        Ok(vertex.into_iter().map(move |offset| (buffer, offset as u64)))
+        Ok(vertex
+            .into_iter()
+            .map(move |offset| (buffer, offset as u64)))
     }
 
     /// Bind buffers to specified attribute locations.
@@ -139,11 +139,7 @@ where
         unsafe {
             match self.index_buffer.as_ref() {
                 Some(index_buffer) => {
-                    encoder.bind_index_buffer(
-                        index_buffer.buffer.raw(),
-                        0,
-                        index_buffer.ty,
-                    );
+                    encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.ty);
                     encoder.bind_vertex_buffers(first_binding, vertex_iter);
                     encoder.draw_indexed(0..self.len, 0, instance_range);
                 }

@@ -28,7 +28,11 @@ use {
         HasRawWindowHandle,
     },
     smallvec::SmallVec,
-    std::{borrow::BorrowMut, cmp::max, mem::{ManuallyDrop, size_of_val}},
+    std::{
+        borrow::BorrowMut,
+        cmp::max,
+        mem::{size_of_val, ManuallyDrop},
+    },
     thread_profiler::profile_scope,
 };
 
@@ -466,10 +470,8 @@ where
     where
         T: 'static + Copy,
     {
-        let content = std::slice::from_raw_parts(
-            content.as_ptr() as *const u8,
-            size_of_val(content),
-        );
+        let content =
+            std::slice::from_raw_parts(content.as_ptr() as *const u8, size_of_val(content));
 
         let mut mapped = buffer.map(&self.device, offset..offset + content.len() as u64)?;
         mapped
@@ -527,11 +529,18 @@ where
             .map_err(UploadError::Map)?;
 
         self.uploader
-            .upload_buffer(&self.device, buffer, staging, last, next, Some(rendy_core::hal::command::BufferCopy {
-                src: 0,
-                dst: offset,
-                size: content_size,
-            }))
+            .upload_buffer(
+                &self.device,
+                buffer,
+                staging,
+                last,
+                next,
+                Some(rendy_core::hal::command::BufferCopy {
+                    src: 0,
+                    dst: offset,
+                    size: content_size,
+                }),
+            )
             .map_err(UploadError::Upload)
     }
 

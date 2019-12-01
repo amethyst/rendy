@@ -62,7 +62,10 @@ pub(crate) fn mapped_sub_range(
 /// User must ensure that:
 /// * this function won't create aliasing slices.
 /// * returned slice doesn't outlive mapping.
-pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a mut [MaybeUninit<T>] {
+pub(crate) unsafe fn mapped_slice_mut<'a, T>(
+    ptr: NonNull<u8>,
+    size: usize,
+) -> &'a mut [MaybeUninit<T>] {
     assert_eq!(
         size % size_of::<T>(),
         0,
