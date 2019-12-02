@@ -875,6 +875,33 @@ where
         )
     }
 
+    /// Copy image subresource range to buffer region.
+    ///
+    /// # Safety
+    ///
+    /// Same as `copy_buffer()`
+    ///
+    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyImageToBuffer.html
+    pub unsafe fn copy_image_to_buffer(
+        &mut self,
+        src: &B::Image,
+        src_layout: rendy_core::hal::image::Layout,
+        dst: &B::Buffer,
+        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+    ) where
+        C: Supports<Transfer>,
+    {
+        self.capability.assert();
+
+        rendy_core::hal::command::CommandBuffer::copy_image_to_buffer(
+            self.inner.raw,
+            src,
+            src_layout,
+            dst,
+            regions,
+        )
+    }
+
     /// Blit image regions, potentially using specified filter when resize is necessary.
     ///
     /// # Safety
