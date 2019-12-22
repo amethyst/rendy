@@ -4,9 +4,10 @@
 
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
-    core::cast_cow,
+    core::{cast_any_slice, cast_cow, hal::format::Format},
     factory::{BufferState, Factory, UploadError},
     memory::{Data, Upload, Write},
+    read::FromVertexBuffer,
     resource::{Buffer, BufferInfo, Escape},
     AsVertex, VertexFormat,
 };
@@ -76,6 +77,28 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
     }
 }
 
+impl<'a, 'b> From<Option<&'a RawIndices<'b>>> for Indices<'a> {
+    fn from(v: Option<&'a RawIndices<'b>>) -> Self {
+        let indices = match v {
+            Some(v) => v,
+            None => {
+                return Indices::None;
+            }
+        };
+
+        match indices.index_type {
+            rendy_core::hal::IndexType::U16 => {
+                let slice = unsafe { cast_any_slice(&indices.indices) }.unwrap();
+                Indices::U16(slice.into())
+            }
+            rendy_core::hal::IndexType::U32 => {
+                let slice = unsafe { cast_any_slice(&indices.indices) }.unwrap();
+                Indices::U32(slice.into())
+            }
+        }
+    }
+}
+
 /// Generics-free mesh builder.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -87,12 +110,50 @@ pub struct MeshBuilder<'a> {
     prim: rendy_core::hal::pso::Primitive,
 }
 
+/// Buffer of vertex data
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-struct RawVertices<'a> {
+pub struct RawVertices<'a> {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     vertices: Cow<'a, [u8]>,
     format: VertexFormat,
+}
+impl<'a> RawVertices<'a> {
+    /// Gets the vertex format of this data
+    pub fn format(&self) -> &VertexFormat {
+        &self.format
+    }
+
+    /// Gets the buffer as a raw byte slice
+    pub fn bytes(&self) -> &[u8] {
+        &self.vertices
+    }
+
+    /// Reads data for an attribute.
+    ///
+    /// Returns a view into this buffer that reads the attribute
+    pub fn view_attr<Fmt: FromVertexBuffer>(
+        &self,
+        attr_index: usize,
+    ) -> Option<AttributeView<'_, Fmt>> {
+        let attr = self.format.attributes.get(attr_index)?;
+        let format = attr.element().format;
+        if !Fmt::is_format_compatible(format) {
+            return None;
+        }
+
+        let offset = attr.element().offset as usize;
+        let fmt_size = (format.surface_desc().bits / 8) as usize;
+
+        Some(AttributeView {
+            buf: &self.vertices,
+            offset,
+            stride: self.format.stride as usize,
+            format,
+            fmt_size,
+            _ph: Default::default(),
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -101,6 +162,15 @@ struct RawIndices<'a> {
     #[cfg_attr(feature = "serde", serde(with = "serde_bytes", borrow))]
     indices: Cow<'a, [u8]>,
     index_type: rendy_core::hal::IndexType,
+}
+impl<'a> RawIndices<'a> {
+    /// Number of vertices in this index buffer.
+    ///
+    /// Should not exceed the capacity of a u32, but returns a usize for compatibility with
+    /// other slice-related operations.
+    pub fn len(&self) -> usize {
+        self.indices.len() / index_stride(self.index_type)
+    }
 }
 
 fn index_stride(index_type: rendy_core::hal::IndexType) -> usize {
@@ -207,6 +277,80 @@ impl<'a> MeshBuilder<'a> {
         self
     }
 
+    /// Gets the buffers in this builder
+    pub fn buffers(&self) -> &[RawVertices] {
+        &self.vertices
+    }
+
+    /// Gets the primitive type
+    pub fn prim_type(&self) -> rendy_core::hal::pso::Primitive {
+        self.prim
+    }
+
+    /// Finds an attribute in the mesh and iterates over each vertex.
+    ///
+    /// Returns None if the attribute cannot be found, or the `Fmt` type parameter does not
+    /// match.
+    ///
+    /// See the documentation for `FromVertexBuffer` for supported output formats and types.
+    pub fn view_attr<T: FromVertexBuffer>(&self, name: &str) -> Option<AttributeView<'_, T>> {
+        let (buf, attr_i, _) = self
+            .vertices
+            .iter()
+            .flat_map(|buf| {
+                buf.format
+                    .attributes
+                    .iter()
+                    .enumerate()
+                    .map(move |(attr_i, attr)| (buf, attr_i, attr))
+            })
+            .find(|(_, _, attr)| attr.name() == name)?;
+        buf.view_attr(attr_i)
+    }
+
+    /// Number of vertices that this mesh builder stores.
+    pub fn num_vertices_stored(&self) -> usize {
+        self.vertices
+            .iter()
+            .map(|v| v.vertices.len() / v.format.stride as usize)
+            .min()
+            .unwrap_or(0)
+    }
+
+    /// Number of vertices that this mesh builder draws.
+    ///
+    /// If there is no index buffer, this is the same as `num_vertices_stored`, otherwise
+    /// it is the number of elements in the index buffer.
+    pub fn num_vertices_drawn(&self) -> usize {
+        if let Some(ref index) = self.indices {
+            index.len()
+        } else {
+            self.num_vertices_stored()
+        }
+    }
+
+    /// Gets the index buffer (if any).
+    ///
+    /// The `Cow` objects in the resulting `Indices` object will always
+    /// be borrowed,
+    pub fn indices(&self) -> Indices<'_> {
+        self.indices.as_ref().into()
+    }
+
+    /// Iterates over the index buffer indices, or from 0 to `num_vertices_stored` if there is
+    /// no index buffer.
+    pub fn iter_indices(&self) -> IndicesIter<'_> {
+        let src = match self.indices() {
+            Indices::None => IndicesIterSrc::NoIndices(0..self.num_vertices_stored()),
+            Indices::U16(Cow::Borrowed(slice)) => IndicesIterSrc::U16(slice.iter()),
+            Indices::U32(Cow::Borrowed(slice)) => IndicesIterSrc::U32(slice.iter()),
+            _ => {
+                unreachable!();
+            }
+        };
+        IndicesIter(src)
+    }
+
     /// Builds and returns the new mesh.
     ///
     /// A mesh expects all vertex buffers to have the same number of elements.
@@ -219,12 +363,7 @@ impl<'a> MeshBuilder<'a> {
         B: rendy_core::hal::Backend,
     {
         let align = factory.physical().limits().non_coherent_atom_size;
-        let mut len = self
-            .vertices
-            .iter()
-            .map(|v| v.vertices.len() as u32 / v.format.stride)
-            .min()
-            .unwrap_or(0);
+        let mut len = self.num_vertices_stored() as u32;
 
         let buffer_size = self
             .vertices
@@ -339,6 +478,121 @@ impl<'a> MeshBuilder<'a> {
             prim: self.prim,
             len,
         })
+    }
+}
+
+/// View into a buffer that reads a certain attribute
+#[derive(Debug, Clone)]
+pub struct AttributeView<'a, Fmt: FromVertexBuffer> {
+    buf: &'a [u8],
+    offset: usize,
+    stride: usize,
+    format: Format,
+    fmt_size: usize,
+    _ph: std::marker::PhantomData<dyn Fn() -> Fmt + Send + Sync>,
+}
+impl<'a, Fmt: FromVertexBuffer> AttributeView<'a, Fmt> {
+    /// Number of elements in this buffer
+    pub fn len(&self) -> usize {
+        self.buf.len() / self.stride
+    }
+
+    /// Gets the n'th value in the buffer for the attribute.
+    ///
+    /// Returns `None` if the index is out of range
+    pub fn get(&self, index: usize) -> Option<Fmt> {
+        if index >= self.len() {
+            return None;
+        }
+        Some(self.get_unwrap(index))
+    }
+
+    /// Gets the n'th value in the buffer for this attribute.
+    ///
+    /// Panic
+    /// =====
+    ///
+    /// Panics if the index is out of range.
+    pub fn get_unwrap(&self, index: usize) -> Fmt {
+        let raw_index = index * self.stride + self.offset;
+        let section = &self.buf[raw_index..raw_index + self.fmt_size];
+        Fmt::read_one(self.format, section)
+    }
+
+    /// Iterates over all attributes in the buffer
+    pub fn iter(&self) -> AttributeIter<'_, 'a, Fmt> {
+        AttributeIter {
+            view: self,
+            range: 0..self.len(),
+        }
+    }
+}
+
+/// Iterator over a specific attribute
+#[derive(Debug, Clone)]
+pub struct AttributeIter<'a, 'b, Fmt: FromVertexBuffer> {
+    view: &'a AttributeView<'b, Fmt>,
+    range: std::ops::Range<usize>,
+}
+impl<'a, 'b, Fmt: FromVertexBuffer> Iterator for AttributeIter<'a, 'b, Fmt> {
+    type Item = Fmt;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.range.next().map(|i| self.view.get_unwrap(i))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.range.size_hint()
+    }
+}
+impl<'a, 'b, Fmt: FromVertexBuffer> ExactSizeIterator for AttributeIter<'a, 'b, Fmt> {}
+impl<'a, 'b, Fmt: FromVertexBuffer> DoubleEndedIterator for AttributeIter<'a, 'b, Fmt> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.range.next_back().map(|i| self.view.get_unwrap(i))
+    }
+}
+
+#[derive(Debug, Clone)]
+enum IndicesIterSrc<'a> {
+    NoIndices(std::ops::Range<usize>),
+    U16(std::slice::Iter<'a, u16>),
+    U32(std::slice::Iter<'a, u32>),
+}
+
+/// Iterates over an index buffer.
+///
+/// If an index buffer was available, iterates over each index
+/// converted to `usize` for easy indexing.
+///
+/// If no index buffer was available, just iterates from 0 to the number
+/// of vertices in the other buffers.
+#[derive(Debug, Clone)]
+pub struct IndicesIter<'a>(IndicesIterSrc<'a>);
+impl<'a> Iterator for IndicesIter<'a> {
+    type Item = usize;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0 {
+            IndicesIterSrc::NoIndices(ref mut i) => i.next(),
+            IndicesIterSrc::U16(ref mut i) => i.next().map(|v| *v as usize),
+            IndicesIterSrc::U32(ref mut i) => i.next().map(|v| *v as usize),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self.0 {
+            IndicesIterSrc::NoIndices(ref i) => i.size_hint(),
+            IndicesIterSrc::U16(ref i) => i.size_hint(),
+            IndicesIterSrc::U32(ref i) => i.size_hint(),
+        }
+    }
+}
+impl<'a> ExactSizeIterator for IndicesIter<'a> {}
+impl<'a> DoubleEndedIterator for IndicesIter<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.0 {
+            IndicesIterSrc::NoIndices(ref mut i) => i.next_back(),
+            IndicesIterSrc::U16(ref mut i) => i.next_back().map(|v| *v as usize),
+            IndicesIterSrc::U32(ref mut i) => i.next_back().map(|v| *v as usize),
+        }
     }
 }
 
@@ -575,3 +829,133 @@ macro_rules! impl_builder_from_vec {
 }
 
 impl_builder_from_vec!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::vertex::{Normal, PosNorm, Position};
+
+    fn check_attr_view<T: FromVertexBuffer + std::fmt::Debug + Clone + PartialEq>(
+        view: AttributeView<T>,
+        expected: &[T],
+    ) {
+        assert_eq!(view.len(), expected.len());
+        for (i, v) in expected.iter().enumerate() {
+            assert_eq!(view.get(i), Some(v.clone()));
+            assert_eq!(view.get_unwrap(i), v.clone());
+        }
+        assert_eq!(view.get(expected.len()), None);
+
+        let mut iter = view.iter();
+        for (i, v) in expected.iter().enumerate() {
+            assert_eq!(iter.len(), expected.len() - i);
+            assert_eq!(iter.next(), Some(v.clone()));
+        }
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn attr_view_separate_buffers() {
+        let mut mesh = MeshBuilder::new();
+        mesh.add_vertices(vec![
+            Position([1., 0., 0.]),
+            Position([0., 1., 0.]),
+            Position([0., 0., 1.]),
+        ]);
+        mesh.add_vertices(vec![
+            Normal([0., 1., 1.]),
+            Normal([1., 0., 1.]),
+            Normal([1., 1., 0.]),
+        ]);
+
+        check_attr_view(
+            mesh.view_attr::<[f32; 3]>("position")
+                .expect("did not find position"),
+            &vec![[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+        );
+        check_attr_view(
+            mesh.view_attr::<[f32; 3]>("normal")
+                .expect("did not find position"),
+            &vec![[0., 1., 1.], [1., 0., 1.], [1., 1., 0.]],
+        );
+        assert!(mesh.view_attr::<[f32; 3]>("idontexist").is_none());
+        assert!(mesh.view_attr::<u8>("position").is_none());
+    }
+
+    #[test]
+    fn attr_view_interleaved_buffer() {
+        let mut mesh = MeshBuilder::new();
+        mesh.add_vertices(vec![
+            PosNorm {
+                position: Position([1., 0., 0.]),
+                normal: Normal([0., 1., 1.]),
+            },
+            PosNorm {
+                position: Position([0., 1., 0.]),
+                normal: Normal([1., 0., 1.]),
+            },
+            PosNorm {
+                position: Position([0., 0., 1.]),
+                normal: Normal([1., 1., 0.]),
+            },
+        ]);
+
+        check_attr_view(
+            mesh.view_attr::<[f32; 3]>("position")
+                .expect("did not find position"),
+            &vec![[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+        );
+        check_attr_view(
+            mesh.view_attr::<[f32; 3]>("normal")
+                .expect("did not find position"),
+            &vec![[0., 1., 1.], [1., 0., 1.], [1., 1., 0.]],
+        );
+        assert!(mesh.view_attr::<[f32; 3]>("idontexist").is_none());
+        assert!(mesh.view_attr::<u8>("position").is_none());
+    }
+
+    #[test]
+    fn index_iter_no_indices() {
+        let mut mesh = MeshBuilder::new();
+        mesh.add_vertices(vec![
+            Position([1., 0., 0.]),
+            Position([0., 1., 0.]),
+            Position([0., 0., 1.]),
+        ]);
+        assert_eq!(mesh.num_vertices_stored(), 3);
+        assert_eq!(mesh.num_vertices_drawn(), 3);
+
+        assert!(mesh.iter_indices().eq(vec![0, 1, 2].into_iter()));
+    }
+
+    #[test]
+    fn index_iter_u16_indices() {
+        let mut mesh = MeshBuilder::new();
+        mesh.add_vertices(vec![
+            Position([1., 0., 0.]),
+            Position([0., 1., 0.]),
+            Position([0., 0., 1.]),
+        ]);
+        mesh.set_indices(vec![2u16, 3, 1, 1, 2, 3]);
+        assert_eq!(mesh.num_vertices_stored(), 3);
+        assert_eq!(mesh.num_vertices_drawn(), 6);
+
+        assert!(mesh.iter_indices().eq(vec![2, 3, 1, 1, 2, 3].into_iter()));
+    }
+
+    #[test]
+    fn index_iter_u32_indices() {
+        let mut mesh = MeshBuilder::new();
+        mesh.add_vertices(vec![
+            Position([1., 0., 0.]),
+            Position([0., 1., 0.]),
+            Position([0., 0., 1.]),
+        ]);
+        mesh.set_indices(vec![2u32, 3, 1, 1, 2, 3]);
+        assert_eq!(mesh.num_vertices_stored(), 3);
+        assert_eq!(mesh.num_vertices_drawn(), 6);
+
+        assert!(mesh.iter_indices().eq(vec![2, 3, 1, 1, 2, 3].into_iter()));
+    }
+}

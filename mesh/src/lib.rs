@@ -24,6 +24,7 @@ use rendy_resource as resource;
 
 mod format;
 mod mesh;
+mod read;
 
-pub use crate::{format::*, mesh::*};
+pub use crate::{format::*, mesh::*, read::*};
 pub use rendy_core::types::vertex::*;

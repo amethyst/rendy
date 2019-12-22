@@ -1,5 +1,5 @@
 //! Contains functions for casting
-use std::{any::TypeId, borrow::Cow};
+use std::{any::TypeId, borrow::Cow, mem, slice};
 
 /// Cast vec of some arbitrary type into vec of bytes.
 /// Can lead to UB if allocator changes. Use with caution.
@@ -58,4 +58,36 @@ pub fn identical_cast<T: 'static, U: 'static>(value: T) -> U {
         let ptr: *mut T = &mut *value;
         std::ptr::read(ptr as *mut U)
     }
+}
+
+/// Tries to cast a slice from one type to another.
+///
+/// Can fail and return `None` if the from slice is not sized or aligned correctly.
+///
+/// Safety
+/// ======
+///
+/// Must be able to interpret `To` from the bytes in `From` safely (you could, for example, create invalid references).
+pub unsafe fn cast_any_slice<From: 'static + Copy, To: 'static + Copy>(
+    from: &[From],
+) -> Option<&[To]> {
+    let from_size = mem::size_of::<From>();
+    let from_ptr = from.as_ptr();
+    let from_len = from.len();
+    let to_size = mem::size_of::<To>();
+    let to_align = mem::align_of::<To>();
+    if from_size == 0 || to_size == 0 {
+        // can't cast zero-sized types
+        return None;
+    }
+    if (from_len * from_size) % to_size != 0 {
+        // invalid size
+        return None;
+    }
+    if from_ptr.align_offset(to_align) != 0 {
+        // unaligned pointer
+        return None;
+    }
+    let to_len = (from_len * from_size) / to_size;
+    Some(slice::from_raw_parts(from_ptr as *const To, to_len))
 }
