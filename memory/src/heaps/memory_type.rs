@@ -25,21 +25,22 @@ where
         heap_index: usize,
         properties: Properties,
         config: HeapsConfig,
+        non_coherent_atom_size: u64,
     ) -> Self {
         MemoryType {
             properties,
             heap_index,
-            dedicated: DedicatedAllocator::new(memory_type, properties),
+            dedicated: DedicatedAllocator::new(memory_type, properties, non_coherent_atom_size),
             linear: if properties.contains(Properties::CPU_VISIBLE) {
-                config
-                    .linear
-                    .map(|config| LinearAllocator::new(memory_type, properties, config))
+                config.linear.map(|config| {
+                    LinearAllocator::new(memory_type, properties, config, non_coherent_atom_size)
+                })
             } else {
                 None
             },
-            dynamic: config
-                .dynamic
-                .map(|config| DynamicAllocator::new(memory_type, properties, config)),
+            dynamic: config.dynamic.map(|config| {
+                DynamicAllocator::new(memory_type, properties, config, non_coherent_atom_size)
+            }),
             used: 0,
             effective: 0,
         }

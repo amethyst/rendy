@@ -7,6 +7,7 @@ pub struct Memory<B: gfx_hal::Backend> {
     raw: B::Memory,
     size: u64,
     properties: gfx_hal::memory::Properties,
+    non_coherent_atom_size: u64,
     relevant: relevant::Relevant,
 }
 
@@ -35,6 +36,14 @@ where
         self.raw
     }
 
+    pub(crate) fn non_coherent_atom_size(&self) -> u64 {
+        debug_assert!(
+            self.host_visible() && !self.host_coherent(),
+            "Irrelevent and shouldn't be called",
+        );
+        self.non_coherent_atom_size
+    }
+
     /// Create memory from raw object.
     ///
     /// # Safety
@@ -44,11 +53,13 @@ where
         raw: B::Memory,
         size: u64,
         properties: gfx_hal::memory::Properties,
+        non_coherent_atom_size: u64,
     ) -> Self {
         Memory {
             properties,
             raw,
             size,
+            non_coherent_atom_size,
             relevant: relevant::Relevant,
         }
     }

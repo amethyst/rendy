@@ -80,17 +80,28 @@ where
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
+
         if !self.memory.host_visible() {
             //TODO: invalid access error
             return Err(gfx_hal::device::MapError::MappingFailed);
         }
 
-        if let Some((ptr, range)) = mapped_sub_range(self.ptr, self.range.clone(), range) {
-            let mapping = unsafe { MappedRange::from_raw(&*self.memory, ptr, range) };
-            Ok(mapping)
+        let requested_range = relative_to_sub_range(self.range.clone(), range)
+            .ok_or(gfx_hal::device::MapError::OutOfBounds)?;
+
+        let mapping_range = if !self.memory.host_coherent() {
+            align_range(
+                requested_range.clone(),
+                self.memory.non_coherent_atom_size(),
+            )
         } else {
-            Err(gfx_hal::device::MapError::OutOfBounds)
-        }
+            requested_range.clone()
+        };
+
+        let ptr = mapped_sub_range(self.ptr, self.range.clone(), mapping_range.clone()).unwrap();
+        let mapping =
+            unsafe { MappedRange::from_raw(&*self.memory, ptr, mapping_range, requested_range) };
+        Ok(mapping)
     }
 
     #[inline]
@@ -124,6 +135,7 @@ pub struct LinearAllocator<B: Backend> {
     linear_size: u64,
     offset: u64,
     lines: VecDeque<Line<B>>,
+    non_coherent_atom_size: u64,
 }
 
 #[derive(Debug)]
@@ -158,6 +170,7 @@ where
         memory_type: gfx_hal::MemoryTypeId,
         memory_properties: gfx_hal::memory::Properties,
         config: LinearConfig,
+        non_coherent_atom_size: u64,
     ) -> Self {
         log::trace!(
             "Create new 'linear' allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
@@ -165,17 +178,23 @@ where
             memory_properties,
             config
         );
+        let linear_size = if is_non_coherent_visible(memory_properties) {
+            align_size(config.linear_size, non_coherent_atom_size)
+        } else {
+            config.linear_size
+        };
         assert!(memory_properties.contains(Self::properties_required()));
         assert!(
-            fits_usize(config.linear_size),
+            fits_usize(linear_size),
             "Linear size must fit in both usize and u64"
         );
         LinearAllocator {
             memory_type,
             memory_properties,
-            linear_size: config.linear_size,
+            linear_size,
             offset: 0,
             lines: VecDeque::new(),
+            non_coherent_atom_size,
         }
     }
 
@@ -237,19 +256,30 @@ where
             .memory_properties
             .contains(gfx_hal::memory::Properties::CPU_VISIBLE));
 
+        let (size, align) = if is_non_coherent_visible(self.memory_properties) {
+            (
+                align_size(size, self.non_coherent_atom_size),
+                align_size(align, self.non_coherent_atom_size),
+            )
+        } else {
+            (size, align)
+        };
+
         assert!(size <= self.linear_size);
         assert!(align <= self.linear_size);
 
         let count = self.lines.len() as u64;
         if let Some(line) = self.lines.back_mut() {
-            let aligned = aligned(line.used, align);
-            let overhead = aligned - line.used;
-            if self.linear_size - size > aligned {
-                line.used = aligned + size;
+            let aligned_offset = aligned(line.used, align);
+            let overhead = aligned_offset - line.used;
+            if self.linear_size - size > aligned_offset {
+                line.used = aligned_offset + size;
                 line.free += overhead;
-                let (ptr, range) =
-                    mapped_sub_range(line.ptr, 0..self.linear_size, aligned..aligned + size)
-                        .expect("This sub-range must fit in line mapping");
+
+                let range = aligned_offset..aligned_offset + size;
+
+                let ptr = mapped_sub_range(line.ptr, 0..self.linear_size, range.clone())
+                    .expect("This sub-range must fit in line mapping");
 
                 return Ok((
                     LinearBlock {
@@ -276,7 +306,12 @@ where
                 Err(_) => panic!("Unexpected mapping failure"),
             };
 
-            let memory = Memory::from_raw(raw, self.linear_size, self.memory_properties);
+            let memory = Memory::from_raw(
+                raw,
+                self.linear_size,
+                self.memory_properties,
+                self.non_coherent_atom_size,
+            );
 
             (memory, ptr)
         };
@@ -288,14 +323,11 @@ where
             memory: Arc::new(memory),
         };
 
-        let (ptr, range) = mapped_sub_range(ptr, 0..self.linear_size, 0..size)
-            .expect("This sub-range must fit in line mapping");
-
         let block = LinearBlock {
             linear_index: self.offset + count,
             memory: line.memory.clone(),
             ptr,
-            range,
+            range: 0..size,
             relevant: relevant::Relevant,
         };
 

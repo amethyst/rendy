@@ -4,8 +4,9 @@ use {
     crate::{
         allocator::{Allocator, Kind},
         block::Block,
-        mapping::{mapped_fitting_range, MappedRange},
+        mapping::{mapped_sub_range, MappedRange},
         memory::*,
+        util::*,
     },
     gfx_hal::{device::Device as _, Backend},
 };
@@ -74,18 +75,31 @@ where
             return Err(gfx_hal::device::MapError::MappingFailed);
         }
 
+        let requested_range = range.clone();
+        let mapping_range = if !self.memory.host_coherent() {
+            align_range(range, self.memory.non_coherent_atom_size())
+        } else {
+            range
+        };
+
         unsafe {
             if let Some(ptr) = self
                 .mapping
                 .clone()
-                .and_then(|mapping| mapped_fitting_range(mapping.0, mapping.1, range.clone()))
+                .and_then(|(ptr, range)| mapped_sub_range(ptr, range, mapping_range.clone()))
             {
-                Ok(MappedRange::from_raw(&self.memory, ptr, range))
+                Ok(MappedRange::from_raw(
+                    &self.memory,
+                    ptr,
+                    mapping_range,
+                    requested_range,
+                ))
             } else {
                 self.unmap(device);
-                let ptr = device.map_memory(self.memory.raw(), range.clone())?;
+                let ptr = device.map_memory(self.memory.raw(), mapping_range.clone())?;
                 let ptr = NonNull::new(ptr).expect("Memory mapping shouldn't return nullptr");
-                let mapping = MappedRange::from_raw(&self.memory, ptr, range);
+                let mapping =
+                    MappedRange::from_raw(&self.memory, ptr, mapping_range, requested_range);
                 self.mapping = Some((mapping.ptr(), mapping.range()));
                 Ok(mapping)
             }
@@ -114,6 +128,7 @@ where
 pub struct DedicatedAllocator {
     memory_type: gfx_hal::MemoryTypeId,
     memory_properties: gfx_hal::memory::Properties,
+    non_coherent_atom_size: u64,
     used: u64,
 }
 
@@ -128,10 +143,12 @@ impl DedicatedAllocator {
     pub fn new(
         memory_type: gfx_hal::MemoryTypeId,
         memory_properties: gfx_hal::memory::Properties,
+        non_coherent_atom_size: u64,
     ) -> Self {
         DedicatedAllocator {
             memory_type,
             memory_properties,
+            non_coherent_atom_size,
             used: 0,
         }
     }
@@ -154,11 +171,18 @@ where
         size: u64,
         _align: u64,
     ) -> Result<(DedicatedBlock<B>, u64), gfx_hal::device::AllocationError> {
+        let size = if is_non_coherent_visible(self.memory_properties) {
+            align_size(size, self.non_coherent_atom_size)
+        } else {
+            size
+        };
+
         let memory = unsafe {
             Memory::from_raw(
                 device.allocate_memory(self.memory_type, size)?,
                 size,
                 self.memory_properties,
+                self.non_coherent_atom_size,
             )
         };
 
