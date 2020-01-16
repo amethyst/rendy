@@ -206,18 +206,18 @@ where
             config
         );
 
+        assert!(
+            config.block_size_granularity.is_power_of_two(),
+            "Allocation granularity must be power of two"
+        );
+
         let block_size_granularity = if is_non_coherent_visible(memory_properties) {
             non_coherent_atom_size
-                .next_power_of_two()
                 .max(config.block_size_granularity)
+                .next_power_of_two()
         } else {
             config.block_size_granularity
         };
-
-        assert!(
-            block_size_granularity.is_power_of_two(),
-            "Allocation granularity must be power of two"
-        );
 
         assert!(
             config.max_chunk_size.is_power_of_two(),
@@ -555,6 +555,14 @@ where
         debug_assert!(size <= self.max_allocation());
         debug_assert!(align.is_power_of_two());
         let aligned_size = ((size - 1) | (align - 1) | (self.block_size_granularity - 1)) + 1;
+
+        // This will change nothing if `self.non_coherent_atom_size` is power of two.
+        // But just in case...
+        let aligned_size = if is_non_coherent_visible(self.memory_properties) {
+            align_size(aligned_size, self.non_coherent_atom_size)
+        } else {
+            aligned_size
+        };
 
         log::trace!(
             "Allocate dynamic block: size: {}, align: {}, aligned size: {}, type: {}",

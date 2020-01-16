@@ -135,8 +135,8 @@ pub(crate) fn align_size(size: u64, align: u64) -> u64 {
 }
 
 pub(crate) fn is_non_coherent_visible(properties: gfx_hal::memory::Properties) -> bool {
-    properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-        && !properties.contains(gfx_hal::memory::Properties::COHERENT)
+    properties & (gfx_hal::memory::Properties::CPU_VISIBLE | gfx_hal::memory::Properties::COHERENT)
+        == gfx_hal::memory::Properties::CPU_VISIBLE
 }
 
 pub(crate) fn relative_to_sub_range(
