@@ -11,10 +11,10 @@ use rendy::{
     },
     hal::{self, device::Device as _},
     init::winit::{
+        dpi::{PhysicalSize, LogicalSize},
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
-        dpi::{PhysicalSize, LogicalSize},
     },
     init::AnyWindowedRendy,
     memory::Dynamic,
