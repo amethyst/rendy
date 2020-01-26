@@ -13,7 +13,7 @@ use rendy::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
-        dpi::{PhysicalSize, LogicalSize},
+        dpi::{PhysicalSize},
     },
     init::AnyWindowedRendy,
     memory::Dynamic,
@@ -259,7 +259,7 @@ fn main() {
             let (width, height) = {
                 let size = window.inner_size().to_logical(window.scale_factor());
                 (size.width, size.height)
-            }
+            };
 
             graph_builder.add_node(
                 TriangleRenderPipeline::builder()
