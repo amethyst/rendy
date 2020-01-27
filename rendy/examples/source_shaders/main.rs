@@ -12,7 +12,7 @@ use rendy::{
     },
     hal,
     init::winit::{
-        dpi::{PhysicalSize, LogicalSize},
+        dpi::{LogicalSize, PhysicalSize},
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
