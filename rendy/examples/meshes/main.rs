@@ -13,7 +13,7 @@ use {
         graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
         hal::{self, adapter::PhysicalDevice as _, device::Device as _},
         init::winit::{
-            dpi::{PhysicalSize, LogicalSize},
+            dpi::{LogicalSize, PhysicalSize},
             event::{Event, WindowEvent},
             event_loop::{ControlFlow, EventLoop},
             window::WindowBuilder,

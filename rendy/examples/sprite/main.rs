@@ -11,7 +11,7 @@ use rendy::{
     },
     hal::{self, device::Device as _},
     init::winit::{
-        dpi::{PhysicalSize, LogicalSize},
+        dpi::{LogicalSize, PhysicalSize},
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,

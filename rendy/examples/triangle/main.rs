@@ -10,7 +10,7 @@ use rendy::{
     graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::{self, Backend},
     init::winit::{
-        dpi::{PhysicalSize},
+        dpi::PhysicalSize,
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
