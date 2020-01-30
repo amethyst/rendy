@@ -21,7 +21,7 @@ use rendy::{
     },
     hal::{self, device::Device as _},
     init::winit::{
-        dpi::{LogicalSize, PhysicalSize},
+        dpi::LogicalSize,
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{Window, WindowBuilder},
@@ -557,7 +557,7 @@ fn build_graph<B: hal::Backend>(
 
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
-    let size: LogicalSize<u32> = window.inner_size().to_logical(window.scale_factor());
+    let size = window.inner_size();
     let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
 
     let depth = graph_builder.create_image(
@@ -606,7 +606,7 @@ fn main() {
     let config: Config = Default::default();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(960, 640))
+        .with_inner_size(LogicalSize::new(960, 640))
         .with_title("Rendy example");
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
