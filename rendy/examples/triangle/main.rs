@@ -256,10 +256,7 @@ fn main() {
     rendy::with_any_windowed_rendy!((rendy)
         (mut factory, mut families, surface, window) => {
             let mut graph_builder = GraphBuilder::<_, ()>::new();
-            let (width, height) = {
-                let size = window.inner_size().to_logical(window.scale_factor());
-                (size.width, size.height)
-            };
+            let (width, height) = window.inner_size().into();
 
             graph_builder.add_node(
                 TriangleRenderPipeline::builder()

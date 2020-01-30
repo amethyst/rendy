@@ -370,7 +370,7 @@ fn main() {
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size(Into::<LogicalSize<u32>>::into((960, 640)))
+        .with_inner_size(LogicalSize::new(960, 640))
         .with_title("Rendy example");
 
     let config: Config = Default::default();

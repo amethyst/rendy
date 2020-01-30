@@ -12,7 +12,7 @@ use rendy::{
     },
     hal,
     init::winit::{
-        dpi::{LogicalSize, PhysicalSize},
+        dpi::LogicalSize,
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
@@ -277,7 +277,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Rendy example")
-        .with_inner_size(PhysicalSize::new(960, 640));
+        .with_inner_size(LogicalSize::new(960, 640));
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
     rendy::with_any_windowed_rendy!((rendy)
@@ -285,7 +285,7 @@ fn main() {
 
             let mut graph_builder = GraphBuilder::<_, ()>::new();
 
-            let size: LogicalSize<u32> = window.inner_size().to_logical(window.scale_factor());
+            let size = window.inner_size();
 
             let color = graph_builder.create_image(
                 hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
