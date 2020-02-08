@@ -2,7 +2,8 @@
 
 use log::trace;
 use {
-    crate::{mesh::MeshBuilder, Normal, Position, TexCoord},
+    crate::{mesh::MeshBuilder, Normal, Position, Tangent, TexCoord},
+    smallvec::SmallVec,
     wavefront_obj::obj,
 };
 
@@ -98,13 +99,32 @@ fn load_from_data(
                 })
                 .collect::<Vec<_>>();
 
+            let tangents = positions
+                .chunks(3)
+                .zip(tex_coords.chunks(3))
+                .flat_map(|tri| {
+                    let looped = tri.0
+                        .iter()
+                        .zip(tri.1)
+                        .cycle()
+                        .take(5)
+                        .collect::<SmallVec<[_;5]>>();
+                    looped
+                        .windows(3)
+                        .map(compute_tangent)
+                        .collect::<SmallVec<[_;3]>>()
+                })
+                .collect::<Vec<_>>();
+
             // builder.set_indices(indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>());
 
             debug_assert!(&normals.len() == &positions.len());
+            debug_assert!(&tangents.len() == &positions.len());
             debug_assert!(&tex_coords.len() == &positions.len());
 
             builder.add_vertices(positions);
             builder.add_vertices(normals);
+            builder.add_vertices(tangents);
             builder.add_vertices(tex_coords);
 
             // TODO: Add Material loading
@@ -113,6 +133,46 @@ fn load_from_data(
     }
     trace!("Loaded mesh");
     Ok(objects)
+}
+
+// compute tangent for the first vertex of a tri from vertex positions
+// and texture coordinates
+fn compute_tangent(tri: &[(&Position, &TexCoord)]) -> Tangent {
+    let (a_obj, b_obj, c_obj) = (
+        &(tri[0].0).0,
+        &(tri[1].0).0,
+        &(tri[2].0).0,
+    );
+    let (a_tex, b_tex, c_tex) = (
+        &(tri[0].1).0,
+        &(tri[1].1).0,
+        &(tri[2].1).0,
+    );
+
+    let tspace_1_1 = b_tex[0] - a_tex[0];
+    let tspace_2_1 = b_tex[1] - a_tex[1];
+
+    let tspace_1_2 = c_tex[0] - a_tex[0];
+    let tspace_2_2 = c_tex[1] - a_tex[1];
+
+    let ospace_1_1 = b_obj[0] - a_obj[0];
+    let ospace_2_1 = b_obj[1] - a_obj[1];
+    let ospace_3_1 = b_obj[2] - a_obj[2];
+
+    let ospace_1_2 = c_obj[0] - a_obj[0];
+    let ospace_2_2 = c_obj[1] - a_obj[1];
+    let ospace_3_2 = c_obj[2] - a_obj[2];
+
+    let tspace_det = tspace_1_1 * tspace_2_2 - tspace_1_2 * tspace_2_1;
+
+    let tspace_inv_1_1 = tspace_2_2 / tspace_det;
+    let tspace_inv_2_1 = -tspace_2_1 / tspace_det;
+    Tangent([
+        ospace_1_1 * tspace_inv_1_1 + ospace_1_2 * tspace_inv_2_1,
+        ospace_2_1 * tspace_inv_1_1 + ospace_2_2 * tspace_inv_2_1,
+        ospace_3_1 * tspace_inv_1_1 + ospace_3_2 * tspace_inv_2_1,
+        1.0,
+    ])
 }
 
 #[cfg(test)]
