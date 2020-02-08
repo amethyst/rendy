@@ -103,16 +103,17 @@ fn load_from_data(
                 .chunks(3)
                 .zip(tex_coords.chunks(3))
                 .flat_map(|tri| {
-                    let looped = tri.0
+                    let looped = tri
+                        .0
                         .iter()
                         .zip(tri.1)
                         .cycle()
                         .take(5)
-                        .collect::<SmallVec<[_;5]>>();
+                        .collect::<SmallVec<[_; 5]>>();
                     looped
                         .windows(3)
                         .map(compute_tangent)
-                        .collect::<SmallVec<[_;3]>>()
+                        .collect::<SmallVec<[_; 3]>>()
                 })
                 .collect::<Vec<_>>();
 
@@ -138,16 +139,8 @@ fn load_from_data(
 // compute tangent for the first vertex of a tri from vertex positions
 // and texture coordinates
 fn compute_tangent(tri: &[(&Position, &TexCoord)]) -> Tangent {
-    let (a_obj, b_obj, c_obj) = (
-        &(tri[0].0).0,
-        &(tri[1].0).0,
-        &(tri[2].0).0,
-    );
-    let (a_tex, b_tex, c_tex) = (
-        &(tri[0].1).0,
-        &(tri[1].1).0,
-        &(tri[2].1).0,
-    );
+    let (a_obj, b_obj, c_obj) = (&(tri[0].0).0, &(tri[1].0).0, &(tri[2].0).0);
+    let (a_tex, b_tex, c_tex) = (&(tri[0].1).0, &(tri[1].1).0, &(tri[2].1).0);
 
     let tspace_1_1 = b_tex[0] - a_tex[0];
     let tspace_2_1 = b_tex[1] - a_tex[1];
