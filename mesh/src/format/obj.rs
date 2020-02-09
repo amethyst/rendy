@@ -3,7 +3,8 @@
 use log::trace;
 use {
     crate::{mesh::MeshBuilder, Normal, Position, Tangent, TexCoord},
-    smallvec::SmallVec,
+    smallvec::{smallvec, SmallVec},
+    std::collections::{BTreeSet, HashMap},
     wavefront_obj::obj,
 };
 
@@ -53,80 +54,87 @@ fn load_from_data(
         for geometry in &object.geometry {
             let mut builder = MeshBuilder::new();
 
-            let mut indices = Vec::new();
+            // Since vertices, normals, tangents, and texture coordinates share
+            // indices in rendy, we need an index for each unique VTNIndex.
+            // E.x. f 1/1/1, 2/2/1, and 1/2/1 needs three different vertices, even
+            // though only two vertices are referenced in the soure wavefron OBJ.
+            let indices = geometry
+                .shapes
+                .iter()
+                .flat_map(|shape| {
+                    let tri: Option<SmallVec<[_; 3]>> = match shape.primitive {
+                        obj::Primitive::Triangle(i1, i2, i3) => Some(smallvec![i1, i2, i3]),
+                        _ => None,
+                    };
+                    tri
+                })
+                .flatten()
+                .collect::<BTreeSet<_>>();
 
-            geometry.shapes.iter().for_each(|shape| {
-                if let obj::Primitive::Triangle(v1, v2, v3) = shape.primitive {
-                    indices.push(v1);
-                    indices.push(v2);
-                    indices.push(v3);
-                }
-            });
-            // We can't use the vertices directly because we have per face normals and not per vertex normals in most obj files
-            // TODO: Compress duplicates and return indices for indexbuffer.
             let positions = indices
                 .iter()
-                .map(|index| {
-                    let vertex: obj::Normal = object.vertices[index.0];
-                    Position([vertex.x as f32, vertex.y as f32, vertex.z as f32])
+                .map(|i| {
+                    let obj::Vertex { x, y, z } = object.vertices[i.0];
+                    Position([x as f32, y as f32, z as f32])
                 })
                 .collect::<Vec<_>>();
 
-            trace!("Loading normals");
             let normals = indices
                 .iter()
-                .map(|index| {
-                    index
-                        .2
-                        .map(|i| {
-                            let normal: obj::Normal = object.normals[i];
-                            Normal([normal.x as f32, normal.y as f32, normal.z as f32])
-                        })
-                        .unwrap_or(Normal([0.0, 0.0, 0.0]))
+                .map(|i| {
+                    if let Some(j) = i.2 {
+                        let obj::Normal { x, y, z } = object.normals[j];
+                        Normal([x as f32, y as f32, z as f32])
+                    } else {
+                        Normal([0.0, 0.0, 0.0])
+                    }
                 })
                 .collect::<Vec<_>>();
 
             let tex_coords = indices
                 .iter()
-                .map(|index| {
-                    index
-                        .1
-                        .map(|i| {
-                            let tvertex: obj::TVertex = object.tex_vertices[i];
-                            TexCoord([tvertex.u as f32, tvertex.v as f32])
-                        })
-                        .unwrap_or(TexCoord([0.0, 0.0]))
+                .map(|i| {
+                    if let Some(j) = i.1 {
+                        let obj::TVertex { u, v, .. } = object.tex_vertices[j];
+                        TexCoord([u as f32, v as f32])
+                    } else {
+                        TexCoord([0.0, 0.0])
+                    }
                 })
                 .collect::<Vec<_>>();
 
-            let tangents = positions
-                .chunks(3)
-                .zip(tex_coords.chunks(3))
-                .flat_map(|tri| {
-                    let looped = tri
-                        .0
-                        .iter()
-                        .zip(tri.1)
-                        .cycle()
-                        .take(5)
-                        .collect::<SmallVec<[_; 5]>>();
-                    looped
-                        .windows(3)
-                        .map(compute_tangent)
-                        .collect::<SmallVec<[_; 3]>>()
+            let index_map = indices
+                .iter()
+                .enumerate()
+                .map(|(v, k)| (k, v as u32))
+                .collect::<HashMap<_, _>>();
+
+            let reindex = geometry
+                .shapes
+                .iter()
+                .flat_map(|shape| {
+                    let tri: Option<SmallVec<[_; 3]>> = match shape.primitive {
+                        obj::Primitive::Triangle(i1, i2, i3) => {
+                            Some(smallvec![index_map[&i1], index_map[&i2], index_map[&i3],])
+                        }
+                        _ => None,
+                    };
+                    tri
                 })
+                .flatten()
                 .collect::<Vec<_>>();
 
-            // builder.set_indices(indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>());
+            //let tangents = Vec::new();
 
             debug_assert!(&normals.len() == &positions.len());
-            debug_assert!(&tangents.len() == &positions.len());
+            //debug_assert!(&tangents.len() == &positions.len());
             debug_assert!(&tex_coords.len() == &positions.len());
 
             builder.add_vertices(positions);
             builder.add_vertices(normals);
-            builder.add_vertices(tangents);
+            //builder.add_vertices(tangents);
             builder.add_vertices(tex_coords);
+            builder.set_indices(reindex);
 
             // TODO: Add Material loading
             objects.push((builder, geometry.material_name.clone()))
