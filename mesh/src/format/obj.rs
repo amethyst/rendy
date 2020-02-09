@@ -112,15 +112,30 @@ fn load_from_data(
                 .map(|i| index_map[&i])
                 .collect::<Vec<_>>();
 
-            //let tangents = Vec::new();
+            let mut tangents = vec![Tangent([0.0, 0.0, 0.0, 1.0]); positions.len()];
+
+            // since reindex is flattened from tris, there should never be a remainder
+            for tri in reindex.chunks_exact(3) {
+                let (i1, i2, i3) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+                let tri_obj = [&positions[i1], &positions[i2], &positions[i3]];
+                let tri_tex = [&tex_coords[i1], &tex_coords[i2], &tex_coords[i3]];
+                let tangent = compute_tangent(tri_obj, tri_tex);
+                accumulate_tangent(&mut tangents[i1], &tangent);
+                accumulate_tangent(&mut tangents[i2], &tangent);
+                accumulate_tangent(&mut tangents[i3], &tangent);
+            }
+
+            for tan in tangents.iter_mut() {
+                *tan = normalize_tangent(tan);
+            }
 
             debug_assert!(&normals.len() == &positions.len());
-            //debug_assert!(&tangents.len() == &positions.len());
+            debug_assert!(&tangents.len() == &positions.len());
             debug_assert!(&tex_coords.len() == &positions.len());
 
             builder.add_vertices(positions);
             builder.add_vertices(normals);
-            //builder.add_vertices(tangents);
+            builder.add_vertices(tangents);
             builder.add_vertices(tex_coords);
             builder.set_indices(reindex);
 
@@ -132,11 +147,22 @@ fn load_from_data(
     Ok(objects)
 }
 
+fn accumulate_tangent(acc: &mut Tangent, other: &Tangent) {
+    acc.0[0] += other.0[0];
+    acc.0[1] += other.0[1];
+    acc.0[2] += other.0[2];
+}
+
+fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
+    let len = x * x + y * y + z * z;
+    Tangent([x / len, y / len, z / len, *w])
+}
+
 // compute tangent for the first vertex of a tri from vertex positions
 // and texture coordinates
-fn compute_tangent(tri: &[(&Position, &TexCoord)]) -> Tangent {
-    let (a_obj, b_obj, c_obj) = (&(tri[0].0).0, &(tri[1].0).0, &(tri[2].0).0);
-    let (a_tex, b_tex, c_tex) = (&(tri[0].1).0, &(tri[1].1).0, &(tri[2].1).0);
+fn compute_tangent(tri_obj: [&Position; 3], tri_tex: [&TexCoord; 3]) -> Tangent {
+    let (a_obj, b_obj, c_obj) = (tri_obj[0].0, tri_obj[1].0, tri_obj[2].0);
+    let (a_tex, b_tex, c_tex) = (tri_tex[0].0, tri_tex[1].0, tri_tex[2].0);
 
     let tspace_1_1 = b_tex[0] - a_tex[0];
     let tspace_2_1 = b_tex[1] - a_tex[1];
