@@ -3,7 +3,6 @@
 use log::trace;
 use {
     crate::{mesh::MeshBuilder, Normal, Position, Tangent, TexCoord},
-    smallvec::{smallvec, SmallVec},
     std::collections::{BTreeSet, HashMap},
     wavefront_obj::obj,
 };
@@ -58,18 +57,16 @@ fn load_from_data(
             // indices in rendy, we need an index for each unique VTNIndex.
             // E.x. f 1/1/1, 2/2/1, and 1/2/1 needs three different vertices, even
             // though only two vertices are referenced in the soure wavefron OBJ.
-            let indices = geometry
+            let tris = geometry
                 .shapes
                 .iter()
-                .flat_map(|shape| {
-                    let tri: Option<SmallVec<[_; 3]>> = match shape.primitive {
-                        obj::Primitive::Triangle(i1, i2, i3) => Some(smallvec![i1, i2, i3]),
-                        _ => None,
-                    };
-                    tri
+                .flat_map(|shape| match shape.primitive {
+                    obj::Primitive::Triangle(i1, i2, i3) => Some([i1, i2, i3]),
+                    _ => None,
                 })
-                .flatten()
-                .collect::<BTreeSet<_>>();
+                .collect::<Vec<_>>();
+
+            let indices = tris.iter().flatten().collect::<BTreeSet<_>>();
 
             let positions = indices
                 .iter()
@@ -109,19 +106,10 @@ fn load_from_data(
                 .map(|(v, k)| (k, v as u32))
                 .collect::<HashMap<_, _>>();
 
-            let reindex = geometry
-                .shapes
+            let reindex = tris
                 .iter()
-                .flat_map(|shape| {
-                    let tri: Option<SmallVec<[_; 3]>> = match shape.primitive {
-                        obj::Primitive::Triangle(i1, i2, i3) => {
-                            Some(smallvec![index_map[&i1], index_map[&i2], index_map[&i3],])
-                        }
-                        _ => None,
-                    };
-                    tri
-                })
                 .flatten()
+                .map(|i| index_map[&i])
                 .collect::<Vec<_>>();
 
             //let tangents = Vec::new();
