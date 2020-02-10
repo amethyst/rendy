@@ -169,18 +169,6 @@ fn handedness(a: obj::Vertex, b: obj::Vertex, c: obj::Vertex) -> i8 {
     (cross.x * cross.x + cross.y * cross.y + cross.z * cross.z).signum() as i8
 }
 
-fn accumulate_tangent(acc: &mut Tangent, other: [f32; 4]) {
-    acc.0[0] += other[0];
-    acc.0[1] += other[1];
-    acc.0[2] += other[2];
-    acc.0[3] = other[3];
-}
-
-fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
-    let len = x * x + y * y + z * z;
-    Tangent([x / len, y / len, z / len, *w])
-}
-
 // Only supports tris, therefore indices.len() must be divisible by 3, and
 // assumes each 3 vertices represents a tri
 struct ObjGeometry<'a> {
@@ -207,10 +195,23 @@ impl<'a> ObjGeometry<'a> {
         }
     }
 
+    fn accumulate_tangent(&mut self, index: usize, other: [f32; 4]) {
+        let acc = &mut self.tangents[index];
+        acc.0[0] += other[0];
+        acc.0[1] += other[1];
+        acc.0[2] += other[2];
+        acc.0[3] = other[3];
+    }
+
+    fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
+        let len = x * x + y * y + z * z;
+        Tangent([x / len, y / len, z / len, *w])
+    }
+
     fn get_tangents(&self) -> Vec<Tangent> {
         self.tangents
             .iter()
-            .map(normalize_tangent)
+            .map(Self::normalize_tangent)
             .collect::<Vec<_>>()
     }
 }
@@ -242,10 +243,7 @@ impl Geometry for ObjGeometry<'_> {
         // Mikkelsen used. However, we *do* use basically the same assumptions,
         // except that some vertices Mikkelsen expects to be welded may not be
         // if they aren't in the source OBJ.
-        accumulate_tangent(
-            &mut self.tangents[self.indices[face * 3 + vert] as usize],
-            tangent,
-        );
+        self.accumulate_tangent(self.indices[face * 3 + vert] as usize, tangent);
     }
 }
 
