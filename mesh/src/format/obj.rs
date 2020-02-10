@@ -3,6 +3,7 @@
 use log::trace;
 use {
     crate::{mesh::MeshBuilder, Normal, Position, Tangent, TexCoord},
+    mikktspace::Geometry,
     std::collections::{BTreeSet, HashMap},
     wavefront_obj::obj,
 };
@@ -14,6 +15,8 @@ pub enum ObjError {
     Utf8(std::str::Utf8Error),
     /// Parsing of the obj failed.
     Parse(wavefront_obj::ParseError),
+    /// Geometry is unsuitable for tangent generation
+    Tangent,
 }
 
 impl std::error::Error for ObjError {}
@@ -26,6 +29,7 @@ impl std::fmt::Display for ObjError {
                 "Error parsing object file at line {}: {}",
                 e.line_number, e.message
             ),
+            ObjError::Tangent => write!(f, "Geometry is unsuitable for tangent generation"),
         }
     }
 }
@@ -36,13 +40,13 @@ pub fn load_from_obj(
 ) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
     let string = std::str::from_utf8(bytes).map_err(ObjError::Utf8)?;
     obj::parse(string)
-        .and_then(load_from_data)
         .map_err(ObjError::Parse)
+        .and_then(load_from_data)
 }
 
 fn load_from_data(
     obj_set: obj::ObjSet,
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, wavefront_obj::ParseError> {
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
     // Takes a list of objects that contain geometries that contain shapes that contain
     // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.
@@ -112,30 +116,19 @@ fn load_from_data(
                 .map(|i| index_map[&i])
                 .collect::<Vec<_>>();
 
-            let mut tangents = vec![Tangent([0.0, 0.0, 0.0, 1.0]); positions.len()];
+            let mut obj_geom = ObjGeometry::new(&positions, &normals, &tex_coords, &reindex);
 
-            // since reindex is flattened from tris, there should never be a remainder
-            for tri in reindex.chunks_exact(3) {
-                let (i1, i2, i3) = (tri[0] as usize, tri[1] as usize, tri[2] as usize);
-                let tri_obj = [&positions[i1], &positions[i2], &positions[i3]];
-                let tri_tex = [&tex_coords[i1], &tex_coords[i2], &tex_coords[i3]];
-                let tangent = compute_tangent(tri_obj, tri_tex);
-                accumulate_tangent(&mut tangents[i1], &tangent);
-                accumulate_tangent(&mut tangents[i2], &tangent);
-                accumulate_tangent(&mut tangents[i3], &tangent);
-            }
-
-            for tan in tangents.iter_mut() {
-                *tan = normalize_tangent(tan);
+            if !mikktspace::generate_tangents(&mut obj_geom) {
+                return Err(ObjError::Tangent);
             }
 
             debug_assert!(&normals.len() == &positions.len());
-            debug_assert!(&tangents.len() == &positions.len());
+            debug_assert!(&obj_geom.tangents.len() == &positions.len());
             debug_assert!(&tex_coords.len() == &positions.len());
 
+            builder.add_vertices(obj_geom.tangents);
             builder.add_vertices(positions);
             builder.add_vertices(normals);
-            builder.add_vertices(tangents);
             builder.add_vertices(tex_coords);
             builder.set_indices(reindex);
 
@@ -147,47 +140,57 @@ fn load_from_data(
     Ok(objects)
 }
 
-fn accumulate_tangent(acc: &mut Tangent, other: &Tangent) {
-    acc.0[0] += other.0[0];
-    acc.0[1] += other.0[1];
-    acc.0[2] += other.0[2];
+// Only supports tris, therefore indices.len() must be divisible by 3, and
+// assumes each 3 vertices represents a tri
+struct ObjGeometry<'a> {
+    positions: &'a Vec<Position>,
+    normals: &'a Vec<Normal>,
+    tex_coords: &'a Vec<TexCoord>,
+    indices: &'a Vec<u32>,
+    tangents: Vec<Tangent>,
 }
 
-fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
-    let len = x * x + y * y + z * z;
-    Tangent([x / len, y / len, z / len, *w])
+impl<'a> ObjGeometry<'a> {
+    fn new(
+        positions: &'a Vec<Position>,
+        normals: &'a Vec<Normal>,
+        tex_coords: &'a Vec<TexCoord>,
+        indices: &'a Vec<u32>,
+    ) -> Self {
+        Self {
+            positions,
+            normals,
+            tex_coords,
+            indices,
+            tangents: vec![Tangent([0.0, 0.0, 0.0, 1.0]); positions.len()],
+        }
+    }
 }
 
-// compute tangent for the first vertex of a tri from vertex positions
-// and texture coordinates
-fn compute_tangent(tri_obj: [&Position; 3], tri_tex: [&TexCoord; 3]) -> Tangent {
-    let (a_obj, b_obj, c_obj) = (tri_obj[0].0, tri_obj[1].0, tri_obj[2].0);
-    let (a_tex, b_tex, c_tex) = (tri_tex[0].0, tri_tex[1].0, tri_tex[2].0);
+impl Geometry for ObjGeometry<'_> {
+    fn num_faces(&self) -> usize {
+        self.indices.len() / 3
+    }
 
-    let tspace_1_1 = b_tex[0] - a_tex[0];
-    let tspace_2_1 = b_tex[1] - a_tex[1];
+    fn num_vertices_of_face(&self, _: usize) -> usize {
+        3
+    }
 
-    let tspace_1_2 = c_tex[0] - a_tex[0];
-    let tspace_2_2 = c_tex[1] - a_tex[1];
+    fn position(&self, face: usize, vert: usize) -> [f32; 3] {
+        self.positions[self.indices[face * 3 + vert] as usize].0
+    }
 
-    let ospace_1_1 = b_obj[0] - a_obj[0];
-    let ospace_2_1 = b_obj[1] - a_obj[1];
-    let ospace_3_1 = b_obj[2] - a_obj[2];
+    fn normal(&self, face: usize, vert: usize) -> [f32; 3] {
+        self.normals[self.indices[face * 3 + vert] as usize].0
+    }
 
-    let ospace_1_2 = c_obj[0] - a_obj[0];
-    let ospace_2_2 = c_obj[1] - a_obj[1];
-    let ospace_3_2 = c_obj[2] - a_obj[2];
+    fn tex_coord(&self, face: usize, vert: usize) -> [f32; 2] {
+        self.tex_coords[self.indices[face * 3 + vert] as usize].0
+    }
 
-    let tspace_det = tspace_1_1 * tspace_2_2 - tspace_1_2 * tspace_2_1;
-
-    let tspace_inv_1_1 = tspace_2_2 / tspace_det;
-    let tspace_inv_2_1 = -tspace_2_1 / tspace_det;
-    Tangent([
-        ospace_1_1 * tspace_inv_1_1 + ospace_1_2 * tspace_inv_2_1,
-        ospace_2_1 * tspace_inv_1_1 + ospace_2_2 * tspace_inv_2_1,
-        ospace_3_1 * tspace_inv_1_1 + ospace_3_2 * tspace_inv_2_1,
-        1.0,
-    ])
+    fn set_tangent_encoded(&mut self, tangent: [f32; 4], face: usize, vert: usize) {
+        self.tangents[self.indices[face * 3 + vert] as usize].0 = tangent;
+    }
 }
 
 #[cfg(test)]
