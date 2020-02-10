@@ -116,19 +116,21 @@ fn load_from_data(
                 .map(|i| index_map[&i])
                 .collect::<Vec<_>>();
 
-            let mut obj_geom = ObjGeometry::new(&positions, &normals, &tex_coords, &reindex);
-
-            if !mikktspace::generate_tangents(&mut obj_geom) {
-                return Err(ObjError::Tangent);
-            }
+            let tangents = {
+                let mut obj_geom = ObjGeometry::new(&positions, &normals, &tex_coords, &reindex);
+                if !mikktspace::generate_tangents(&mut obj_geom) {
+                    return Err(ObjError::Tangent);
+                }
+                obj_geom.get_tangents()
+            };
 
             debug_assert!(&normals.len() == &positions.len());
-            debug_assert!(&obj_geom.tangents.len() == &positions.len());
+            debug_assert!(&tangents.len() == &positions.len());
             debug_assert!(&tex_coords.len() == &positions.len());
 
-            builder.add_vertices(obj_geom.tangents);
             builder.add_vertices(positions);
             builder.add_vertices(normals);
+            builder.add_vertices(tangents);
             builder.add_vertices(tex_coords);
             builder.set_indices(reindex);
 
@@ -138,6 +140,18 @@ fn load_from_data(
     }
     trace!("Loaded mesh");
     Ok(objects)
+}
+
+fn accumulate_tangent(acc: &mut Tangent, other: [f32; 4]) {
+    acc.0[0] += other[0];
+    acc.0[1] += other[1];
+    acc.0[2] += other[2];
+    acc.0[3] = other[3];
+}
+
+fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
+    let len = x * x + y * y + z * z;
+    Tangent([x / len, y / len, z / len, *w])
 }
 
 // Only supports tris, therefore indices.len() must be divisible by 3, and
@@ -165,6 +179,13 @@ impl<'a> ObjGeometry<'a> {
             tangents: vec![Tangent([0.0, 0.0, 0.0, 1.0]); positions.len()],
         }
     }
+
+    fn get_tangents(&self) -> Vec<Tangent> {
+        self.tangents
+            .iter()
+            .map(normalize_tangent)
+            .collect::<Vec<_>>()
+    }
 }
 
 impl Geometry for ObjGeometry<'_> {
@@ -189,7 +210,13 @@ impl Geometry for ObjGeometry<'_> {
     }
 
     fn set_tangent_encoded(&mut self, tangent: [f32; 4], face: usize, vert: usize) {
-        self.tangents[self.indices[face * 3 + vert] as usize].0 = tangent;
+        // Not supposed to just average tangents over existing index,
+        // since triangles could be welded using different asumptions than
+        // Mikkelsen used. However, we *do* use the same assumptions.
+        accumulate_tangent(
+            &mut self.tangents[self.indices[face * 3 + vert] as usize],
+            tangent,
+        );
     }
 }
 
