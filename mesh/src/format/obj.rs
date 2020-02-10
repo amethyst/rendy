@@ -61,11 +61,19 @@ fn load_from_data(
             // indices in rendy, we need an index for each unique VTNIndex.
             // E.x. f 1/1/1, 2/2/1, and 1/2/1 needs three different vertices, even
             // though only two vertices are referenced in the soure wavefron OBJ.
+            // We also don't want triangle with opposite windings to share a vertex.
             let tris = geometry
                 .shapes
                 .iter()
                 .flat_map(|shape| match shape.primitive {
-                    obj::Primitive::Triangle(i1, i2, i3) => Some([i1, i2, i3]),
+                    obj::Primitive::Triangle(i1, i2, i3) => {
+                        let h = handedness(
+                            object.vertices[i1.0],
+                            object.vertices[i2.0],
+                            object.vertices[i3.0],
+                        );
+                        Some([(i1, h), (i2, h), (i3, h)])
+                    }
                     _ => None,
                 })
                 .collect::<Vec<_>>();
@@ -74,7 +82,7 @@ fn load_from_data(
 
             let positions = indices
                 .iter()
-                .map(|i| {
+                .map(|(i, _)| {
                     let obj::Vertex { x, y, z } = object.vertices[i.0];
                     Position([x as f32, y as f32, z as f32])
                 })
@@ -82,7 +90,7 @@ fn load_from_data(
 
             let normals = indices
                 .iter()
-                .map(|i| {
+                .map(|(i, _)| {
                     if let Some(j) = i.2 {
                         let obj::Normal { x, y, z } = object.normals[j];
                         Normal([x as f32, y as f32, z as f32])
@@ -94,7 +102,7 @@ fn load_from_data(
 
             let tex_coords = indices
                 .iter()
-                .map(|i| {
+                .map(|(i, _)| {
                     if let Some(j) = i.1 {
                         let obj::TVertex { u, v, .. } = object.tex_vertices[j];
                         TexCoord([u as f32, v as f32])
@@ -140,6 +148,25 @@ fn load_from_data(
     }
     trace!("Loaded mesh");
     Ok(objects)
+}
+
+fn handedness(a: obj::Vertex, b: obj::Vertex, c: obj::Vertex) -> i8 {
+    let d = obj::Vertex {
+        x: b.x - a.x,
+        y: b.y - a.y,
+        z: b.z - a.z,
+    };
+    let e = obj::Vertex {
+        x: c.x - a.x,
+        y: c.y - a.y,
+        z: c.z - a.z,
+    };
+    let cross = obj::Vertex {
+        x: d.y * e.z - d.z * e.y,
+        y: d.z * e.x - d.x * e.z,
+        z: d.x * e.y - d.y * e.x,
+    };
+    (cross.x * cross.x + cross.y * cross.y + cross.z * cross.z).signum() as i8
 }
 
 fn accumulate_tangent(acc: &mut Tangent, other: [f32; 4]) {
@@ -212,7 +239,9 @@ impl Geometry for ObjGeometry<'_> {
     fn set_tangent_encoded(&mut self, tangent: [f32; 4], face: usize, vert: usize) {
         // Not supposed to just average tangents over existing index,
         // since triangles could be welded using different asumptions than
-        // Mikkelsen used. However, we *do* use the same assumptions.
+        // Mikkelsen used. However, we *do* use basically the same assumptions,
+        // except that some vertices Mikkelsen expects to be welded may not be
+        // if they aren't in the source OBJ.
         accumulate_tangent(
             &mut self.tangents[self.indices[face * 3 + vert] as usize],
             tangent,
