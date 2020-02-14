@@ -184,19 +184,19 @@ fn winding(a: obj::TVertex, b: obj::TVertex, c: obj::TVertex) -> i8 {
 // Only supports tris, therefore indices.len() must be divisible by 3, and
 // assumes each 3 vertices represents a tri
 struct ObjGeometry<'a> {
-    positions: &'a Vec<Position>,
-    normals: &'a Vec<Normal>,
-    tex_coords: &'a Vec<TexCoord>,
-    indices: &'a Vec<u32>,
+    positions: &'a [Position],
+    normals: &'a [Normal],
+    tex_coords: &'a [TexCoord],
+    indices: &'a [u32],
     tangents: Vec<Tangent>,
 }
 
 impl<'a> ObjGeometry<'a> {
     fn new(
-        positions: &'a Vec<Position>,
-        normals: &'a Vec<Normal>,
-        tex_coords: &'a Vec<TexCoord>,
-        indices: &'a Vec<u32>,
+        positions: &'a [Position],
+        normals: &'a [Normal],
+        tex_coords: &'a [TexCoord],
+        indices: &'a [u32],
     ) -> Self {
         Self {
             positions,
@@ -216,7 +216,7 @@ impl<'a> ObjGeometry<'a> {
     }
 
     fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
-        let len = x * x + y * y + z * z;
+        let len = f32::sqrt(x * x + y * y + z * z);
         Tangent([x / len, y / len, z / len, *w])
     }
 
@@ -310,5 +310,56 @@ f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
         assert_eq!(counter_clockwise, 1);
         let clockwise = winding(a, c, b);
         assert_eq!(clockwise, -1);
+    }
+
+    fn tangent_approx_equal((a, b): (&Tangent, &Tangent)) -> bool {
+        a.0.iter()
+            .zip(&b.0)
+            .all(|(l, r)| (l - r).abs() <= 2.0 * std::f32::EPSILON)
+    }
+
+    #[test]
+    fn test_tangent_generation() {
+        let positions = [
+            Position([0.0, 0.0, 0.0]),
+            Position([0.0, 0.0, -1.0]),
+            Position([0.0, 1.0, 0.0]),
+            Position([-1.0, 0.0, 0.0]),
+        ];
+        let normals = [
+            Normal([f32::sqrt(2.0) / 2.0, 0.0, f32::sqrt(2.0) / 2.0]),
+            Normal([1.0, 0.0, 0.0]),
+            Normal([f32::sqrt(2.0) / 2.0, 0.0, f32::sqrt(2.0) / 2.0]),
+            Normal([0.0, 0.0, 1.0]),
+        ];
+        let tex_coords = [
+            TexCoord([0.5, 0.0]),
+            TexCoord([1.0, 0.0]),
+            TexCoord([0.5, 1.0]),
+            TexCoord([0.0, 0.0]),
+        ];
+        let expected_tangents = [
+            Tangent([f32::sqrt(2.0) / 2.0, 0.0, -f32::sqrt(2.0) / 2.0, 1.0]),
+            Tangent([0.0, 0.0, -1.0, 1.0]),
+            Tangent([f32::sqrt(2.0) / 2.0, 0.0, -f32::sqrt(2.0) / 2.0, 1.0]),
+            Tangent([1.0, 0.0, 0.0, 1.0]),
+        ];
+        let indices = [0, 1, 2, 0, 2, 3];
+
+        let tangents = {
+            let mut obj_geom = ObjGeometry::new(&positions, &normals, &tex_coords, &indices);
+            assert!(mikktspace::generate_tangents(&mut obj_geom));
+            obj_geom.get_tangents()
+        };
+
+        assert!(
+            tangents
+                .iter()
+                .zip(&expected_tangents)
+                .all(tangent_approx_equal),
+            "assertion failed: (tangents ~= expected_tangents)\n         tangents: {:?}\nexpected_tangents: {:?}",
+            tangents,
+            expected_tangents
+        )
     }
 }
