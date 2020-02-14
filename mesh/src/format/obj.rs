@@ -67,10 +67,25 @@ fn load_from_data(
                 .iter()
                 .flat_map(|shape| match shape.primitive {
                     obj::Primitive::Triangle(i1, i2, i3) => {
-                        let h = handedness(
-                            object.vertices[i1.0],
-                            object.vertices[i2.0],
-                            object.vertices[i3.0],
+                        let h = winding(
+                            i1.1.map(|i| object.tex_vertices[i])
+                                .unwrap_or(obj::TVertex {
+                                    u: 0.0,
+                                    v: 0.0,
+                                    w: 0.0,
+                                }),
+                            i2.1.map(|i| object.tex_vertices[i])
+                                .unwrap_or(obj::TVertex {
+                                    u: 0.0,
+                                    v: 0.0,
+                                    w: 0.0,
+                                }),
+                            i3.1.map(|i| object.tex_vertices[i])
+                                .unwrap_or(obj::TVertex {
+                                    u: 0.0,
+                                    v: 0.0,
+                                    w: 0.0,
+                                }),
                         );
                         Some([(i1, h), (i2, h), (i3, h)])
                     }
@@ -150,23 +165,20 @@ fn load_from_data(
     Ok(objects)
 }
 
-fn handedness(a: obj::Vertex, b: obj::Vertex, c: obj::Vertex) -> i8 {
-    let d = obj::Vertex {
-        x: b.x - a.x,
-        y: b.y - a.y,
-        z: b.z - a.z,
+fn winding(a: obj::TVertex, b: obj::TVertex, c: obj::TVertex) -> i8 {
+    let d = obj::TVertex {
+        u: b.u - a.u,
+        v: b.v - a.v,
+        w: b.w - a.w,
     };
-    let e = obj::Vertex {
-        x: c.x - a.x,
-        y: c.y - a.y,
-        z: c.z - a.z,
+    let e = obj::TVertex {
+        u: c.u - a.u,
+        v: c.v - a.v,
+        w: c.w - a.w,
     };
-    let cross = obj::Vertex {
-        x: d.y * e.z - d.z * e.y,
-        y: d.z * e.x - d.x * e.z,
-        z: d.x * e.y - d.y * e.x,
-    };
-    (cross.x * cross.x + cross.y * cross.y + cross.z * cross.z).signum() as i8
+    // only need w component of cross product
+    let w = d.u * e.v - d.v * e.u;
+    w.signum() as i8
 }
 
 // Only supports tris, therefore indices.len() must be divisible by 3, and
@@ -275,5 +287,28 @@ f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
 
         // When compressed into unique vertices there should be 4 vertices per side of the quad
         // assert!()
+    }
+
+    #[test]
+    fn test_winding() {
+        let a = obj::TVertex {
+            u: 0.0,
+            v: 0.0,
+            w: 0.0,
+        };
+        let b = obj::TVertex {
+            u: 1.0,
+            v: 0.0,
+            w: 0.0,
+        };
+        let c = obj::TVertex {
+            u: 0.0,
+            v: 1.0,
+            w: 0.0,
+        };
+        let counter_clockwise = winding(a, b, c);
+        assert_eq!(counter_clockwise, 1);
+        let clockwise = winding(a, c, b);
+        assert_eq!(clockwise, -1);
     }
 }
