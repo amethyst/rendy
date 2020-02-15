@@ -14,4 +14,4 @@ description = "Rendy's descriptor allocator"
 gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4" }
 log = "0.4"
 relevant = { version = "0.4", features = ["log"] }
-smallvec = "1.0"
+smallvec = "1.2"

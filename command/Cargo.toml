@@ -16,6 +16,6 @@ profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
 relevant = { version = "0.4.0", features = ["log", "backtrace"] }
-smallvec = "1.0"
+smallvec = "1.2"
 rendy-core = { version = "0.5.1", path = "../core" }
 thread_profiler = "0.3"
