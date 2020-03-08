@@ -63,20 +63,20 @@ pipeline {
                         echo 'Tests done!'
                     }
                 }
-                stage("Test on macOS") {
-                    environment {
-                        CARGO_HOME = '/Users/jenkins/.cargo'
-                        RUSTUP_HOME = '/Users/jenkins/.rustup'
-                    }
-                    agent {
-                        label 'mac'
-                    }
-                    steps {
-                        echo 'Beginning tests...'
-                        sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo test --all --all-features'
-                        echo 'Tests done!'
-                    }
-                }
+                // stage("Test on macOS") {
+                //     environment {
+                //         CARGO_HOME = '/Users/jenkins/.cargo'
+                //         RUSTUP_HOME = '/Users/jenkins/.rustup'
+                //     }
+                //     agent {
+                //         label 'mac'
+                //     }
+                //     steps {
+                //         echo 'Beginning tests...'
+                //         sh 'cd rendy && /Users/jenkins/.cargo/bin/cargo test --all --all-features'
+                //         echo 'Tests done!'
+                //     }
+                // }
             }
         }
     }
