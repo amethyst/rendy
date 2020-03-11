@@ -34,7 +34,7 @@ use std::{fs::File, io::BufReader};
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.vert").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/shader.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
@@ -42,7 +42,7 @@ lazy_static::lazy_static! {
 
     static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/sprite/shader.frag").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/shader.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -79,7 +79,7 @@ where
         None
     }
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -144,14 +144,12 @@ where
 
         // This is how we can load an image and create a new texture.
         let image_reader = BufReader::new(
-            File::open(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/examples/sprite/logo.png"
-            ))
-            .map_err(|e| {
-                log::error!("Unable to open {}: {:?}", "/examples/sprite/logo.png", e);
-                hal::pso::CreationError::Other
-            })?,
+            File::open(concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/logo.png")).map_err(
+                |e| {
+                    log::error!("Unable to open {}: {:?}", "/src/sprite/logo.png", e);
+                    hal::pso::CreationError::Other
+                },
+            )?,
         );
 
         let texture_builder = rendy::texture::image::load_from_image(
@@ -329,7 +327,7 @@ fn run<B: hal::Backend>(
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
-            Event::EventsCleared => {
+            Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
@@ -369,7 +367,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Rendy example")
-        .with_inner_size((960, 640).into());
+        .with_inner_size(rendy::init::winit::dpi::LogicalSize::new(960, 640));
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
     rendy::with_any_windowed_rendy!((rendy)
@@ -377,7 +375,7 @@ fn main() {
 
             let mut graph_builder = GraphBuilder::<_, ()>::new();
 
-            let size = window.inner_size().to_physical(window.hidpi_factor());
+            let size = window.inner_size();
 
             let color = graph_builder.create_image(
                 hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),

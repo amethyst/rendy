@@ -48,7 +48,7 @@ struct PosVel {
 lazy_static::lazy_static! {
     static ref RENDER_VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("render.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/quads/render.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
@@ -56,7 +56,7 @@ lazy_static::lazy_static! {
 
     static ref RENDER_FRAGMENT: SpirvShader = SourceShaderInfo::new(
         include_str!("render.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/quads/render.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -64,7 +64,7 @@ lazy_static::lazy_static! {
 
     static ref BOUNCE_COMPUTE: SpirvShader = SourceShaderInfo::new(
         include_str!("bounce.comp"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/quads/bounce.comp").into(),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
         "main",
@@ -118,7 +118,7 @@ where
 {
     type Pipeline = QuadsRenderPipeline<B>;
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -175,7 +175,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<QuadsRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<QuadsRenderPipeline<B>, rendy::core::hal::pso::CreationError> {
         assert_eq!(buffers.len(), 1);
         assert!(images.is_empty());
 
@@ -436,7 +436,7 @@ where
 
         log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = unsafe { BOUNCE_COMPUTE.module(factory) }
-            .map_err(rendy_core::hal::pso::CreationError::Shader)
+            .map_err(rendy::core::hal::pso::CreationError::Shader)
             .map_err(NodeBuildError::Pipeline)?;
 
         let set_layout = Handle::from(
@@ -556,7 +556,7 @@ fn build_graph<B: hal::Backend>(
 
     let posvel = graph_builder.create_buffer(QUADS as u64 * std::mem::size_of::<[f32; 4]>() as u64);
 
-    let size = window.inner_size().to_physical(window.hidpi_factor());
+    let size = window.inner_size();
     let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
 
     let depth = graph_builder.create_image(
@@ -605,7 +605,7 @@ fn main() {
     let config: Config = Default::default();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size((960, 640).into())
+        .with_inner_size(rendy::init::winit::dpi::LogicalSize::new(960, 640))
         .with_title("Rendy example");
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
@@ -631,7 +631,7 @@ fn main() {
                         }
                         _ => {}
                     },
-                    Event::EventsCleared => {
+                    Event::MainEventsCleared => {
                         factory.maintain(&mut families);
                         if let Some(ref mut graph) = graph {
                             graph.run(&mut factory, &mut families, &());

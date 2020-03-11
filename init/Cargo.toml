@@ -23,6 +23,6 @@ rendy-command = { version = "0.5.1", path = "../command" }
 rendy-factory = { version = "0.5.1", path = "../factory" }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi" }
-winit = { version = "0.20.0-alpha4", optional = true, features = ["web-sys"] }
+winit = { version = "0.22", optional = true, features = ["web-sys"] }
 log = "0.4"
 smallvec = "1.0"

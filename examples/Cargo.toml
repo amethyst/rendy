@@ -1,0 +1,88 @@
+[package]
+name = "rendy-examples"
+version = "0.5.1"
+authors = ["omni-viral <scareaangel@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/amethyst/rendy"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/rendy-examples"
+keywords = ["graphics", "gfx-hal", "rendy"]
+categories = ["rendering"]
+description = "Examples of Rendy usage"
+
+[features]
+
+command = ["rendy/command"]
+descriptor = ["rendy/descriptor"]
+factory = ["rendy/factory", "rendy/command", "rendy/descriptor", "rendy/resource", "rendy/wsi"]
+frame = ["rendy/frame", "rendy/factory"]
+graph = ["rendy/graph", "rendy/frame"]
+init = ["rendy/init", "rendy/factory"]
+init-winit = ["rendy/init-winit", "wsi"]
+memory = ["rendy/memory"]
+mesh = ["rendy/mesh", "rendy/factory"]
+shader = ["rendy/shader", "rendy/factory"]
+resource = ["rendy/resource", "rendy/memory"]
+texture = ["rendy/texture", "rendy/factory"]
+wsi = ["rendy/wsi"]
+
+base = ["rendy/command", "rendy/descriptor", "rendy/factory", "rendy/frame", "rendy/graph", "rendy/init", "rendy/memory", "rendy/mesh", "rendy/shader", "rendy/resource", "rendy/texture", "rendy/wsi"]
+
+# Subcrate features relay.
+mesh-obj = ["rendy/mesh-obj"]
+texture-image = ["rendy/texture-image"]
+texture-palette = ["rendy/texture-palette"]
+shader-compiler = ["rendy/shader-compiler"]
+spirv-reflection = ["rendy/spirv-reflection"]
+
+# Full feature set - all listed features except rendy-core's.
+full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler"]
+
+# Common core features
+empty = ["rendy/empty"]
+dx12 = ["rendy/dx12"]
+gl = ["rendy/gl"]
+metal = ["rendy/metal"]
+vulkan = ["rendy/vulkan"]
+no-slow-safety-checks = ["rendy/no-slow-safety-checks"]
+
+
+[dependencies]
+rendy = { version = "0.5.1", path = "../rendy" }
+env_logger = "0.6"
+genmesh = "0.6"
+lazy_static = "1.0"
+log = "0.4"
+nalgebra = "0.18"
+palette = "0.4"
+rand = "0.7"
+
+[[bin]]
+name = "init"
+path = "src/init/main.rs"
+required-features = ["init"]
+
+[[bin]]
+name = "triangle"
+path = "src/triangle/main.rs"
+    required-features = ["base", "wsi", "shader-compiler"]
+
+[[bin]]
+name = "sprite"
+path = "src/sprite/main.rs"
+required-features = ["base", "wsi", "texture-image", "shader-compiler"]
+
+[[bin]]
+name = "meshes"
+path = "src/meshes/main.rs"
+required-features = ["base", "wsi", "shader-compiler"]
+
+[[bin]]
+name = "quads"
+path = "src/quads/main.rs"
+required-features = ["base", "wsi", "shader-compiler"]
+
+[[bin]]
+name = "source_shaders"
+path = "src/source_shaders/main.rs"
+required-features = ["base", "wsi", "shader-compiler"]

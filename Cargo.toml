@@ -16,4 +16,5 @@ members = [
     "graph",
     "core",
     "texture",
+    "examples"
 ]

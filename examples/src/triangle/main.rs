@@ -30,7 +30,7 @@ use rendy::mesh::AsVertex;
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/triangle/shader.vert").into(),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
@@ -38,7 +38,7 @@ lazy_static::lazy_static! {
 
     static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/triangle/shader.frag").into(),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -73,7 +73,7 @@ where
         None
     }
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -103,7 +103,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<TriangleRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<TriangleRenderPipeline<B>, rendy::core::hal::pso::CreationError> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert!(set_layouts.is_empty());
@@ -210,7 +210,7 @@ fn run<B: Backend>(
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
-            Event::EventsCleared => {
+            Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
@@ -248,14 +248,14 @@ fn main() {
     let config: Config = Default::default();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size((960, 640).into())
+        .with_inner_size(rendy::init::winit::dpi::LogicalSize::new(960, 640))
         .with_title("Rendy example");
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
     rendy::with_any_windowed_rendy!((rendy)
         (mut factory, mut families, surface, window) => {
             let mut graph_builder = GraphBuilder::<_, ()>::new();
-            let (width, height) = window.inner_size().to_physical(window.hidpi_factor()).into();
+            let (width, height) = window.inner_size().into();
 
             graph_builder.add_node(
                 TriangleRenderPipeline::builder()

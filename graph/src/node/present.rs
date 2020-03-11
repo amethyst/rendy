@@ -549,6 +549,6 @@ where
 
         factory.destroy_semaphore(self.free_acquire);
         factory.destroy_command_pool(self.pool);
-        factory.destroy_target(self.target);
+        factory.destroy_surface(factory.destroy_target(self.target));
     }
 }

@@ -99,7 +99,7 @@ where
         None
     }
 
-    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy_shader::ShaderSet<B> {
+    fn load_shader_set(&self, factory: &mut Factory<B>, _aux: &T) -> rendy::shader::ShaderSet<B> {
         SHADERS.build(factory, Default::default()).unwrap()
     }
 
@@ -129,7 +129,7 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<TriangleRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<TriangleRenderPipeline<B>, rendy::core::hal::pso::CreationError> {
         assert!(buffers.is_empty());
         assert!(images.is_empty());
         assert!(set_layouts.is_empty());
@@ -236,7 +236,7 @@ fn run<B: hal::Backend>(
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
-            Event::EventsCleared => {
+            Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
@@ -276,7 +276,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Rendy example")
-        .with_inner_size((960, 640).into());
+        .with_inner_size(rendy::init::winit::dpi::LogicalSize::new(960, 640));
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
     rendy::with_any_windowed_rendy!((rendy)
@@ -284,7 +284,7 @@ fn main() {
 
             let mut graph_builder = GraphBuilder::<_, ()>::new();
 
-            let size = window.inner_size().to_physical(window.hidpi_factor());
+            let size = window.inner_size();
 
             let color = graph_builder.create_image(
                 hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),
