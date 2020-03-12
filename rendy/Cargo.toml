@@ -71,14 +71,5 @@ rendy-wsi = { version = "0.5.1", path = "../wsi", optional = true }
 
 thread_profiler = "0.3"
 
-[dev-dependencies]
-#genmesh = "0.6"
-#nalgebra = "0.18"
-#env_logger = "0.6"
-#lazy_static = "1.0"
-#log = "0.4"
-#palette = "0.4"
-#rand = "0.7"
-
 [package.metadata.docs.rs]
 features = ["full"]

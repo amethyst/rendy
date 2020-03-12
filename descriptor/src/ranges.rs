@@ -3,10 +3,7 @@ pub use gfx_hal::pso::{
     BufferDescriptorFormat, BufferDescriptorType, DescriptorRangeDesc, DescriptorSetLayoutBinding,
     DescriptorType, ImageDescriptorType,
 };
-use std::{
-    cmp::Ordering,
-    ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign},
-};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 /// Number of descriptors per type.
 #[derive(Clone, Debug, PartialEq, Eq)]

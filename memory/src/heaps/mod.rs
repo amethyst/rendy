@@ -129,6 +129,8 @@ where
                 })
                 .collect::<smallvec::SmallVec<[_; 64]>>();
 
+            log::trace!("Checking suitable memory: {:#?}", self.types);
+
             if suitable_types.is_empty() {
                 return Err(HeapsError::NoSuitableMemory(
                     mask,

@@ -168,7 +168,7 @@ impl VertexFormat {
             attributes
                 .iter()
                 .map(|attr| {
-                    (attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8)
+                    attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8
                 })
                 .max()
                 .expect("Vertex format cannot be empty")
@@ -598,10 +598,10 @@ where
 impl AsVertex for Model {
     fn vertex() -> VertexFormat {
         VertexFormat::new((
-            (Format::Rgba32Sfloat, "model"),
-            (Format::Rgba32Sfloat, "model"),
-            (Format::Rgba32Sfloat, "model"),
-            (Format::Rgba32Sfloat, "model"),
+            (Format::Rgba32Sfloat, "model_1"),
+            (Format::Rgba32Sfloat, "model_2"),
+            (Format::Rgba32Sfloat, "model_3"),
+            (Format::Rgba32Sfloat, "model_4"),
         ))
     }
 }

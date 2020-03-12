@@ -13,7 +13,7 @@ if [ -z $2 ]; then
   echo "Must provide the name of a example to run"; exit 1;
 fi
 
-./examples/build_wasm.sh $KIND || { echo 'Build failed' ; exit 1; }
+./examples/build_wasm.sh $KIND $2 || { echo 'Build failed' ; exit 1; }
 
 cp examples/src/spirv_cross_wrapper_glsl.js target/generated-wasm/$KIND || { echo 'Unknown failure' ; exit 1; }
 cp examples/src/spirv_cross_wrapper_glsl.wasm target/generated-wasm/$KIND || { echo 'Unknown failure' ; exit 1; }

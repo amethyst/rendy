@@ -4,6 +4,9 @@
 //! Nothing fancy. Just prove that `rendy` works.
 //!
 
+#[cfg(target_arch = "wasm32")]
+compile_error!("Meshes example does NOT support wasm at this time, due to lack of TRANSFER_DST | INDEX memory access lacking in gl backend");
+
 use {
     genmesh::generators::{IndexedPolygon, SharedVertex},
     rand::distributions::{Distribution, Uniform},

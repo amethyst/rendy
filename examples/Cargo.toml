@@ -46,7 +46,6 @@ metal = ["rendy/metal"]
 vulkan = ["rendy/vulkan"]
 no-slow-safety-checks = ["rendy/no-slow-safety-checks"]
 
-
 [dependencies]
 rendy = { version = "0.5.1", path = "../rendy" }
 env_logger = "0.6"
@@ -76,24 +75,24 @@ required-features = ["init"]
 [[bin]]
 name = "triangle"
 path = "src/triangle/main.rs"
-    required-features = ["base", "wsi", "shader-compiler"]
+    required-features = ["base", "wsi", "init-winit", "shader-compiler"]
 
 [[bin]]
 name = "sprite"
 path = "src/sprite/main.rs"
-required-features = ["base", "wsi", "texture-image"]
+required-features = ["base", "wsi", "init-winit", "texture-image"]
 
 [[bin]]
 name = "meshes"
 path = "src/meshes/main.rs"
-required-features = ["base", "wsi"]
+required-features = ["base", "wsi", "init-winit"]
 
 [[bin]]
 name = "quads"
 path = "src/quads/main.rs"
-required-features = ["base", "wsi", "shader-compiler"]
+required-features = ["base", "wsi", "init-winit", "shader-compiler"]
 
 [[bin]]
 name = "source_shaders"
 path = "src/source_shaders/main.rs"
-required-features = ["base", "wsi", "shader-compiler"]
+required-features = ["base", "wsi", "init-winit", "shader-compiler"]
