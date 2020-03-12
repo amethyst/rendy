@@ -57,6 +57,17 @@ nalgebra = "0.18"
 palette = "0.4"
 rand = "0.7"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+version = "0.3.6"
+features = [ "console", "Document", "Element", "HtmlElement", "Node", "Window" ]
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.console_error_panic_hook]
+version = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-logger]
+version = "0.2"
+
 [[bin]]
 name = "init"
 path = "src/init/main.rs"
@@ -70,12 +81,12 @@ path = "src/triangle/main.rs"
 [[bin]]
 name = "sprite"
 path = "src/sprite/main.rs"
-required-features = ["base", "wsi", "texture-image", "shader-compiler"]
+required-features = ["base", "wsi", "texture-image"]
 
 [[bin]]
 name = "meshes"
 path = "src/meshes/main.rs"
-required-features = ["base", "wsi", "shader-compiler"]
+required-features = ["base", "wsi"]
 
 [[bin]]
 name = "quads"

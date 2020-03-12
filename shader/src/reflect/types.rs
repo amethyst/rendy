@@ -201,6 +201,7 @@ impl ReflectInto<rendy_core::hal::pso::DescriptorType> for ReflectDescriptorType
         use rendy_core::hal::pso::DescriptorType;
         use ReflectDescriptorType::*;
 
+        /* TODO: GFX UPDATE
         match *self {
             Sampler => Ok(DescriptorType::Sampler),
             CombinedImageSampler => Ok(DescriptorType::CombinedImageSampler),
@@ -215,7 +216,7 @@ impl ReflectInto<rendy_core::hal::pso::DescriptorType> for ReflectDescriptorType
             InputAttachment => Ok(DescriptorType::InputAttachment),
             AccelerationStructureNV => Err(ReflectTypeError::UnhandledAccelerationStructureNV),
             Undefined => Err(ReflectTypeError::UnhandledUndefined),
-        }
+        } */
     }
 }
 

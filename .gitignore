@@ -2,3 +2,6 @@ target
 **/*.rs.bk
 **/Cargo.lock
 .DS_Store
+*.vs.d
+*.fs.d
+generated-wasm

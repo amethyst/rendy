@@ -21,10 +21,13 @@ use {
         memory::Dynamic,
         mesh::{Mesh, Model, PosColorNorm},
         resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
+        shader::SpirvShader,
     },
-    std::{cmp::min, mem::size_of, time},
+    std::{cmp::min, mem::size_of},
 };
+
+#[cfg(feature = "shader-compiler")]
+use rendy::shader::{ShaderKind, SourceLanguage, SourceShaderInfo};
 
 #[cfg(feature = "spirv-reflection")]
 use rendy::shader::SpirvReflection;
@@ -32,6 +35,7 @@ use rendy::shader::SpirvReflection;
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
 
+#[cfg(feature = "shader-compiler")]
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.vert"),
@@ -48,6 +52,25 @@ lazy_static::lazy_static! {
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
+
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*VERTEX).unwrap()
+        .with_fragment(&*FRAGMENT).unwrap();
+}
+
+#[cfg(not(feature = "shader-compiler"))]
+lazy_static::lazy_static! {
+    static ref VERTEX: SpirvShader = SpirvShader::from_bytes(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/meshes/shader.vs")),
+        hal::pso::ShaderStageFlags::VERTEX,
+        "main"
+    ).unwrap();
+
+    static ref FRAGMENT: SpirvShader = SpirvShader::from_bytes(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/meshes/shader.fs")),
+        hal::pso::ShaderStageFlags::FRAGMENT,
+        "main"
+    ).unwrap();
 
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
@@ -176,7 +199,12 @@ where
             sets: vec![SetLayout {
                 bindings: vec![hal::pso::DescriptorSetLayoutBinding {
                     binding: 0,
-                    ty: hal::pso::DescriptorType::UniformBuffer,
+                    ty: hal::pso::DescriptorType::Buffer {
+                        ty: hal::pso::BufferDescriptorType::Uniform,
+                        format: hal::pso::BufferDescriptorFormat::Structured {
+                            dynamic_offset: false,
+                        },
+                    },
                     count: 1,
                     stage_flags: hal::pso::ShaderStageFlags::GRAPHICS,
                     immutable_samplers: false,
@@ -363,6 +391,13 @@ where
 }
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        wasm_logger::init(wasm_logger::Config::new(log::Level::Trace));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     env_logger::Builder::from_default_env()
         .filter_module("meshes", log::LevelFilter::Trace)
         .init();
@@ -479,18 +514,10 @@ fn main() {
                 .unwrap(),
         );
 
-        let started = time::Instant::now();
-
         let mut rng = rand::thread_rng();
         let rxy = Uniform::new(-1.0, 1.0);
         let rz = Uniform::new(0.0, 185.0);
 
-        let mut fpss = Vec::new();
-        let mut checkpoint = started;
-
-        let mut frame = 0u64;
-        let mut start = frame;
-        let mut from = 0;
         let mut graph = Some(graph);
 
         event_loop.run(move |event, _, control_flow| {
@@ -504,7 +531,6 @@ fn main() {
                     factory.maintain(&mut families);
                     if let Some(ref mut graph) = graph {
                         graph.run(&mut factory, &mut families, &scene);
-                        frame += 1;
                     }
 
                     if scene.objects.len() < MAX_OBJECTS {
@@ -520,22 +546,11 @@ fn main() {
                     } else {
                         *control_flow = ControlFlow::Exit
                     }
-
-                    let elapsed = checkpoint.elapsed();
-                    if elapsed >= std::time::Duration::new(5, 0) || *control_flow == ControlFlow::Exit {
-                        let frames = frame - start;
-                        let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                        fpss.push((frames * 1_000_000_000 / nanos, from..scene.objects.len()));
-                        checkpoint += elapsed;
-                        start = frame;
-                        from = scene.objects.len();
-                    }
                 }
                 _ => {}
             }
 
             if *control_flow == ControlFlow::Exit {
-                log::info!("FPS: {:#?}", fpss);
                 if let Some(graph) = graph.take() {
                     graph.dispose(&mut factory, &scene);
                 }

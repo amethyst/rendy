@@ -19,9 +19,12 @@ use rendy::{
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
+    shader::SpirvShader,
     texture::{image::ImageTextureConfig, Texture},
 };
+
+#[cfg(feature = "shader-compiler")]
+use rendy::shader::{ShaderKind, SourceLanguage, SourceShaderInfo};
 
 #[cfg(feature = "spirv-reflection")]
 use rendy::shader::SpirvReflection;
@@ -29,8 +32,10 @@ use rendy::shader::SpirvReflection;
 #[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::{fs::File, io::BufReader};
 
+#[cfg(feature = "shader-compiler")]
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.vert"),
@@ -47,6 +52,25 @@ lazy_static::lazy_static! {
         SourceLanguage::GLSL,
         "main",
     ).precompile().unwrap();
+
+    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+        .with_vertex(&*VERTEX).unwrap()
+        .with_fragment(&*FRAGMENT).unwrap();
+}
+
+#[cfg(not(feature = "shader-compiler"))]
+lazy_static::lazy_static! {
+    static ref VERTEX: SpirvShader = SpirvShader::from_bytes(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/shader.vs")),
+        hal::pso::ShaderStageFlags::VERTEX,
+        "main"
+    ).unwrap();
+
+    static ref FRAGMENT: SpirvShader = SpirvShader::from_bytes(
+        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/shader.fs")),
+        hal::pso::ShaderStageFlags::FRAGMENT,
+        "main"
+    ).unwrap();
 
     static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
         .with_vertex(&*VERTEX).unwrap()
@@ -110,7 +134,11 @@ where
                 bindings: vec![
                     hal::pso::DescriptorSetLayoutBinding {
                         binding: 0,
-                        ty: hal::pso::DescriptorType::SampledImage,
+                        ty: hal::pso::DescriptorType::Image {
+                            ty: hal::pso::ImageDescriptorType::Sampled {
+                                with_sampler: false,
+                            },
+                        },
                         count: 1,
                         stage_flags: hal::pso::ShaderStageFlags::FRAGMENT,
                         immutable_samplers: false,
@@ -143,6 +171,8 @@ where
         assert_eq!(set_layouts.len(), 1);
 
         // This is how we can load an image and create a new texture.
+
+        #[cfg(not(target_arch = "wasm32"))]
         let image_reader = BufReader::new(
             File::open(concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/logo.png")).map_err(
                 |e| {
@@ -152,17 +182,19 @@ where
             )?,
         );
 
-        let texture_builder = rendy::texture::image::load_from_image(
-            image_reader,
-            ImageTextureConfig {
-                generate_mips: true,
-                ..Default::default()
-            },
-        )
-        .map_err(|e| {
-            log::error!("Unable to load image: {:?}", e);
-            hal::pso::CreationError::Other
-        })?;
+        #[cfg(target_arch = "wasm32")]
+        let image_reader = {
+            let logo_bytes =
+                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/sprite/logo.png"));
+            std::io::Cursor::new(&logo_bytes[..])
+        };
+
+        let texture_builder =
+            rendy::texture::image::load_from_image(image_reader, ImageTextureConfig::default())
+                .map_err(|e| {
+                    log::error!("Unable to load image: {:?}", e);
+                    hal::pso::CreationError::Other
+                })?;
 
         let texture = texture_builder
             .build(
@@ -306,20 +338,7 @@ fn run<B: hal::Backend>(
     mut families: Families<B>,
     graph: Graph<B, ()>,
 ) {
-    let started = std::time::Instant::now();
-
-    std::thread::spawn(move || {
-        while started.elapsed() < std::time::Duration::new(30, 0) {
-            std::thread::sleep(std::time::Duration::new(1, 0));
-        }
-
-        std::process::abort();
-    });
-
-    let mut frame = 0u64;
-    let mut elapsed = started.elapsed();
     let mut graph = Some(graph);
-
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -331,33 +350,25 @@ fn run<B: hal::Backend>(
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
-                    frame += 1;
-                }
-
-                elapsed = started.elapsed();
-                if elapsed >= std::time::Duration::new(5, 0) {
-                    *control_flow = ControlFlow::Exit
                 }
             }
             _ => {}
         }
 
         if *control_flow == ControlFlow::Exit && graph.is_some() {
-            let elapsed_ns = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-
-            log::info!(
-                "Elapsed: {:?}. Frames: {}. FPS: {}",
-                elapsed,
-                frame,
-                frame * 1_000_000_000 / elapsed_ns
-            );
-
             graph.take().unwrap().dispose(&mut factory, &());
         }
     });
 }
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        wasm_logger::init(wasm_logger::Config::new(log::Level::Trace));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     env_logger::Builder::from_default_env()
         .filter_module("sprite", log::LevelFilter::Trace)
         .init();
@@ -370,6 +381,7 @@ fn main() {
         .with_inner_size(rendy::init::winit::dpi::LogicalSize::new(960, 640));
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
+
     rendy::with_any_windowed_rendy!((rendy)
         (mut factory, mut families, surface, window) => {
 

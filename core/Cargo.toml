@@ -26,9 +26,9 @@ vulkan = ["gfx-backend-vulkan"]
 no-slow-safety-checks = []
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4" }
-gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", optional = true }
-gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", features = ["glutin"], optional = true }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "eaa6fd9af2ed65206e34004cc44ca6a4b55f1cb2" }
+gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "eaa6fd9af2ed65206e34004cc44ca6a4b55f1cb2", optional = true }
+gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx", rev = "eaa6fd9af2ed65206e34004cc44ca6a4b55f1cb2", features = ["glutin"], optional = true }
 lazy_static = "1.0"
 log = "0.4"
 parking_lot = "0.9"
@@ -37,10 +37,10 @@ thread_profiler = "0.3"
 raw-window-handle = "0.3"
 
 [target.'cfg(all(target_os = "windows", not(target_arch = "wasm32")))'.dependencies]
-gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", optional = true }
+gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "eaa6fd9af2ed65206e34004cc44ca6a4b55f1cb2", optional = true }
 
 [target.'cfg(any(all(not(target_arch = "wasm32"), target_os = "macos"), all(target_arch = "aarch64", target_os = "ios")))'.dependencies]
-gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", optional = true }
+gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "eaa6fd9af2ed65206e34004cc44ca6a4b55f1cb2", optional = true }
 
 [target.'cfg(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))'.dependencies]
-gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", features = ["x11"], optional = true }
+gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "eaa6fd9af2ed65206e34004cc44ca6a4b55f1cb2", features = ["x11"], optional = true }

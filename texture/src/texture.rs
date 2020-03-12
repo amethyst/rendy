@@ -428,6 +428,8 @@ impl<'a> TextureBuilder<'a> {
         }
 
         if mip_levels > 1 && generate_mips {
+            log::error!("Blitting to fill mips");
+
             profile_scope!("fill_mips");
             unsafe {
                 factory

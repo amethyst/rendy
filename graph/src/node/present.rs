@@ -426,7 +426,8 @@ where
                 extent,
                 self.image_count,
                 self.present_mode,
-                rendy_core::hal::image::Usage::TRANSFER_DST,
+                // This had to be changed from TRANSFER_DST for web.
+                rendy_core::hal::image::Usage::COLOR_ATTACHMENT,
             )
             .map_err(NodeBuildError::Swapchain)?;
 

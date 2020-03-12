@@ -52,7 +52,7 @@ spirv-reflection = ["rendy-shader/spirv-reflection" ]
 full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler"]
 
 # Default feature set includes all subcrates and few commonly used features.
-default = [ "base", "shader-compiler", "spirv-reflection" ]
+default = [ "base"]
 
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command", optional = true }

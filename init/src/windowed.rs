@@ -312,6 +312,15 @@ rendy_with_gl_backend! {
         impl WindowedRendy<rendy_core::gl::Backend> {
             pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
                 let window = window_builder.build(event_loop)?;
+
+                web_sys::window()
+                .unwrap()
+                .document()
+                .unwrap()
+                .body()
+                .unwrap()
+                .append_child(&winit::platform::web::WindowExtWebSys::canvas(&window)).unwrap();
+
                 let surface = rendy_core::gl::Surface::from_raw_handle(&window);
                 let instance = rendy_core::Instance::new(surface);
 

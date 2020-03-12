@@ -214,7 +214,6 @@ fn run<B: Backend>(
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
-                    frame += 1;
                 }
 
                 elapsed = started.elapsed();
