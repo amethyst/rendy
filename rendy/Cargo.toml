@@ -104,5 +104,11 @@ required-features = ["base", "init-winit", "shader-compiler"]
 name = "source_shaders"
 required-features = ["base", "init-winit", "shader-compiler"]
 
+[[example]]
+name = "ios_triangle"
+path = "examples/ios_triangle/lib.rs"
+crate-type = ["staticlib"]
+required-features = ["base", "wsi-winit", "shader-compiler", "metal"]
+
 [package.metadata.docs.rs]
 features = ["full"]
