@@ -168,7 +168,7 @@ impl VertexFormat {
             attributes
                 .iter()
                 .map(|attr| {
-                    (attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8)
+                    attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8
                 })
                 .max()
                 .expect("Vertex format cannot be empty")

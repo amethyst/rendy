@@ -2,6 +2,7 @@
 
 use crate::{pixel, MipLevels, TextureBuilder};
 
+use std::convert::TryFrom;
 use std::num::NonZeroU8;
 
 // reexport for easy usage in ImageTextureConfig
@@ -193,6 +194,26 @@ fn premultiply_alpha_2channel<P: image::Pixel<Subpixel = u8>>(pixel: &mut P) {
     channels_mut[0] = (channels_mut[0] as f32 * alpha).min(255.0).max(0.0) as u8;
 }
 
+/// pixel.channel_count() must be 2
+fn premultiply_alpha_2channel_u16<P: image::Pixel<Subpixel = u16>>(pixel: &mut P) {
+    let channels_mut = pixel.channels_mut();
+    let alpha = channels_mut[1] as f32 / 255.0;
+    channels_mut[0] = (channels_mut[0] as f32 * alpha).min(255.0).max(0.0) as u16;
+}
+
+fn vec_16_to_vec_8(vec_u16: Vec<u16>) -> Vec<u8> {
+    vec_u16
+        .into_iter()
+        .flat_map(|value: u16| {
+            let high: u8 =
+                TryFrom::<u16>::try_from(value & 0x00ffu16).expect("Unreachable: within u8 range");
+            let low: u8 = TryFrom::<u16>::try_from((value >> 8) & 0x00ffu16)
+                .expect("Unreachable: within u8 range");
+            std::iter::once(low).chain(std::iter::once(high))
+        })
+        .collect::<Vec<u8>>()
+}
+
 /// Attempts to load a Texture from an image.
 pub fn load_from_image<R>(
     mut reader: R,
@@ -217,8 +238,8 @@ where
     )?;
 
     let (w, h, vec, format, swizzle) = match (image_format, config.repr) {
-        (image::ImageFormat::HDR, Repr::Float) => {
-            let decoder = image::hdr::HDRDecoder::new(reader)?;
+        (image::ImageFormat::Hdr, Repr::Float) => {
+            let decoder = image::hdr::HdrDecoder::new(reader)?;
             let metadata = decoder.metadata();
             let (w, h) = (metadata.width, metadata.height);
 
@@ -238,6 +259,15 @@ where
                     dyn_format!(R, _8, config.repr),
                     Swizzle(Component::R, Component::R, Component::R, Component::One),
                 ),
+                DynamicImage::ImageLuma16(img) => {
+                    let vec_u16 = img.into_vec();
+                    let vec_u8 = vec_16_to_vec_8(vec_u16);
+                    (
+                        vec_u8,
+                        dyn_format!(R, _8, config.repr),
+                        Swizzle(Component::R, Component::R, Component::R, Component::G),
+                    )
+                }
                 DynamicImage::ImageLumaA8(mut img) => {
                     if config.premultiply_alpha {
                         for pixel in img.pixels_mut() {
@@ -250,11 +280,44 @@ where
                         Swizzle(Component::R, Component::R, Component::R, Component::G),
                     )
                 }
+                DynamicImage::ImageLumaA16(mut img) => {
+                    if config.premultiply_alpha {
+                        for pixel in img.pixels_mut() {
+                            premultiply_alpha_2channel_u16(pixel);
+                        }
+                    }
+                    let vec_u16 = img.into_vec();
+                    let vec_u8 = vec_16_to_vec_8(vec_u16);
+                    (
+                        vec_u8,
+                        dyn_format!(Rg, _8, config.repr),
+                        Swizzle(Component::R, Component::R, Component::R, Component::G),
+                    )
+                }
                 DynamicImage::ImageRgb8(img) => (
                     img.into_vec(),
                     dyn_format!(Rgb, _8, config.repr),
                     Swizzle::NO,
                 ),
+                DynamicImage::ImageRgb16(img) => (
+                    vec_16_to_vec_8(img.into_vec()),
+                    dyn_format!(Rgb, _8, config.repr),
+                    Swizzle::NO,
+                ),
+                DynamicImage::ImageRgba16(mut img) => {
+                    if config.premultiply_alpha {
+                        for pixel in img.pixels_mut() {
+                            premultiply_alpha_2channel_u16(pixel);
+                        }
+                    }
+                    let vec_u16 = img.into_vec();
+                    let vec_u8 = vec_16_to_vec_8(vec_u16);
+                    (
+                        vec_u8,
+                        dyn_format!(Rg, _8, config.repr),
+                        Swizzle(Component::R, Component::R, Component::R, Component::G),
+                    )
+                }
                 DynamicImage::ImageRgba8(mut img) => {
                     if config.premultiply_alpha {
                         for pixel in img.pixels_mut() {
