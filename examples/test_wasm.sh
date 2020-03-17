@@ -18,8 +18,10 @@ fi
 cp examples/src/spirv_cross_wrapper_glsl.js target/generated-wasm/$KIND || { echo 'Unknown failure' ; exit 1; }
 cp examples/src/spirv_cross_wrapper_glsl.wasm target/generated-wasm/$KIND || { echo 'Unknown failure' ; exit 1; }
 
-pushd target/generated-wasm/$KIND  || { echo 'Unknown failure' ; exit 1; }
-google-chrome-stable "http://127.0.0.1:8000/$2"
-python3 ../../../examples/host.py || { echo "Python http server failure" ;  popd; exit 1; }
-popd
+(
+  cd target/generated-wasm/$KIND  || { echo 'Unknown failure' ; exit 1; }
+  google-chrome-stable "http://127.0.0.1:8000/$2"
+  python3 ../../../examples/host.py || { echo "Python http server failure" ;  popd; exit 1; }
+)
+
 exit 0
