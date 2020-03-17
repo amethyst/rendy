@@ -288,7 +288,7 @@ rendy_with_gl_backend! {
                     .with_vsync(true); // TODO: Unhardcode it.
 
                     builder
-                        .build_windowed(window_builder, event_loop)
+                        .build_windowed(window_builder, &*event_loop)
                         .map_err(|err| WindowedRendyInitError::Other(format!("{}", err)))?
                         .make_current()
                         .map_err(|(_ctx, err)| WindowedRendyInitError::Other(format!("{}", err)))?
