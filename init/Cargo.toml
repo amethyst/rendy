@@ -23,10 +23,10 @@ rendy-command = { version = "0.5.1", path = "../command" }
 rendy-factory = { version = "0.5.1", path = "../factory" }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi" }
-winit = { git = "https://github.com/amethyst/winit.git", branch = "clone-events", version = "0.22", optional = true }
+winit = { version = "0.22", git = "https://github.com/amethyst/winit.git", branch = "wasm", optional = true }
 log = "0.4"
 smallvec = "1.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { version = "0.3.6", features = [ "console", "Document", "Element", "HtmlElement", "Node", "Window" ] }
-winit = { git = "https://github.com/amethyst/winit.git", branch = "clone-events", version = "0.22", optional = true, features = ["web-sys"] }
+winit = { version = "0.22", git = "https://github.com/amethyst/winit.git", branch = "wasm", optional = true, features = ["web-sys"] }
