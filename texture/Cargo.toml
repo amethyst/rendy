@@ -23,6 +23,6 @@ rendy-core = { version = "0.5.1", path = "../core" }
 
 serde = { version = "1.0", optional = true }
 image = { version = "0.22.0", optional = true }
-palette = { version = "0.4", optional = true }
+palette = { version = "0.5", optional = true }
 log = "0.4"
 thread_profiler = "0.3"
