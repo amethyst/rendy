@@ -277,13 +277,7 @@ rendy_with_gl_backend! {
     rendy_not_wasm32! {
         impl WindowedRendy<rendy_core::gl::Backend> {
             pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
-                use rendy_core::Instance;
-                use hal::{
-                    format::AsFormat,
-                    window::{Extent2D, PresentationSurface, SwapchainConfig},
-                };
-
-                let inner_size = window_builder.window.inner_size.clone();
+                use {hal::format::AsFormat, rendy_core::Instance};
 
                 let windowed_context = unsafe {
                     let builder = rendy_core::gl::config_context(
@@ -308,28 +302,7 @@ rendy_with_gl_backend! {
                     rendy_core::gl::Instance::Surface(surface) => surface,
                     _ => unreachable!(),
                 };
-                let mut surface = unsafe { wrap_surface(&factory, surface) };
-
-                if let Some(inner_size) = inner_size {
-                    let physical_size = inner_size.to_physical(window.scale_factor());
-                    let default_extent = Extent2D {
-                        width: physical_size.width,
-                        height: physical_size.height,
-                    };
-                    let swapchain_config = SwapchainConfig::from_caps(
-                        &factory.get_surface_capabilities(&surface),
-                        unsafe { surface.format(factory.physical()) },
-                        default_extent,
-                    );
-                    dbg!(&swapchain_config);
-                    unsafe {
-                        surface
-                            .raw_mut()
-                            .configure_swapchain(factory.device().raw(), swapchain_config)
-                            .expect("Failed to configure swapchain.");
-                    }
-                }
-
+                let surface = unsafe { wrap_surface(&factory, surface) };
                 Ok(WindowedRendy {factory, families, surface, window })
             }
         }

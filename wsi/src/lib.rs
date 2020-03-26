@@ -134,11 +134,6 @@ where
         &self.raw
     }
 
-    /// Get raw `B::Surface` mutable reference
-    pub fn raw_mut(&mut self) -> &mut B::Surface {
-        &mut self.raw
-    }
-
     /// Get current extent of the surface.
     pub unsafe fn extent(&self, physical_device: &B::PhysicalDevice) -> Option<Extent2D> {
         self.capabilities(physical_device).current_extent
