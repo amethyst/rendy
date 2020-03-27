@@ -77,7 +77,8 @@ where
     {
         let level = L::default();
 
-        let buffers = unsafe { self.raw.allocate_vec(count, level.raw_level()) };
+        let mut buffers = Vec::with_capacity(count);
+        unsafe { self.raw.allocate(count, level.raw_level(), &mut buffers) };
 
         buffers
             .into_iter()
