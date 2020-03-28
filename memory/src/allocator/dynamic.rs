@@ -79,18 +79,30 @@ where
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
+
         if !self.shared_memory().host_visible() {
             //TODO: invalid access error
             return Err(gfx_hal::device::MapError::MappingFailed);
         }
 
+        let requested_range = relative_to_sub_range(self.range.clone(), range)
+            .ok_or(gfx_hal::device::MapError::OutOfBounds)?;
+
+        let mapping_range = if !self.shared_memory().host_coherent() {
+            align_range(
+                requested_range.clone(),
+                self.shared_memory().non_coherent_atom_size(),
+            )
+        } else {
+            requested_range.clone()
+        };
+
         if let Some(ptr) = self.ptr {
-            if let Some((ptr, range)) = mapped_sub_range(ptr, self.range.clone(), range) {
-                let mapping = unsafe { MappedRange::from_raw(self.shared_memory(), ptr, range) };
-                Ok(mapping)
-            } else {
-                Err(gfx_hal::device::MapError::OutOfBounds)
-            }
+            let ptr = mapped_sub_range(ptr, self.range.clone(), mapping_range.clone()).unwrap();
+            let mapping = unsafe {
+                MappedRange::from_raw(self.shared_memory(), ptr, mapping_range, requested_range)
+            };
+            Ok(mapping)
         } else {
             Err(gfx_hal::device::MapError::MappingFailed)
         }
@@ -140,6 +152,7 @@ pub struct DynamicAllocator<B: Backend> {
 
     /// Ordered set of sizes that have allocated chunks.
     chunks: BTreeSet<u64>,
+    non_coherent_atom_size: u64,
 }
 
 unsafe impl<B> Send for DynamicAllocator<B> where B: Backend {}
@@ -184,6 +197,7 @@ where
         memory_type: gfx_hal::MemoryTypeId,
         memory_properties: gfx_hal::memory::Properties,
         config: DynamicConfig,
+        non_coherent_atom_size: u64,
     ) -> Self {
         log::trace!(
             "Create new allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
@@ -196,6 +210,14 @@ where
             config.block_size_granularity.is_power_of_two(),
             "Allocation granularity must be power of two"
         );
+
+        let block_size_granularity = if is_non_coherent_visible(memory_properties) {
+            non_coherent_atom_size
+                .max(config.block_size_granularity)
+                .next_power_of_two()
+        } else {
+            config.block_size_granularity
+        };
 
         assert!(
             config.max_chunk_size.is_power_of_two(),
@@ -222,11 +244,12 @@ where
         DynamicAllocator {
             memory_type,
             memory_properties,
-            block_size_granularity: config.block_size_granularity,
+            block_size_granularity,
             max_chunk_size: config.max_chunk_size,
             min_device_allocation: config.min_device_allocation,
             sizes: HashMap::new(),
             chunks: BTreeSet::new(),
+            non_coherent_atom_size,
         }
     }
 
@@ -269,7 +292,12 @@ where
             } else {
                 None
             };
-            let memory = Memory::from_raw(raw, chunk_size, self.memory_properties);
+            let memory = Memory::from_raw(
+                raw,
+                chunk_size,
+                self.memory_properties,
+                self.non_coherent_atom_size,
+            );
             (memory, mapping)
         };
         Ok(Chunk::from_memory(block_size, memory, mapping))
@@ -348,7 +376,7 @@ where
             chunk_index,
             count,
             ptr: chunk.mapping_ptr().map(|ptr| {
-                mapped_fitting_range(ptr, chunk.range(), block_range)
+                mapped_sub_range(ptr, chunk.range(), block_range)
                     .expect("Block must be sub-range of chunk")
             }),
             relevant: relevant::Relevant,
@@ -527,6 +555,14 @@ where
         debug_assert!(size <= self.max_allocation());
         debug_assert!(align.is_power_of_two());
         let aligned_size = ((size - 1) | (align - 1) | (self.block_size_granularity - 1)) + 1;
+
+        // This will change nothing if `self.non_coherent_atom_size` is power of two.
+        // But just in case...
+        let aligned_size = if is_non_coherent_visible(self.memory_properties) {
+            align_size(aligned_size, self.non_coherent_atom_size)
+        } else {
+            aligned_size
+        };
 
         log::trace!(
             "Allocate dynamic block: size: {}, align: {}, aligned size: {}, type: {}",

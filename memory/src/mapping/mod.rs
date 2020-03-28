@@ -2,14 +2,12 @@ mod range;
 pub(crate) mod write;
 
 use {
-    crate::{memory::Memory, util::fits_usize},
+    crate::{memory::Memory, util::*},
     gfx_hal::{device::Device as _, Backend},
     std::{ops::Range, ptr::NonNull},
 };
 
-pub(crate) use self::range::{
-    mapped_fitting_range, mapped_slice, mapped_slice_mut, mapped_sub_range,
-};
+pub(crate) use self::range::*;
 use self::write::{Write, WriteCoherent, WriteFlush};
 
 /// Non-coherent marker.
@@ -35,7 +33,11 @@ pub struct MappedRange<'a, B: Backend, C = MaybeCoherent> {
     ptr: NonNull<u8>,
 
     /// Range of mapped memory.
-    range: Range<u64>,
+    mapping_range: Range<u64>,
+
+    /// Mapping range requested by caller.
+    /// Must be subrange of `mapping_range`.
+    requested_range: Range<u64>,
 
     /// Coherency marker
     coherent: C,
@@ -86,14 +88,37 @@ where
     /// `memory` `range` must be mapped to host memory region pointer by `ptr`.
     /// `range` is in memory object space.
     /// `ptr` points to the `range.start` offset from memory origin.
-    pub unsafe fn from_raw(memory: &'a Memory<B>, ptr: NonNull<u8>, range: Range<u64>) -> Self {
-        assert!(
-            range.start < range.end,
+    pub(crate) unsafe fn from_raw(
+        memory: &'a Memory<B>,
+        ptr: NonNull<u8>,
+        mapping_range: Range<u64>,
+        requested_range: Range<u64>,
+    ) -> Self {
+        debug_assert!(
+            mapping_range.start < mapping_range.end,
             "Memory mapping region must have valid size"
         );
+
+        debug_assert!(
+            requested_range.start < requested_range.end,
+            "Memory mapping region must have valid size"
+        );
+
+        if !memory.host_coherent() {
+            debug_assert_eq!(mapping_range.start % memory.non_coherent_atom_size(), 0, "Bounds of non-coherent memory mapping ranges must be multiple of `Limits::non_coherent_atom_size`");
+            debug_assert_eq!(mapping_range.end % memory.non_coherent_atom_size(), 0, "Bounds of non-coherent memory mapping ranges must be multiple of `Limits::non_coherent_atom_size`");
+            debug_assert!(
+                is_sub_range(mapping_range.clone(), requested_range.clone()),
+                "`requested_range` must be sub-range of `mapping_range`",
+            );
+        } else {
+            debug_assert_eq!(mapping_range.clone(), requested_range.clone());
+        }
+
         MappedRange {
             ptr,
-            range,
+            mapping_range,
+            requested_range,
             memory,
             coherent: MaybeCoherent(memory.host_coherent()),
         }
@@ -102,12 +127,17 @@ where
     /// Get pointer to beginning of memory region.
     /// i.e. to `range().start` offset from memory origin.
     pub fn ptr(&self) -> NonNull<u8> {
-        self.ptr
+        mapped_sub_range(
+            self.ptr,
+            self.mapping_range.clone(),
+            self.requested_range.clone(),
+        )
+        .unwrap()
     }
 
     /// Get mapped range.
     pub fn range(&self) -> Range<u64> {
-        self.range.clone()
+        self.requested_range.clone()
     }
 
     /// Fetch readable slice of sub-range to be read.
@@ -128,23 +158,30 @@ where
         'a: 'b,
         T: Copy,
     {
-        assert!(
+        debug_assert!(
             range.start < range.end,
             "Memory mapping region must have valid size"
         );
-        assert!(
+        debug_assert!(
             fits_usize(range.end - range.start),
             "Range length must fit in usize"
         );
 
-        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
+        let sub_range = relative_to_sub_range(self.requested_range.clone(), range)
             .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
-        let size = (range.end - range.start) as usize;
+        let ptr =
+            mapped_sub_range(self.ptr, self.mapping_range.clone(), sub_range.clone()).unwrap();
+
+        let size = (sub_range.end - sub_range.start) as usize;
 
         if !self.coherent.0 {
-            device
-                .invalidate_mapped_memory_ranges(Some((self.memory.raw(), self.range.clone())))?;
+            let aligned_sub_range = align_range(sub_range, self.memory.non_coherent_atom_size());
+            debug_assert!(is_sub_range(
+                self.mapping_range.clone(),
+                aligned_sub_range.clone()
+            ));
+            device.invalidate_mapped_memory_ranges(Some((self.memory.raw(), aligned_sub_range)))?;
         }
 
         let slice = mapped_slice::<T>(ptr, size);
@@ -175,26 +212,33 @@ where
             "Range length must fit in usize"
         );
 
-        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
+        let sub_range = relative_to_sub_range(self.requested_range.clone(), range)
             .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
-        let size = (range.end - range.start) as usize;
+        let ptr =
+            mapped_sub_range(self.ptr, self.mapping_range.clone(), sub_range.clone()).unwrap();
+
+        let size = (sub_range.end - sub_range.start) as usize;
+
         let slice = mapped_slice_mut::<T>(ptr, size);
 
         let ref memory = self.memory;
+        let flush = if !self.coherent.0 {
+            let aligned_sub_range = align_range(sub_range, self.memory.non_coherent_atom_size());
+            debug_assert!(is_sub_range(
+                self.mapping_range.clone(),
+                aligned_sub_range.clone()
+            ));
+            Some(move || {
+                device
+                    .flush_mapped_memory_ranges(Some((memory.raw(), aligned_sub_range)))
+                    .expect("Should flush successfully");
+            })
+        } else {
+            None
+        };
 
-        Ok(WriteFlush {
-            slice,
-            flush: if !self.coherent.0 {
-                Some(move || {
-                    device
-                        .flush_mapped_memory_ranges(Some((memory.raw(), range)))
-                        .expect("Should flush successfully");
-                })
-            } else {
-                None
-            },
-        })
+        Ok(WriteFlush { slice, flush })
     }
 
     /// Convert into mapped range with statically known coherency.
@@ -203,14 +247,16 @@ where
             Ok(MappedRange {
                 memory: self.memory,
                 ptr: self.ptr,
-                range: self.range,
+                mapping_range: self.mapping_range,
+                requested_range: self.requested_range,
                 coherent: Coherent,
             })
         } else {
             Err(MappedRange {
                 memory: self.memory,
                 ptr: self.ptr,
-                range: self.range,
+                mapping_range: self.mapping_range,
+                requested_range: self.requested_range,
                 coherent: NonCoherent,
             })
         }
@@ -225,7 +271,8 @@ where
         MappedRange {
             memory: range.memory,
             ptr: range.ptr,
-            range: range.range,
+            mapping_range: range.mapping_range,
+            requested_range: range.requested_range,
             coherent: MaybeCoherent(true),
         }
     }
@@ -239,7 +286,8 @@ where
         MappedRange {
             memory: range.memory,
             ptr: range.ptr,
-            range: range.range,
+            mapping_range: range.mapping_range,
+            requested_range: range.requested_range,
             coherent: MaybeCoherent(false),
         }
     }
@@ -270,10 +318,13 @@ where
             "Range length must fit in usize"
         );
 
-        let (ptr, range) = mapped_sub_range(self.ptr, self.range.clone(), range)
+        let sub_range = relative_to_sub_range(self.requested_range.clone(), range)
             .ok_or_else(|| gfx_hal::device::MapError::OutOfBounds)?;
 
-        let size = (range.end - range.start) as usize;
+        let ptr =
+            mapped_sub_range(self.ptr, self.mapping_range.clone(), sub_range.clone()).unwrap();
+
+        let size = (sub_range.end - sub_range.start) as usize;
 
         let slice = mapped_slice_mut::<U>(ptr, size);
 

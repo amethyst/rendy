@@ -1279,7 +1279,13 @@ where
 
     log::debug!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
 
-    let heaps = unsafe { Heaps::new(types, heaps) };
+    let heaps = unsafe {
+        Heaps::new(
+            types,
+            heaps,
+            adapter.physical_device.limits().non_coherent_atom_size as u64,
+        )
+    };
 
     let epochs = families
         .as_slice()

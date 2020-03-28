@@ -9,11 +9,11 @@ use {
 };
 
 /// Get sub-range of memory mapping.
-/// `range` and `fitting` is in memory object space.
+/// `range` and `fitting` are in memory object space.
 /// `ptr` points to the `range.start` offset from memory origin.
 /// returns pointer to `fitting.start` offset from memory origin
 /// if `fitting` is contained in `range`.
-pub(crate) fn mapped_fitting_range(
+pub(crate) fn mapped_sub_range(
     ptr: NonNull<u8>,
     range: Range<u64>,
     fitting: Range<u64>,
@@ -39,22 +39,6 @@ pub(crate) fn mapped_fitting_range(
             )
         })
     }
-}
-
-/// Get sub-range of memory mapping.
-/// `range` is in memory object space.
-/// `sub` is a range inside `range`.
-/// `ptr` points to the `range.start` offset from memory origin.
-/// returns pointer to the `range.starti + sub.start` offset from memory origin
-/// if `sub` fits in `range`.
-pub(crate) fn mapped_sub_range(
-    ptr: NonNull<u8>,
-    range: Range<u64>,
-    sub: Range<u64>,
-) -> Option<(NonNull<u8>, Range<u64>)> {
-    let fitting = sub.start.checked_add(range.start)?..sub.end.checked_add(range.start)?;
-    let ptr = mapped_fitting_range(ptr, range, fitting.clone())?;
-    Some((ptr, fitting))
 }
 
 /// # Safety

@@ -66,7 +66,7 @@ where
     B: gfx_hal::Backend,
 {
     /// This must be called with `gfx_hal::memory::Properties` fetched from physical device.
-    pub unsafe fn new<P, H>(types: P, heaps: H) -> Self
+    pub unsafe fn new<P, H>(types: P, heaps: H, non_coherent_atom_size: u64) -> Self
     where
         P: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
@@ -91,7 +91,13 @@ where
                     let memory_type = gfx_hal::MemoryTypeId(index);
                     let heap_index = heap_index as usize;
                     assert!(heap_index < heaps.len());
-                    MemoryType::new(memory_type, heap_index, properties, config)
+                    MemoryType::new(
+                        memory_type,
+                        heap_index,
+                        properties,
+                        config,
+                        non_coherent_atom_size,
+                    )
                 })
                 .collect(),
             heaps,
