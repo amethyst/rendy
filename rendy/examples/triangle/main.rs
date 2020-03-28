@@ -1,7 +1,7 @@
 //!
 //! The mighty triangle example.
-//! This examples shows colord triangle on white background.
-//! Nothing fancy. Just prove that `rendy` works.
+//! This example shows a colored triangle on a white background.
+//! Nothing fancy. Just proves that `rendy` works.
 //!
 
 use rendy::{
