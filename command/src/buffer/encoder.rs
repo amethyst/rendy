@@ -102,12 +102,11 @@ where
         C: Supports<Graphics>,
     {
         self.capability.assert();
-        let range = rendy_core::hal::buffer::SubRange { offset, size: None };
         rendy_core::hal::command::CommandBuffer::bind_index_buffer(
             self.raw,
             rendy_core::hal::buffer::IndexBufferView {
                 buffer: buffer,
-                range,
+                offset,
                 index_type,
             },
         )
@@ -130,7 +129,7 @@ where
     pub unsafe fn bind_vertex_buffers<'b>(
         &mut self,
         first_binding: u32,
-        buffers: impl IntoIterator<Item = (&'b B::Buffer, rendy_core::hal::buffer::SubRange)>,
+        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
     ) where
         C: Supports<Graphics>,
     {

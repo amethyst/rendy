@@ -858,8 +858,7 @@ where
                             framebuffer_width,
                             framebuffer_height,
                             rendy_core::hal::pass::Subpass {
-                                index: std::convert::TryInto::try_into(index)
-                                    .expect("More than 256 subpasses is unsupported."),
+                                index,
                                 main_pass: &render_pass,
                             },
                             buffers,
@@ -1169,8 +1168,7 @@ where
                                         queue.id(),
                                         index,
                                         rendy_core::hal::pass::Subpass {
-                                            index: std::convert::TryInto::try_into(subpass_index)
-                                                .expect("More than 256 subpasses is unsupported."),
+                                            index: subpass_index,
                                             main_pass: &render_pass,
                                         },
                                         aux,
@@ -1221,8 +1219,7 @@ where
                                     pass_encoder.reborrow(),
                                     index,
                                     rendy_core::hal::pass::Subpass {
-                                        index: std::convert::TryInto::try_into(subpass_index)
-                                            .expect("More than 256 subpasses is unsupported."),
+                                        index: subpass_index,
                                         main_pass: &render_pass,
                                     },
                                     aux,
@@ -1353,8 +1350,7 @@ where
                                     queue.id(),
                                     index,
                                     rendy_core::hal::pass::Subpass {
-                                        index: std::convert::TryInto::try_into(subpass_index)
-                                            .expect("More than 256 subpasses is unsupported."),
+                                        index: subpass_index,
                                         main_pass: &render_pass,
                                     },
                                     aux,
@@ -1396,8 +1392,7 @@ where
                                 pass_encoder.reborrow(),
                                 index,
                                 rendy_core::hal::pass::Subpass {
-                                    index: std::convert::TryInto::try_into(subpass_index)
-                                        .expect("More than 256 subpasses is unsupported."),
+                                    index: subpass_index,
                                     main_pass: &render_pass,
                                 },
                                 aux,

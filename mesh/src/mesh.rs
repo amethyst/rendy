@@ -383,10 +383,7 @@ where
     fn get_vertex_iter<'a>(
         &'a self,
         formats: &[VertexFormat],
-    ) -> Result<
-        impl IntoIterator<Item = (&'a B::Buffer, rendy_core::hal::buffer::SubRange)>,
-        Incompatible,
-    > {
+    ) -> Result<impl IntoIterator<Item = (&'a B::Buffer, u64)>, Incompatible> {
         debug_assert!(is_slice_sorted(formats), "Formats: {:#?}", formats);
         debug_assert!(is_slice_sorted_by_key(&self.vertex_layouts, |l| &l.format));
 
@@ -411,12 +408,7 @@ where
         }
 
         let buffer = self.vertex_buffer.raw();
-        Ok(vertex.into_iter().map(move |offset| {
-            (
-                buffer,
-                rendy_core::hal::buffer::SubRange { offset, size: None },
-            )
-        }))
+        Ok(vertex.into_iter().map(move |offset| (buffer, offset)))
     }
 
     /// Bind buffers to specified attribute locations.

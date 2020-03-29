@@ -282,7 +282,7 @@ pub enum NodeBuildError {
     /// Mismatched or unsupported queue family.
     QueueFamily(FamilyId),
     /// Failed to create an imate view.
-    View(rendy_core::hal::image::ViewCreationError),
+    View(rendy_core::hal::image::ViewError),
     /// Failed to create a pipeline.
     Pipeline(rendy_core::hal::pso::CreationError),
     /// Failed to create a swap chain.
@@ -523,10 +523,7 @@ pub fn gfx_acquire_barriers<'a, 'b, B: Backend>(
                         .get_buffer(buffer.id)
                         .expect("Buffer does not exist")
                         .raw(),
-                    range: rendy_core::hal::buffer::SubRange {
-                        offset: buffer.range.start,
-                        size: Some(buffer.range.end - buffer.range.start),
-                    },
+                    range: Some(buffer.range.start)..Some(buffer.range.end),
                 }
             })
         })
@@ -577,10 +574,7 @@ pub fn gfx_release_barriers<'a, B: Backend>(
                         .get_buffer(buffer.id)
                         .expect("Buffer does not exist")
                         .raw(),
-                    range: rendy_core::hal::buffer::SubRange {
-                        offset: buffer.range.start,
-                        size: Some(buffer.range.end - buffer.range.start),
-                    },
+                    range: Some(buffer.range.start)..Some(buffer.range.end),
                 }
             })
         })
