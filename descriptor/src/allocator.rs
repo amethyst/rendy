@@ -75,7 +75,7 @@ unsafe fn allocate_from_pool<B: Backend>(
     allocation: &mut SmallVec<[B::DescriptorSet; 1]>,
 ) -> Result<(), OutOfMemory> {
     let sets_were = allocation.len();
-    raw.allocate_sets(std::iter::repeat(layout).take(count as usize), allocation)
+    raw.allocate(std::iter::repeat(layout).take(count as usize), allocation)
         .map_err(|err| match err {
             AllocationError::Host => OutOfMemory::Host,
             AllocationError::Device => OutOfMemory::Device,

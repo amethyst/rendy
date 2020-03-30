@@ -8,7 +8,7 @@ use {
         memory::*,
         util::*,
     },
-    gfx_hal::{device::Device as _, Backend},
+    gfx_hal::{device::Device as _, memory::Segment, Backend},
     std::sync::Arc,
 };
 
@@ -267,7 +267,13 @@ where
         let (memory, ptr) = unsafe {
             let raw = device.allocate_memory(self.memory_type, self.linear_size)?;
 
-            let ptr = match device.map_memory(&raw, 0..self.linear_size) {
+            let ptr = match device.map_memory(
+                &raw,
+                Segment {
+                    offset: 0,
+                    size: Some(self.linear_size),
+                },
+            ) {
                 Ok(ptr) => NonNull::new_unchecked(ptr),
                 Err(gfx_hal::device::MapError::OutOfMemory(error)) => {
                     device.free_memory(raw);
