@@ -324,7 +324,16 @@ where
                 std::iter::once(self.descriptor_set.raw()),
                 std::iter::empty::<u32>(),
             );
-            encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));
+            encoder.bind_vertex_buffers(
+                0,
+                Some((
+                    self.vbuf.raw(),
+                    hal::buffer::SubRange {
+                        offset: 0,
+                        size: None,
+                    },
+                )),
+            );
             encoder.draw(0..6, 0..1);
         }
     }
@@ -384,6 +393,11 @@ fn main() {
 
     rendy::with_any_windowed_rendy!((rendy)
         (mut factory, mut families, surface, window) => {
+            #[cfg(target_arch = "wasm32")]
+            web_sys::window().unwrap()
+                .document().unwrap()
+                .body().unwrap()
+                .append_child(&rendy::init::winit::platform::web::WindowExtWebSys::canvas(&window)).unwrap();
 
             let mut graph_builder = GraphBuilder::<_, ()>::new();
 
