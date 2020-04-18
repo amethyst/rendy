@@ -75,10 +75,9 @@ unsafe fn allocate_from_pool<B: Backend>(
     allocation: &mut SmallVec<[B::DescriptorSet; 1]>,
 ) -> Result<(), OutOfMemory> {
     let sets_were = allocation.len();
-    raw.allocate_sets(std::iter::repeat(layout).take(count as usize), allocation)
+    raw.allocate(std::iter::repeat(layout).take(count as usize), allocation)
         .map_err(|err| match err {
-            AllocationError::Host => OutOfMemory::Host,
-            AllocationError::Device => OutOfMemory::Device,
+            AllocationError::OutOfMemory(oom) => oom,
             err => {
                 // We check pool for free descriptors and sets before calling this function,
                 // so it can't be exhausted.
@@ -182,7 +181,7 @@ where
 
         while count > 0 {
             let size = self.new_pool_size(count);
-            let pool_ranges = layout_ranges * size;
+            let pool_ranges = layout_ranges.clone() * size;
             log::trace!(
                 "Create new pool with {} sets and {:?} descriptors",
                 size,
@@ -301,9 +300,15 @@ where
 
         let bucket = self
             .buckets
-            .entry(layout_ranges)
+            .entry(layout_ranges.clone())
             .or_insert_with(|| DescriptorBucket::new());
-        match bucket.allocate(device, layout, layout_ranges, count, &mut self.allocation) {
+        match bucket.allocate(
+            device,
+            layout,
+            layout_ranges.clone(),
+            count,
+            &mut self.allocation,
+        ) {
             Ok(()) => {
                 extend.extend(
                     Iterator::zip(
@@ -312,7 +317,7 @@ where
                     )
                     .map(|(pool, set)| DescriptorSet {
                         raw: set,
-                        ranges: layout_ranges,
+                        ranges: layout_ranges.clone(),
                         pool,
                     }),
                 );

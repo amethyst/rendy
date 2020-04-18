@@ -13,6 +13,7 @@ use {
         graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
         hal::{self, adapter::PhysicalDevice as _, device::Device as _},
         init::winit::{
+            dpi::Size as DpiSize,
             event::{Event, WindowEvent},
             event_loop::{ControlFlow, EventLoop},
             window::WindowBuilder,
@@ -230,8 +231,10 @@ where
                     array_offset: 0,
                     descriptors: Some(hal::pso::Descriptor::Buffer(
                         buffer.raw(),
-                        Some(uniform_offset(index, align))
-                            ..Some(uniform_offset(index, align) + UNIFORM_SIZE),
+                        hal::buffer::SubRange {
+                            offset: uniform_offset(index, align),
+                            size: Some(UNIFORM_SIZE),
+                        },
                     )),
                 }));
                 sets.push(set);
@@ -369,7 +372,7 @@ fn main() {
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size((960, 640).into())
+        .with_inner_size(DpiSize::Logical((960, 640).into()))
         .with_title("Rendy example");
 
     let config: Config = Default::default();
@@ -379,7 +382,7 @@ fn main() {
 
         let mut graph_builder = GraphBuilder::<_, Scene<_>>::new();
 
-        let size = window.inner_size().to_physical(window.hidpi_factor());
+        let size = window.inner_size();
         let window_kind = hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1);
         let aspect = size.width / size.height;
 
@@ -500,7 +503,7 @@ fn main() {
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     _ => {}
                 },
-                Event::EventsCleared => {
+                Event::MainEventsCleared => {
                     factory.maintain(&mut families);
                     if let Some(ref mut graph) = graph {
                         graph.run(&mut factory, &mut families, &scene);
