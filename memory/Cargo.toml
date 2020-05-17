@@ -14,7 +14,7 @@ description = "Rendy's memory manager"
 serde-1 = ["serde", "gfx-hal/serde"]
 
 [dependencies]
-gfx-hal = { git = "https://github.com/amethyst/gfx", branch = "wasm" }
+gfx-hal = { git = "https://github.com/gfx-rs/gfx.git" }
 log = "0.4"
 hibitset = {version = "0.6", default-features = false}
 relevant = { version = "0.4", features = ["log"] }

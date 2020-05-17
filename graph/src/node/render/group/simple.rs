@@ -294,7 +294,7 @@ where
             h: framebuffer_height as i16,
         };
 
-        let shaders = match shader_set.raw() {
+        let (vertex, fragment, domain, hull, geometry) = match shader_set.shader_entry_points() {
             Err(e) => {
                 shader_set.dispose(factory);
                 log::warn!("Shader error {:?}", e);
@@ -303,14 +303,27 @@ where
             Ok(s) => s,
         };
 
+        let tessellation = if hull.is_some() && domain.is_some() {
+            Some((hull.unwrap(), domain.unwrap()))
+        } else {
+            None
+        };
+
+        let primitive_assembler = rendy_core::hal::pso::PrimitiveAssembler::Vertex {
+            buffers: vertex_buffers,
+            attributes,
+            input_assembler: pipeline.input_assembler_desc,
+            vertex,
+            geometry,
+            tessellation,
+        };
+
         let graphics_pipeline = unsafe {
             factory.device().create_graphics_pipelines(
                 Some(rendy_core::hal::pso::GraphicsPipelineDesc {
-                    shaders,
+                    primitive_assembler,
                     rasterizer: pipeline.rasterizer,
-                    vertex_buffers,
-                    attributes,
-                    input_assembler: pipeline.input_assembler_desc,
+                    fragment,
                     blender: rendy_core::hal::pso::BlendDesc {
                         logic_op: None,
                         targets: pipeline.colors.clone(),
