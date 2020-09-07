@@ -140,7 +140,6 @@ enabled separately (enabling a subcrate will also enable its dependencies).
 ## Who is using it?
 
 * The [`Amethyst`](https://github.com/amethyst/) project
-* [wgpu-rs](https://github.com/gfx-rs/wgpu-rs)
 
 Kindly open a PR or issue if you're aware of other projects using `rendy`.
 
