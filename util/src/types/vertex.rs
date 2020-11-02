@@ -347,7 +347,7 @@ impl Ord for Attribute {
 #[cfg(feature = "serde")]
 mod serde_attribute {
     use serde::{
-        de::{Error, MapAccess, Visitor},
+        de::{Error, MapAccess, SeqAccess, Visitor},
         ser::SerializeStruct,
         Deserialize, Deserializer, Serialize, Serializer,
     };
@@ -380,6 +380,22 @@ mod serde_attribute {
                 type Value = super::Attribute;
                 fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                     formatter.write_str("Attribute struct")
+                }
+
+                fn visit_seq<V>(self, mut seq: V) -> Result<super::Attribute, V::Error>
+                where
+                    V: SeqAccess<'de>,
+                {
+                    let element = seq
+                        .next_element()?
+                        .ok_or_else(|| V::Error::invalid_length(0, &self))?;
+                    let index = seq
+                        .next_element()?
+                        .ok_or_else(|| V::Error::invalid_length(1, &self))?;
+                    let name = seq
+                        .next_element::<String>()?
+                        .ok_or_else(|| V::Error::invalid_length(2, &self))?;
+                    Ok(super::Attribute::new(name, index, element))
                 }
                 fn visit_map<V: MapAccess<'de>>(
                     self,
