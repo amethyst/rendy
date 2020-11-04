@@ -11,6 +11,7 @@ use rendy::{
     },
     hal::{self, device::Device as _},
     init::winit::{
+        dpi::LogicalSize,
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
@@ -329,7 +330,7 @@ fn run<B: hal::Backend>(
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
-            Event::EventsCleared => {
+            Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
@@ -369,7 +370,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Rendy example")
-        .with_inner_size((960, 640).into());
+        .with_inner_size(LogicalSize::new(960, 640));
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
     rendy::with_any_windowed_rendy!((rendy)
@@ -377,7 +378,7 @@ fn main() {
 
             let mut graph_builder = GraphBuilder::<_, ()>::new();
 
-            let size = window.inner_size().to_physical(window.hidpi_factor());
+            let size = window.inner_size();
 
             let color = graph_builder.create_image(
                 hal::image::Kind::D2(size.width as u32, size.height as u32, 1, 1),

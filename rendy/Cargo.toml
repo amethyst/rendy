@@ -73,11 +73,11 @@ thread_profiler = "0.3"
 
 [dev-dependencies]
 genmesh = "0.6"
-nalgebra = "0.18"
-env_logger = "0.6"
-lazy_static = "1.0"
+nalgebra = "0.19"
+env_logger = "0.7"
+lazy_static = "1.4"
 log = "0.4"
-palette = "0.4"
+palette = "0.5"
 rand = "0.7"
 
 [[example]]
