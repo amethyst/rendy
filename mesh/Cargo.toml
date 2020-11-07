@@ -12,7 +12,7 @@ categories = ["rendering"]
 readme = "README.md"
 
 [features]
-obj = ["wavefront_obj"]
+obj = ["wavefront_obj", "mikktspace"]
 serde-1 = ["serde", "serde_bytes", "smallvec/serde", "rendy-factory/serde-1"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 
@@ -25,6 +25,7 @@ rendy-core = { version = "0.5.1", path = "../core" }
 
 serde = { version = "1.0", optional = true, features = ["derive"] }
 wavefront_obj = { version = "6.0", optional = true }
+mikktspace = { version = "0.2", optional = true }
 smallvec = "1.0"
 serde_bytes = { version = "0.11", optional = true }
 

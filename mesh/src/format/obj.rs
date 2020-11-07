@@ -2,7 +2,9 @@
 
 use log::trace;
 use {
-    crate::{mesh::MeshBuilder, Normal, Position, TexCoord},
+    crate::{mesh::MeshBuilder, Normal, Position, Tangent, TexCoord},
+    mikktspace::Geometry,
+    std::collections::{BTreeSet, HashMap},
     wavefront_obj::obj,
 };
 
@@ -13,6 +15,8 @@ pub enum ObjError {
     Utf8(std::str::Utf8Error),
     /// Parsing of the obj failed.
     Parse(wavefront_obj::ParseError),
+    /// Geometry is unsuitable for tangent generation
+    Tangent,
 }
 
 impl std::error::Error for ObjError {}
@@ -25,6 +29,7 @@ impl std::fmt::Display for ObjError {
                 "Error parsing object file at line {}: {}",
                 e.line_number, e.message
             ),
+            ObjError::Tangent => write!(f, "Geometry is unsuitable for tangent generation"),
         }
     }
 }
@@ -35,13 +40,13 @@ pub fn load_from_obj(
 ) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
     let string = std::str::from_utf8(bytes).map_err(ObjError::Utf8)?;
     obj::parse(string)
-        .and_then(load_from_data)
         .map_err(ObjError::Parse)
+        .and_then(load_from_data)
 }
 
 fn load_from_data(
     obj_set: obj::ObjSet,
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, wavefront_obj::ParseError> {
+) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
     // Takes a list of objects that contain geometries that contain shapes that contain
     // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.
@@ -52,60 +57,105 @@ fn load_from_data(
         for geometry in &object.geometry {
             let mut builder = MeshBuilder::new();
 
-            let mut indices = Vec::new();
-
-            geometry.shapes.iter().for_each(|shape| {
-                if let obj::Primitive::Triangle(v1, v2, v3) = shape.primitive {
-                    indices.push(v1);
-                    indices.push(v2);
-                    indices.push(v3);
-                }
-            });
-            // We can't use the vertices directly because we have per face normals and not per vertex normals in most obj files
-            // TODO: Compress duplicates and return indices for indexbuffer.
-            let positions = indices
+            // Since vertices, normals, tangents, and texture coordinates share
+            // indices in rendy, we need an index for each unique VTNIndex.
+            // E.x. f 1/1/1, 2/2/1, and 1/2/1 needs three different vertices, even
+            // though only two vertices are referenced in the soure wavefron OBJ.
+            // We also don't want triangle with opposite windings to share a vertex.
+            let tris = geometry
+                .shapes
                 .iter()
-                .map(|index| {
-                    let vertex: obj::Normal = object.vertices[index.0];
-                    Position([vertex.x as f32, vertex.y as f32, vertex.z as f32])
+                .flat_map(|shape| match shape.primitive {
+                    obj::Primitive::Triangle(i1, i2, i3) => {
+                        let h = winding(
+                            i1.1.map(|i| object.tex_vertices[i])
+                                .unwrap_or(obj::TVertex {
+                                    u: 0.0,
+                                    v: 0.0,
+                                    w: 0.0,
+                                }),
+                            i2.1.map(|i| object.tex_vertices[i])
+                                .unwrap_or(obj::TVertex {
+                                    u: 0.0,
+                                    v: 0.0,
+                                    w: 0.0,
+                                }),
+                            i3.1.map(|i| object.tex_vertices[i])
+                                .unwrap_or(obj::TVertex {
+                                    u: 0.0,
+                                    v: 0.0,
+                                    w: 0.0,
+                                }),
+                        );
+                        Some([(i1, h), (i2, h), (i3, h)])
+                    }
+                    _ => None,
                 })
                 .collect::<Vec<_>>();
 
-            trace!("Loading normals");
+            let indices = tris.iter().flatten().collect::<BTreeSet<_>>();
+
+            let positions = indices
+                .iter()
+                .map(|(i, _)| {
+                    let obj::Vertex { x, y, z } = object.vertices[i.0];
+                    Position([x as f32, y as f32, z as f32])
+                })
+                .collect::<Vec<_>>();
+
             let normals = indices
                 .iter()
-                .map(|index| {
-                    index
-                        .2
-                        .map(|i| {
-                            let normal: obj::Normal = object.normals[i];
-                            Normal([normal.x as f32, normal.y as f32, normal.z as f32])
-                        })
-                        .unwrap_or(Normal([0.0, 0.0, 0.0]))
+                .map(|(i, _)| {
+                    if let Some(j) = i.2 {
+                        let obj::Normal { x, y, z } = object.normals[j];
+                        Normal([x as f32, y as f32, z as f32])
+                    } else {
+                        Normal([0.0, 0.0, 0.0])
+                    }
                 })
                 .collect::<Vec<_>>();
 
             let tex_coords = indices
                 .iter()
-                .map(|index| {
-                    index
-                        .1
-                        .map(|i| {
-                            let tvertex: obj::TVertex = object.tex_vertices[i];
-                            TexCoord([tvertex.u as f32, tvertex.v as f32])
-                        })
-                        .unwrap_or(TexCoord([0.0, 0.0]))
+                .map(|(i, _)| {
+                    if let Some(j) = i.1 {
+                        let obj::TVertex { u, v, .. } = object.tex_vertices[j];
+                        TexCoord([u as f32, v as f32])
+                    } else {
+                        TexCoord([0.0, 0.0])
+                    }
                 })
                 .collect::<Vec<_>>();
 
-            // builder.set_indices(indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>());
+            let index_map = indices
+                .iter()
+                .enumerate()
+                .map(|(v, k)| (k, v as u32))
+                .collect::<HashMap<_, _>>();
+
+            let reindex = tris
+                .iter()
+                .flatten()
+                .map(|i| index_map[&i])
+                .collect::<Vec<_>>();
+
+            let tangents = {
+                let mut obj_geom = ObjGeometry::new(&positions, &normals, &tex_coords, &reindex);
+                if !mikktspace::generate_tangents(&mut obj_geom) {
+                    return Err(ObjError::Tangent);
+                }
+                obj_geom.get_tangents()
+            };
 
             debug_assert!(&normals.len() == &positions.len());
+            debug_assert!(&tangents.len() == &positions.len());
             debug_assert!(&tex_coords.len() == &positions.len());
 
             builder.add_vertices(positions);
             builder.add_vertices(normals);
+            builder.add_vertices(tangents);
             builder.add_vertices(tex_coords);
+            builder.set_indices(reindex);
 
             // TODO: Add Material loading
             objects.push((builder, geometry.material_name.clone()))
@@ -113,6 +163,100 @@ fn load_from_data(
     }
     trace!("Loaded mesh");
     Ok(objects)
+}
+
+fn winding(a: obj::TVertex, b: obj::TVertex, c: obj::TVertex) -> i8 {
+    let d = obj::TVertex {
+        u: b.u - a.u,
+        v: b.v - a.v,
+        w: b.w - a.w,
+    };
+    let e = obj::TVertex {
+        u: c.u - a.u,
+        v: c.v - a.v,
+        w: c.w - a.w,
+    };
+    // only need w component of cross product
+    let w = d.u * e.v - d.v * e.u;
+    w.signum() as i8
+}
+
+// Only supports tris, therefore indices.len() must be divisible by 3, and
+// assumes each 3 vertices represents a tri
+struct ObjGeometry<'a> {
+    positions: &'a [Position],
+    normals: &'a [Normal],
+    tex_coords: &'a [TexCoord],
+    indices: &'a [u32],
+    tangents: Vec<Tangent>,
+}
+
+impl<'a> ObjGeometry<'a> {
+    fn new(
+        positions: &'a [Position],
+        normals: &'a [Normal],
+        tex_coords: &'a [TexCoord],
+        indices: &'a [u32],
+    ) -> Self {
+        Self {
+            positions,
+            normals,
+            tex_coords,
+            indices,
+            tangents: vec![Tangent([0.0, 0.0, 0.0, 1.0]); positions.len()],
+        }
+    }
+
+    fn accumulate_tangent(&mut self, index: usize, other: [f32; 4]) {
+        let acc = &mut self.tangents[index];
+        acc.0[0] += other[0];
+        acc.0[1] += other[1];
+        acc.0[2] += other[2];
+        acc.0[3] = other[3];
+    }
+
+    fn normalize_tangent(Tangent([x, y, z, w]): &Tangent) -> Tangent {
+        let len = f32::sqrt(x * x + y * y + z * z);
+        Tangent([x / len, y / len, z / len, *w])
+    }
+
+    fn get_tangents(&self) -> Vec<Tangent> {
+        self.tangents
+            .iter()
+            .map(Self::normalize_tangent)
+            .collect::<Vec<_>>()
+    }
+}
+
+impl Geometry for ObjGeometry<'_> {
+    fn num_faces(&self) -> usize {
+        self.indices.len() / 3
+    }
+
+    fn num_vertices_of_face(&self, _: usize) -> usize {
+        3
+    }
+
+    fn position(&self, face: usize, vert: usize) -> [f32; 3] {
+        self.positions[self.indices[face * 3 + vert] as usize].0
+    }
+
+    fn normal(&self, face: usize, vert: usize) -> [f32; 3] {
+        self.normals[self.indices[face * 3 + vert] as usize].0
+    }
+
+    fn tex_coord(&self, face: usize, vert: usize) -> [f32; 2] {
+        self.tex_coords[self.indices[face * 3 + vert] as usize].0
+    }
+
+    fn set_tangent_encoded(&mut self, tangent: [f32; 4], face: usize, vert: usize) {
+        // Not supposed to just average tangents over existing index,
+        // since triangles could be welded using different asumptions than
+        // Mikkelsen used. However, we *do* use basically the same assumptions,
+        // except that some vertices Mikkelsen expects to be welded may not be
+        // if they aren't in the source OBJ.
+        self.accumulate_tangent(self.indices[face * 3 + vert] as usize, tangent);
+    }
 }
 
 #[cfg(test)]
@@ -143,5 +287,79 @@ f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
 
         // When compressed into unique vertices there should be 4 vertices per side of the quad
         // assert!()
+    }
+
+    #[test]
+    fn test_winding() {
+        let a = obj::TVertex {
+            u: 0.0,
+            v: 0.0,
+            w: 0.0,
+        };
+        let b = obj::TVertex {
+            u: 1.0,
+            v: 0.0,
+            w: 0.0,
+        };
+        let c = obj::TVertex {
+            u: 0.0,
+            v: 1.0,
+            w: 0.0,
+        };
+        let counter_clockwise = winding(a, b, c);
+        assert_eq!(counter_clockwise, 1);
+        let clockwise = winding(a, c, b);
+        assert_eq!(clockwise, -1);
+    }
+
+    fn tangent_approx_equal((a, b): (&Tangent, &Tangent)) -> bool {
+        a.0.iter()
+            .zip(&b.0)
+            .all(|(l, r)| (l - r).abs() <= 2.0 * std::f32::EPSILON)
+    }
+
+    #[test]
+    fn test_tangent_generation() {
+        let positions = [
+            Position([0.0, 0.0, 0.0]),
+            Position([0.0, 0.0, -1.0]),
+            Position([0.0, 1.0, 0.0]),
+            Position([-1.0, 0.0, 0.0]),
+        ];
+        let normals = [
+            Normal([f32::sqrt(2.0) / 2.0, 0.0, f32::sqrt(2.0) / 2.0]),
+            Normal([1.0, 0.0, 0.0]),
+            Normal([f32::sqrt(2.0) / 2.0, 0.0, f32::sqrt(2.0) / 2.0]),
+            Normal([0.0, 0.0, 1.0]),
+        ];
+        let tex_coords = [
+            TexCoord([0.5, 0.0]),
+            TexCoord([1.0, 0.0]),
+            TexCoord([0.5, 1.0]),
+            TexCoord([0.0, 0.0]),
+        ];
+        let expected_tangents = [
+            Tangent([f32::sqrt(2.0) / 2.0, 0.0, -f32::sqrt(2.0) / 2.0, 1.0]),
+            Tangent([0.0, 0.0, -1.0, 1.0]),
+            Tangent([f32::sqrt(2.0) / 2.0, 0.0, -f32::sqrt(2.0) / 2.0, 1.0]),
+            Tangent([1.0, 0.0, 0.0, 1.0]),
+        ];
+        let indices = [0, 1, 2, 0, 2, 3];
+
+        let tangents = {
+            let mut obj_geom = ObjGeometry::new(&positions, &normals, &tex_coords, &indices);
+            assert!(mikktspace::generate_tangents(&mut obj_geom));
+            obj_geom.get_tangents()
+        };
+
+        assert!(
+            tangents
+                .iter()
+                .zip(&expected_tangents)
+                .all(tangent_approx_equal),
+            "assertion failed: (tangents ~= expected_tangents)\n         tangents: {:?}\nexpected_tangents: {:?}",
+            tangents,
+            expected_tangents
+        )
     }
 }
