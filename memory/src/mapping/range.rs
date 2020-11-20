@@ -1,7 +1,7 @@
 use {
     crate::util::fits_usize,
     std::{
-        mem::{align_of, size_of},
+        mem::{align_of, size_of, MaybeUninit},
         ops::Range,
         ptr::NonNull,
         slice::{from_raw_parts, from_raw_parts_mut},
@@ -46,8 +46,10 @@ pub(crate) fn mapped_sub_range(
 /// User must ensure that:
 /// * this function won't create aliasing slices.
 /// * returned slice doesn't outlive mapping.
-/// * `T` Must be plain-old-data type compatible with data in mapped region.
-pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a mut [T] {
+pub(crate) unsafe fn mapped_slice_mut<'a, T>(
+    ptr: NonNull<u8>,
+    size: usize,
+) -> &'a mut [MaybeUninit<T>] {
     assert_eq!(
         size % size_of::<T>(),
         0,
@@ -60,15 +62,13 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, size: usize) -> &
         "Range offset must be multiple of element alignment"
     );
     assert!(usize::max_value() - size >= ptr.as_ptr() as usize);
-    from_raw_parts_mut(ptr.as_ptr() as *mut T, size)
+    from_raw_parts_mut(ptr.as_ptr() as *mut MaybeUninit<T>, size)
 }
 
 /// # Safety
 ///
-/// User must ensure that:
-/// * returned slice doesn't outlive mapping.
-/// * `T` Must be plain-old-data type compatible with data in mapped region.
-pub(crate) unsafe fn mapped_slice<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a [T] {
+/// User must ensure that returned slice doesn't outlive mapping.
+pub(crate) unsafe fn mapped_slice<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a [MaybeUninit<T>] {
     assert_eq!(
         size % size_of::<T>(),
         0,
@@ -81,5 +81,5 @@ pub(crate) unsafe fn mapped_slice<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a [
         "Range offset must be multiple of element alignment"
     );
     assert!(usize::max_value() - size >= ptr.as_ptr() as usize);
-    from_raw_parts(ptr.as_ptr() as *const T, size)
+    from_raw_parts(ptr.as_ptr() as *const MaybeUninit<T>, size)
 }

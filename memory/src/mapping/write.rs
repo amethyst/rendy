@@ -1,4 +1,4 @@
-use std::ptr::copy_nonoverlapping;
+use std::{mem::MaybeUninit, ptr::copy_nonoverlapping};
 
 /// Trait for memory region suitable for host writes.
 pub trait Write<T: Copy> {
@@ -7,7 +7,7 @@ pub trait Write<T: Copy> {
     /// # Safety
     ///
     /// * Returned slice should not be read.
-    unsafe fn slice(&mut self) -> &mut [T];
+    unsafe fn slice(&mut self) -> &mut [MaybeUninit<T>];
 
     /// Write data into mapped memory sub-region.
     ///
@@ -18,14 +18,13 @@ pub trait Write<T: Copy> {
         unsafe {
             let slice = self.slice();
             assert!(data.len() <= slice.len());
-            copy_nonoverlapping(data.as_ptr(), slice.as_mut_ptr(), data.len());
+            copy_nonoverlapping(data.as_ptr(), slice.as_mut_ptr() as *mut T, data.len());
         }
     }
 }
 
-#[derive(Debug)]
 pub(super) struct WriteFlush<'a, T, F: FnOnce() + 'a> {
-    pub(super) slice: &'a mut [T],
+    pub(super) slice: &'a mut [MaybeUninit<T>],
     pub(super) flush: Option<F>,
 }
 
@@ -49,15 +48,13 @@ where
     /// # Safety
     ///
     /// [See doc comment for trait method](trait.Write#method.slice)
-    unsafe fn slice(&mut self) -> &mut [T] {
+    unsafe fn slice(&mut self) -> &mut [MaybeUninit<T>] {
         self.slice
     }
 }
 
-#[warn(dead_code)]
-#[derive(Debug)]
 pub(super) struct WriteCoherent<'a, T> {
-    pub(super) slice: &'a mut [T],
+    pub(super) slice: &'a mut [MaybeUninit<T>],
 }
 
 impl<'a, T> Write<T> for WriteCoherent<'a, T>
@@ -67,7 +64,7 @@ where
     /// # Safety
     ///
     /// [See doc comment for trait method](trait.Write#method.slice)
-    unsafe fn slice(&mut self) -> &mut [T] {
+    unsafe fn slice(&mut self) -> &mut [MaybeUninit<T>] {
         self.slice
     }
 }

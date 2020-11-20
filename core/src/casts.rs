@@ -1,12 +1,16 @@
 //! Contains functions for casting
-use std::{any::TypeId, borrow::Cow};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    mem::{align_of, size_of},
+};
 
 /// Cast vec of some arbitrary type into vec of bytes.
 /// Can lead to UB if allocator changes. Use with caution.
 /// TODO: Replace with something safer.
 pub fn cast_vec<T: Copy>(mut vec: Vec<T>) -> Vec<u8> {
-    let len = std::mem::size_of::<T>() * vec.len();
-    let cap = std::mem::size_of::<T>() * vec.capacity();
+    let len = size_of::<T>() * vec.len();
+    let cap = size_of::<T>() * vec.capacity();
     let ptr = vec.as_mut_ptr();
     std::mem::forget(vec);
     unsafe { Vec::from_raw_parts(ptr as _, len, cap) }
@@ -14,9 +18,27 @@ pub fn cast_vec<T: Copy>(mut vec: Vec<T>) -> Vec<u8> {
 
 /// Cast slice of some arbitrary type into slice of bytes.
 pub fn cast_slice<T>(slice: &[T]) -> &[u8] {
-    let len = std::mem::size_of::<T>() * slice.len();
+    let len = size_of::<T>() * slice.len();
     let ptr = slice.as_ptr();
     unsafe { std::slice::from_raw_parts(ptr as _, len) }
+}
+
+/// Cast slice of some arbitrary type into slice of bytes.
+pub unsafe fn cast_arbitrary_slice<T, U>(slice: &[T]) -> &[U] {
+    let bytes = size_of::<T>() * slice.len();
+    let u_s = bytes / size_of::<U>();
+    let ptr = slice.as_ptr();
+    assert_eq!(ptr as usize % align_of::<U>(), 0);
+    std::slice::from_raw_parts(ptr as _, u_s)
+}
+
+/// Cast slice of some arbitrary type into slice of bytes.
+pub unsafe fn cast_arbitrary_slice_mut<T, U>(slice: &mut [T]) -> &mut [U] {
+    let bytes = size_of::<T>() * slice.len();
+    let u_s = bytes / size_of::<U>();
+    let ptr = slice.as_ptr();
+    assert_eq!(ptr as usize % align_of::<U>(), 0);
+    std::slice::from_raw_parts_mut(ptr as _, u_s)
 }
 
 /// Cast `cow` of some arbitrary type into `cow` of bytes.
