@@ -12,7 +12,13 @@ categories = ["rendering"]
 readme = "../README.md"
 
 [features]
-serde-1 = ["rendy-factory/serde-1", "rendy-mesh/serde-1", "rendy-texture/serde-1", "rendy-shader/serde-1", "rendy-core/serde-1"]
+serde-1 = [
+    "rendy-factory/serde-1",
+    "rendy-mesh/serde-1",
+    "rendy-texture/serde-1",
+    "rendy-shader/serde-1",
+    "rendy-core/serde-1",
+]
 
 # Rendy subcrates
 command = ["rendy-command"]
@@ -39,20 +45,40 @@ no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]
 
 # Base feature enables all subcrates
-base = ["command", "descriptor", "factory", "frame", "graph", "init", "memory", "mesh", "shader", "resource", "texture", "wsi"]
+base = [
+    "command",
+    "descriptor",
+    "factory",
+    "frame",
+    "graph",
+    "init",
+    "memory",
+    "mesh",
+    "shader",
+    "resource",
+    "texture",
+    "wsi",
+]
 
 # Subcrate features relay.
 mesh-obj = ["mesh", "rendy-mesh/obj"]
 texture-image = ["texture", "rendy-texture/image"]
 texture-palette = ["texture", "rendy-texture/palette"]
 shader-compiler = ["rendy-shader/shader-compiler"]
-spirv-reflection = ["rendy-shader/spirv-reflection" ]
+spirv-reflection = ["rendy-shader/spirv-reflection"]
 
 # Full feature set - all listed features except rendy-core's.
-full = ["base", "mesh-obj", "texture-image", "texture-palette", "spirv-reflection", "shader-compiler"]
+full = [
+    "base",
+    "mesh-obj",
+    "texture-image",
+    "texture-palette",
+    "spirv-reflection",
+    "shader-compiler",
+]
 
 # Default feature set includes all subcrates and few commonly used features.
-default = [ "base", "shader-compiler", "spirv-reflection" ]
+default = ["base", "shader-compiler", "spirv-reflection"]
 
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command", optional = true }
@@ -108,7 +134,7 @@ required-features = ["base", "init-winit", "shader-compiler"]
 name = "ios_triangle"
 path = "examples/ios_triangle/lib.rs"
 crate-type = ["staticlib"]
-required-features = ["base", "wsi-winit", "shader-compiler", "metal"]
+required-features = ["base", "shader-compiler", "metal"]
 
 [package.metadata.docs.rs]
 features = ["full"]
