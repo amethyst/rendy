@@ -525,7 +525,7 @@ pub fn gfx_acquire_barriers<'a, 'b, B: Backend>(
                         .raw(),
                     range: rendy_core::hal::buffer::SubRange {
                         offset: buffer.range.start,
-                        size: Some(buffer.range.start - buffer.range.end),
+                        size: Some(buffer.range.end - buffer.range.start),
                     },
                 }
             })
