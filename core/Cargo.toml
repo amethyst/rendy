@@ -29,12 +29,12 @@ no-slow-safety-checks = []
 gfx-hal = "0.5"
 gfx-backend-empty = { version = "0.5", optional = true }
 gfx-backend-gl = { version = "0.5", features = ["glutin"], default_features = false, optional = true }
-lazy_static = "1.0"
-log = "0.4"
-parking_lot = "0.9"
-serde = { version = "1.0", optional = true, features = ["derive"] }
-thread_profiler = "0.3"
-raw-window-handle = "0.3"
+lazy_static = "1.4.0"
+log = "0.4.11"
+parking_lot = "0.11.1"
+serde = { version = "1.0.118", optional = true, features = ["derive"] }
+thread_profiler = "0.3.0"
+raw-window-handle = "0.3.3"
 
 [target.'cfg(all(target_os = "windows", not(target_arch = "wasm32")))'.dependencies]
 gfx-backend-dx12 = { version = "0.5", optional = true }

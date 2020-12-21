@@ -95,16 +95,16 @@ rendy-texture = { version = "0.5.1", path = "../texture", optional = true }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi", optional = true }
 
-thread_profiler = "0.3"
+thread_profiler = "0.3.0"
 
 [dev-dependencies]
-genmesh = "0.6"
-nalgebra = "0.18"
-env_logger = "0.6"
-lazy_static = "1.0"
-log = "0.4"
-palette = "0.4"
-rand = "0.7"
+genmesh = "0.6.2"
+nalgebra = "0.23.2"
+env_logger = "0.8.2"
+lazy_static = "1.4.0"
+log = "0.4.11"
+palette = "0.5.0"
+rand = "0.8.0"
 
 [[example]]
 name = "init"

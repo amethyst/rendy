@@ -23,6 +23,6 @@ rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-core = { version = "0.5.1", path = "../core" }
 
-log = "0.4"
-relevant = { version = "0.4", features = ["log"] }
-smallvec = "1.0"
+log = "0.4.11"
+relevant = { version = "0.4.2", features = ["log"] }
+smallvec = "1.5.1"

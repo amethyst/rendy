@@ -15,5 +15,5 @@ profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]
 rendy-core = { version = "0.5.1", path = "../core" }
-log = "0.4"
-thread_profiler = "0.3"
+log = "0.4.11"
+thread_profiler = "0.3.0"

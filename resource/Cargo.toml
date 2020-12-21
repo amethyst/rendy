@@ -14,10 +14,10 @@ description = "Rendy's resource manager"
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 
 [dependencies]
-crossbeam-channel = "0.3"
-log = "0.4"
-relevant = { version = "0.4", features = ["log"] }
+crossbeam-channel = "0.5.0"
+log = "0.4.11"
+relevant = { version = "0.4.2", features = ["log"] }
 rendy-descriptor = { version = "0.5.1", path = "../descriptor" }
 rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-core = { version = "0.5.1", path = "../core" }
-smallvec = "1.0"
+smallvec = "1.5.1"
