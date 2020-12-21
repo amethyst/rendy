@@ -498,7 +498,6 @@ where
             device.destroy_fence(next.fence);
             pool.free_buffers(once(next.command_buffer));
         });
-        drop(pool);
         self.pool.dispose(device);
     }
 }

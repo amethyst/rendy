@@ -278,7 +278,6 @@ impl<'a> MeshBuilder<'a> {
             })
             .collect();
 
-        drop(staging_slice);
         drop(writer);
         drop(mapped);
 

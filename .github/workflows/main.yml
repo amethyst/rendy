@@ -47,8 +47,7 @@ jobs:
       - run: rustup component add clippy
         if: matrix.toolchain == 'nightly'
 
-      - run: cargo +nightly clippy -Z unstable-options --workspace --all-targets --all-features
+      - run: cd rendy && cargo +nightly clippy -Z unstable-options --workspace --all-targets --features=full,${{ matrix.BACKEND }}
         if: matrix.toolchain == 'nightly'
 
-      - run: cargo test --workspace --all-features
-
+      - run: cd rendy && cargo test --workspace --features=full,${{ matrix.BACKEND }}
