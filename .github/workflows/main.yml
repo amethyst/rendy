@@ -36,6 +36,8 @@ jobs:
           profile: minimal
           override: true
 
+      - uses: seanmiddleditch/gha-setup-ninja@v3
+
       - run: rustup component add rustfmt
         if: matrix.toolchain == 'nightly' && matrix.os == 'ubuntu-latest'
 
