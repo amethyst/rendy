@@ -1255,7 +1255,7 @@ where
         } = unsafe {
             adapter.physical_device.open(
                 &create_queues,
-                adapter.physical_device.features() & Features::NDC_Y_UP,
+                adapter.physical_device.features() - Features::NDC_Y_UP,
             )
         }?;
 
