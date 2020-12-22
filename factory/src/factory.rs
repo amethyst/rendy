@@ -1253,9 +1253,10 @@ where
             device,
             mut queue_groups,
         } = unsafe {
-            adapter
-                .physical_device
-                .open(&create_queues, adapter.physical_device.features())
+            adapter.physical_device.open(
+                &create_queues,
+                adapter.physical_device.features() - Features::NDC_Y_UP,
+            )
         }?;
 
         let families = unsafe {

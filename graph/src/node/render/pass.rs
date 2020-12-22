@@ -241,6 +241,10 @@ where
 
     /// Add sub-pass to the render-pass.
     pub fn add_subpass(&mut self, subpass: SubpassBuilder<B, T>) -> &mut Self {
+        // Since GFX only allows us to pass a u8 for the subpass index, we need
+        // to make sure that the subpass count never exceeds 255.
+        assert!(self.subpasses.len() < 255);
+
         self.subpasses.push(subpass);
         self
     }
@@ -858,7 +862,7 @@ where
                             framebuffer_width,
                             framebuffer_height,
                             rendy_core::hal::pass::Subpass {
-                                index,
+                                index: index as u8,
                                 main_pass: &render_pass,
                             },
                             buffers,
@@ -1168,7 +1172,7 @@ where
                                         queue.id(),
                                         index,
                                         rendy_core::hal::pass::Subpass {
-                                            index: subpass_index,
+                                            index: subpass_index as u8,
                                             main_pass: &render_pass,
                                         },
                                         aux,
@@ -1219,7 +1223,7 @@ where
                                     pass_encoder.reborrow(),
                                     index,
                                     rendy_core::hal::pass::Subpass {
-                                        index: subpass_index,
+                                        index: subpass_index as u8,
                                         main_pass: &render_pass,
                                     },
                                     aux,
@@ -1350,7 +1354,7 @@ where
                                     queue.id(),
                                     index,
                                     rendy_core::hal::pass::Subpass {
-                                        index: subpass_index,
+                                        index: subpass_index as u8,
                                         main_pass: &render_pass,
                                     },
                                     aux,
@@ -1392,7 +1396,7 @@ where
                                 pass_encoder.reborrow(),
                                 index,
                                 rendy_core::hal::pass::Subpass {
-                                    index: subpass_index,
+                                    index: subpass_index as u8,
                                     main_pass: &render_pass,
                                 },
                                 aux,

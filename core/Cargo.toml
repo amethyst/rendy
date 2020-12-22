@@ -26,21 +26,21 @@ vulkan = ["gfx-backend-vulkan"]
 no-slow-safety-checks = []
 
 [dependencies]
-gfx-hal = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4" }
-gfx-backend-empty = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", optional = true }
-gfx-backend-gl = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", features = ["glutin"], optional = true }
-lazy_static = "1.0"
-log = "0.4"
-parking_lot = "0.9"
-serde = { version = "1.0", optional = true, features = ["derive"] }
-thread_profiler = "0.3"
-raw-window-handle = "0.3"
+gfx-hal = "0.5"
+gfx-backend-empty = { version = "0.5", optional = true }
+gfx-backend-gl = { version = "0.5", features = ["glutin"], default_features = false, optional = true }
+lazy_static = "1.4.0"
+log = "0.4.11"
+parking_lot = "0.11.1"
+serde = { version = "1.0.118", optional = true, features = ["derive"] }
+thread_profiler = "0.3.0"
+raw-window-handle = "0.3.3"
 
 [target.'cfg(all(target_os = "windows", not(target_arch = "wasm32")))'.dependencies]
-gfx-backend-dx12 = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", optional = true }
+gfx-backend-dx12 = { version = "0.5", optional = true }
 
 [target.'cfg(any(all(not(target_arch = "wasm32"), target_os = "macos"), all(target_arch = "aarch64", target_os = "ios")))'.dependencies]
-gfx-backend-metal = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", optional = true }
+gfx-backend-metal = { version = "0.5", optional = true }
 
 [target.'cfg(all(any(target_os = "windows", all(unix, not(any(target_os = "macos", target_os = "ios")))), not(target_arch = "wasm32")))'.dependencies]
-gfx-backend-vulkan = { git = "https://github.com/gfx-rs/gfx", rev = "3641183231f16877d4ea2fbdb2ff208ce736d6c4", features = ["x11"], optional = true }
+gfx-backend-vulkan = { version = "0.5", features = ["x11"], optional = true }

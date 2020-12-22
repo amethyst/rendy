@@ -181,7 +181,13 @@ where
                 self.mapping_range.clone(),
                 aligned_sub_range.clone()
             ));
-            device.invalidate_mapped_memory_ranges(Some((self.memory.raw(), aligned_sub_range)))?;
+            device.invalidate_mapped_memory_ranges(Some((
+                self.memory.raw(),
+                gfx_hal::memory::Segment {
+                    offset: aligned_sub_range.start,
+                    size: Some(aligned_sub_range.end - aligned_sub_range.start),
+                },
+            )))?;
         }
 
         let slice = mapped_slice::<T>(ptr, size);
@@ -231,7 +237,13 @@ where
             ));
             Some(move || {
                 device
-                    .flush_mapped_memory_ranges(Some((memory.raw(), aligned_sub_range)))
+                    .flush_mapped_memory_ranges(Some((
+                        memory.raw(),
+                        gfx_hal::memory::Segment {
+                            offset: aligned_sub_range.start,
+                            size: Some(aligned_sub_range.end - aligned_sub_range.start),
+                        },
+                    )))
                     .expect("Should flush successfully");
             })
         } else {

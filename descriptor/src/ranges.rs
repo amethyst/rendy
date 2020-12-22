@@ -21,7 +21,7 @@ const DESCRIPTOR_TYPES: [DescriptorType; DESCRIPTOR_TYPES_COUNT] = [
         },
     },
     DescriptorType::Image {
-        ty: ImageDescriptorType::Storage,
+        ty: ImageDescriptorType::Storage { read_only: false },
     },
     DescriptorType::Buffer {
         ty: BufferDescriptorType::Storage { read_only: false },
@@ -70,7 +70,7 @@ fn descriptor_type_index(ty: &DescriptorType) -> usize {
             },
         } => 2,
         DescriptorType::Image {
-            ty: ImageDescriptorType::Storage,
+            ty: ImageDescriptorType::Storage { read_only: _ },
         } => 3,
         DescriptorType::Buffer {
             ty: BufferDescriptorType::Storage { read_only: _ },

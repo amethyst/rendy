@@ -10,6 +10,7 @@ use rendy::{
     graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::{self, Backend},
     init::winit::{
+        dpi::Size as DpiSize,
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::WindowBuilder,
@@ -210,7 +211,7 @@ fn run<B: Backend>(
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 _ => {}
             },
-            Event::EventsCleared => {
+            Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {
                     graph.run(&mut factory, &mut families, &());
@@ -248,14 +249,14 @@ fn main() {
     let config: Config = Default::default();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size((960, 640).into())
+        .with_inner_size(DpiSize::Logical((960, 640).into()))
         .with_title("Rendy example");
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
     rendy::with_any_windowed_rendy!((rendy)
         (mut factory, mut families, surface, window) => {
             let mut graph_builder = GraphBuilder::<_, ()>::new();
-            let (width, height) = window.inner_size().to_physical(window.hidpi_factor()).into();
+            let (width, height) = window.inner_size().into();
 
             graph_builder.add_node(
                 TriangleRenderPipeline::builder()

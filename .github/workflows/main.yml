@@ -20,11 +20,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.toolchain == 'nightly' }}
     strategy:
-      fail-fast: true
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        toolchain: [stable, beta, nightly]
+        toolchain: [stable, nightly]
         backend: [vulkan, metal, dx12, gl]
+        exclude:
+          - os: windows-latest
+            backend: metal
+          - os: ubuntu-latest
+            backend: metal
     steps:
       - uses: actions/checkout@v2
 
@@ -45,9 +49,9 @@ jobs:
         if: matrix.toolchain == 'nightly' && matrix.os == 'ubuntu-latest'
         
       - run: rustup component add clippy
-        if: matrix.toolchain == 'nightly'
+        if: matrix.toolchain == 'nightly' && matrix.os == 'ubuntu-latest'
 
       - run: cd rendy && cargo +nightly clippy -Z unstable-options --workspace --all-targets --features=full,${{ matrix.BACKEND }}
-        if: matrix.toolchain == 'nightly'
+        if: matrix.toolchain == 'nightly' && matrix.os == 'ubuntu-latest'
 
       - run: cd rendy && cargo test --workspace --features=full,${{ matrix.BACKEND }}
