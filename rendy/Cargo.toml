@@ -80,6 +80,9 @@ full = [
 # Default feature set includes all subcrates and few commonly used features.
 default = ["base", "shader-compiler", "spirv-reflection"]
 
+# for iOS examples
+ios = []
+
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command", optional = true }
 rendy-descriptor = { version = "0.5.1", path = "../descriptor", optional = true }
@@ -134,7 +137,7 @@ required-features = ["base", "init-winit", "shader-compiler"]
 name = "ios_triangle"
 path = "examples/ios_triangle/lib.rs"
 crate-type = ["staticlib"]
-required-features = ["base", "shader-compiler", "metal"]
+required-features = ["base", "shader-compiler", "metal", "ios"]
 
 [package.metadata.docs.rs]
 features = ["full"]
