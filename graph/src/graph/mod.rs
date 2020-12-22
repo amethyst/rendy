@@ -319,10 +319,8 @@ where
                 factory.destroy_semaphore(semaphore);
             }
         }
-        drop(self.device);
         drop(self.schedule);
         drop(self.fences);
-        drop(self.inflight);
         drop(self.ctx);
     }
 }
