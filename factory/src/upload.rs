@@ -561,7 +561,6 @@ where
             device.destroy_fence(next.fence);
             once(next.command_buffer).chain(once(next.barrier_buffer))
         }));
-        drop(pool);
         self.pool.dispose(device);
     }
 }
