@@ -526,7 +526,7 @@ fn find_compatible_format<B: Backend>(
         return Some((info, BufferTransform::Intact, Swizzle::NO));
     }
     if let Some((format, transform, swizzle)) = expand_format_channels(info.format) {
-        let mut new_info = info.clone();
+        let mut new_info = info;
         new_info.format = format;
         if let Some(new_info) = image_format_supported(factory, new_info) {
             log::trace!("Converting image from {:?} to {:?}", info, new_info);
@@ -675,7 +675,7 @@ fn image_format_supported<B: Backend>(
                 image::Kind::D2(_, _, _, s) if *s & props.sample_count_mask != *s => {
                     let mut new_samples = *s >> 1;
                     while new_samples > 1 && new_samples & props.sample_count_mask != new_samples {
-                        new_samples = new_samples >> 1;
+                        new_samples >>= 1;
                     }
                     *s = new_samples;
                 }

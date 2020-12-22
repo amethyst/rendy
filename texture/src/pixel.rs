@@ -224,9 +224,7 @@ where
     C: PixelRepr<S, T>,
 {
     fn clone(&self) -> Self {
-        Pixel {
-            repr: self.repr.clone(),
-        }
+        Pixel { repr: self.repr }
     }
 }
 

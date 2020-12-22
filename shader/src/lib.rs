@@ -276,7 +276,7 @@ impl ShaderSetBuilder {
                   factory|
                   -> Result<ShaderStorage<B>, rendy_core::hal::device::ShaderError> {
                 let mut storage = ShaderStorage {
-                    stage: stage,
+                    stage,
                     spirv: shader.0,
                     module: None,
                     entrypoint: shader.1.clone(),
@@ -456,10 +456,7 @@ impl<B: Backend> ShaderStorage<B> {
         Ok(Some(rendy_core::hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
-            specialization: self
-                .specialization
-                .clone()
-                .unwrap_or(rendy_core::hal::pso::Specialization::default()),
+            specialization: self.specialization.clone().unwrap_or_default(),
         }))
     }
 

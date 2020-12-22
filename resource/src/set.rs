@@ -106,7 +106,7 @@ where
         Ok(DescriptorSet {
             device: device.id(),
             set: sets.swap_remove(0),
-            layout: layout.clone(),
+            layout,
             relevant: Relevant,
         })
     }

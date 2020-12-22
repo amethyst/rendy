@@ -105,7 +105,7 @@ where
         rendy_core::hal::command::CommandBuffer::bind_index_buffer(
             self.raw,
             rendy_core::hal::buffer::IndexBufferView {
-                buffer: buffer,
+                buffer,
                 range: rendy_core::hal::buffer::SubRange { offset, size: None },
                 index_type,
             },

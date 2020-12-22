@@ -253,7 +253,7 @@ impl<S, W> SyncData<S, W> {
 struct SyncTemp(HashMap<SubmissionId, SyncData<Semaphore, Semaphore>>);
 impl SyncTemp {
     fn get_sync(&mut self, sid: SubmissionId) -> &mut SyncData<Semaphore, Semaphore> {
-        self.0.entry(sid).or_insert_with(|| SyncData::new())
+        self.0.entry(sid).or_insert_with(SyncData::new)
     }
 }
 
@@ -262,9 +262,9 @@ pub fn sync<F, S, W>(chains: &Chains, mut new_semaphore: F) -> Schedule<SyncData
 where
     F: FnMut() -> (S, W),
 {
-    let ref schedule = chains.schedule;
-    let ref buffers = chains.buffers;
-    let ref images = chains.images;
+    let schedule = &chains.schedule;
+    let buffers = &chains.buffers;
+    let images = &chains.images;
 
     let mut sync = SyncTemp(HashMap::default());
     for (&id, chain) in buffers {
@@ -372,7 +372,7 @@ fn sync_chain<R, S>(id: Id, chain: &Chain<R>, schedule: &Schedule<S>, sync: &mut
 where
     R: Resource,
 {
-    let uid = id.into();
+    let uid = id;
 
     let pairs = chain
         .links()
@@ -488,7 +488,7 @@ fn optimize_submission(
 
     for semaphore in to_remove.drain(..) {
         // Delete signal as well.
-        let ref mut signal = sync.0.get_mut(&semaphore.points.start).unwrap().signal;
+        let signal = &mut sync.0.get_mut(&semaphore.points.start).unwrap().signal;
         let index = signal
             .iter()
             .position(|signal| signal.0 == semaphore)

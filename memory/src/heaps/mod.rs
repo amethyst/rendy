@@ -71,10 +71,7 @@ where
         P: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
     {
-        let heaps = heaps
-            .into_iter()
-            .map(|size| MemoryHeap::new(size))
-            .collect::<Vec<_>>();
+        let heaps = heaps.into_iter().map(MemoryHeap::new).collect::<Vec<_>>();
         Heaps {
             types: types
                 .into_iter()
@@ -177,8 +174,8 @@ where
         );
         assert!(fits_usize(memory_index));
 
-        let ref mut memory_type = self.types[memory_index as usize];
-        let ref mut memory_heap = self.heaps[memory_type.heap_index()];
+        let memory_type = &mut self.types[memory_index as usize];
+        let memory_heap = &mut self.heaps[memory_type.heap_index()];
 
         if memory_heap.available() < size {
             return Err(gfx_hal::device::OutOfMemory::Device.into());
@@ -202,8 +199,8 @@ where
         debug_assert!(fits_usize(memory_index));
         let size = block.size();
 
-        let ref mut memory_type = self.types[memory_index as usize];
-        let ref mut memory_heap = self.heaps[memory_type.heap_index()];
+        let memory_type = &mut self.types[memory_index as usize];
+        let memory_heap = &mut self.heaps[memory_type.heap_index()];
         let freed = memory_type.free(device, block.block);
         memory_heap.freed(freed, size);
     }

@@ -171,10 +171,7 @@ pub(crate) fn type_element_format(
 impl ReflectInto<rendy_core::hal::pso::Element<Format>> for ReflectTypeDescription {
     fn reflect_into(&self) -> Result<rendy_core::hal::pso::Element<Format>, ReflectTypeError> {
         let format = type_element_format(self.type_flags, &self.traits)?;
-        Ok(rendy_core::hal::pso::Element {
-            format: format,
-            offset: 0,
-        })
+        Ok(rendy_core::hal::pso::Element { format, offset: 0 })
     }
 }
 
@@ -335,7 +332,7 @@ pub(crate) fn generate_attributes(
             out_attributes.insert((attribute.name.clone(), 0), reflected);
         } else {
             for n in 0..attribute.array.dims[0] {
-                let mut clone = reflected.clone();
+                let mut clone = reflected;
                 clone.location += n;
                 out_attributes.insert((attribute.name.clone(), n as u8), clone);
             }

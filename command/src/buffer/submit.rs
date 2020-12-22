@@ -137,7 +137,7 @@ where
         let pass_continue = self.state.1;
         let level = self.level;
 
-        let buffer = unsafe { self.change_state(|state| PendingState(state)) };
+        let buffer = unsafe { self.change_state(PendingState) };
 
         let submit = Submit {
             raw: buffer.raw,

@@ -150,7 +150,7 @@ impl SpirvReflection {
             stage_flag,
             push_constants,
             entrypoints,
-            entrypoint: entrypoint,
+            entrypoint,
             cache: None,
         })
     }
@@ -158,7 +158,7 @@ impl SpirvReflection {
     pub(crate) fn compile_cache(mut self) -> Result<Self, ReflectError> {
         // BBreak apart the sets into the appropriate grouping
 
-        let layout = if self.descriptor_sets.len() > 0 {
+        let layout = if !self.descriptor_sets.is_empty() {
             Layout {
                 sets: self
                     .descriptor_sets
@@ -249,7 +249,7 @@ impl SpirvReflection {
                     push_constants?,
                 )
             }
-            Err(e) => return Err(ReflectError::General(e.to_string())),
+            Err(e) => Err(ReflectError::General(e.to_string())),
         }
     }
 
@@ -337,7 +337,7 @@ impl SpirvReflection {
                     if range_contains(range.as_ref().unwrap(), &n) {
                         return Some(p.clone());
                     }
-                    return None;
+                    None
                 })
                 .collect())
         } else {
@@ -421,13 +421,11 @@ pub fn compare_bindings(
         && lhv.ty == rhv.ty
     {
         return BindingEquality::Equal;
-    } else {
-        if lhv.binding == rhv.binding {
-            return BindingEquality::SameBindingNonEqual;
-        }
+    } else if lhv.binding == rhv.binding {
+        return BindingEquality::SameBindingNonEqual;
     }
 
-    return BindingEquality::NotEqual;
+    BindingEquality::NotEqual
 }
 
 /// This enum provides logical comparison results for sets. Because shaders can share bindings,
@@ -477,10 +475,8 @@ fn compare_set(
                     return SetEquality::NotEqual;
                 }
             }
-        } else {
-            if predicate == SetEquality::Equal || predicate == SetEquality::SubsetOf {
-                return SetEquality::NotEqual;
-            }
+        } else if predicate == SetEquality::Equal || predicate == SetEquality::SubsetOf {
+            return SetEquality::NotEqual;
         }
     }
 

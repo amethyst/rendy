@@ -114,29 +114,27 @@ impl std::fmt::Display for RendyAutoInitError {
                     writeln!(fmt, "  {:#}: {:#}", backend, error)?;
                 }
             }
-        } else {
-            if self.errors.is_empty() {
-                write!(fmt, "No enabled backends among available: ")?;
-                if let Some(&backend) = BASIC_PRIORITY.first() {
+        } else if self.errors.is_empty() {
+            write!(fmt, "No enabled backends among available: ")?;
+            if let Some(&backend) = BASIC_PRIORITY.first() {
+                write!(fmt, "{}", backend)?;
+            }
+            for &backend in BASIC_PRIORITY.iter().skip(1) {
+                write!(fmt, ", {}", backend)?;
+            }
+            if !UNAVAILABLE.is_empty() {
+                write!(fmt, ". Following backends are unavailable: ")?;
+                if let Some(&backend) = UNAVAILABLE.first() {
                     write!(fmt, "{}", backend)?;
                 }
-                for &backend in BASIC_PRIORITY.iter().skip(1) {
+                for &backend in UNAVAILABLE.iter().skip(1) {
                     write!(fmt, ", {}", backend)?;
                 }
-                if !UNAVAILABLE.is_empty() {
-                    write!(fmt, ". Following backends are unavailable: ")?;
-                    if let Some(&backend) = UNAVAILABLE.first() {
-                        write!(fmt, "{}", backend)?;
-                    }
-                    for &backend in UNAVAILABLE.iter().skip(1) {
-                        write!(fmt, ", {}", backend)?;
-                    }
-                }
-            } else {
-                write!(fmt, "Initialization failed for all backends")?;
-                for (backend, error) in &self.errors {
-                    write!(fmt, " {}: {}", backend, error)?;
-                }
+            }
+        } else {
+            write!(fmt, "Initialization failed for all backends")?;
+            for (backend, error) in &self.errors {
+                write!(fmt, " {}: {}", backend, error)?;
             }
         }
         Ok(())
@@ -192,7 +190,7 @@ pub fn available_backends() -> smallvec::SmallVec<[EnabledBackend; 5]> {
     backends
 }
 
-pub const BASIC_PRIORITY: &'static [rendy_core::Backend] = &[
+pub const BASIC_PRIORITY: &[rendy_core::Backend] = &[
     #[cfg(all(
         any(
             target_os = "windows",
@@ -211,7 +209,7 @@ pub const BASIC_PRIORITY: &'static [rendy_core::Backend] = &[
     rendy_core::Backend::Gl,
 ];
 
-pub const UNAVAILABLE: &'static [rendy_core::Backend] = &[
+pub const UNAVAILABLE: &[rendy_core::Backend] = &[
     #[cfg(not(all(
         any(
             target_os = "windows",
