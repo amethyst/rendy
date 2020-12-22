@@ -26,8 +26,10 @@ fn subresource_to_range(
 ) -> rendy_core::hal::image::SubresourceRange {
     rendy_core::hal::image::SubresourceRange {
         aspects: sub.aspects,
-        levels: sub.level..sub.level + 1,
-        layers: sub.layers.clone(),
+        level_start: sub.level,
+        level_count: Some(1),
+        layer_start: sub.layers.start,
+        layer_count: Some(sub.layers.end - sub.layers.start),
     }
 }
 
@@ -214,7 +216,7 @@ where
         let (queue, blits) = BlitRegion::mip_blits_for_image(&image, last, next);
         for blit in blits {
             log::trace!("Blit: {:#?}", blit);
-            self.blit_image(device, queue, &image, &image, filter, Some(blit))?;
+            self.blit_image(device, queue, &image, &image, filter, &mut once(blit))?;
         }
         Ok(())
     }
@@ -235,7 +237,7 @@ where
         src_image: &Handle<Image<B>>,
         dst_image: &Handle<Image<B>>,
         filter: rendy_core::hal::image::Filter,
-        regions: impl IntoIterator<Item = BlitRegion>,
+        regions: &mut dyn ExactSizeIterator<Item = BlitRegion>,
     ) -> Result<(), OutOfMemory> {
         let mut family_ops = self.family_ops[queue_id.family.index]
             .as_ref()
@@ -308,7 +310,7 @@ pub unsafe fn blit_image<B, C, L>(
     src_image: &Handle<Image<B>>,
     dst_image: &Handle<Image<B>>,
     filter: rendy_core::hal::image::Filter,
-    regions: impl IntoIterator<Item = BlitRegion>,
+    regions: &mut dyn ExactSizeIterator<Item = BlitRegion>,
 ) where
     B: rendy_core::hal::Backend,
     C: Supports<Graphics>,
@@ -327,7 +329,6 @@ pub unsafe fn blit_image<B, C, L>(
     );
 
     let regions = regions
-        .into_iter()
         .map(|reg| {
             read_barriers.add_image(
                 src_image.clone(),
@@ -369,7 +370,7 @@ pub unsafe fn blit_image<B, C, L>(
         dst_image.raw(),
         rendy_core::hal::image::Layout::TransferDstOptimal,
         filter,
-        regions,
+        &mut regions.into_iter(),
     );
 
     read_barriers.encode_after(encoder);

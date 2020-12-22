@@ -130,8 +130,10 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                 target: target_image.raw(),
                 range: rendy_core::hal::image::SubresourceRange {
                     aspects: rendy_core::hal::format::Aspects::COLOR,
-                    levels: 0..1,
-                    layers: 0..1,
+                    level_start: 0,
+                    level_count: Some(1),
+                    layer_start: 0,
+                    layer_count: Some(1),
                 },
             });
             log::trace!("Acquire {:?} : {:#?}", stages, barriers);
@@ -165,7 +167,7 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                             src_subresource: rendy_core::hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
-                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                                layers: input_image.range.layer_start..input_image.range.layer_start + 1,
                             },
                             src_bounds: rendy_core::hal::image::Offset::ZERO
                                 .into_bounds(&input_image_res.kind().extent()),
@@ -191,7 +193,7 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                             src_subresource: rendy_core::hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
-                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                                layers: input_image.range.layer_start..input_image.range.layer_start + 1,
                             },
                             src_offset: rendy_core::hal::image::Offset::ZERO,
                             dst_subresource: rendy_core::hal::image::SubresourceLayers {
@@ -228,8 +230,10 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                     target: target_image.raw(),
                     range: rendy_core::hal::image::SubresourceRange {
                         aspects: rendy_core::hal::format::Aspects::COLOR,
-                        levels: 0..1,
-                        layers: 0..1,
+                        level_start: 0,
+                        level_count: Some(1),
+                        layer_start: 0,
+                        layer_count: Some(1),
                     },
                 });
 
@@ -490,7 +494,7 @@ where
                         fence.take(),
                     );
 
-                    match next.present(queue.raw(), Some(&for_image.release)) {
+                    match next.present(queue.raw(), &for_image.release) {
                         Ok(_) => break,
                         Err(e) => {
                             log::debug!(

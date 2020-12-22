@@ -73,10 +73,10 @@ where
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, ImageCreationError> {
         assert!(
-            info.levels <= info.kind.num_levels(),
-            "Number of mip leves ({}) cannot be greater than {} for given kind {:?}",
+            info.levels <= info.kind.compute_num_levels(),
+            "Number of mip levels ({}) cannot be greater than {} for given kind {:?}",
             info.levels,
-            info.kind.num_levels(),
+            info.kind.compute_num_levels(),
             info.kind,
         );
 
@@ -96,7 +96,7 @@ where
         let block = heaps
             .allocate(
                 device,
-                reqs.type_mask as u32,
+                reqs.type_mask,
                 memory_usage,
                 reqs.size,
                 reqs.alignment,
@@ -247,11 +247,7 @@ where
                     info.view_kind,
                     info.format,
                     info.swizzle,
-                    SubresourceRange {
-                        aspects: info.range.aspects,
-                        layers: info.range.layers.clone(),
-                        levels: info.range.levels.clone(),
-                    },
+                    info.range.clone(),
                 )
                 .map_err(CreationError::Create)?
         };

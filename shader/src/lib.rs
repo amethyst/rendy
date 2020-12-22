@@ -123,7 +123,7 @@ impl SpirvShader {
         entrypoint: &str,
     ) -> std::io::Result<Self> {
         Ok(Self::new(
-            rendy_core::hal::pso::read_spirv(std::io::Cursor::new(spirv))?,
+            gfx_auxil::read_spirv(std::io::Cursor::new(spirv))?,
             stage,
             entrypoint,
         ))
@@ -174,36 +174,6 @@ impl<B: Backend> ShaderSet<B> {
         }
 
         Ok(self)
-    }
-
-    /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in rendy_core::hal.
-    pub fn raw<'a>(
-        &'a self,
-    ) -> Result<rendy_core::hal::pso::GraphicsShaderSet<'a, B>, ShaderError> {
-        Ok(rendy_core::hal::pso::GraphicsShaderSet {
-            vertex: self
-                .shaders
-                .get(&ShaderStageFlags::VERTEX)
-                .expect("ShaderSet doesn't contain vertex shader")
-                .get_entry_point()?
-                .unwrap(),
-            fragment: match self.shaders.get(&ShaderStageFlags::FRAGMENT) {
-                Some(fragment) => fragment.get_entry_point()?,
-                None => None,
-            },
-            domain: match self.shaders.get(&ShaderStageFlags::DOMAIN) {
-                Some(domain) => domain.get_entry_point()?,
-                None => None,
-            },
-            hull: match self.shaders.get(&ShaderStageFlags::HULL) {
-                Some(hull) => hull.get_entry_point()?,
-                None => None,
-            },
-            geometry: match self.shaders.get(&ShaderStageFlags::GEOMETRY) {
-                Some(geometry) => geometry.get_entry_point()?,
-                None => None,
-            },
-        })
     }
 
     /// Must be called to perform a drop of the Backend ShaderModule object otherwise the shader will never be destroyed in memory.

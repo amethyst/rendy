@@ -144,7 +144,7 @@ impl<B: Backend> Barriers<B> {
                 encoder.pipeline_barrier(
                     self.before_stages..self.target_stages,
                     rendy_core::hal::memory::Dependencies::empty(),
-                    transitions.chain(all_images).chain(all_buffers),
+                    &mut transitions.chain(all_images).chain(all_buffers),
                 );
             }
         } else {
@@ -174,7 +174,7 @@ impl<B: Backend> Barriers<B> {
                 encoder.pipeline_barrier(
                     self.target_stages..self.after_stages,
                     rendy_core::hal::memory::Dependencies::empty(),
-                    transitions.chain(all_images).chain(all_buffers),
+                    &mut transitions.chain(all_images).chain(all_buffers),
                 );
             }
         } else {

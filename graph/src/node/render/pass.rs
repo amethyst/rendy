@@ -1194,7 +1194,7 @@ where
                 let mut encoder = cbuf.encoder();
 
                 if let Some(barriers) = &acquire {
-                    encoder.execute_commands(std::iter::once(&barriers.submit));
+                    encoder.execute_commands(&mut std::iter::once(&barriers.submit));
                 }
 
                 if let Some(next) = &next {
@@ -1235,7 +1235,7 @@ where
                 }
 
                 if let Some(barriers) = &release {
-                    encoder.execute_commands(std::iter::once(&barriers.submit));
+                    encoder.execute_commands(&mut std::iter::once(&barriers.submit));
                 }
                 cbuf.finish()
             })
@@ -1374,7 +1374,7 @@ where
                 let mut encoder = cbuf.encoder();
 
                 if let Some(barriers) = &acquire {
-                    encoder.execute_commands(std::iter::once(&barriers.submit));
+                    encoder.execute_commands(&mut std::iter::once(&barriers.submit));
                 }
 
                 let area = rendy_core::hal::pso::Rect {
@@ -1407,7 +1407,7 @@ where
                 drop(pass_encoder);
 
                 if let Some(barriers) = &release {
-                    encoder.execute_commands(std::iter::once(&barriers.submit));
+                    encoder.execute_commands(&mut std::iter::once(&barriers.submit));
                 }
                 cbuf.finish()
             })

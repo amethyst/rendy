@@ -11,7 +11,8 @@ use crate::{
     AsVertex, VertexFormat,
 };
 use rendy_core::hal::adapter::PhysicalDevice;
-use std::{borrow::Cow, mem::size_of};
+use smallvec::{Array, SmallVec};
+use std::{borrow::Cow, mem::size_of, vec::Drain};
 
 /// Vertex buffer with it's format
 #[derive(Debug)]
@@ -382,17 +383,20 @@ where
     fn get_vertex_iter<'a>(
         &'a self,
         formats: &[VertexFormat],
-    ) -> Result<impl IntoIterator<Item = (&'a B::Buffer, u64)>, Incompatible> {
+    ) -> Result<Drain<Vec<(&'a B::Buffer, u64)>>, Incompatible> {
         debug_assert!(is_slice_sorted(formats), "Formats: {:#?}", formats);
         debug_assert!(is_slice_sorted_by_key(&self.vertex_layouts, |l| &l.format));
 
-        let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
+        let mut vertex = Vec::new(); // FIXME: shoudl be smallvec
 
         let mut next = 0;
+
+        let buffer = self.vertex_buffer.raw();
+
         for format in formats {
             if let Some(index) = find_compatible_buffer(&self.vertex_layouts[next..], format) {
                 next += index;
-                vertex.push(self.vertex_layouts[next].offset);
+                vertex.push((buffer, self.vertex_layouts[next].offset));
             } else {
                 // Can't bind
                 return Err(Incompatible {
@@ -406,8 +410,8 @@ where
             }
         }
 
-        let buffer = self.vertex_buffer.raw();
-        Ok(vertex.into_iter().map(move |offset| (buffer, offset)))
+        let mut drain = vertex.drain(..16);
+        Ok(drain)
     }
 
     /// Bind buffers to specified attribute locations.
@@ -424,10 +428,10 @@ where
         match self.index_buffer.as_ref() {
             Some(index_buffer) => unsafe {
                 encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
-                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                encoder.bind_vertex_buffers(first_binding, &mut vertex_iter);
             },
             None => unsafe {
-                encoder.bind_vertex_buffers(first_binding, vertex_iter);
+                encoder.bind_vertex_buffers(first_binding, &mut vertex_iter);
             },
         }
 

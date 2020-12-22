@@ -129,7 +129,7 @@ where
     pub unsafe fn bind_vertex_buffers<'b>(
         &mut self,
         first_binding: u32,
-        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
+        buffers: &mut dyn ExactSizeIterator<Item = (&'b B::Buffer, u64)>,
     ) where
         C: Supports<Graphics>,
     {
@@ -172,8 +172,8 @@ where
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
-        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
-        offsets: impl IntoIterator<Item = u32>,
+        sets: &mut dyn ExactSizeIterator<Item = &'b B::DescriptorSet>,
+        offsets: &mut dyn ExactSizeIterator<Item = u32>,
     ) where
         C: Supports<Graphics>,
     {
@@ -209,8 +209,8 @@ where
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
-        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
-        offsets: impl IntoIterator<Item = u32>,
+        sets: &mut dyn ExactSizeIterator<Item = &'b B::DescriptorSet>,
+        offsets: &mut dyn ExactSizeIterator<Item = u32>,
     ) where
         C: Supports<Compute>,
     {
@@ -271,7 +271,7 @@ where
     pub unsafe fn set_viewports<'b>(
         &mut self,
         first_viewport: u32,
-        viewports: impl IntoIterator<Item = &'b rendy_core::hal::pso::Viewport>,
+        viewports: &mut dyn ExactSizeIterator<Item = &'b rendy_core::hal::pso::Viewport>,
     ) where
         C: Supports<Graphics>,
     {
@@ -290,7 +290,7 @@ where
     pub unsafe fn set_scissors<'b>(
         &mut self,
         first_scissor: u32,
-        rects: impl IntoIterator<Item = &'b rendy_core::hal::pso::Rect>,
+        rects: &mut dyn ExactSizeIterator<Item = &'b rendy_core::hal::pso::Rect>,
     ) where
         C: Supports<Graphics>,
     {
@@ -432,10 +432,12 @@ where
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdClearAttachments.html#vkCmdBeginRenderPass
     pub unsafe fn clear_attachments(
         &mut self,
-        clears: impl IntoIterator<
+        clears: &mut dyn ExactSizeIterator<
             Item = impl std::borrow::Borrow<rendy_core::hal::command::AttachmentClear>,
         >,
-        rects: impl IntoIterator<Item = impl std::borrow::Borrow<rendy_core::hal::pso::ClearRect>>,
+        rects: &mut dyn ExactSizeIterator<
+            Item = impl std::borrow::Borrow<rendy_core::hal::pso::ClearRect>,
+        >,
     ) {
         rendy_core::hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);
     }
@@ -633,7 +635,9 @@ where
     /// Execute commands from secondary buffers.
     pub fn execute_commands(
         &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>,
+        submittables: &mut dyn ExactSizeIterator<
+            Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>,
+        >,
     ) {
         let family = self.inner.family;
         unsafe {
@@ -773,7 +777,7 @@ where
     /// Execute commands from secondary buffers.
     pub fn execute_commands(
         &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>,
+        submittables: &mut dyn ExactSizeIterator<Item = impl Submittable<B, SecondaryLevel>>,
     ) {
         let family = self.inner.family;
         unsafe {
@@ -815,7 +819,7 @@ where
         &mut self,
         src: &B::Buffer,
         dst: &B::Buffer,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferCopy>,
+        regions: &mut dyn ExactSizeIterator<Item = rendy_core::hal::command::BufferCopy>,
     ) where
         C: Supports<Transfer>,
     {
@@ -836,7 +840,7 @@ where
         src: &B::Buffer,
         dst: &B::Image,
         dst_layout: rendy_core::hal::image::Layout,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        regions: &mut dyn ExactSizeIterator<Item = rendy_core::hal::command::BufferImageCopy>,
     ) where
         C: Supports<Transfer>,
     {
@@ -864,7 +868,7 @@ where
         src_layout: rendy_core::hal::image::Layout,
         dst: &B::Image,
         dst_layout: rendy_core::hal::image::Layout,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::ImageCopy>,
+        regions: &mut dyn ExactSizeIterator<Item = rendy_core::hal::command::ImageCopy>,
     ) where
         C: Supports<Transfer>,
     {
@@ -892,7 +896,7 @@ where
         src: &B::Image,
         src_layout: rendy_core::hal::image::Layout,
         dst: &B::Buffer,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        regions: &mut dyn ExactSizeIterator<Item = rendy_core::hal::command::BufferImageCopy>,
     ) where
         C: Supports<Transfer>,
     {
@@ -921,7 +925,7 @@ where
         dst: &B::Image,
         dst_layout: rendy_core::hal::image::Layout,
         filter: rendy_core::hal::image::Filter,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::ImageBlit>,
+        regions: &mut dyn ExactSizeIterator<Item = rendy_core::hal::command::ImageBlit>,
     ) where
         C: Supports<Graphics>,
     {

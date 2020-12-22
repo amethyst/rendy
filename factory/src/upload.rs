@@ -198,7 +198,7 @@ where
         encoder.copy_buffer(
             staging.raw(),
             buffer.raw(),
-            Some(rendy_core::hal::command::BufferCopy {
+            &mut once(rendy_core::hal::command::BufferCopy {
                 src: 0,
                 dst: offset,
                 size: staging.size(),
@@ -295,8 +295,10 @@ where
 
         let image_range = rendy_core::hal::image::SubresourceRange {
             aspects: image_layers.aspects,
-            levels: image_layers.level..image_layers.level + 1,
-            layers: image_layers.layers.clone(),
+            level_start: image_layers.level,
+            level_count: Some(1),
+            layer_start: image_layers.layers.start,
+            layer_count: Some(image_layers.layers.end - image_layers.layers.start),
         };
 
         let (last_stage, mut last_access, last_layout) = match last {
@@ -354,7 +356,7 @@ where
             staging.raw(),
             image.raw(),
             target_layout,
-            Some(rendy_core::hal::command::BufferImageCopy {
+            &mut once(rendy_core::hal::command::BufferImageCopy {
                 buffer_offset: 0,
                 buffer_width: data_width,
                 buffer_height: data_height,
