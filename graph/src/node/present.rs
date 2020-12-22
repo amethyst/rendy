@@ -474,7 +474,7 @@ where
             match self.target.next_image(&self.free_acquire) {
                 Ok(next) => {
                     log::trace!("Present: {:#?}", next);
-                    let ref mut for_image = self.per_image[next[0] as usize];
+                    let for_image = &mut self.per_image[next[0] as usize];
                     core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
 
                     queue.submit(

@@ -168,7 +168,7 @@ impl VertexFormat {
             attributes
                 .iter()
                 .map(|attr| {
-                    (attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8)
+                    attr.element.offset + attr.element.format.surface_desc().bits as u32 / 8
                 })
                 .max()
                 .expect("Vertex format cannot be empty")
@@ -186,10 +186,7 @@ impl VertexFormat {
         crate::hal::pso::VertexInputRate,
     ) {
         (
-            self.attributes
-                .iter()
-                .map(|attr| attr.element.clone())
-                .collect(),
+            self.attributes.iter().map(|attr| attr.element).collect(),
             self.stride,
             rate,
         )
@@ -461,7 +458,7 @@ impl Attribute {
             uuid: attribute_uuid(&name, index, element.format),
             element,
             index,
-            name: name.into(),
+            name: name,
         }
     }
 }

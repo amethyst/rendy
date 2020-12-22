@@ -228,7 +228,7 @@ where
             .unwrap()
             .lock();
 
-        let (last_stage, mut last_access, last_layout) = match last.into() {
+        let (last_stage, mut last_access, last_layout) = match last {
             ImageStateOrLayout::State(last) => {
                 if last.queue != next.queue {
                     unimplemented!("Can't sync resources across queues");
@@ -247,7 +247,7 @@ where
         }
 
         family_uploads.barriers.add_image(
-            image.clone(),
+            image,
             image_range,
             last_stage,
             last_access,
@@ -299,7 +299,7 @@ where
             layers: image_layers.layers.clone(),
         };
 
-        let (last_stage, mut last_access, last_layout) = match last.into() {
+        let (last_stage, mut last_access, last_layout) = match last {
             ImageStateOrLayout::State(last) => {
                 if last.queue != next.queue {
                     unimplemented!("Can't sync resources across queues");
@@ -404,7 +404,9 @@ where
     ///
     pub(crate) unsafe fn dispose(&mut self, device: &Device<B>) {
         self.family_uploads.drain(..).for_each(|fu| {
-            fu.map(|fu| fu.into_inner().dispose(device));
+            if let Some(fu) = fu {
+                fu.into_inner().dispose(device)
+            }
         });
     }
 }

@@ -123,9 +123,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
             layout: self.layout(),
             vertices: self.vertices(),
             colors: self.colors(),
-            depth_stencil: self
-                .depth_stencil()
-                .unwrap_or(rendy_core::hal::pso::DepthStencilDesc::default()),
+            depth_stencil: self.depth_stencil().unwrap_or_default(),
             rasterizer: self.rasterizer(),
             input_assembler_desc: self.input_assembler(),
         }

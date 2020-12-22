@@ -83,35 +83,7 @@ impl EnabledBackend {
     pub fn which<B: crate::hal::Backend>() -> Self {
         #[allow(unused_variables)]
         let tid = TypeId::of::<B>();
-        match () {
-            #[cfg(all(
-                feature = "dx12",
-                all(target_os = "windows", not(target_arch = "wasm32"))
-            ))]
-            _ if tid == dx12_backend_type_id() => EnabledBackend::Dx12,
-            #[cfg(feature = "empty")]
-            _ if tid == empty_backend_type_id() => EnabledBackend::Empty,
-            #[cfg(feature = "gl")]
-            _ if tid == gl_backend_type_id() => EnabledBackend::Gl,
-            #[cfg(all(
-                feature = "metal",
-                any(
-                    all(not(target_arch = "wasm32"), target_os = "macos"),
-                    all(target_arch = "aarch64", target_os = "ios")
-                )
-            ))]
-            _ if tid == metal_backend_type_id() => EnabledBackend::Metal,
-            #[cfg(all(
-                feature = "vulkan",
-                any(
-                    target_os = "windows",
-                    all(unix, not(any(target_os = "macos", target_os = "ios")))
-                ),
-                not(target_arch = "wasm32")
-            ))]
-            _ if tid == vulkan_backend_type_id() => EnabledBackend::Vulkan,
-            _ => panic!("Unsupported gfx-hal backend"),
-        }
+        panic!("Unsupported gfx-hal backend")
     }
 }
 

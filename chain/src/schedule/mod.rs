@@ -44,7 +44,7 @@ impl<S> Schedule<S> {
 
     /// Iterate over submissions in ordered they must be submitted.
     pub fn ordered(&self) -> impl Iterator<Item = &Submission<S>> {
-        let ref map = self.map;
+        let map = &self.map;
 
         self.ordered
             .iter()

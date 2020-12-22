@@ -146,7 +146,7 @@ where
         if let Some(capability) = self.capability.supports() {
             Ok(CommandBuffer {
                 raw: self.raw,
-                capability: capability,
+                capability,
                 state: self.state,
                 level: self.level,
                 reset: self.reset,

@@ -347,7 +347,7 @@ fn schedule_node<'a>(
     images: &mut Vec<ChainData<Image>>,
     buffers: &mut Vec<ChainData<Buffer>>,
 ) {
-    let ref mut queue_data = schedule[queue];
+    let queue_data = &mut schedule[queue];
     queue_data.wait_factor = max(queue_data.wait_factor, wait_factor + 1);
     let sid = queue_data
         .queue
@@ -404,7 +404,7 @@ fn add_to_chain<R, S>(
         chain_data.current_link_wait_factor,
     );
 
-    let ref mut chain = chain_data.chain;
+    let chain = &mut chain_data.chain;
     let chain_len = chain.links().len();
     let append = match chain.last_link_mut() {
         Some(ref mut link) if link.compatible(&node) => {
