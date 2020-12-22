@@ -106,7 +106,7 @@ nalgebra = "0.23.2"
 env_logger = "0.8.2"
 lazy_static = "1.4.0"
 log = "0.4.11"
-palette = "0.4"
+palette = "0.5"
 rand = "0.8.0"
 
 [[example]]
