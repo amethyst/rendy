@@ -369,7 +369,7 @@ where
             chunk_index
         );
 
-        let ref mut chunk = chunks[chunk_index as usize];
+        let chunk = &mut chunks[chunk_index as usize];
         let block_index = chunk.acquire_blocks(count, block_size, align)?;
         let block_range = chunk.blocks_range(block_size, block_index, count);
 
@@ -506,12 +506,12 @@ where
         log::trace!("Free block: {:#?}", block);
 
         let block_size = block.size() / block.count as u64;
-        let ref mut size_entry = self
+        let size_entry = &mut self
             .sizes
             .get_mut(&block_size)
             .expect("Unable to get size entry from which block was allocated");
         let chunk_index = block.chunk_index;
-        let ref mut chunk = size_entry.chunks[chunk_index as usize];
+        let chunk = &mut size_entry.chunks[chunk_index as usize];
         let block_index = block.block_index;
         let count = block.count;
         block.dispose();
@@ -534,7 +534,7 @@ where
             }
         } else {
             for (index, size) in self.sizes {
-                if size.chunks.len() != 0 {
+                if !size.chunks.is_empty() {
                     log::error!("Memory leak: SizeEntry({}) is still used", index);
                 }
             }

@@ -1157,7 +1157,7 @@ where
             let index = cbuf.index();
 
             if let Some(next) = &next {
-                let ref mut for_image = per_image[next[0] as usize];
+                let for_image = &mut per_image[next[0] as usize];
 
                 let force_record = subpasses.iter_mut().enumerate().fold(
                     false,
@@ -1198,7 +1198,7 @@ where
                 }
 
                 if let Some(next) = &next {
-                    let ref mut for_image = per_image[next[0] as usize];
+                    let for_image = &mut per_image[next[0] as usize];
 
                     let area = rendy_core::hal::pso::Rect {
                         x: 0,
@@ -1265,7 +1265,7 @@ where
 
         if let Some(next) = next {
             log::trace!("Present");
-            let ref mut for_image = per_image[next[0] as usize];
+            let for_image = &mut per_image[next[0] as usize];
             if let Err(err) = next.present(queue.raw(), Some(&for_image.release)) {
                 log::debug!("Swapchain presentation error: {:#?}", err);
             }

@@ -191,7 +191,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
             })
             .collect();
 
-        let heaps = properties.memory_heaps.iter().cloned().collect();
+        let heaps = properties.memory_heaps.to_vec();
 
         (types, heaps)
     }

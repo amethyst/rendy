@@ -213,7 +213,7 @@ where
             r.seek(std::io::SeekFrom::Current(-10))?;
             image::guess_format(&format_magic_bytes)
         },
-        |f| Ok(f),
+        Ok,
     )?;
 
     let (w, h, vec, format, swizzle) = match (image_format, config.repr) {

@@ -13,10 +13,7 @@ pub struct QueueId {
 impl QueueId {
     /// Create queue id from family id and index.
     pub fn new(family: rendy_core::hal::queue::QueueFamilyId, index: usize) -> Self {
-        QueueId {
-            family: family,
-            index,
-        }
+        QueueId { family, index }
     }
 
     /// Get family id.

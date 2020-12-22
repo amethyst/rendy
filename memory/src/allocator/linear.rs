@@ -353,7 +353,7 @@ where
             "Can't be allocated from not yet created line"
         );
         {
-            let ref mut line = self.lines[index];
+            let line = &mut self.lines[index];
             line.free += block.size();
         }
         block.dispose();

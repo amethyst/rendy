@@ -10,6 +10,7 @@ fn main() {
         .init();
 
     let config: Config = Default::default();
+    #[allow(unused_variables)]
     let rendy = AnyRendy::init_auto(&config).unwrap();
 
     rendy::with_any_rendy!((rendy) (_, _) => {});

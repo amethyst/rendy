@@ -128,7 +128,7 @@ impl<B: Backend> GraphContext<B> {
                             .create_buffer(
                                 BufferInfo {
                                     usage: buffer.usage(),
-                                    ..info.clone()
+                                    ..*info
                                 },
                                 Data,
                             )
@@ -152,7 +152,7 @@ impl<B: Backend> GraphContext<B> {
                             .create_image(
                                 ImageInfo {
                                     usage: image.usage(),
-                                    ..info.clone()
+                                    ..*info
                                 },
                                 Data,
                             )
@@ -209,7 +209,7 @@ where
 
         if self.frames.next().index() >= self.inflight as _ {
             let wait = Frame::with_index(self.frames.next().index() - self.inflight as u64);
-            let ref mut self_fences = self.fences;
+            let self_fences = &mut self.fences;
             self.frames.wait_complete(wait, factory, |mut fences| {
                 factory.reset_fences(&mut fences).unwrap();
                 self_fences.push(fences);
@@ -218,7 +218,7 @@ where
 
         let mut fences = self.fences.pop().unwrap_or_else(Fences::<B>::default);
         let mut fences_used = 0;
-        let ref semaphores = self.semaphores;
+        let semaphores = &self.semaphores;
 
         for submission in self.schedule.ordered() {
             log::trace!("Run node {}", submission.node());
