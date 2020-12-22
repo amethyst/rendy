@@ -458,7 +458,7 @@ impl Attribute {
             uuid: attribute_uuid(&name, index, element.format),
             element,
             index,
-            name: name,
+            name,
         }
     }
 }
