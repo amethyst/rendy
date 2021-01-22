@@ -249,8 +249,10 @@ where
                     info.swizzle,
                     SubresourceRange {
                         aspects: info.range.aspects,
-                        layers: info.range.layers.clone(),
-                        levels: info.range.levels.clone(),
+                        level_start: info.range.level_start,
+                        level_count: info.range.level_count,
+                        layer_start: info.range.layer_start,
+                        layer_count: info.range.layer_count,
                     },
                 )
                 .map_err(CreationError::Create)?
