@@ -129,7 +129,7 @@ where
     pub unsafe fn bind_vertex_buffers<'b>(
         &mut self,
         first_binding: u32,
-        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
+        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)> + ExactSizeIterator,
     ) where
         C: Supports<Graphics>,
     {
