@@ -36,26 +36,18 @@ struct Fitness {
     wait_factor: usize,
 }
 
+use derivative::Derivative;
+
+#[derive(Debug, Derivative)]
+#[derivative(Default)]
 struct ResolvedNode {
     id: usize,
+    #[derivative(Default(value = "hal::queue::QueueFamilyId(0)"))]
     family: hal::queue::QueueFamilyId,
     queues: Range<usize>,
     rev_deps: Vec<usize>,
     buffers: Vec<(usize, State<Buffer>)>,
     images: Vec<(usize, State<Image>)>,
-}
-
-impl Default for ResolvedNode {
-    fn default() -> Self {
-        ResolvedNode {
-            id: 0,
-            family: hal::queue::QueueFamilyId(0),
-            queues: 0..0,
-            rev_deps: Vec::new(),
-            buffers: Vec::new(),
-            images: Vec::new(),
-        }
-    }
 }
 
 struct ResolvedNodeSet {

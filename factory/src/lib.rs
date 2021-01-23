@@ -11,7 +11,6 @@
     unused_qualifications
 )]
 use rendy_command as command;
-use rendy_core as core;
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;
 use rendy_resource as resource;

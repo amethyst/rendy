@@ -1,4 +1,5 @@
 use rendy_core::hal;
+use rendy_core::{Device, DeviceId, Instance, InstanceId};
 use {
     crate::{
         blitter::Blitter,
@@ -6,7 +7,6 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
-        core::{Device, DeviceId, Instance, InstanceId},
         descriptor::DescriptorAllocator,
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
@@ -32,7 +32,10 @@ use {
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
 };
 
-#[derive(Debug)]
+use derivative::Derivative;
+
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 struct ResourceHub<B: Backend> {
     buffers: ResourceTracker<Buffer<B>>,
     images: ResourceTracker<Image<B>>,
@@ -41,23 +44,6 @@ struct ResourceHub<B: Backend> {
     sets: ResourceTracker<DescriptorSet<B>>,
     samplers: ResourceTracker<Sampler<B>>,
     samplers_cache: parking_lot::RwLock<SamplerCache<B>>,
-}
-
-impl<B> Default for ResourceHub<B>
-where
-    B: Backend,
-{
-    fn default() -> Self {
-        ResourceHub {
-            buffers: ResourceTracker::default(),
-            images: ResourceTracker::default(),
-            views: ResourceTracker::default(),
-            layouts: ResourceTracker::default(),
-            sets: ResourceTracker::default(),
-            samplers: ResourceTracker::default(),
-            samplers_cache: parking_lot::RwLock::new(SamplerCache::default()),
-        }
-    }
 }
 
 impl<B> ResourceHub<B>

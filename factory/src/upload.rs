@@ -1,4 +1,6 @@
 use rendy_core::hal;
+use rendy_core::Device;
+
 use {
     crate::{
         barriers::Barriers,
@@ -6,7 +8,6 @@ use {
             CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
             PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
         },
-        core::Device,
         resource::{Buffer, Escape, Handle, Image},
     },
     hal::device::{Device as _, OutOfMemory},

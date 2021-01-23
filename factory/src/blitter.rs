@@ -7,11 +7,11 @@ use {
             InitialState, Level, OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState,
             Submission, Supports,
         },
-        core::Device,
         resource::{Handle, Image},
         upload::ImageState,
     },
     hal::device::{Device as _, OutOfMemory},
+    rendy_core::Device,
     smallvec::SmallVec,
     std::{collections::VecDeque, iter::once, ops::DerefMut, ops::Range},
 };

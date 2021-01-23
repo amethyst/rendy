@@ -3,9 +3,10 @@ use std::cmp::min;
 
 use crate::{
     command::FamilyId,
-    core::DeviceId,
     memory::{DynamicConfig, HeapsConfig, LinearConfig},
 };
+
+use rendy_core::DeviceId;
 
 /// Factory initialization config.
 ///
