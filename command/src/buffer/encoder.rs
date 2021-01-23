@@ -94,9 +94,9 @@ where
     /// multiple of index size indicated by `index_type`.
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindIndexBuffer.html
-    pub unsafe fn bind_index_buffer<'b>(
+    pub unsafe fn bind_index_buffer(
         &mut self,
-        buffer: &'b B::Buffer,
+        buffer: &B::Buffer,
         offset: u64,
         index_type: hal::IndexType,
     ) where
