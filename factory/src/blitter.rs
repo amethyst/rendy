@@ -21,16 +21,6 @@ pub struct Blitter<B: rendy_core::hal::Backend> {
     family_ops: Vec<Option<parking_lot::Mutex<FamilyGraphicsOps<B>>>>,
 }
 
-fn subresource_to_range(
-    sub: &rendy_core::hal::image::SubresourceLayers,
-) -> rendy_core::hal::image::SubresourceRange {
-    rendy_core::hal::image::SubresourceRange {
-        aspects: sub.aspects,
-        levels: sub.level..sub.level + 1,
-        layers: sub.layers.clone(),
-    }
-}
-
 /// A region to be blitted including the source and destination images and states,
 #[derive(Debug, Clone)]
 pub struct BlitRegion {
@@ -331,7 +321,7 @@ pub unsafe fn blit_image<B, C, L>(
         .map(|reg| {
             read_barriers.add_image(
                 src_image.clone(),
-                subresource_to_range(&reg.src.subresource),
+                reg.src.subresource.clone().into(),
                 reg.src.last_stage,
                 reg.src.last_access,
                 reg.src.last_layout,
@@ -343,7 +333,7 @@ pub unsafe fn blit_image<B, C, L>(
 
             write_barriers.add_image(
                 dst_image.clone(),
-                subresource_to_range(&reg.dst.subresource),
+                reg.dst.subresource.clone().into(),
                 reg.dst.last_stage,
                 reg.dst.last_access,
                 reg.dst.last_layout,
