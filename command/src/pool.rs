@@ -16,8 +16,6 @@ pub struct CommandPool<B: Backend, C = QueueType, R = NoIndividualReset> {
     relevant: relevant::Relevant,
 }
 
-family_owned!(CommandPool<B, C, R>);
-
 impl<B, C, R> CommandPool<B, C, R>
 where
     B: Backend,

@@ -233,27 +233,13 @@ where
                         .sync()
                         .wait
                         .iter()
-                        .map(|wait| {
-                            log::trace!(
-                                "Node {} waits for {}",
-                                submission.node(),
-                                *wait.semaphore()
-                            );
-                            (&semaphores[*wait.semaphore()], wait.stage())
-                        })
+                        .map(|wait| (&semaphores[*wait.semaphore()], wait.stage()))
                         .collect::<smallvec::SmallVec<[_; 16]>>(),
                     &submission
                         .sync()
                         .signal
                         .iter()
-                        .map(|signal| {
-                            log::trace!(
-                                "Node {} signals {}",
-                                submission.node(),
-                                *signal.semaphore()
-                            );
-                            &semaphores[*signal.semaphore()]
-                        })
+                        .map(|signal| &semaphores[*signal.semaphore()])
                         .collect::<smallvec::SmallVec<[_; 16]>>(),
                     fence,
                 )

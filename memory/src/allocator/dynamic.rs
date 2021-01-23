@@ -193,13 +193,6 @@ where
         config: DynamicConfig,
         non_coherent_atom_size: u64,
     ) -> Self {
-        log::trace!(
-            "Create new allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
-            memory_type,
-            memory_properties,
-            config
-        );
-
         let block_size_granularity = if is_non_coherent_visible(memory_properties) {
             non_coherent_atom_size
                 .max(config.block_size_granularity)
@@ -232,12 +225,6 @@ where
         block_size: u64,
         chunk_size: u64,
     ) -> Result<Chunk<B>, gfx_hal::device::AllocationError> {
-        log::trace!(
-            "Allocate chunk of size: {} for blocks of size {} from device",
-            chunk_size,
-            block_size
-        );
-
         // Allocate from device.
         let (memory, mapping) = unsafe {
             // Valid memory type specified.
@@ -282,12 +269,6 @@ where
         block_size: u64,
         total_blocks: u64,
     ) -> Result<(Chunk<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!(
-            "Allocate chunk for blocks of size {} ({} total blocks allocated)",
-            block_size,
-            total_blocks
-        );
-
         let min_chunk_size = MIN_BLOCKS_PER_CHUNK as u64 * block_size;
         let min_size = min_chunk_size.min(total_blocks * block_size);
         let max_chunk_size = MAX_BLOCKS_PER_CHUNK as u64 * block_size;
@@ -328,13 +309,6 @@ where
         count: u32,
         align: u64,
     ) -> Option<DynamicBlock<B>> {
-        log::trace!(
-            "Allocate {} consecutive blocks of size {} from chunk {}",
-            count,
-            block_size,
-            chunk_index
-        );
-
         let chunk = &mut chunks[chunk_index as usize];
         let block_index = chunk.acquire_blocks(count, block_size, align)?;
         let block_range = chunk.blocks_range(block_size, block_index, count);
@@ -361,12 +335,6 @@ where
         count: u32,
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!(
-            "Allocate {} consecutive blocks for size {} from the entry",
-            count,
-            block_size
-        );
-
         let size_entry = self.sizes.entry(block_size).or_default();
 
         for chunk_index in (&size_entry.ready_chunks).iter() {
@@ -510,14 +478,6 @@ where
         } else {
             aligned_size
         };
-
-        log::trace!(
-            "Allocate dynamic block: size: {}, align: {}, aligned size: {}, type: {}",
-            size,
-            align,
-            aligned_size,
-            self.memory_type.0
-        );
 
         self.alloc_block(device, aligned_size, align)
     }

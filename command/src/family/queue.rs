@@ -13,8 +13,6 @@ pub struct Queue<B: Backend> {
     next_epoch: u64,
 }
 
-family_owned!(@NOCAP Queue<B> @ |q: &Self| q.id.family);
-
 impl<B> Queue<B>
 where
     B: Backend,

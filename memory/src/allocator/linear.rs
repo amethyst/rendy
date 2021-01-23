@@ -165,12 +165,6 @@ where
         config: LinearConfig,
         non_coherent_atom_size: u64,
     ) -> Self {
-        log::trace!(
-            "Create new 'linear' allocator: type: '{:?}', properties: '{:#?}' config: '{:#?}'",
-            memory_type,
-            memory_properties,
-            config
-        );
         let linear_size = if is_non_coherent_visible(memory_properties) {
             align_size(config.linear_size, non_coherent_atom_size)
         } else {

@@ -388,11 +388,6 @@ where
             .into();
 
         if !factory.surface_support(family.id(), &self.surface) {
-            log::warn!(
-                "Surface {:?} presentation is unsupported by family {:?} bound to the node",
-                self.surface,
-                family
-            );
             return Err(NodeBuildError::QueueFamily(family.id()));
         }
 
@@ -468,10 +463,6 @@ where
                     match next.present(queue.raw(), Some(&for_image.release)) {
                         Ok(_) => break,
                         Err(e) => {
-                            log::debug!(
-                                "Swapchain present error after next_image is acquired: {:?}",
-                                e
-                            );
                             // recreate swapchain on next frame.
                             break;
                         }

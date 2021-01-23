@@ -151,14 +151,6 @@ where
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock<B>, HeapsError> {
-        log::trace!(
-            "Allocate memory block: type '{}', usage '{:#?}', size: '{}', align: '{}'",
-            memory_index,
-            usage,
-            size,
-            align
-        );
-
         let memory_type = &mut self.types[memory_index as usize];
         let memory_heap = &mut self.heaps[memory_type.heap_index()];
 

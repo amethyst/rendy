@@ -101,10 +101,6 @@ where
 
         while let Some(pool) = self.pools.pop_front() {
             if pool.freed + pool.free < pool.size {
-                log::error!(
-                    "Descriptor pool is still in use during allocator disposal. {:?}",
-                    pool
-                );
             } else {
                 device.destroy_descriptor_pool(pool.raw);
                 self.pools_offset += 1;
@@ -150,11 +146,6 @@ where
         while count > 0 {
             let size = self.new_pool_size(count);
             let pool_ranges = layout_ranges * size;
-            log::trace!(
-                "Create new pool with {} sets and {:?} descriptors",
-                size,
-                pool_ranges,
-            );
             let raw = device.create_descriptor_pool(
                 size as usize,
                 &pool_ranges,
@@ -256,13 +247,6 @@ where
         if count == 0 {
             return Ok(());
         }
-
-        log::trace!(
-            "Allocating {} sets with layout {:?} @ {:?}",
-            count,
-            layout,
-            layout_ranges
-        );
 
         let bucket = self
             .buckets

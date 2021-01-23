@@ -90,10 +90,6 @@ impl<B: Backend> Barriers<B> {
         self.after_image_access |= next_access;
 
         if last_layout != target_layout {
-            log::trace!(
-                "Transition last: {:?}",
-                (last_access, last_layout)..(self.target_image_access, target_layout)
-            );
             self.before_image_transitions.push(ImageBarrier {
                 states: (last_access, last_layout)..(self.target_image_access, target_layout),
                 target: image.clone(),
@@ -102,10 +98,6 @@ impl<B: Backend> Barriers<B> {
         }
 
         if next_layout != target_layout {
-            log::trace!(
-                "Transition next: {:?}",
-                (self.target_image_access, target_layout)..(next_access, next_layout)
-            );
             self.after_image_transitions.push(ImageBarrier {
                 states: (self.target_image_access, target_layout)..(next_access, next_layout),
                 target: image,

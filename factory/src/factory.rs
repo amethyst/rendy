@@ -166,12 +166,6 @@ pub struct Factory<B: Backend> {
     instance: InstanceOrId<B>,
 }
 
-#[allow(unused)]
-fn factory_is_send_sync<B: Backend>() {
-    fn is_send_sync<T: Send + Sync>() {}
-    is_send_sync::<Factory<B>>();
-}
-
 impl<B> Drop for Factory<B>
 where
     B: Backend,
@@ -183,7 +177,7 @@ where
             // Device is idle.
             self.uploader.dispose(&self.device);
             self.blitter.dispose(&self.device);
-            std::ptr::read(&mut *self.resources).dispose(
+            std::ptr::read(&*self.resources).dispose(
                 &self.device,
                 self.heaps.get_mut(),
                 self.descriptor_allocator.get_mut(),
@@ -191,13 +185,13 @@ where
         }
 
         unsafe {
-            std::ptr::read(&mut *self.heaps)
+            std::ptr::read(&*self.heaps)
                 .into_inner()
                 .dispose(&self.device);
         }
 
         unsafe {
-            std::ptr::read(&mut *self.descriptor_allocator)
+            std::ptr::read(&*self.descriptor_allocator)
                 .into_inner()
                 .dispose(&self.device);
         }
@@ -1090,22 +1084,11 @@ pub fn init_with_instance_ref<B>(
 where
     B: Backend,
 {
-    rendy_with_slow_safety_checks!(
-        log::warn!("Slow safety checks are enabled! Disable them in production by enabling the 'no-slow-safety-checks' feature!")
-    );
     let mut adapters = instance.enumerate_adapters();
 
     if adapters.is_empty() {
         return Err(hal::device::CreationError::InitializationFailed);
     }
-
-    log::debug!(
-        "Physical devices:\n{:#?}",
-        adapters
-            .iter()
-            .map(|adapter| &adapter.info)
-            .collect::<SmallVec<[_; 32]>>()
-    );
 
     let picked = config.devices.pick(&adapters);
     if picked >= adapters.len() {
@@ -1119,15 +1102,6 @@ where
         features: Features,
         limits: Limits,
     }
-
-    log::debug!(
-        "Physical device picked: {:#?}",
-        PhysicalDeviceInfo {
-            name: &adapter.info.name,
-            features: adapter.physical_device.features(),
-            limits: adapter.physical_device.limits(),
-        }
-    );
 
     let device_id = DeviceId::new(instance.id());
 

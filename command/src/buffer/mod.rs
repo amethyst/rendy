@@ -32,8 +32,6 @@ pub struct CommandBuffer<B: Backend, C, S, L = PrimaryLevel, R = NoIndividualRes
     relevant: relevant::Relevant,
 }
 
-family_owned!(CommandBuffer<B, C, S, L, R>);
-
 unsafe impl<B, C, S, L, R> Send for CommandBuffer<B, C, S, L, R>
 where
     B: Backend,

@@ -402,10 +402,6 @@ where
         let (mut surface, suggested_extent, surface_clear) = self
             .surface
             .map_or((None, None, None), |(s, e, c)| (Some(s), Some(e), c));
-        log::debug!(
-            "Build render pass node {} surface",
-            surface.as_ref().map_or("without", |_| "with")
-        );
 
         let mut attachments: Vec<Attachment> = self
             .subpasses
@@ -685,20 +681,9 @@ where
             result
         };
 
-        log::trace!(
-            "Create {} framebuffers",
-            views.len() - attachments.len() + 1
-        );
-
         // Swapchain image views, if any, are last ones.
         let mut framebuffers = (attachments.len() - 1..views.len())
             .map(|i| unsafe {
-                log::trace!(
-                    "Create framebuffer for views {}..{} and {}",
-                    0,
-                    attachments.len() - 1,
-                    i,
-                );
                 factory
                     .device()
                     .create_framebuffer(
