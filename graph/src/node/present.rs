@@ -462,7 +462,7 @@ where
 
                     match next.present(queue.raw(), Some(&for_image.release)) {
                         Ok(_) => break,
-                        Err(e) => {
+                        Err(_) => {
                             // recreate swapchain on next frame.
                             break;
                         }

@@ -276,7 +276,7 @@ where
         optimize(schedule, &mut sync);
     }
 
-    let mut result = Schedule::new();
+    let mut result = Schedule::default();
     let mut signals: HashMap<Semaphore, Option<S>> = HashMap::default();
     let mut waits: HashMap<Semaphore, Option<W>> = HashMap::default();
 

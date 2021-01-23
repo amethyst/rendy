@@ -10,6 +10,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+#![allow(clippy::missing_safety_doc)]
 
 use {
     rendy_core::hal::{
@@ -312,14 +313,11 @@ where
     ///
     /// Swapchain must be not in use.
     pub unsafe fn dispose(mut self, device: &Device<B>) -> Surface<B> {
-        match self.backbuffer {
-            Some(images) => {
-                images
-                    .into_iter()
-                    .for_each(|image| image.dispose_swapchain_image(device.id()));
-            }
-            _ => {}
-        };
+        if let Some(images) = self.backbuffer {
+            images
+                .into_iter()
+                .for_each(|image| image.dispose_swapchain_image(device.id()));
+        }
 
         self.relevant.dispose();
         if let Some(s) = self.swapchain.take() {

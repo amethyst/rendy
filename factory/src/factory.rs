@@ -6,7 +6,7 @@ use {
             families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
         },
         config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
-        core::{rendy_with_slow_safety_checks, Device, DeviceId, Instance, InstanceId},
+        core::{Device, DeviceId, Instance, InstanceId},
         descriptor::DescriptorAllocator,
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,

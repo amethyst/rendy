@@ -50,7 +50,7 @@ impl<T> Escape<T> {
             let mut escape = ManuallyDrop::new(escape);
 
             // Release value from `ManuallyDrop`.
-            let value = read(&mut *escape.value);
+            let value = read(&*escape.value);
 
             // Drop sender. If it panics - value will be dropped.
             // Relevant values are allowed to be dropped due to panic.
@@ -67,13 +67,7 @@ impl<T> Escape<T> {
 
 impl<T> Drop for Escape<T> {
     fn drop(&mut self) {
-        unsafe {
-            // Read value from `ManuallyDrop` wrapper and send it over the channel.
-            match self.sender.send(read(&mut *self.value)) {
-                Ok(_) => {}
-                Err(_) => {}
-            }
-        }
+        unsafe { self.sender.send(read(&*self.value)).unwrap_or(()) }
     }
 }
 

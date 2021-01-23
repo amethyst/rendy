@@ -236,7 +236,7 @@ where
     /// `maxPushConstantsSize` device limit.
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdPushConstants.html
-    pub unsafe fn push_constants<'b>(
+    pub unsafe fn push_constants(
         &mut self,
         layout: &B::PipelineLayout,
         stages: hal::pso::ShaderStageFlags,

@@ -231,17 +231,3 @@ macro_rules! rendy_without_slow_safety_checks {
 macro_rules! rendy_without_slow_safety_checks {
     ($($tt:tt)*) => {};
 }
-
-/// Resolve into input AST if rendy is requested to perform slow safety checks.
-#[macro_export]
-#[cfg(not(feature = "no-slow-safety-checks"))]
-macro_rules! rendy_with_slow_safety_checks {
-    ($($tt:tt)*) => { $($tt)* };
-}
-
-/// Resolve into input AST if rendy is requested to perform slow safety checks.
-#[macro_export]
-#[cfg(feature = "no-slow-safety-checks")]
-macro_rules! rendy_with_slow_safety_checks {
-    ($($tt:tt)*) => {};
-}

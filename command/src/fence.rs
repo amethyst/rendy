@@ -52,18 +52,12 @@ where
 
     /// Check if fence was submitted.
     pub fn is_submitted(&self) -> bool {
-        match self.state {
-            FenceState::Submitted(_) => true,
-            _ => false,
-        }
+        matches!(self.state, FenceState::Submitted(_))
     }
 
     /// Check if fence is signaled.
     pub fn is_signaled(&self) -> bool {
-        match self.state {
-            FenceState::Signaled => true,
-            _ => false,
-        }
+        matches!(self.state, FenceState::Signaled)
     }
 
     /// Check if fence is unsignaled.

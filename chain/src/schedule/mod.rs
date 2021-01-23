@@ -19,22 +19,17 @@ pub use self::{
     submission::{Submission, SubmissionId},
 };
 
+use derivative::Derivative;
+
 /// Whole passes schedule.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct Schedule<S> {
     map: HashMap<hal::queue::QueueFamilyId, Family<S>>,
     ordered: Vec<SubmissionId>,
 }
 
 impl<S> Schedule<S> {
-    /// Create new empty `Schedule`
-    pub fn new() -> Self {
-        Schedule {
-            map: HashMap::default(),
-            ordered: Vec::new(),
-        }
-    }
-
     /// Get total number of submissions.
     pub fn total(&self) -> usize {
         self.ordered.len()

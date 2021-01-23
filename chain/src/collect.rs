@@ -277,7 +277,7 @@ fn reify_chain<R: Resource>(ids: &[Id], vec: Vec<ChainData<R>>) -> HashMap<Id, C
 }
 
 fn reify_schedule(vec: Vec<QueueData>) -> Schedule<Unsynchronized> {
-    let mut schedule = Schedule::new();
+    let mut schedule = Schedule::default();
     for queue_data in vec.into_iter() {
         schedule.set_queue(queue_data.queue);
     }
