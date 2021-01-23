@@ -1,4 +1,3 @@
-use rendy_core::hal;
 //!
 //! The mighty triangle example.
 //! This example shows a colored triangle on a white background.
@@ -7,9 +6,9 @@ use rendy_core::hal;
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
+    core::hal::{self, Backend},
     factory::{Config, Factory},
     graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-    hal::{self, Backend},
     init::winit::{
         dpi::Size as DpiSize,
         event::{Event, WindowEvent},

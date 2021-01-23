@@ -1,14 +1,12 @@
-use rendy_core::hal;
-//!
 //! First non-trivial example simulates miriad of quads floating in gravity field and bouce of window borders.
 //! It uses compute node to move quads and simple render pass to draw them.
-//!
 
 use rendy::{
     command::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
+    core::hal::{self, device::Device as _},
     factory::{BufferState, Config, Factory},
     frame::Frames,
     graph::{
@@ -20,7 +18,6 @@ use rendy::{
         BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
         NodeDesc, NodeImage, NodeSubmittable,
     },
-    hal::{self, device::Device as _},
     init::winit::{
         dpi::Size as DpiSize,
         event::{Event, WindowEvent},
@@ -33,6 +30,7 @@ use rendy::{
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
 };
+use std::ops::Deref;
 
 #[cfg(feature = "spirv-reflection")]
 use rendy::shader::SpirvReflection;
@@ -271,7 +269,7 @@ where
             factory
                 .device()
                 .write_descriptor_sets(std::iter::once(hal::pso::DescriptorSetWrite {
-                    set: descriptor_set.raw(),
+                    set: descriptor_set.deref().deref(),
                     binding: 0,
                     array_offset: 0,
                     descriptors: std::iter::once(hal::pso::Descriptor::Buffer(
@@ -321,7 +319,7 @@ where
             encoder.bind_graphics_descriptor_sets(
                 layout,
                 0,
-                std::iter::once(self.descriptor_set.raw()),
+                std::iter::once(self.descriptor_set.deref().deref()),
                 std::iter::empty::<u32>(),
             );
             encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
@@ -496,7 +494,7 @@ where
             factory
                 .device()
                 .write_descriptor_sets(std::iter::once(hal::pso::DescriptorSetWrite {
-                    set: descriptor_set.raw(),
+                    set: descriptor_set.deref().deref(),
                     binding: 0,
                     array_offset: 0,
                     descriptors: std::iter::once(hal::pso::Descriptor::Buffer(
@@ -522,7 +520,7 @@ where
             encoder.bind_compute_descriptor_sets(
                 &pipeline_layout,
                 0,
-                std::iter::once(descriptor_set.raw()),
+                std::iter::once(descriptor_set.deref().deref()),
                 std::iter::empty::<u32>(),
             );
 
@@ -602,7 +600,6 @@ fn build_graph<B: hal::Backend>(
             ),
     );
 
-    let started = std::time::Instant::now();
     let graph = graph_builder.build(factory, families, &()).unwrap();
     graph
 }
@@ -615,6 +612,7 @@ fn main() {
         .with_title("Rendy example");
 
     let rendy = AnyWindowedRendy::init_auto(&config, window, &event_loop).unwrap();
+
     rendy::with_any_windowed_rendy!((rendy)
         (mut factory, mut families, surface, window) => {
             let mut graph = Some(build_graph(&mut factory, &mut families, surface, &window));
@@ -630,7 +628,6 @@ fn main() {
                     Event::WindowEvent { event, .. } => match event {
                         WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                         WindowEvent::Resized(_dims) => {
-                            let started = std::time::Instant::now();
                             graph.take().unwrap().dispose(&mut factory, &());
                             return;
                         }

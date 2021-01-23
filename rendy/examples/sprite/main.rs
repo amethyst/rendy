@@ -23,6 +23,7 @@ use rendy::{
     shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
 };
+use std::ops::Deref;
 
 #[cfg(feature = "spirv-reflection")]
 use rendy::shader::SpirvReflection;
@@ -145,7 +146,7 @@ where
                 env!("CARGO_MANIFEST_DIR"),
                 "/examples/sprite/logo.png"
             ))
-            .map_err(|e| hal::pso::CreationError::Other)?,
+            .map_err(|_| hal::pso::CreationError::Other)?,
         );
 
         let texture_builder = rendy::texture::image::load_from_image(
@@ -155,7 +156,7 @@ where
                 ..Default::default()
             },
         )
-        .map_err(|e| hal::pso::CreationError::Other)?;
+        .map_err(|_| hal::pso::CreationError::Other)?;
 
         let texture = texture_builder
             .build(
@@ -176,7 +177,7 @@ where
         unsafe {
             factory.device().write_descriptor_sets(vec![
                 hal::pso::DescriptorSetWrite {
-                    set: descriptor_set.raw(),
+                    set: descriptor_set.deref().deref(),
                     binding: 0,
                     array_offset: 0,
                     descriptors: vec![hal::pso::Descriptor::Image(
@@ -185,7 +186,7 @@ where
                     )],
                 },
                 hal::pso::DescriptorSetWrite {
-                    set: descriptor_set.raw(),
+                    set: descriptor_set.deref().deref(),
                     binding: 1,
                     array_offset: 0,
                     descriptors: vec![hal::pso::Descriptor::Sampler(texture.sampler().raw())],
@@ -282,7 +283,7 @@ where
             encoder.bind_graphics_descriptor_sets(
                 layout,
                 0,
-                std::iter::once(self.descriptor_set.raw()),
+                std::iter::once(self.descriptor_set.deref().deref()),
                 std::iter::empty::<u32>(),
             );
             encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));

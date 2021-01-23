@@ -1,6 +1,6 @@
-use rendy_core::hal;
 use super::queue::QueueId;
 use crate::Id;
+use rendy_core::hal;
 use std::collections::HashMap;
 
 /// Submission id.
@@ -79,7 +79,9 @@ impl<S> Submission<S> {
     }
 
     /// Set link index for given chain.
-    pub fn set_buffer_link(&mut self, _id: Id, _link: usize) {}
+    pub fn set_buffer_link(&mut self, id: Id, link: usize) {
+        self.buffer_links.insert(id, link);
+    }
 
     /// Get link index for resource by id.
     pub fn image_link_index(&self, id: Id) -> usize {
@@ -87,7 +89,9 @@ impl<S> Submission<S> {
     }
 
     /// Set link index for given chain.
-    pub fn set_image_link(&mut self, _id: Id, _link: usize) {}
+    pub fn set_image_link(&mut self, id: Id, link: usize) {
+        self.image_links.insert(id, link);
+    }
 
     /// Create new submission with specified pass.
     pub(crate) fn new(

@@ -21,6 +21,8 @@ use {
     },
 };
 
+use std::ops::Deref as StdDeref;
+
 use derive_more::{Deref, DerefMut};
 
 /// Allows values to "escape" dropping by sending them to the `Terminal`.
@@ -138,10 +140,17 @@ impl<T> Drop for Terminal<T> {
 /// Permit sharing unlike [`Escape`]
 ///
 /// [`Escape`]: ./struct.Escape.html
-#[derive(Debug, Deref)]
-#[deref(forward)]
+#[derive(Debug)]
 pub struct Handle<T> {
     inner: Arc<Escape<T>>,
+}
+
+impl<T> StdDeref for Handle<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &**self.inner
+    }
 }
 
 impl<T> Clone for Handle<T> {

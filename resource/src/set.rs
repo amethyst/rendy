@@ -83,14 +83,12 @@ use derive_more::{Deref, DerefMut};
 #[derive(Debug, Deref, DerefMut)]
 pub struct DescriptorSet<B: Backend> {
     device: DeviceId,
-    #[deref]
-    #[deref_mut]
+    #[deref(forward)]
+    #[deref_mut(forward)]
     set: descriptor::DescriptorSet<B>,
     layout: Handle<DescriptorSetLayout<B>>,
     relevant: Relevant,
 }
-
-device_owned!(DescriptorSet<B>);
 
 impl<B> DescriptorSet<B>
 where
