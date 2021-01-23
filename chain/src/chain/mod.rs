@@ -15,9 +15,12 @@ use crate::{
 
 pub use self::link::{Link, LinkNode};
 
+use derivative::Derivative;
+
 /// This type corresponds to resource category.
 /// All resources from the same category must be accessed as permitted by links of the chain.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct Chain<R: Resource> {
     links: Vec<Link<R>>,
 }
@@ -29,11 +32,6 @@ where
     /// Get links slice
     pub fn links(&self) -> &[Link<R>] {
         &self.links
-    }
-
-    /// Create new empty `Chain`
-    pub fn new() -> Self {
-        Chain { links: Vec::new() }
     }
 
     /// Get links slice

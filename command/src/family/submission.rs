@@ -1,5 +1,5 @@
-use rendy_core::hal;
 use crate::buffer::{NoSimultaneousUse, OutsideRenderPass, PrimaryLevel, Submit, Submittable};
+use rendy_core::hal;
 
 #[allow(unused)]
 type NoWaits<B> = std::iter::Empty<(

@@ -65,21 +65,12 @@ struct ResolvedNodeSet {
     images: Vec<Id>,
 }
 
+#[derive(Default)]
 struct ChainData<R: Resource> {
     chain: Chain<R>,
     last_link_wait_factor: usize,
     current_link_wait_factor: usize,
     current_family: Option<hal::queue::QueueFamilyId>,
-}
-impl<R: Resource> Default for ChainData<R> {
-    fn default() -> Self {
-        ChainData {
-            chain: Chain::new(),
-            last_link_wait_factor: 0,
-            current_link_wait_factor: 0,
-            current_family: None,
-        }
-    }
 }
 
 struct QueueData {
