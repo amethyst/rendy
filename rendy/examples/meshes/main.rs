@@ -1,3 +1,4 @@
+use rendy_core::hal;
 //!
 //! The mighty triangle example.
 //! This examples shows colord triangle on white background.
@@ -196,7 +197,7 @@ where
         _buffers: Vec<NodeBuffer>,
         _images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<MeshRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<MeshRenderPipeline<B>, hal::pso::CreationError> {
         let frames = ctx.frames_in_flight as _;
         let align = factory
             .physical()

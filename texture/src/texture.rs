@@ -11,6 +11,7 @@ use {
         },
     },
     rendy_core::hal::{
+        self,
         format::{Component, Format, Swizzle},
         image, Backend,
     },
@@ -74,7 +75,7 @@ pub enum MipLevels {
 
 /// Calculate the number of mip levels for a 2D image with given dimensions
 pub fn mip_levels_from_dims(width: u32, height: u32) -> u8 {
-    ((32 - width.max(height).leading_zeros()).max(1) as u8).min(rendy_core::hal::image::MAX_LEVEL)
+    ((32 - width.max(height).leading_zeros()).max(1) as u8).min(hal::image::MAX_LEVEL)
 }
 
 #[derive(Debug)]
@@ -83,8 +84,8 @@ pub enum BuildError {
     Image(ImageCreationError),
     Upload(UploadError),
     ImageView(ImageViewCreationError),
-    Mipmap(rendy_core::hal::device::OutOfMemory),
-    Sampler(rendy_core::hal::device::AllocationError),
+    Mipmap(hal::device::OutOfMemory),
+    Sampler(hal::device::AllocationError),
 }
 
 impl std::fmt::Display for BuildError {
@@ -124,7 +125,7 @@ pub struct TextureBuilder<'a> {
     data: std::borrow::Cow<'a, [u8]>,
     data_width: u32,
     data_height: u32,
-    sampler_info: rendy_core::hal::image::SamplerDesc,
+    sampler_info: hal::image::SamplerDesc,
     swizzle: Swizzle,
     mip_levels: MipLevels,
     premultiplied: bool,
@@ -157,9 +158,9 @@ impl<'a> TextureBuilder<'a> {
             data: std::borrow::Cow::Borrowed(&[]),
             data_width: 0,
             data_height: 0,
-            sampler_info: rendy_core::hal::image::SamplerDesc::new(
-                rendy_core::hal::image::Filter::Linear,
-                rendy_core::hal::image::WrapMode::Clamp,
+            sampler_info: hal::image::SamplerDesc::new(
+                hal::image::Filter::Linear,
+                hal::image::WrapMode::Clamp,
             ),
             swizzle: Swizzle::NO,
             mip_levels: MipLevels::Levels(NonZeroU8::new(1).unwrap()),
@@ -277,16 +278,13 @@ impl<'a> TextureBuilder<'a> {
     }
 
     /// With image sampler info.
-    pub fn with_sampler_info(mut self, sampler_info: rendy_core::hal::image::SamplerDesc) -> Self {
+    pub fn with_sampler_info(mut self, sampler_info: hal::image::SamplerDesc) -> Self {
         self.set_sampler_info(sampler_info);
         self
     }
 
     /// Set image sampler info.
-    pub fn set_sampler_info(
-        &mut self,
-        sampler_info: rendy_core::hal::image::SamplerDesc,
-    ) -> &mut Self {
+    pub fn set_sampler_info(&mut self, sampler_info: hal::image::SamplerDesc) -> &mut Self {
         self.sampler_info = sampler_info;
         self
     }
@@ -318,23 +316,20 @@ impl<'a> TextureBuilder<'a> {
         B: Backend,
     {
         let view_caps = match self.view_kind {
-            rendy_core::hal::image::ViewKind::D2Array => {
-                rendy_core::hal::image::ViewCapabilities::KIND_2D_ARRAY
+            hal::image::ViewKind::D2Array => hal::image::ViewCapabilities::KIND_2D_ARRAY,
+            hal::image::ViewKind::Cube | hal::image::ViewKind::CubeArray => {
+                hal::image::ViewCapabilities::KIND_CUBE
             }
-            rendy_core::hal::image::ViewKind::Cube
-            | rendy_core::hal::image::ViewKind::CubeArray => {
-                rendy_core::hal::image::ViewCapabilities::KIND_CUBE
-            }
-            _ => rendy_core::hal::image::ViewCapabilities::empty(),
+            _ => hal::image::ViewCapabilities::empty(),
         };
 
         let (mip_levels, generate_mips) = match self.mip_levels {
             MipLevels::GenerateLevels(val) => (val.get(), true),
             MipLevels::Levels(val) => (val.get(), false),
             MipLevels::GenerateAuto => match self.kind {
-                rendy_core::hal::image::Kind::D1(_, _) => (1, false),
-                rendy_core::hal::image::Kind::D2(w, h, _, _) => (mip_levels_from_dims(w, h), true),
-                rendy_core::hal::image::Kind::D3(_, _, _) => (1, false),
+                hal::image::Kind::D1(_, _) => (1, false),
+                hal::image::Kind::D2(w, h, _, _) => (mip_levels_from_dims(w, h), true),
+                hal::image::Kind::D3(_, _, _) => (1, false),
             },
         };
 
@@ -344,11 +339,11 @@ impl<'a> TextureBuilder<'a> {
                 kind: self.kind,
                 levels: mip_levels,
                 format: self.format,
-                tiling: rendy_core::hal::image::Tiling::Optimal,
+                tiling: hal::image::Tiling::Optimal,
                 view_caps,
-                usage: rendy_core::hal::image::Usage::SAMPLED
-                    | rendy_core::hal::image::Usage::TRANSFER_DST
-                    | rendy_core::hal::image::Usage::TRANSFER_SRC,
+                usage: hal::image::Usage::SAMPLED
+                    | hal::image::Usage::TRANSFER_DST
+                    | hal::image::Usage::TRANSFER_SRC,
             },
         )
         .ok_or(BuildError::Format(self.format))?;
@@ -382,14 +377,14 @@ impl<'a> TextureBuilder<'a> {
 
         let mip_state = ImageState {
             queue: next_state.queue,
-            stage: rendy_core::hal::pso::PipelineStage::TRANSFER,
+            stage: hal::pso::PipelineStage::TRANSFER,
             access: image::Access::TRANSFER_READ,
             layout: image::Layout::TransferSrcOptimal,
         };
 
         let undef_state = ImageState {
             queue: next_state.queue,
-            stage: rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
+            stage: hal::pso::PipelineStage::TOP_OF_PIPE,
             access: image::Access::empty(),
             layout: image::Layout::Undefined,
         };

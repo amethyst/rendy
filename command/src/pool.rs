@@ -1,8 +1,7 @@
 //! CommandPool module docs.
-
 use {
     crate::{buffer::*, capability::*, core::Device, family::FamilyId},
-    rendy_core::hal::{device::Device as _, pool::CommandPool as _, Backend},
+    rendy_core::hal::{self, device::Device as _, pool::CommandPool as _, Backend},
 };
 
 /// Simple pool wrapper.
@@ -35,16 +34,14 @@ where
         family: FamilyId,
         capability: C,
         device: &Device<B>,
-    ) -> Result<Self, rendy_core::hal::device::OutOfMemory>
+    ) -> Result<Self, hal::device::OutOfMemory>
     where
         R: Reset,
         C: Capability,
     {
         let reset = R::default();
-        let raw = device.create_command_pool(
-            rendy_core::hal::queue::QueueFamilyId(family.index),
-            reset.flags(),
-        )?;
+        let raw =
+            device.create_command_pool(hal::queue::QueueFamilyId(family.index), reset.flags())?;
         Ok(CommandPool::from_raw(raw, capability, reset, family))
     }
 
@@ -118,7 +115,7 @@ where
     /// All buffers allocated from this pool must be marked reset.
     /// See [`CommandBuffer::mark_reset`](struct.Command buffer.html#method.mark_reset)
     pub unsafe fn reset(&mut self) {
-        rendy_core::hal::pool::CommandPool::reset(&mut self.raw, false);
+        hal::pool::CommandPool::reset(&mut self.raw, false);
     }
 
     /// Dispose of command pool.

@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use {
     super::{
         level::{Level, PrimaryLevel, SecondaryLevel},
@@ -69,7 +70,7 @@ pub struct DispatchCommand {
 
 /// Encoder for recording commands inside or outside renderpass.
 #[derive(Debug)]
-pub struct EncoderCommon<'a, B: rendy_core::hal::Backend, C> {
+pub struct EncoderCommon<'a, B: hal::Backend, C> {
     raw: &'a mut B::CommandBuffer,
     capability: C,
     family: FamilyId,
@@ -77,7 +78,7 @@ pub struct EncoderCommon<'a, B: rendy_core::hal::Backend, C> {
 
 impl<'a, B, C> EncoderCommon<'a, B, C>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Bind index buffer.
     /// Last bound index buffer is used in [`draw_indexed`] command.
@@ -97,15 +98,15 @@ where
         &mut self,
         buffer: &'b B::Buffer,
         offset: u64,
-        index_type: rendy_core::hal::IndexType,
+        index_type: hal::IndexType,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::bind_index_buffer(
+        hal::command::CommandBuffer::bind_index_buffer(
             self.raw,
-            rendy_core::hal::buffer::IndexBufferView {
+            hal::buffer::IndexBufferView {
                 buffer,
-                range: rendy_core::hal::buffer::SubRange { offset, size: None },
+                range: hal::buffer::SubRange { offset, size: None },
                 index_type,
             },
         )
@@ -132,15 +133,12 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::bind_vertex_buffers(
+        hal::command::CommandBuffer::bind_vertex_buffers(
             self.raw,
             first_binding,
-            buffers.into_iter().map(|(buffer, offset)| {
-                (
-                    buffer,
-                    rendy_core::hal::buffer::SubRange { offset, size: None },
-                )
-            }),
+            buffers
+                .into_iter()
+                .map(|(buffer, offset)| (buffer, hal::buffer::SubRange { offset, size: None })),
         )
     }
 
@@ -155,7 +153,7 @@ where
         C: Supports<Graphics>,
     {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
+            hal::command::CommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
         }
     }
 
@@ -173,7 +171,7 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::bind_graphics_descriptor_sets(
+        hal::command::CommandBuffer::bind_graphics_descriptor_sets(
             self.raw,
             layout,
             first_set as _,
@@ -188,7 +186,7 @@ where
         C: Supports<Compute>,
     {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::bind_compute_pipeline(self.raw, pipeline);
+            hal::command::CommandBuffer::bind_compute_pipeline(self.raw, pipeline);
         }
     }
 
@@ -206,7 +204,7 @@ where
     ) where
         C: Supports<Compute>,
     {
-        rendy_core::hal::command::CommandBuffer::bind_compute_descriptor_sets(
+        hal::command::CommandBuffer::bind_compute_descriptor_sets(
             self.raw,
             layout,
             first_set as usize,
@@ -222,16 +220,11 @@ where
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdPipelineBarrier.html
     pub unsafe fn pipeline_barrier<'b>(
         &mut self,
-        stages: std::ops::Range<rendy_core::hal::pso::PipelineStage>,
-        dependencies: rendy_core::hal::memory::Dependencies,
-        barriers: impl IntoIterator<Item = rendy_core::hal::memory::Barrier<'b, B>>,
+        stages: std::ops::Range<hal::pso::PipelineStage>,
+        dependencies: hal::memory::Dependencies,
+        barriers: impl IntoIterator<Item = hal::memory::Barrier<'b, B>>,
     ) {
-        rendy_core::hal::command::CommandBuffer::pipeline_barrier(
-            self.raw,
-            stages,
-            dependencies,
-            barriers,
-        )
+        hal::command::CommandBuffer::pipeline_barrier(self.raw, stages, dependencies, barriers)
     }
 
     /// Push graphics constants.
@@ -246,11 +239,11 @@ where
     pub unsafe fn push_constants<'b>(
         &mut self,
         layout: &B::PipelineLayout,
-        stages: rendy_core::hal::pso::ShaderStageFlags,
+        stages: hal::pso::ShaderStageFlags,
         offset: u32,
         constants: &[u32],
     ) {
-        rendy_core::hal::command::CommandBuffer::push_graphics_constants(
+        hal::command::CommandBuffer::push_graphics_constants(
             self.raw, layout, stages, offset, constants,
         );
     }
@@ -261,11 +254,11 @@ where
     pub unsafe fn set_viewports<'b>(
         &mut self,
         first_viewport: u32,
-        viewports: impl IntoIterator<Item = &'b rendy_core::hal::pso::Viewport>,
+        viewports: impl IntoIterator<Item = &'b hal::pso::Viewport>,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_viewports(self.raw, first_viewport, viewports)
+        hal::command::CommandBuffer::set_viewports(self.raw, first_viewport, viewports)
     }
 
     /// Set scissors
@@ -279,11 +272,11 @@ where
     pub unsafe fn set_scissors<'b>(
         &mut self,
         first_scissor: u32,
-        rects: impl IntoIterator<Item = &'b rendy_core::hal::pso::Rect>,
+        rects: impl IntoIterator<Item = &'b hal::pso::Rect>,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_scissors(self.raw, first_scissor, rects)
+        hal::command::CommandBuffer::set_scissors(self.raw, first_scissor, rects)
     }
 
     /// Set the stencil reference dynamic state
@@ -291,12 +284,12 @@ where
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilReference.html
     pub unsafe fn set_stencil_reference(
         &mut self,
-        faces: rendy_core::hal::pso::Face,
-        value: rendy_core::hal::pso::StencilValue,
+        faces: hal::pso::Face,
+        value: hal::pso::StencilValue,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_stencil_reference(self.raw, faces, value);
+        hal::command::CommandBuffer::set_stencil_reference(self.raw, faces, value);
     }
 
     /// Set the stencil compare mask dynamic state
@@ -304,12 +297,12 @@ where
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilCompareMask.html
     pub unsafe fn set_stencil_read_mask(
         &mut self,
-        faces: rendy_core::hal::pso::Face,
-        value: rendy_core::hal::pso::StencilValue,
+        faces: hal::pso::Face,
+        value: hal::pso::StencilValue,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_stencil_read_mask(self.raw, faces, value);
+        hal::command::CommandBuffer::set_stencil_read_mask(self.raw, faces, value);
     }
 
     /// Set the stencil write mask dynamic state
@@ -317,22 +310,22 @@ where
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilWriteMask.html
     pub unsafe fn set_stencil_write_mask(
         &mut self,
-        faces: rendy_core::hal::pso::Face,
-        value: rendy_core::hal::pso::StencilValue,
+        faces: hal::pso::Face,
+        value: hal::pso::StencilValue,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_stencil_write_mask(self.raw, faces, value);
+        hal::command::CommandBuffer::set_stencil_write_mask(self.raw, faces, value);
     }
 
     /// Set the values of blend constants
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetBlendConstants.html
-    pub unsafe fn set_blend_constants(&mut self, color: rendy_core::hal::pso::ColorValue)
+    pub unsafe fn set_blend_constants(&mut self, color: hal::pso::ColorValue)
     where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_blend_constants(self.raw, color);
+        hal::command::CommandBuffer::set_blend_constants(self.raw, color);
     }
 
     /// Set the depth bounds test values
@@ -342,7 +335,7 @@ where
     where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_depth_bounds(self.raw, bounds);
+        hal::command::CommandBuffer::set_depth_bounds(self.raw, bounds);
     }
 
     /// Set the dynamic line width state
@@ -352,17 +345,17 @@ where
     where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_line_width(self.raw, width);
+        hal::command::CommandBuffer::set_line_width(self.raw, width);
     }
 
     /// Set the depth bias dynamic state
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetDepthBias.html
-    pub unsafe fn set_depth_bias(&mut self, depth_bias: rendy_core::hal::pso::DepthBias)
+    pub unsafe fn set_depth_bias(&mut self, depth_bias: hal::pso::DepthBias)
     where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::set_depth_bias(self.raw, depth_bias);
+        hal::command::CommandBuffer::set_depth_bias(self.raw, depth_bias);
     }
 
     /// Reborrow encoder.
@@ -380,13 +373,13 @@ where
 
 /// Special encoder to record render-pass commands.
 #[derive(Debug)]
-pub struct RenderPassEncoder<'a, B: rendy_core::hal::Backend> {
+pub struct RenderPassEncoder<'a, B: hal::Backend> {
     inner: EncoderCommon<'a, B, Graphics>,
 }
 
 impl<'a, B> std::ops::Deref for RenderPassEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     type Target = EncoderCommon<'a, B, Graphics>;
 
@@ -397,7 +390,7 @@ where
 
 impl<'a, B> std::ops::DerefMut for RenderPassEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn deref_mut(&mut self) -> &mut EncoderCommon<'a, B, Graphics> {
         &mut self.inner
@@ -406,19 +399,17 @@ where
 
 impl<'a, B> RenderPassEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Clear regions within bound framebuffer attachments
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdClearAttachments.html#vkCmdBeginRenderPass
     pub unsafe fn clear_attachments(
         &mut self,
-        clears: impl IntoIterator<
-            Item = impl std::borrow::Borrow<rendy_core::hal::command::AttachmentClear>,
-        >,
-        rects: impl IntoIterator<Item = impl std::borrow::Borrow<rendy_core::hal::pso::ClearRect>>,
+        clears: impl IntoIterator<Item = impl std::borrow::Borrow<hal::command::AttachmentClear>>,
+        rects: impl IntoIterator<Item = impl std::borrow::Borrow<hal::pso::ClearRect>>,
     ) {
-        rendy_core::hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);
+        hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);
     }
 
     /// Draw.
@@ -431,7 +422,7 @@ where
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDraw.html
     pub unsafe fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
-        rendy_core::hal::command::CommandBuffer::draw(self.inner.raw, vertices, instances)
+        hal::command::CommandBuffer::draw(self.inner.raw, vertices, instances)
     }
 
     /// Draw indexed, with `base_vertex` specifying an offset that is treated as
@@ -449,12 +440,7 @@ where
         base_vertex: i32,
         instances: std::ops::Range<u32>,
     ) {
-        rendy_core::hal::command::CommandBuffer::draw_indexed(
-            self.inner.raw,
-            indices,
-            base_vertex,
-            instances,
-        )
+        hal::command::CommandBuffer::draw_indexed(self.inner.raw, indices, base_vertex, instances)
     }
 
     /// Draw indirect.
@@ -476,7 +462,7 @@ where
         draw_count: u32,
         stride: u32,
     ) {
-        rendy_core::hal::command::CommandBuffer::draw_indirect(
+        hal::command::CommandBuffer::draw_indirect(
             self.inner.raw,
             buffer,
             offset,
@@ -504,7 +490,7 @@ where
         draw_count: u32,
         stride: u32,
     ) {
-        rendy_core::hal::command::CommandBuffer::draw_indexed_indirect(
+        hal::command::CommandBuffer::draw_indexed_indirect(
             self.inner.raw,
             buffer,
             offset,
@@ -523,22 +509,22 @@ where
 
 /// Special encoder to record commands inside render pass.
 #[derive(Debug)]
-pub struct RenderPassInlineEncoder<'a, B: rendy_core::hal::Backend> {
+pub struct RenderPassInlineEncoder<'a, B: hal::Backend> {
     inner: RenderPassEncoder<'a, B>,
 }
 
 impl<'a, B> Drop for RenderPassInlineEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn drop(&mut self) {
-        unsafe { rendy_core::hal::command::CommandBuffer::end_render_pass(self.inner.inner.raw) }
+        unsafe { hal::command::CommandBuffer::end_render_pass(self.inner.inner.raw) }
     }
 }
 
 impl<'a, B> std::ops::Deref for RenderPassInlineEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     type Target = RenderPassEncoder<'a, B>;
 
@@ -549,7 +535,7 @@ where
 
 impl<'a, B> std::ops::DerefMut for RenderPassInlineEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn deref_mut(&mut self) -> &mut RenderPassEncoder<'a, B> {
         &mut self.inner
@@ -558,14 +544,14 @@ where
 
 impl<'a, B> RenderPassInlineEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Record next subpass inline.
     pub fn next_subpass_inline(self) -> RenderPassInlineEncoder<'a, B> {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::next_subpass(
+            hal::command::CommandBuffer::next_subpass(
                 self.inner.inner.raw,
-                rendy_core::hal::command::SubpassContents::Inline,
+                hal::command::SubpassContents::Inline,
             );
         }
 
@@ -575,9 +561,9 @@ where
     /// Record next subpass secondary.
     pub fn next_subpass_secondary(self) -> RenderPassSecondaryEncoder<'a, B> {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::next_subpass(
+            hal::command::CommandBuffer::next_subpass(
                 self.inner.inner.raw,
-                rendy_core::hal::command::SubpassContents::SecondaryBuffers,
+                hal::command::SubpassContents::SecondaryBuffers,
             );
         }
 
@@ -594,22 +580,22 @@ where
 
 /// Special encoder to execute secondary buffers inside render pass.
 #[derive(Debug)]
-pub struct RenderPassSecondaryEncoder<'a, B: rendy_core::hal::Backend> {
+pub struct RenderPassSecondaryEncoder<'a, B: hal::Backend> {
     inner: EncoderCommon<'a, B, Graphics>,
 }
 
 impl<'a, B> Drop for RenderPassSecondaryEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn drop(&mut self) {
-        unsafe { rendy_core::hal::command::CommandBuffer::end_render_pass(self.inner.raw) }
+        unsafe { hal::command::CommandBuffer::end_render_pass(self.inner.raw) }
     }
 }
 
 impl<'a, B> RenderPassSecondaryEncoder<'a, B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Execute commands from secondary buffers.
     pub fn execute_commands(
@@ -617,7 +603,7 @@ where
         submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>,
     ) {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::execute_commands(
+            hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
                 submittables.into_iter().map(|submit| submit.raw()),
             )
@@ -627,9 +613,9 @@ where
     /// Record next subpass inline.
     pub fn next_subpass_inline(self) -> RenderPassInlineEncoder<'a, B> {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::next_subpass(
+            hal::command::CommandBuffer::next_subpass(
                 self.inner.raw,
-                rendy_core::hal::command::SubpassContents::Inline,
+                hal::command::SubpassContents::Inline,
             );
 
             let next = RenderPassInlineEncoder {
@@ -646,9 +632,9 @@ where
     /// Record next subpass secondary.
     pub fn next_subpass_secondary(self) -> RenderPassSecondaryEncoder<'a, B> {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::next_subpass(
+            hal::command::CommandBuffer::next_subpass(
                 self.inner.raw,
-                rendy_core::hal::command::SubpassContents::SecondaryBuffers,
+                hal::command::SubpassContents::SecondaryBuffers,
             );
         }
 
@@ -658,14 +644,14 @@ where
 
 /// Trait to encode commands outside render pass.
 #[derive(Debug)]
-pub struct Encoder<'a, B: rendy_core::hal::Backend, C, L> {
+pub struct Encoder<'a, B: hal::Backend, C, L> {
     inner: EncoderCommon<'a, B, C>,
     level: L,
 }
 
 impl<'a, B, C, L> std::ops::Deref for Encoder<'a, B, C, L>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     type Target = EncoderCommon<'a, B, C>;
 
@@ -676,7 +662,7 @@ where
 
 impl<'a, B, C, L> std::ops::DerefMut for Encoder<'a, B, C, L>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn deref_mut(&mut self) -> &mut EncoderCommon<'a, B, C> {
         &mut self.inner
@@ -685,27 +671,27 @@ where
 
 impl<'a, B, C> Encoder<'a, B, C, PrimaryLevel>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Beging recording render pass inline.
     pub fn begin_render_pass_inline(
         &mut self,
         render_pass: &B::RenderPass,
         framebuffer: &B::Framebuffer,
-        render_area: rendy_core::hal::pso::Rect,
-        clear_values: &[rendy_core::hal::command::ClearValue],
+        render_area: hal::pso::Rect,
+        clear_values: &[hal::command::ClearValue],
     ) -> RenderPassInlineEncoder<'_, B>
     where
         C: Supports<Graphics>,
     {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::begin_render_pass(
+            hal::command::CommandBuffer::begin_render_pass(
                 self.inner.raw,
                 render_pass,
                 framebuffer,
                 render_area,
                 clear_values,
-                rendy_core::hal::command::SubpassContents::Inline,
+                hal::command::SubpassContents::Inline,
             )
         }
 
@@ -721,20 +707,20 @@ where
         &mut self,
         render_pass: &B::RenderPass,
         framebuffer: &B::Framebuffer,
-        render_area: rendy_core::hal::pso::Rect,
-        clear_values: &[rendy_core::hal::command::ClearValue],
+        render_area: hal::pso::Rect,
+        clear_values: &[hal::command::ClearValue],
     ) -> RenderPassSecondaryEncoder<'_, B>
     where
         C: Supports<Graphics>,
     {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::begin_render_pass(
+            hal::command::CommandBuffer::begin_render_pass(
                 self.inner.raw,
                 render_pass,
                 framebuffer,
                 render_area,
                 clear_values,
-                rendy_core::hal::command::SubpassContents::SecondaryBuffers,
+                hal::command::SubpassContents::SecondaryBuffers,
             )
         }
 
@@ -749,7 +735,7 @@ where
         submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>,
     ) {
         unsafe {
-            rendy_core::hal::command::CommandBuffer::execute_commands(
+            hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
                 submittables.into_iter().map(|submit| submit.raw()),
             )
@@ -759,7 +745,7 @@ where
 
 impl<'a, B, C, L> Encoder<'a, B, C, L>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Get encoder level.
     pub fn level(&self) -> L
@@ -784,11 +770,11 @@ where
         &mut self,
         src: &B::Buffer,
         dst: &B::Buffer,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferCopy>,
+        regions: impl IntoIterator<Item = hal::command::BufferCopy>,
     ) where
         C: Supports<Transfer>,
     {
-        rendy_core::hal::command::CommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
+        hal::command::CommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
     }
 
     /// Copy buffer region to image subresource range.
@@ -802,12 +788,12 @@ where
         &mut self,
         src: &B::Buffer,
         dst: &B::Image,
-        dst_layout: rendy_core::hal::image::Layout,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        dst_layout: hal::image::Layout,
+        regions: impl IntoIterator<Item = hal::command::BufferImageCopy>,
     ) where
         C: Supports<Transfer>,
     {
-        rendy_core::hal::command::CommandBuffer::copy_buffer_to_image(
+        hal::command::CommandBuffer::copy_buffer_to_image(
             self.inner.raw,
             src,
             dst,
@@ -826,14 +812,14 @@ where
     pub unsafe fn copy_image(
         &mut self,
         src: &B::Image,
-        src_layout: rendy_core::hal::image::Layout,
+        src_layout: hal::image::Layout,
         dst: &B::Image,
-        dst_layout: rendy_core::hal::image::Layout,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::ImageCopy>,
+        dst_layout: hal::image::Layout,
+        regions: impl IntoIterator<Item = hal::command::ImageCopy>,
     ) where
         C: Supports<Transfer>,
     {
-        rendy_core::hal::command::CommandBuffer::copy_image(
+        hal::command::CommandBuffer::copy_image(
             self.inner.raw,
             src,
             src_layout,
@@ -853,13 +839,13 @@ where
     pub unsafe fn copy_image_to_buffer(
         &mut self,
         src: &B::Image,
-        src_layout: rendy_core::hal::image::Layout,
+        src_layout: hal::image::Layout,
         dst: &B::Buffer,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        regions: impl IntoIterator<Item = hal::command::BufferImageCopy>,
     ) where
         C: Supports<Transfer>,
     {
-        rendy_core::hal::command::CommandBuffer::copy_image_to_buffer(
+        hal::command::CommandBuffer::copy_image_to_buffer(
             self.inner.raw,
             src,
             src_layout,
@@ -878,15 +864,15 @@ where
     pub unsafe fn blit_image(
         &mut self,
         src: &B::Image,
-        src_layout: rendy_core::hal::image::Layout,
+        src_layout: hal::image::Layout,
         dst: &B::Image,
-        dst_layout: rendy_core::hal::image::Layout,
-        filter: rendy_core::hal::image::Filter,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::ImageBlit>,
+        dst_layout: hal::image::Layout,
+        filter: hal::image::Filter,
+        regions: impl IntoIterator<Item = hal::command::ImageBlit>,
     ) where
         C: Supports<Graphics>,
     {
-        rendy_core::hal::command::CommandBuffer::blit_image(
+        hal::command::CommandBuffer::blit_image(
             self.inner.raw,
             src,
             src_layout,
@@ -906,7 +892,7 @@ where
     where
         C: Supports<Compute>,
     {
-        rendy_core::hal::command::CommandBuffer::dispatch(self.inner.raw, [x, y, z])
+        hal::command::CommandBuffer::dispatch(self.inner.raw, [x, y, z])
     }
 
     /// Dispatch indirect.
@@ -923,13 +909,13 @@ where
     where
         C: Supports<Compute>,
     {
-        rendy_core::hal::command::CommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
+        hal::command::CommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
     }
 }
 
 impl<B, C, U, L, R> CommandBuffer<B, C, RecordingState<U>, L, R>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     C: Capability,
     L: Level,
 {
@@ -948,7 +934,7 @@ where
 
 impl<B, C, U, R> CommandBuffer<B, C, RecordingState<U, RenderPassContinue>, SecondaryLevel, R>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     C: Supports<Graphics>,
 {
     /// Get encoder that will encode render-pass commands into this command buffer.

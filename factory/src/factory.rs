@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use {
     crate::{
         blitter::Blitter,
@@ -679,10 +680,7 @@ where
     /// # Panics
     ///
     /// Panics if `surface` was not created by this `Factory`
-    pub fn get_surface_formats(
-        &self,
-        surface: &Surface<B>,
-    ) -> Option<Vec<rendy_core::hal::format::Format>> {
+    pub fn get_surface_formats(&self, surface: &Surface<B>) -> Option<Vec<hal::format::Format>> {
         assert_eq!(
             surface.instance_id(),
             self.instance.id(),
@@ -699,7 +697,7 @@ where
     pub fn get_surface_capabilities(
         &self,
         surface: &Surface<B>,
-    ) -> rendy_core::hal::window::SurfaceCapabilities {
+    ) -> hal::window::SurfaceCapabilities {
         assert_eq!(
             surface.instance_id(),
             self.instance.id(),
@@ -761,7 +759,7 @@ where
         surface: Surface<B>,
         extent: Extent2D,
         image_count: u32,
-        present_mode: rendy_core::hal::window::PresentMode,
+        present_mode: hal::window::PresentMode,
         usage: image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
         unsafe {
@@ -1141,7 +1139,7 @@ where
     let mut adapters = instance.enumerate_adapters();
 
     if adapters.is_empty() {
-        return Err(rendy_core::hal::device::CreationError::InitializationFailed);
+        return Err(hal::device::CreationError::InitializationFailed);
     }
 
     log::debug!(
@@ -1242,9 +1240,9 @@ where
         heaps: ManuallyDrop::new(parking_lot::Mutex::new(heaps)),
         resources: ManuallyDrop::new(ResourceHub::default()),
         uploader: unsafe { Uploader::new(&device, &families) }
-            .map_err(rendy_core::hal::device::CreationError::OutOfMemory)?,
+            .map_err(hal::device::CreationError::OutOfMemory)?,
         blitter: unsafe { Blitter::new(&device, &families) }
-            .map_err(rendy_core::hal::device::CreationError::OutOfMemory)?,
+            .map_err(hal::device::CreationError::OutOfMemory)?,
         families_indices: families.indices().into(),
         epochs,
         device,

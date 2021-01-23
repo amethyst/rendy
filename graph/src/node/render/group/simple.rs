@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use {
     super::{RenderGroup, RenderGroupDesc},
     crate::{
@@ -9,7 +10,7 @@ use {
         },
         resource::{DescriptorSetLayout, Handle},
     },
-    rendy_core::hal::{device::Device as _, Backend},
+    hal::{device::Device as _, Backend},
 };
 
 pub use crate::core::types::{Layout, SetLayout};
@@ -22,22 +23,22 @@ pub struct Pipeline {
 
     /// Vertex input for pipeline.
     pub vertices: Vec<(
-        Vec<rendy_core::hal::pso::Element<rendy_core::hal::format::Format>>,
-        rendy_core::hal::pso::ElemStride,
-        rendy_core::hal::pso::VertexInputRate,
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::VertexInputRate,
     )>,
 
     /// Colors for pipeline.
-    pub colors: Vec<rendy_core::hal::pso::ColorBlendDesc>,
+    pub colors: Vec<hal::pso::ColorBlendDesc>,
 
     /// Depth stencil for pipeline.
-    pub depth_stencil: rendy_core::hal::pso::DepthStencilDesc,
+    pub depth_stencil: hal::pso::DepthStencilDesc,
 
     /// Rasterizer for pipeline.
-    pub rasterizer: rendy_core::hal::pso::Rasterizer,
+    pub rasterizer: hal::pso::Rasterizer,
 
     /// Primitive to use in the input assembler.
-    pub input_assembler_desc: rendy_core::hal::pso::InputAssemblerDesc,
+    pub input_assembler_desc: hal::pso::InputAssemblerDesc,
 }
 
 /// Descriptor for simple graphics pipeline implementation.
@@ -64,18 +65,18 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Color blend descs.
-    fn colors(&self) -> Vec<rendy_core::hal::pso::ColorBlendDesc> {
-        vec![rendy_core::hal::pso::ColorBlendDesc {
-            mask: rendy_core::hal::pso::ColorMask::ALL,
-            blend: Some(rendy_core::hal::pso::BlendState::ALPHA),
+    fn colors(&self) -> Vec<hal::pso::ColorBlendDesc> {
+        vec![hal::pso::ColorBlendDesc {
+            mask: hal::pso::ColorMask::ALL,
+            blend: Some(hal::pso::BlendState::ALPHA),
         }]
     }
 
     /// Depth stencil desc.
-    fn depth_stencil(&self) -> Option<rendy_core::hal::pso::DepthStencilDesc> {
-        Some(rendy_core::hal::pso::DepthStencilDesc {
-            depth: Some(rendy_core::hal::pso::DepthTest {
-                fun: rendy_core::hal::pso::Comparison::Less,
+    fn depth_stencil(&self) -> Option<hal::pso::DepthStencilDesc> {
+        Some(hal::pso::DepthStencilDesc {
+            depth: Some(hal::pso::DepthTest {
+                fun: hal::pso::Comparison::Less,
                 write: true,
             }),
             depth_bounds: false,
@@ -84,17 +85,17 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Rasterizer desc.
-    fn rasterizer(&self) -> rendy_core::hal::pso::Rasterizer {
-        rendy_core::hal::pso::Rasterizer::FILL
+    fn rasterizer(&self) -> hal::pso::Rasterizer {
+        hal::pso::Rasterizer::FILL
     }
 
     /// Get vertex input.
     fn vertices(
         &self,
     ) -> Vec<(
-        Vec<rendy_core::hal::pso::Element<rendy_core::hal::format::Format>>,
-        rendy_core::hal::pso::ElemStride,
-        rendy_core::hal::pso::VertexInputRate,
+        Vec<hal::pso::Element<hal::format::Format>>,
+        hal::pso::ElemStride,
+        hal::pso::VertexInputRate,
     )> {
         Vec::new()
     }
@@ -109,9 +110,9 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Returns the InputAssemblerDesc. Defaults to a TriangleList with Restart disabled, can be overriden.
-    fn input_assembler(&self) -> rendy_core::hal::pso::InputAssemblerDesc {
-        rendy_core::hal::pso::InputAssemblerDesc {
-            primitive: rendy_core::hal::pso::Primitive::TriangleList,
+    fn input_assembler(&self) -> hal::pso::InputAssemblerDesc {
+        hal::pso::InputAssemblerDesc {
+            primitive: hal::pso::Primitive::TriangleList,
             with_adjacency: false,
             restart_index: None,
         }
@@ -150,7 +151,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<Self::Pipeline, rendy_core::hal::pso::CreationError>;
+    ) -> Result<Self::Pipeline, hal::pso::CreationError>;
 }
 
 /// Simple render pipeline.
@@ -240,10 +241,10 @@ where
         aux: &T,
         framebuffer_width: u32,
         framebuffer_height: u32,
-        subpass: rendy_core::hal::pass::Subpass<'_, B>,
+        subpass: hal::pass::Subpass<'_, B>,
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
-    ) -> Result<Box<dyn RenderGroup<B, T>>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<Box<dyn RenderGroup<B, T>>, hal::pso::CreationError> {
         let mut shader_set = self.inner.load_shader_set(factory, aux);
 
         let pipeline = self.inner.pipeline();
@@ -271,7 +272,7 @@ where
         }
         .map_err(|e| {
             shader_set.dispose(factory);
-            rendy_core::hal::pso::CreationError::OutOfMemory(e)
+            hal::pso::CreationError::OutOfMemory(e)
         })?;
 
         let mut vertex_buffers = Vec::new();
@@ -281,7 +282,7 @@ where
             push_vertex_desc(elemets, stride, rate, &mut vertex_buffers, &mut attributes);
         }
 
-        let rect = rendy_core::hal::pso::Rect {
+        let rect = hal::pso::Rect {
             x: 0,
             y: 0,
             w: framebuffer_width as i16,
@@ -291,27 +292,27 @@ where
         let shaders = match shader_set.raw() {
             Err(_) => {
                 shader_set.dispose(factory);
-                return Err(rendy_core::hal::pso::CreationError::Other);
+                return Err(hal::pso::CreationError::Other);
             }
             Ok(s) => s,
         };
 
         let graphics_pipeline = unsafe {
             factory.device().create_graphics_pipelines(
-                Some(rendy_core::hal::pso::GraphicsPipelineDesc {
+                Some(hal::pso::GraphicsPipelineDesc {
                     shaders,
                     rasterizer: pipeline.rasterizer,
                     vertex_buffers,
                     attributes,
                     input_assembler: pipeline.input_assembler_desc,
-                    blender: rendy_core::hal::pso::BlendDesc {
+                    blender: hal::pso::BlendDesc {
                         logic_op: None,
                         targets: pipeline.colors.clone(),
                     },
                     depth_stencil: pipeline.depth_stencil,
                     multisampling: None,
-                    baked_states: rendy_core::hal::pso::BakedStates {
-                        viewport: Some(rendy_core::hal::pso::Viewport {
+                    baked_states: hal::pso::BakedStates {
+                        viewport: Some(hal::pso::Viewport {
                             rect,
                             depth: 0.0..1.0,
                         }),
@@ -321,8 +322,8 @@ where
                     },
                     layout: &pipeline_layout,
                     subpass,
-                    flags: rendy_core::hal::pso::PipelineCreationFlags::empty(),
-                    parent: rendy_core::hal::pso::BasePipeline::None,
+                    flags: hal::pso::PipelineCreationFlags::empty(),
+                    parent: hal::pso::BasePipeline::None,
                 }),
                 None,
             )
@@ -363,7 +364,7 @@ where
         factory: &Factory<B>,
         queue: QueueId,
         index: usize,
-        _subpass: rendy_core::hal::pass::Subpass<'_, B>,
+        _subpass: hal::pass::Subpass<'_, B>,
         aux: &T,
     ) -> PrepareResult {
         self.pipeline
@@ -374,7 +375,7 @@ where
         &mut self,
         mut encoder: RenderPassEncoder<'_, B>,
         index: usize,
-        _subpass: rendy_core::hal::pass::Subpass<'_, B>,
+        _subpass: hal::pass::Subpass<'_, B>,
         aux: &T,
     ) {
         encoder.bind_graphics_pipeline(&self.graphics_pipeline);
@@ -398,15 +399,15 @@ where
 }
 
 fn push_vertex_desc(
-    elements: &[rendy_core::hal::pso::Element<rendy_core::hal::format::Format>],
-    stride: rendy_core::hal::pso::ElemStride,
-    rate: rendy_core::hal::pso::VertexInputRate,
-    vertex_buffers: &mut Vec<rendy_core::hal::pso::VertexBufferDesc>,
-    attributes: &mut Vec<rendy_core::hal::pso::AttributeDesc>,
+    elements: &[hal::pso::Element<hal::format::Format>],
+    stride: hal::pso::ElemStride,
+    rate: hal::pso::VertexInputRate,
+    vertex_buffers: &mut Vec<hal::pso::VertexBufferDesc>,
+    attributes: &mut Vec<hal::pso::AttributeDesc>,
 ) {
-    let index = vertex_buffers.len() as rendy_core::hal::pso::BufferIndex;
+    let index = vertex_buffers.len() as hal::pso::BufferIndex;
 
-    vertex_buffers.push(rendy_core::hal::pso::VertexBufferDesc {
+    vertex_buffers.push(hal::pso::VertexBufferDesc {
         binding: index,
         stride,
         rate,
@@ -414,7 +415,7 @@ fn push_vertex_desc(
 
     let mut location = attributes.last().map_or(0, |a| a.location + 1);
     for &element in elements {
-        attributes.push(rendy_core::hal::pso::AttributeDesc {
+        attributes.push(hal::pso::AttributeDesc {
             location,
             binding: index,
             element,

@@ -16,7 +16,7 @@ macro_rules! family_owned {
         #[allow(unused_qualifications)]
         impl<B, C $(, $args)*> $type<B, C $(, $args)*>
         where
-            B: rendy_core::hal::Backend,
+            B: hal::Backend,
         {
             /// Get owner id.
             pub fn family_id(&self) -> $crate::FamilyId {
@@ -33,7 +33,7 @@ macro_rules! family_owned {
         #[allow(unused_qualifications)]
         impl<B, $(, $args)*> $type<B, $(, $args)*>
         where
-            B: rendy_core::hal::Backend,
+            B: hal::Backend,
         {
             /// Get owner id.
             pub fn family_id(&self) -> $crate::FamilyId {

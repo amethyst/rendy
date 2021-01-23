@@ -1,6 +1,6 @@
 //! Using spirv-reflect-rs for reflection.
-//!
 
+use rendy_core::hal;
 use rendy_core::hal::format::Format;
 use spirv_reflect::types::*;
 use std::collections::HashMap;
@@ -59,7 +59,7 @@ impl std::fmt::Display for ReflectTypeError {
     }
 }
 
-/// Workaround extension trait copy of std::convert::From, for simple conversion from spirv-reflect types to rendy_core::hal types
+/// Workaround extension trait copy of std::convert::From, for simple conversion from spirv-reflect types to hal types
 pub(crate) trait ReflectInto<T>: Sized {
     /// Attempts to perform a conversion from the provided type into this type
     fn reflect_into(&self) -> Result<T, ReflectTypeError> {
@@ -168,17 +168,17 @@ pub(crate) fn type_element_format(
     }
 }
 
-impl ReflectInto<rendy_core::hal::pso::Element<Format>> for ReflectTypeDescription {
-    fn reflect_into(&self) -> Result<rendy_core::hal::pso::Element<Format>, ReflectTypeError> {
+impl ReflectInto<hal::pso::Element<Format>> for ReflectTypeDescription {
+    fn reflect_into(&self) -> Result<hal::pso::Element<Format>, ReflectTypeError> {
         let format = type_element_format(self.type_flags, &self.traits)?;
-        Ok(rendy_core::hal::pso::Element { format, offset: 0 })
+        Ok(hal::pso::Element { format, offset: 0 })
     }
 }
 
-impl ReflectInto<rendy_core::hal::pso::AttributeDesc> for ReflectInterfaceVariable {
-    fn reflect_into(&self) -> Result<rendy_core::hal::pso::AttributeDesc, ReflectTypeError> {
+impl ReflectInto<hal::pso::AttributeDesc> for ReflectInterfaceVariable {
+    fn reflect_into(&self) -> Result<hal::pso::AttributeDesc, ReflectTypeError> {
         // An attribute is not an image format
-        Ok(rendy_core::hal::pso::AttributeDesc {
+        Ok(hal::pso::AttributeDesc {
             location: self.location,
             binding: self.location,
             element: self
@@ -193,9 +193,9 @@ impl ReflectInto<rendy_core::hal::pso::AttributeDesc> for ReflectInterfaceVariab
 // Descriptor Sets
 //
 
-impl ReflectInto<rendy_core::hal::pso::DescriptorType> for ReflectDescriptorType {
-    fn reflect_into(&self) -> Result<rendy_core::hal::pso::DescriptorType, ReflectTypeError> {
-        use rendy_core::hal::pso::{
+impl ReflectInto<hal::pso::DescriptorType> for ReflectDescriptorType {
+    fn reflect_into(&self) -> Result<hal::pso::DescriptorType, ReflectTypeError> {
+        use hal::pso::{
             BufferDescriptorFormat, BufferDescriptorType, DescriptorType, ImageDescriptorType,
         };
         use ReflectDescriptorType::*;
@@ -252,10 +252,8 @@ impl ReflectInto<rendy_core::hal::pso::DescriptorType> for ReflectDescriptorType
     }
 }
 
-impl ReflectInto<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>> for ReflectDescriptorSet {
-    fn reflect_into(
-        &self,
-    ) -> Result<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>, ReflectTypeError> {
+impl ReflectInto<Vec<hal::pso::DescriptorSetLayoutBinding>> for ReflectDescriptorSet {
+    fn reflect_into(&self) -> Result<Vec<hal::pso::DescriptorSetLayoutBinding>, ReflectTypeError> {
         self.bindings
             .iter()
             .map(|desc| desc.reflect_into())
@@ -263,52 +261,48 @@ impl ReflectInto<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>> for Refl
     }
 }
 
-impl ReflectInto<rendy_core::hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptorBinding {
-    fn reflect_into(
-        &self,
-    ) -> Result<rendy_core::hal::pso::DescriptorSetLayoutBinding, ReflectTypeError> {
-        Ok(rendy_core::hal::pso::DescriptorSetLayoutBinding {
+impl ReflectInto<hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptorBinding {
+    fn reflect_into(&self) -> Result<hal::pso::DescriptorSetLayoutBinding, ReflectTypeError> {
+        Ok(hal::pso::DescriptorSetLayoutBinding {
             binding: self.binding,
             ty: self.descriptor_type.reflect_into()?,
             count: self.count as usize,
-            stage_flags: rendy_core::hal::pso::ShaderStageFlags::VERTEX,
+            stage_flags: hal::pso::ShaderStageFlags::VERTEX,
             immutable_samplers: false, // TODO: how to determine this?
         })
     }
 }
 
 pub(crate) fn convert_push_constant(
-    stage: rendy_core::hal::pso::ShaderStageFlags,
+    stage: hal::pso::ShaderStageFlags,
     variable: &ReflectBlockVariable,
-) -> Result<(rendy_core::hal::pso::ShaderStageFlags, std::ops::Range<u32>), ReflectTypeError> {
+) -> Result<(hal::pso::ShaderStageFlags, std::ops::Range<u32>), ReflectTypeError> {
     Ok((
         stage,
         variable.offset..variable.offset / 4 + variable.size / 4,
     ))
 }
 
-pub(crate) fn convert_stage(
-    stage: ReflectShaderStageFlags,
-) -> rendy_core::hal::pso::ShaderStageFlags {
-    let mut bits = rendy_core::hal::pso::ShaderStageFlags::empty();
+pub(crate) fn convert_stage(stage: ReflectShaderStageFlags) -> hal::pso::ShaderStageFlags {
+    let mut bits = hal::pso::ShaderStageFlags::empty();
 
     if stage.contains(ReflectShaderStageFlags::VERTEX) {
-        bits |= rendy_core::hal::pso::ShaderStageFlags::VERTEX;
+        bits |= hal::pso::ShaderStageFlags::VERTEX;
     }
     if stage.contains(ReflectShaderStageFlags::FRAGMENT) {
-        bits |= rendy_core::hal::pso::ShaderStageFlags::FRAGMENT;
+        bits |= hal::pso::ShaderStageFlags::FRAGMENT;
     }
     if stage.contains(ReflectShaderStageFlags::GEOMETRY) {
-        bits |= rendy_core::hal::pso::ShaderStageFlags::GEOMETRY;
+        bits |= hal::pso::ShaderStageFlags::GEOMETRY;
     }
     if stage.contains(ReflectShaderStageFlags::COMPUTE) {
-        bits |= rendy_core::hal::pso::ShaderStageFlags::COMPUTE;
+        bits |= hal::pso::ShaderStageFlags::COMPUTE;
     }
     if stage.contains(ReflectShaderStageFlags::TESSELLATION_CONTROL) {
-        bits |= rendy_core::hal::pso::ShaderStageFlags::HULL;
+        bits |= hal::pso::ShaderStageFlags::HULL;
     }
     if stage.contains(ReflectShaderStageFlags::TESSELLATION_EVALUATION) {
-        bits |= rendy_core::hal::pso::ShaderStageFlags::DOMAIN;
+        bits |= hal::pso::ShaderStageFlags::DOMAIN;
     }
 
     bits
@@ -316,7 +310,7 @@ pub(crate) fn convert_stage(
 
 pub(crate) fn generate_attributes(
     attributes: Vec<ReflectInterfaceVariable>,
-) -> Result<HashMap<(String, u8), rendy_core::hal::pso::AttributeDesc>, ReflectTypeError> {
+) -> Result<HashMap<(String, u8), hal::pso::AttributeDesc>, ReflectTypeError> {
     let mut out_attributes = HashMap::new();
 
     for attribute in &attributes {
@@ -327,7 +321,7 @@ pub(crate) fn generate_attributes(
             continue;
         }
 
-        let reflected: rendy_core::hal::pso::AttributeDesc = attribute.reflect_into()?;
+        let reflected: hal::pso::AttributeDesc = attribute.reflect_into()?;
         if attribute.array.dims.is_empty() {
             out_attributes.insert((attribute.name.clone(), 0), reflected);
         } else {

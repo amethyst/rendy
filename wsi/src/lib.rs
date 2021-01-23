@@ -13,6 +13,7 @@
 
 use {
     rendy_core::hal::{
+        self,
         device::Device as _,
         format::Format,
         window::{Extent2D, Surface as _, SurfaceCapabilities},
@@ -28,11 +29,11 @@ use {
 #[derive(Debug)]
 pub enum SwapchainError {
     /// Internal error in gfx-hal.
-    Create(rendy_core::hal::window::CreationError),
+    Create(hal::window::CreationError),
     /// Present mode is not supported.
-    BadPresentMode(rendy_core::hal::window::PresentMode),
+    BadPresentMode(hal::window::PresentMode),
     /// Image count is not supported.
-    BadImageCount(rendy_core::hal::window::SwapImageIndex),
+    BadImageCount(hal::window::SwapImageIndex),
 }
 
 impl std::fmt::Display for SwapchainError {
@@ -93,7 +94,7 @@ where
     pub fn new(
         instance: &Instance<B>,
         handle: &impl HasRawWindowHandle,
-    ) -> Result<Self, rendy_core::hal::window::InitError> {
+    ) -> Result<Self, hal::window::InitError> {
         let raw = unsafe { instance.create_surface(handle) }?;
         Ok(Surface {
             raw,
@@ -149,7 +150,7 @@ where
                     let desc = base.0.desc();
                     (
                         !desc.is_compressed(),
-                        base.1 == rendy_core::hal::format::ChannelType::Srgb,
+                        base.1 == hal::format::ChannelType::Srgb,
                         desc.bits,
                     )
                 })
@@ -187,8 +188,8 @@ where
         device: &Device<B>,
         suggest_extent: Extent2D,
         image_count: u32,
-        present_mode: rendy_core::hal::window::PresentMode,
-        usage: rendy_core::hal::image::Usage,
+        present_mode: hal::window::PresentMode,
+        usage: hal::image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
         assert_eq!(
             device.id().instance,
@@ -225,8 +226,8 @@ unsafe fn create_swapchain<B: Backend>(
     device: &Device<B>,
     suggest_extent: Extent2D,
     image_count: u32,
-    present_mode: rendy_core::hal::window::PresentMode,
-    usage: rendy_core::hal::image::Usage,
+    present_mode: hal::window::PresentMode,
+    usage: hal::image::Usage,
 ) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), SwapchainError> {
     let capabilities = surface.capabilities(physical_device);
     let format = surface.format(physical_device);
@@ -275,7 +276,7 @@ unsafe fn create_swapchain<B: Backend>(
     let (swapchain, images) = device
         .create_swapchain(
             &mut surface.raw,
-            rendy_core::hal::window::SwapchainConfig {
+            hal::window::SwapchainConfig {
                 present_mode,
                 format,
                 extent,
@@ -283,10 +284,10 @@ unsafe fn create_swapchain<B: Backend>(
                 image_layers: 1,
                 image_usage: usage,
                 composite_alpha_mode: [
-                    rendy_core::hal::window::CompositeAlphaMode::INHERIT,
-                    rendy_core::hal::window::CompositeAlphaMode::OPAQUE,
-                    rendy_core::hal::window::CompositeAlphaMode::PREMULTIPLIED,
-                    rendy_core::hal::window::CompositeAlphaMode::POSTMULTIPLIED,
+                    hal::window::CompositeAlphaMode::INHERIT,
+                    hal::window::CompositeAlphaMode::OPAQUE,
+                    hal::window::CompositeAlphaMode::PREMULTIPLIED,
+                    hal::window::CompositeAlphaMode::POSTMULTIPLIED,
                 ]
                 .iter()
                 .cloned()
@@ -303,11 +304,11 @@ unsafe fn create_swapchain<B: Backend>(
             Image::create_from_swapchain(
                 device.id(),
                 ImageInfo {
-                    kind: rendy_core::hal::image::Kind::D2(extent.width, extent.height, 1, 1),
+                    kind: hal::image::Kind::D2(extent.width, extent.height, 1, 1),
                     levels: 1,
                     format,
-                    tiling: rendy_core::hal::image::Tiling::Optimal,
-                    view_caps: rendy_core::hal::image::ViewCapabilities::empty(),
+                    tiling: hal::image::Tiling::Optimal,
+                    view_caps: hal::image::ViewCapabilities::empty(),
                     usage,
                 },
                 image,
@@ -326,8 +327,8 @@ pub struct Target<B: Backend> {
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Vec<Image<B>>>,
     extent: Extent2D,
-    present_mode: rendy_core::hal::window::PresentMode,
-    usage: rendy_core::hal::image::Usage,
+    present_mode: hal::window::PresentMode,
+    usage: hal::image::Usage,
     relevant: relevant::Relevant,
 }
 
@@ -428,7 +429,7 @@ where
     /// # Safety
     ///
     /// Trait usage should not violate this type valid usage.
-    pub unsafe fn swapchain_mut(&mut self) -> &mut impl rendy_core::hal::window::Swapchain<B> {
+    pub unsafe fn swapchain_mut(&mut self) -> &mut impl hal::window::Swapchain<B> {
         self.swapchain.as_mut().expect("Swapchain already disposed")
     }
 
@@ -445,7 +446,7 @@ where
     }
 
     /// Get image usage flags.
-    pub fn usage(&self) -> rendy_core::hal::image::Usage {
+    pub fn usage(&self) -> hal::image::Usage {
         self.usage
     }
 
@@ -453,12 +454,12 @@ where
     pub unsafe fn next_image(
         &mut self,
         signal: &B::Semaphore,
-    ) -> Result<NextImages<'_, B>, rendy_core::hal::window::AcquireError> {
-        let index = rendy_core::hal::window::Swapchain::acquire_image(
+    ) -> Result<NextImages<'_, B>, hal::window::AcquireError> {
+        let index = hal::window::Swapchain::acquire_image(
             // Missing swapchain is equivalent to OutOfDate, as it has to be recreated anyway.
             self.swapchain
                 .as_mut()
-                .ok_or(rendy_core::hal::window::AcquireError::OutOfDate)?,
+                .ok_or(hal::window::AcquireError::OutOfDate)?,
             !0,
             Some(signal),
             None,
@@ -493,9 +494,9 @@ where
     /// Use specific presentation error type.
     pub unsafe fn present<'b>(
         self,
-        queue: &mut impl rendy_core::hal::queue::CommandQueue<B>,
+        queue: &mut impl hal::queue::CommandQueue<B>,
         wait: impl IntoIterator<Item = &'b (impl std::borrow::Borrow<B::Semaphore> + 'b)>,
-    ) -> Result<Option<rendy_core::hal::window::Suboptimal>, rendy_core::hal::window::PresentError>
+    ) -> Result<Option<hal::window::Suboptimal>, hal::window::PresentError>
     where
         'a: 'b,
     {

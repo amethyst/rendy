@@ -24,6 +24,7 @@ pub use self::shaderc::*;
 #[cfg(feature = "spirv-reflection")]
 pub use self::reflect::{ReflectError, ReflectTypeError, RetrievalKind, SpirvReflection};
 
+use rendy_core::hal;
 use rendy_core::hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
 
@@ -51,7 +52,7 @@ pub trait Shader {
     /// Get the entry point of the shader.
     fn entry(&self) -> &str;
 
-    /// Get the rendy_core::hal representation of this shaders kind/stage.
+    /// Get the hal representation of this shaders kind/stage.
     fn stage(&self) -> ShaderStageFlags;
 
     /// Create shader module.
@@ -61,15 +62,15 @@ pub trait Shader {
     unsafe fn module<B>(
         &self,
         factory: &rendy_factory::Factory<B>,
-    ) -> Result<B::ShaderModule, rendy_core::hal::device::ShaderError>
+    ) -> Result<B::ShaderModule, hal::device::ShaderError>
     where
         B: Backend,
     {
-        rendy_core::hal::device::Device::create_shader_module(
+        hal::device::Device::create_shader_module(
             factory.device().raw(),
-            &self.spirv().map_err(|e| {
-                rendy_core::hal::device::ShaderError::CompilationFailed(format!("{:?}", e))
-            })?,
+            &self
+                .spirv()
+                .map_err(|e| hal::device::ShaderError::CompilationFailed(format!("{:?}", e)))?,
         )
     }
 }
@@ -122,7 +123,7 @@ impl SpirvShader {
         entrypoint: &str,
     ) -> std::io::Result<Self> {
         Ok(Self::new(
-            rendy_core::hal::pso::read_spirv(std::io::Cursor::new(spirv))?,
+            hal::pso::read_spirv(std::io::Cursor::new(spirv))?,
             stage,
             entrypoint,
         ))
@@ -167,7 +168,7 @@ impl<B: Backend> ShaderSet<B> {
     pub fn load(
         &mut self,
         factory: &rendy_factory::Factory<B>,
-    ) -> Result<&mut Self, rendy_core::hal::device::ShaderError> {
+    ) -> Result<&mut Self, hal::device::ShaderError> {
         for (_, v) in self.shaders.iter_mut() {
             unsafe { v.compile(factory)? }
         }
@@ -175,11 +176,9 @@ impl<B: Backend> ShaderSet<B> {
         Ok(self)
     }
 
-    /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in rendy_core::hal.
-    pub fn raw<'a>(
-        &'a self,
-    ) -> Result<rendy_core::hal::pso::GraphicsShaderSet<'a, B>, ShaderError> {
-        Ok(rendy_core::hal::pso::GraphicsShaderSet {
+    /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in hal.
+    pub fn raw<'a>(&'a self) -> Result<hal::pso::GraphicsShaderSet<'a, B>, ShaderError> {
+        Ok(hal::pso::GraphicsShaderSet {
             vertex: self
                 .shaders
                 .get(&ShaderStageFlags::VERTEX)
@@ -218,17 +217,17 @@ impl<B: Backend> ShaderSet<B> {
 #[allow(missing_copy_implementations)]
 pub struct SpecConstantSet {
     /// Vertex specialization
-    pub vertex: Option<rendy_core::hal::pso::Specialization<'static>>,
+    pub vertex: Option<hal::pso::Specialization<'static>>,
     /// Fragment specialization
-    pub fragment: Option<rendy_core::hal::pso::Specialization<'static>>,
+    pub fragment: Option<hal::pso::Specialization<'static>>,
     /// Geometry specialization
-    pub geometry: Option<rendy_core::hal::pso::Specialization<'static>>,
+    pub geometry: Option<hal::pso::Specialization<'static>>,
     /// Hull specialization
-    pub hull: Option<rendy_core::hal::pso::Specialization<'static>>,
+    pub hull: Option<hal::pso::Specialization<'static>>,
     /// Domain specialization
-    pub domain: Option<rendy_core::hal::pso::Specialization<'static>>,
+    pub domain: Option<hal::pso::Specialization<'static>>,
     /// Compute specialization
-    pub compute: Option<rendy_core::hal::pso::Specialization<'static>>,
+    pub compute: Option<hal::pso::Specialization<'static>>,
 }
 
 /// Builder class which is used to begin the reflection and shader set construction process for a shader set. Provides all the functionality needed to
@@ -256,36 +255,31 @@ impl ShaderSetBuilder {
         &self,
         factory: &rendy_factory::Factory<B>,
         spec_constants: SpecConstantSet,
-    ) -> Result<ShaderSet<B>, rendy_core::hal::device::ShaderError> {
+    ) -> Result<ShaderSet<B>, hal::device::ShaderError> {
         let mut set = ShaderSet::<B>::default();
 
         if self.vertex.is_none() && self.compute.is_none() {
             let msg = "A vertex or compute shader must be provided".to_string();
-            return Err(rendy_core::hal::device::ShaderError::InterfaceMismatch(msg));
+            return Err(hal::device::ShaderError::InterfaceMismatch(msg));
         }
-        type ShaderTy = (
-            Vec<u32>,
-            String,
-            Option<rendy_core::hal::pso::Specialization<'static>>,
-        );
+        type ShaderTy = (Vec<u32>, String, Option<hal::pso::Specialization<'static>>);
 
-        let create_storage =
-            move |stage,
-                  shader: ShaderTy,
-                  factory|
-                  -> Result<ShaderStorage<B>, rendy_core::hal::device::ShaderError> {
-                let mut storage = ShaderStorage {
-                    stage,
-                    spirv: shader.0,
-                    module: None,
-                    entrypoint: shader.1.clone(),
-                    specialization: shader.2,
-                };
-                unsafe {
-                    storage.compile(factory)?;
-                }
-                Ok(storage)
+        let create_storage = move |stage,
+                                   shader: ShaderTy,
+                                   factory|
+              -> Result<ShaderStorage<B>, hal::device::ShaderError> {
+            let mut storage = ShaderStorage {
+                stage,
+                spirv: shader.0,
+                module: None,
+                entrypoint: shader.1.clone(),
+                specialization: shader.2,
             };
+            unsafe {
+                storage.compile(factory)?;
+            }
+            Ok(storage)
+        };
 
         if let Some(shader) = self.vertex.clone() {
             set.shaders.insert(
@@ -445,14 +439,14 @@ pub struct ShaderStorage<B: Backend> {
     spirv: Vec<u32>,
     module: Option<B::ShaderModule>,
     entrypoint: String,
-    specialization: Option<rendy_core::hal::pso::Specialization<'static>>,
+    specialization: Option<hal::pso::Specialization<'static>>,
 }
 impl<B: Backend> ShaderStorage<B> {
-    /// Builds the `EntryPoint` structure used by rendy_core::hal to determine how to utilize this shader
+    /// Builds the `EntryPoint` structure used by hal to determine how to utilize this shader
     pub fn get_entry_point<'a>(
         &'a self,
-    ) -> Result<Option<rendy_core::hal::pso::EntryPoint<'a, B>>, ShaderError> {
-        Ok(Some(rendy_core::hal::pso::EntryPoint {
+    ) -> Result<Option<hal::pso::EntryPoint<'a, B>>, ShaderError> {
+        Ok(Some(hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),
             specialization: self.specialization.clone().unwrap_or_default(),
@@ -463,8 +457,8 @@ impl<B: Backend> ShaderStorage<B> {
     pub unsafe fn compile(
         &mut self,
         factory: &rendy_factory::Factory<B>,
-    ) -> Result<(), rendy_core::hal::device::ShaderError> {
-        self.module = Some(rendy_core::hal::device::Device::create_shader_module(
+    ) -> Result<(), hal::device::ShaderError> {
+        self.module = Some(hal::device::Device::create_shader_module(
             factory.device().raw(),
             &self.spirv,
         )?);
@@ -473,7 +467,7 @@ impl<B: Backend> ShaderStorage<B> {
     }
 
     fn dispose(&mut self, factory: &rendy_factory::Factory<B>) {
-        use rendy_core::hal::device::Device;
+        use hal::device::Device;
 
         if let Some(module) = self.module.take() {
             unsafe { factory.destroy_shader_module(module) };

@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use {
     super::{
         level::PrimaryLevel,
@@ -10,12 +11,7 @@ use {
 
 /// Structure contains command buffer ready for submission.
 #[derive(Debug)]
-pub struct Submit<
-    B: rendy_core::hal::Backend,
-    S = NoSimultaneousUse,
-    L = PrimaryLevel,
-    P = OutsideRenderPass,
-> {
+pub struct Submit<B: hal::Backend, S = NoSimultaneousUse, L = PrimaryLevel, P = OutsideRenderPass> {
     raw: std::ptr::NonNull<B::CommandBuffer>,
     family: FamilyId,
     simultaneous: S,
@@ -25,7 +21,7 @@ pub struct Submit<
 
 unsafe impl<B, S, L, P> Send for Submit<B, S, L, P>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     B::CommandBuffer: Send + Sync,
     FamilyId: Send,
     S: Send,
@@ -36,7 +32,7 @@ where
 
 unsafe impl<B, S, L, P> Sync for Submit<B, S, L, P>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     B::CommandBuffer: Send + Sync,
     S: Sync,
     L: Sync,
@@ -47,7 +43,7 @@ where
 /// Submittable object.
 /// Values that implement this trait can be submitted to the queues
 /// or executed as part of primary buffers (in case of `Submittable<B, SecondaryLevel>`).
-pub unsafe trait Submittable<B: rendy_core::hal::Backend, L = PrimaryLevel, P = OutsideRenderPass> {
+pub unsafe trait Submittable<B: hal::Backend, L = PrimaryLevel, P = OutsideRenderPass> {
     /// Get family that this submittable is belong to.
     fn family(&self) -> FamilyId;
 
@@ -65,7 +61,7 @@ pub unsafe trait Submittable<B: rendy_core::hal::Backend, L = PrimaryLevel, P = 
 
 unsafe impl<B, S, L, P> Submittable<B, L, P> for Submit<B, S, L, P>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn family(&self) -> FamilyId {
         self.family
@@ -78,7 +74,7 @@ where
 
 unsafe impl<'a, B, L, P> Submittable<B, L, P> for &'a Submit<B, SimultaneousUse, L, P>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     fn family(&self) -> FamilyId {
         self.family
@@ -91,7 +87,7 @@ where
 
 impl<B, C, P, L, R> CommandBuffer<B, C, ExecutableState<OneShot, P>, L, R>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     P: Copy,
     L: Copy,
 {
@@ -121,7 +117,7 @@ where
 
 impl<B, C, S, L, P, R> CommandBuffer<B, C, ExecutableState<MultiShot<S>, P>, L, R>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     P: Copy,
     S: Copy,
     L: Copy,

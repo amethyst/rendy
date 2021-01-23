@@ -1,6 +1,6 @@
 //! This module provide functions for find all required synchronizations (barriers and semaphores).
 //!
-
+use rendy_core::hal;
 use std::collections::HashMap;
 use std::ops::{Range, RangeFrom, RangeTo};
 
@@ -50,13 +50,13 @@ impl<S> Signal<S> {
 /// Semaphore wait info.
 /// There must be paired signal.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Wait<S>(S, rendy_core::hal::pso::PipelineStage);
+pub struct Wait<S>(S, hal::pso::PipelineStage);
 
 impl<S> Wait<S> {
     /// Create waiting for specified point.
     /// At this point `Signal` must be created as well.
     /// `id` and `point` combination must be unique.
-    fn new(semaphore: S, stages: rendy_core::hal::pso::PipelineStage) -> Self {
+    fn new(semaphore: S, stages: hal::pso::PipelineStage) -> Self {
         Wait(semaphore, stages)
     }
 
@@ -66,7 +66,7 @@ impl<S> Wait<S> {
     }
 
     /// Stage at which to wait.
-    pub fn stage(&self) -> rendy_core::hal::pso::PipelineStage {
+    pub fn stage(&self) -> hal::pso::PipelineStage {
         self.1
     }
 }
@@ -75,10 +75,10 @@ impl<S> Wait<S> {
 #[derive(Clone, Debug)]
 pub struct Barrier<R: Resource> {
     /// `Some` queue for ownership transfer. Or `None`
-    pub families: Option<Range<rendy_core::hal::queue::QueueFamilyId>>,
+    pub families: Option<Range<hal::queue::QueueFamilyId>>,
 
     /// State transition.
-    pub states: Range<(R::Access, R::Layout, rendy_core::hal::pso::PipelineStage)>,
+    pub states: Range<(R::Access, R::Layout, hal::pso::PipelineStage)>,
 }
 
 impl<R> Barrier<R>
@@ -97,7 +97,7 @@ where
     }
 
     fn transfer(
-        families: Range<rendy_core::hal::queue::QueueFamilyId>,
+        families: Range<hal::queue::QueueFamilyId>,
         states: Range<(R::Access, R::Layout)>,
     ) -> Self {
         Barrier {
@@ -105,18 +105,18 @@ where
             states: (
                 states.start.0,
                 states.start.1,
-                rendy_core::hal::pso::PipelineStage::TOP_OF_PIPE,
+                hal::pso::PipelineStage::TOP_OF_PIPE,
             )
                 ..(
                     states.end.0,
                     states.end.1,
-                    rendy_core::hal::pso::PipelineStage::BOTTOM_OF_PIPE,
+                    hal::pso::PipelineStage::BOTTOM_OF_PIPE,
                 ),
         }
     }
 
     fn acquire(
-        families: Range<rendy_core::hal::queue::QueueFamilyId>,
+        families: Range<hal::queue::QueueFamilyId>,
         left: RangeFrom<R::Layout>,
         right: RangeTo<(R::Access, R::Layout)>,
     ) -> Self {
@@ -127,7 +127,7 @@ where
     }
 
     fn release(
-        families: Range<rendy_core::hal::queue::QueueFamilyId>,
+        families: Range<hal::queue::QueueFamilyId>,
         left: RangeFrom<(R::Access, R::Layout)>,
         right: RangeTo<R::Layout>,
     ) -> Self {

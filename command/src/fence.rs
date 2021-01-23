@@ -1,9 +1,10 @@
+use rendy_core::hal;
 use {
     crate::{
         core::{device_owned, Device, DeviceId},
         family::QueueId,
     },
-    rendy_core::hal::{device::Device as _, Backend},
+    hal::{device::Device as _, Backend},
 };
 
 /// Queue epoch is the point in particluar queue timeline when fence is submitted.
@@ -38,10 +39,7 @@ where
     B: Backend,
 {
     /// Create new fence in signaled or unsignaled state.
-    pub fn new(
-        device: &Device<B>,
-        signaled: bool,
-    ) -> Result<Self, rendy_core::hal::device::OutOfMemory> {
+    pub fn new(device: &Device<B>, signaled: bool) -> Result<Self, hal::device::OutOfMemory> {
         let raw = device.raw().create_fence(false)?;
         Ok(Fence {
             device: device.id(),
@@ -90,10 +88,7 @@ where
     /// Reset signaled fence.
     /// Panics if not signaled.
     /// Becomes unsigneled.
-    pub fn reset(
-        &mut self,
-        device: &Device<B>,
-    ) -> Result<(), rendy_core::hal::device::OutOfMemory> {
+    pub fn reset(&mut self, device: &Device<B>) -> Result<(), hal::device::OutOfMemory> {
         match self.state {
             FenceState::Signaled => {
                 unsafe { device.reset_fence(&self.raw) }?;
@@ -137,7 +132,7 @@ where
         &mut self,
         device: &Device<B>,
         timeout_ns: u64,
-    ) -> Result<Option<FenceEpoch>, rendy_core::hal::device::OomOrDeviceLost> {
+    ) -> Result<Option<FenceEpoch>, hal::device::OomOrDeviceLost> {
         match self.state {
             FenceState::Submitted(epoch) => {
                 if unsafe { device.wait_for_fence(&self.raw, timeout_ns) }? {
@@ -157,7 +152,7 @@ where
     pub fn check_signaled(
         &mut self,
         device: &Device<B>,
-    ) -> Result<Option<FenceEpoch>, rendy_core::hal::device::DeviceLost> {
+    ) -> Result<Option<FenceEpoch>, hal::device::DeviceLost> {
         match self.state {
             FenceState::Submitted(epoch) => {
                 if unsafe { device.get_fence_status(&self.raw) }? {

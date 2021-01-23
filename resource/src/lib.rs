@@ -23,6 +23,7 @@ mod set;
 mod resources;
 mod sampler;
 
+use crate::core::hal;
 pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};
 
 /// Error creating a resource.
@@ -33,7 +34,7 @@ pub enum CreationError<E> {
     /// Failed to allocate memory.
     Allocate(memory::HeapsError),
     /// Failed to bind object memory.
-    Bind(rendy_core::hal::device::BindError),
+    Bind(hal::device::BindError),
 }
 
 impl<E> std::fmt::Display for CreationError<E>

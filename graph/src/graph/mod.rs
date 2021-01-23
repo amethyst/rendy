@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use {
     crate::{
         chain,
@@ -15,7 +16,7 @@ use {
         },
         BufferId, ImageId, NodeId,
     },
-    rendy_core::hal::{queue::QueueFamilyId, Backend},
+    hal::{queue::QueueFamilyId, Backend},
 };
 
 #[derive(Debug)]
@@ -47,7 +48,7 @@ pub enum GraphBuildError {
     /// Failed to create an image.
     Image(ImageCreationError),
     /// Failed to create a semaphore.
-    Semaphore(rendy_core::hal::device::OutOfMemory),
+    Semaphore(hal::device::OutOfMemory),
     /// Failed to build a node.
     Node(NodeBuildError),
 }
@@ -94,12 +95,7 @@ impl std::error::Error for GraphBuildError {
 #[derive(Debug)]
 pub struct GraphContext<B: Backend> {
     buffers: Vec<Option<Handle<Buffer<B>>>>,
-    images: Vec<
-        Option<(
-            Handle<Image<B>>,
-            Option<rendy_core::hal::command::ClearValue>,
-        )>,
-    >,
+    images: Vec<Option<(Handle<Image<B>>, Option<hal::command::ClearValue>)>>,
     /// Number of potential frames in flight
     pub frames_in_flight: u32,
 }
@@ -109,7 +105,7 @@ impl<B: Backend> GraphContext<B> {
         factory: &Factory<B>,
         chains: &chain::Chains,
         buffers: impl IntoIterator<Item = &'a BufferInfo>,
-        images: impl IntoIterator<Item = &'a (ImageInfo, Option<rendy_core::hal::command::ClearValue>)>,
+        images: impl IntoIterator<Item = &'a (ImageInfo, Option<hal::command::ClearValue>)>,
         frames_in_flight: u32,
     ) -> Result<Self, GraphBuildError> {
         let buffers: Vec<Option<Handle<Buffer<B>>>> = buffers
@@ -174,10 +170,7 @@ impl<B: Backend> GraphContext<B> {
     pub fn get_image_with_clear(
         &self,
         id: ImageId,
-    ) -> Option<(
-        &Handle<Image<B>>,
-        Option<rendy_core::hal::command::ClearValue>,
-    )> {
+    ) -> Option<(&Handle<Image<B>>, Option<hal::command::ClearValue>)> {
         self.images
             .get(id.0)
             .and_then(|x| x.as_ref())
@@ -314,7 +307,7 @@ where
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
     buffers: Vec<BufferInfo>,
-    images: Vec<(ImageInfo, Option<rendy_core::hal::command::ClearValue>)>,
+    images: Vec<(ImageInfo, Option<hal::command::ClearValue>)>,
     frames_in_flight: u32,
 }
 
@@ -367,7 +360,7 @@ where
     pub fn create_buffer(&mut self, size: u64) -> BufferId {
         self.buffers.push(BufferInfo {
             size,
-            usage: rendy_core::hal::buffer::Usage::empty(),
+            usage: hal::buffer::Usage::empty(),
         });
         BufferId(self.buffers.len() - 1)
     }
@@ -375,19 +368,19 @@ where
     /// Create new image owned by graph.
     pub fn create_image(
         &mut self,
-        kind: rendy_core::hal::image::Kind,
-        levels: rendy_core::hal::image::Level,
-        format: rendy_core::hal::format::Format,
-        clear: Option<rendy_core::hal::command::ClearValue>,
+        kind: hal::image::Kind,
+        levels: hal::image::Level,
+        format: hal::format::Format,
+        clear: Option<hal::command::ClearValue>,
     ) -> ImageId {
         self.images.push((
             ImageInfo {
                 kind,
                 levels,
                 format,
-                tiling: rendy_core::hal::image::Tiling::Optimal,
-                view_caps: rendy_core::hal::image::ViewCapabilities::empty(),
-                usage: rendy_core::hal::image::Usage::empty(),
+                tiling: hal::image::Tiling::Optimal,
+                view_caps: hal::image::ViewCapabilities::empty(),
+                usage: hal::image::Usage::empty(),
             },
             clear,
         ));
@@ -563,7 +556,7 @@ fn build_node<'a, B: Backend, T: ?Sized>(
                 .expect("Image referenced from at least one node must be instantiated");
             NodeImage {
                 id,
-                range: rendy_core::hal::image::SubresourceRange {
+                range: hal::image::SubresourceRange {
                     aspects: image.format().surface_desc().aspects,
                     levels: 0..image.levels(),
                     layers: 0..image.layers(),
@@ -577,7 +570,7 @@ fn build_node<'a, B: Backend, T: ?Sized>(
                         states: (
                             states.start.0,
                             if link == 0 {
-                                rendy_core::hal::image::Layout::Undefined
+                                hal::image::Layout::Undefined
                             } else {
                                 states.start.1
                             },

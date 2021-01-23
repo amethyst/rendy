@@ -2,6 +2,7 @@
 
 use crate::{pixel, MipLevels, TextureBuilder};
 
+use rendy_core::hal;
 use std::num::NonZeroU8;
 
 // reexport for easy usage in ImageTextureConfig
@@ -54,8 +55,8 @@ impl Default for TextureKind {
 }
 
 impl TextureKind {
-    fn gfx_kind(&self, width: u32, height: u32) -> rendy_core::hal::image::Kind {
-        use rendy_core::hal::image::Kind::*;
+    fn gfx_kind(&self, width: u32, height: u32) -> hal::image::Kind {
+        use hal::image::Kind::*;
         match self {
             TextureKind::D1 => D1(width * height, 1),
             TextureKind::D1Array => D1(width, height as u16),
@@ -69,8 +70,8 @@ impl TextureKind {
         }
     }
 
-    fn view_kind(&self) -> rendy_core::hal::image::ViewKind {
-        use rendy_core::hal::image::ViewKind;
+    fn view_kind(&self) -> hal::image::ViewKind {
+        use hal::image::ViewKind;
         match self {
             TextureKind::D1 => ViewKind::D1,
             TextureKind::D1Array { .. } => ViewKind::D1Array,
@@ -97,7 +98,7 @@ pub struct ImageTextureConfig {
     pub format: Option<ImageFormat>,
     pub repr: Repr,
     pub kind: TextureKind,
-    pub sampler_info: rendy_core::hal::image::SamplerDesc,
+    pub sampler_info: hal::image::SamplerDesc,
     /// Automatically generate mipmaps for this image
     pub generate_mips: bool,
     /// Premultiply the alpha channel of the image, if there is one. Note that this
@@ -112,9 +113,9 @@ impl Default for ImageTextureConfig {
             format: None,
             repr: Repr::default(),
             kind: TextureKind::default(),
-            sampler_info: rendy_core::hal::image::SamplerDesc::new(
-                rendy_core::hal::image::Filter::Linear,
-                rendy_core::hal::image::WrapMode::Clamp,
+            sampler_info: hal::image::SamplerDesc::new(
+                hal::image::Filter::Linear,
+                hal::image::WrapMode::Clamp,
             ),
             generate_mips: false,
             premultiply_alpha: false,
@@ -201,8 +202,8 @@ pub fn load_from_image<R>(
 where
     R: std::io::BufRead + std::io::Seek,
 {
+    use hal::format::{Component, Swizzle};
     use image::{DynamicImage, GenericImageView};
-    use rendy_core::hal::format::{Component, Swizzle};
 
     let image_format = config.format.map_or_else(
         || {
@@ -222,7 +223,7 @@ where
             let metadata = decoder.metadata();
             let (w, h) = (metadata.width, metadata.height);
 
-            let format = rendy_core::hal::format::Format::Rgb32Sfloat;
+            let format = hal::format::Format::Rgb32Sfloat;
             let vec = crate::core::cast_vec(decoder.read_image_hdr()?);
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)

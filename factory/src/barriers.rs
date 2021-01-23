@@ -1,13 +1,14 @@
+use rendy_core::hal;
 use {
     crate::{
         command::Encoder,
         resource::{Handle, Image},
     },
-    rendy_core::hal::{buffer, image, memory::Barrier, pso, Backend},
+    hal::{buffer, image, memory::Barrier, pso, Backend},
     std::ops::Range,
 };
 
-/// A variant of `rendy_core::hal::image::Barrier` that uses Handle<Image<B>>
+/// A variant of `hal::image::Barrier` that uses Handle<Image<B>>
 #[derive(Debug)]
 struct ImageBarrier<B: Backend> {
     /// The access flags controlling the image.
@@ -17,7 +18,7 @@ struct ImageBarrier<B: Backend> {
     /// A `SubresourceRange` that defines which section of an image the barrier applies to.
     pub range: image::SubresourceRange,
     // TODO: support queue transfers
-    // pub families: Option<Range<rendy_core::hal::queue::QueueFamilyId>>,
+    // pub families: Option<Range<hal::queue::QueueFamilyId>>,
 }
 
 impl<B: Backend> ImageBarrier<B> {
@@ -74,14 +75,14 @@ impl<B: Backend> Barriers<B> {
     pub fn add_image(
         &mut self,
         image: Handle<Image<B>>,
-        image_range: rendy_core::hal::image::SubresourceRange,
+        image_range: hal::image::SubresourceRange,
         last_stage: pso::PipelineStage,
-        last_access: rendy_core::hal::image::Access,
-        last_layout: rendy_core::hal::image::Layout,
+        last_access: hal::image::Access,
+        last_layout: hal::image::Layout,
         target_layout: image::Layout,
         next_stage: pso::PipelineStage,
-        next_access: rendy_core::hal::image::Access,
-        next_layout: rendy_core::hal::image::Layout,
+        next_access: hal::image::Access,
+        next_layout: hal::image::Layout,
     ) {
         self.before_stages |= last_stage;
         self.before_image_access |= last_access;
@@ -117,9 +118,9 @@ impl<B: Backend> Barriers<B> {
     pub fn add_buffer(
         &mut self,
         last_stage: pso::PipelineStage,
-        last_access: rendy_core::hal::buffer::Access,
+        last_access: hal::buffer::Access,
         next_stage: pso::PipelineStage,
-        next_access: rendy_core::hal::buffer::Access,
+        next_access: hal::buffer::Access,
     ) {
         self.before_stages |= last_stage;
         self.before_buffer_access |= last_access;
@@ -143,7 +144,7 @@ impl<B: Backend> Barriers<B> {
             unsafe {
                 encoder.pipeline_barrier(
                     self.before_stages..self.target_stages,
-                    rendy_core::hal::memory::Dependencies::empty(),
+                    hal::memory::Dependencies::empty(),
                     transitions.chain(all_images).chain(all_buffers),
                 );
             }
@@ -172,7 +173,7 @@ impl<B: Backend> Barriers<B> {
             unsafe {
                 encoder.pipeline_barrier(
                     self.target_stages..self.after_stages,
-                    rendy_core::hal::memory::Dependencies::empty(),
+                    hal::memory::Dependencies::empty(),
                     transitions.chain(all_images).chain(all_buffers),
                 );
             }

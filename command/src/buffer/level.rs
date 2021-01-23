@@ -1,3 +1,4 @@
+use rendy_core::hal;
 /// Command buffers of this level can be submitted to the command queues.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PrimaryLevel;
@@ -11,17 +12,17 @@ pub struct SecondaryLevel;
 /// or executed as part of the primary buffers.
 pub trait Level: Copy + Default + std::fmt::Debug + 'static {
     /// Get raw level value for command buffer allocation.
-    fn raw_level(&self) -> rendy_core::hal::command::Level;
+    fn raw_level(&self) -> hal::command::Level;
 }
 
 impl Level for PrimaryLevel {
-    fn raw_level(&self) -> rendy_core::hal::command::Level {
-        rendy_core::hal::command::Level::Primary
+    fn raw_level(&self) -> hal::command::Level {
+        hal::command::Level::Primary
     }
 }
 
 impl Level for SecondaryLevel {
-    fn raw_level(&self) -> rendy_core::hal::command::Level {
-        rendy_core::hal::command::Level::Secondary
+    fn raw_level(&self) -> hal::command::Level {
+        hal::command::Level::Secondary
     }
 }

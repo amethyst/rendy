@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use super::{
     queue::{Queue, QueueId},
     submission::{Submission, SubmissionId},
@@ -7,13 +8,13 @@ use super::{
 /// All contained queues has identical capabilities.
 #[derive(Clone, Debug)]
 pub struct Family<S> {
-    id: rendy_core::hal::queue::QueueFamilyId,
+    id: hal::queue::QueueFamilyId,
     queues: Vec<Queue<S>>,
 }
 
 impl<S> Family<S> {
     /// Create new empty `Family`
-    pub fn new(id: rendy_core::hal::queue::QueueFamilyId) -> Self {
+    pub fn new(id: hal::queue::QueueFamilyId) -> Self {
         Family {
             id,
             queues: Vec::default(),
@@ -21,7 +22,7 @@ impl<S> Family<S> {
     }
 
     /// Get id of the family.
-    pub fn id(&self) -> rendy_core::hal::queue::QueueFamilyId {
+    pub fn id(&self) -> hal::queue::QueueFamilyId {
         self.id
     }
 

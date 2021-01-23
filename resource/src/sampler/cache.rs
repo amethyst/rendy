@@ -1,9 +1,10 @@
 //! A cache to store and retrieve samplers
+use rendy_core::hal;
 
 use {
     super::Sampler,
     crate::escape::Handle,
-    rendy_core::hal::{image::SamplerDesc, Backend},
+    hal::{image::SamplerDesc, Backend},
     std::{
         collections::hash_map::{Entry, HashMap},
         ops::{Deref, DerefMut},
@@ -36,8 +37,8 @@ where
     pub fn get(
         &mut self,
         info: SamplerDesc,
-        create: impl FnOnce() -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>,
-    ) -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError> {
+        create: impl FnOnce() -> Result<Handle<Sampler<B>>, hal::device::AllocationError>,
+    ) -> Result<Handle<Sampler<B>>, hal::device::AllocationError> {
         Ok(match self.samplers.entry(info) {
             Entry::Occupied(occupied) => occupied.get().clone(),
             Entry::Vacant(vacant) => {
@@ -54,8 +55,8 @@ where
         read: R,
         upgrade: U,
         info: SamplerDesc,
-        create: impl FnOnce() -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>,
-    ) -> Result<Handle<Sampler<B>>, rendy_core::hal::device::AllocationError>
+        create: impl FnOnce() -> Result<Handle<Sampler<B>>, hal::device::AllocationError>,
+    ) -> Result<Handle<Sampler<B>>, hal::device::AllocationError>
     where
         R: Deref<Target = Self>,
         W: DerefMut<Target = Self>,

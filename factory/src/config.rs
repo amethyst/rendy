@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use std::cmp::min;
 
 use crate::{
@@ -51,7 +52,7 @@ pub unsafe trait QueuesConfigure {
     fn configure(
         &self,
         device: DeviceId,
-        families: &[impl rendy_core::hal::queue::QueueFamily],
+        families: &[impl hal::queue::QueueFamily],
     ) -> Self::Families;
 }
 
@@ -74,7 +75,7 @@ unsafe impl QueuesConfigure for OneGraphicsQueue {
     fn configure(
         &self,
         device: DeviceId,
-        families: &[impl rendy_core::hal::queue::QueueFamily],
+        families: &[impl hal::queue::QueueFamily],
     ) -> Option<(FamilyId, [f32; 1])> {
         families
             .iter()
@@ -104,7 +105,7 @@ unsafe impl QueuesConfigure for SavedQueueConfig {
     fn configure(
         &self,
         device: DeviceId,
-        _: &[impl rendy_core::hal::queue::QueueFamily],
+        _: &[impl hal::queue::QueueFamily],
     ) -> Vec<(FamilyId, Vec<f32>)> {
         // TODO: FamilyId should be stored directly once it become serializable.
         self.0
@@ -123,16 +124,13 @@ unsafe impl QueuesConfigure for SavedQueueConfig {
 /// [`configure`]: trait.HeapsConfigure.html#tymethod.configure
 pub unsafe trait HeapsConfigure {
     /// Iterator over memory types.
-    type Types: IntoIterator<Item = (rendy_core::hal::memory::Properties, u32, HeapsConfig)>;
+    type Types: IntoIterator<Item = (hal::memory::Properties, u32, HeapsConfig)>;
 
     /// Iterator over heaps.
     type Heaps: IntoIterator<Item = u64>;
 
     /// Configure.
-    fn configure(
-        &self,
-        properties: &rendy_core::hal::adapter::MemoryProperties,
-    ) -> (Self::Types, Self::Heaps);
+    fn configure(&self, properties: &hal::adapter::MemoryProperties) -> (Self::Types, Self::Heaps);
 }
 
 /// Basic heaps config.
@@ -148,13 +146,10 @@ pub unsafe trait HeapsConfigure {
 pub struct BasicHeapsConfigure;
 
 unsafe impl HeapsConfigure for BasicHeapsConfigure {
-    type Types = Vec<(rendy_core::hal::memory::Properties, u32, HeapsConfig)>;
+    type Types = Vec<(hal::memory::Properties, u32, HeapsConfig)>;
     type Heaps = Vec<u64>;
 
-    fn configure(
-        &self,
-        properties: &rendy_core::hal::adapter::MemoryProperties,
-    ) -> (Self::Types, Self::Heaps) {
+    fn configure(&self, properties: &hal::adapter::MemoryProperties) -> (Self::Types, Self::Heaps) {
         let _1mb = 1024 * 1024;
         let _32mb = 32 * _1mb;
         let _128mb = 128 * _1mb;
@@ -164,10 +159,7 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
             .iter()
             .map(|mt| {
                 let config = HeapsConfig {
-                    linear: if mt
-                        .properties
-                        .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)
-                    {
+                    linear: if mt.properties.contains(hal::memory::Properties::CPU_VISIBLE) {
                         Some(LinearConfig {
                             linear_size: min(_128mb, properties.memory_heaps[mt.heap_index] / 16),
                         })
@@ -203,17 +195,17 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedHeapsConfig {
-    types: Vec<(rendy_core::hal::memory::Properties, u32, HeapsConfig)>,
+    types: Vec<(hal::memory::Properties, u32, HeapsConfig)>,
     heaps: Vec<u64>,
 }
 
 unsafe impl HeapsConfigure for SavedHeapsConfig {
-    type Types = Vec<(rendy_core::hal::memory::Properties, u32, HeapsConfig)>;
+    type Types = Vec<(hal::memory::Properties, u32, HeapsConfig)>;
     type Heaps = Vec<u64>;
 
     fn configure(
         &self,
-        _properties: &rendy_core::hal::adapter::MemoryProperties,
+        _properties: &hal::adapter::MemoryProperties,
     ) -> (Self::Types, Self::Heaps) {
         (self.types.clone(), self.heaps.clone())
     }
@@ -228,9 +220,9 @@ pub trait DevicesConfigure {
     ///
     /// This function may panic if empty slice is provided.
     ///
-    fn pick<B>(&self, adapters: &[rendy_core::hal::adapter::Adapter<B>]) -> usize
+    fn pick<B>(&self, adapters: &[hal::adapter::Adapter<B>]) -> usize
     where
-        B: rendy_core::hal::Backend;
+        B: hal::Backend;
 }
 
 /// Basics adapters config.
@@ -248,18 +240,18 @@ pub trait DevicesConfigure {
 pub struct BasicDevicesConfigure;
 
 impl DevicesConfigure for BasicDevicesConfigure {
-    fn pick<B>(&self, adapters: &[rendy_core::hal::adapter::Adapter<B>]) -> usize
+    fn pick<B>(&self, adapters: &[hal::adapter::Adapter<B>]) -> usize
     where
-        B: rendy_core::hal::Backend,
+        B: hal::Backend,
     {
         adapters
             .iter()
             .enumerate()
             .min_by_key(|(_, adapter)| match adapter.info.device_type {
-                rendy_core::hal::adapter::DeviceType::DiscreteGpu => 0,
-                rendy_core::hal::adapter::DeviceType::IntegratedGpu => 1,
-                rendy_core::hal::adapter::DeviceType::VirtualGpu => 2,
-                rendy_core::hal::adapter::DeviceType::Cpu => 3,
+                hal::adapter::DeviceType::DiscreteGpu => 0,
+                hal::adapter::DeviceType::IntegratedGpu => 1,
+                hal::adapter::DeviceType::VirtualGpu => 2,
+                hal::adapter::DeviceType::Cpu => 3,
                 _ => 4,
             })
             .expect("No adapters present")

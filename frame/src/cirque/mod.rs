@@ -3,6 +3,7 @@
 mod command;
 
 pub use self::command::*;
+use rendy_core::hal;
 use {
     crate::frame::{Frame, Frames},
     std::collections::VecDeque,
@@ -151,7 +152,7 @@ impl<T, I, P> Cirque<T, I, P> {
 
     /// Get `CirqueRef` for specified frames range.
     /// Allocate new instance in initial state if no ready values exist.
-    pub fn get<B: rendy_core::hal::Backend>(
+    pub fn get<B: hal::Backend>(
         &mut self,
         frames: &Frames<B>,
         alloc: impl FnOnce() -> I,

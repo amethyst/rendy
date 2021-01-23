@@ -1,3 +1,4 @@
+use rendy_core::hal;
 //!
 //! The mighty triangle example.
 //! This examples shows colord triangle on white background.
@@ -130,7 +131,7 @@ where
         _buffers: Vec<NodeBuffer>,
         _images: Vec<NodeImage>,
         _set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<TriangleRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<TriangleRenderPipeline<B>, hal::pso::CreationError> {
         Ok(TriangleRenderPipeline { vertex: None })
     }
 }

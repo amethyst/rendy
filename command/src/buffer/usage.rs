@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use super::SecondaryLevel;
 
 /// Command buffer with this usage flag will move to invalid state after execution.
@@ -35,30 +36,30 @@ pub struct OutsideRenderPass;
 /// Or even resubmitted while being executed.
 pub trait Usage: Copy + Default + std::fmt::Debug + 'static {
     /// Flags required to begin command buffer.
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags;
+    fn flags(&self) -> hal::command::CommandBufferFlags;
 }
 
 impl Usage for OneShot {
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags {
-        rendy_core::hal::command::CommandBufferFlags::ONE_TIME_SUBMIT
+    fn flags(&self) -> hal::command::CommandBufferFlags {
+        hal::command::CommandBufferFlags::ONE_TIME_SUBMIT
     }
 }
 
 impl Usage for MultiShot {
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags {
-        rendy_core::hal::command::CommandBufferFlags::empty()
+    fn flags(&self) -> hal::command::CommandBufferFlags {
+        hal::command::CommandBufferFlags::empty()
     }
 }
 
 impl Usage for MultiShot<SimultaneousUse> {
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags {
-        rendy_core::hal::command::CommandBufferFlags::SIMULTANEOUS_USE
+    fn flags(&self) -> hal::command::CommandBufferFlags {
+        hal::command::CommandBufferFlags::SIMULTANEOUS_USE
     }
 }
 
 impl Usage for NoSimultaneousUse {
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags {
-        rendy_core::hal::command::CommandBufferFlags::empty()
+    fn flags(&self) -> hal::command::CommandBufferFlags {
+        hal::command::CommandBufferFlags::empty()
     }
 }
 
@@ -66,17 +67,17 @@ impl Usage for NoSimultaneousUse {
 /// `RenderPassContinue` and `OutsideRenderPass`.
 pub trait RenderPassRelation<L>: Copy + Default + std::fmt::Debug + 'static {
     /// Flags required to begin command buffer.
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags;
+    fn flags(&self) -> hal::command::CommandBufferFlags;
 }
 
 impl RenderPassRelation<SecondaryLevel> for RenderPassContinue {
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags {
-        rendy_core::hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
+    fn flags(&self) -> hal::command::CommandBufferFlags {
+        hal::command::CommandBufferFlags::RENDER_PASS_CONTINUE
     }
 }
 
 impl<L> RenderPassRelation<L> for OutsideRenderPass {
-    fn flags(&self) -> rendy_core::hal::command::CommandBufferFlags {
-        rendy_core::hal::command::CommandBufferFlags::empty()
+    fn flags(&self) -> hal::command::CommandBufferFlags {
+        hal::command::CommandBufferFlags::empty()
     }
 }

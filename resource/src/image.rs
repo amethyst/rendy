@@ -1,7 +1,6 @@
 //! Image usage, format, kind, extent, creation-info and wrappers.
 
 pub use rendy_core::hal::image::*;
-
 use {
     crate::{
         core::{device_owned, Device, DeviceId},
@@ -10,7 +9,7 @@ use {
         CreationError,
     },
     relevant::Relevant,
-    rendy_core::hal::{device::Device as _, format, Backend},
+    rendy_core::hal::{self, device::Device as _, format, Backend},
 };
 
 /// Image info.
@@ -51,7 +50,7 @@ pub struct Image<B: Backend> {
 
 device_owned!(Image<B>);
 /// Alias for the error to create an image.
-pub type ImageCreationError = CreationError<rendy_core::hal::image::CreationError>;
+pub type ImageCreationError = CreationError<hal::image::CreationError>;
 
 impl<B> Image<B>
 where

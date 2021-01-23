@@ -15,24 +15,25 @@ use crate::{
     wsi::{Surface, Target},
     BufferId, ImageId, NodeId,
 };
+use rendy_core::hal;
 
 #[derive(Debug)]
-struct ForImage<B: rendy_core::hal::Backend> {
+struct ForImage<B: hal::Backend> {
     acquire: B::Semaphore,
     release: B::Semaphore,
     submit: Submit<B, SimultaneousUse>,
     buffer: CommandBuffer<
         B,
-        rendy_core::hal::queue::QueueType,
+        hal::queue::QueueType,
         PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
     >,
 }
 
-impl<B: rendy_core::hal::Backend> ForImage<B> {
+impl<B: hal::Backend> ForImage<B> {
     unsafe fn dispose(
         self,
         factory: &Factory<B>,
-        pool: &mut CommandPool<B, rendy_core::hal::queue::QueueType>,
+        pool: &mut CommandPool<B, hal::queue::QueueType>,
     ) {
         drop(self.submit);
         factory.destroy_semaphore(self.acquire);
@@ -43,22 +44,22 @@ impl<B: rendy_core::hal::Backend> ForImage<B> {
 
 /// Node that presents images to the surface.
 #[derive(Debug)]
-pub struct PresentNode<B: rendy_core::hal::Backend> {
+pub struct PresentNode<B: hal::Backend> {
     per_image: Vec<ForImage<B>>,
     free_acquire: B::Semaphore,
     target: Target<B>,
-    pool: CommandPool<B, rendy_core::hal::queue::QueueType>,
+    pool: CommandPool<B, hal::queue::QueueType>,
     input_image: NodeImage,
-    blit_filter: rendy_core::hal::image::Filter,
+    blit_filter: hal::image::Filter,
 }
 
 // Raw pointer destroys Send/Sync autoimpl, but it's always from the same graph.
-unsafe impl<B: rendy_core::hal::Backend> Sync for PresentNode<B> {}
-unsafe impl<B: rendy_core::hal::Backend> Send for PresentNode<B> {}
+unsafe impl<B: hal::Backend> Sync for PresentNode<B> {}
+unsafe impl<B: hal::Backend> Send for PresentNode<B> {}
 
 impl<B> PresentNode<B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Node builder.
     /// By default attempts to use 3 images in the swapchain with present mode priority:
@@ -68,7 +69,7 @@ where
     /// You can query the real image count and present mode which will be used with
     /// `PresentBuilder::image_count()` and `PresentBuilder::present_mode()`.
     pub fn builder(factory: &Factory<B>, surface: Surface<B>, image: ImageId) -> PresentBuilder<B> {
-        use rendy_core::hal::window::PresentMode;
+        use hal::window::PresentMode;
 
         let caps = factory.get_surface_capabilities(&surface);
         let image_count = 3
@@ -90,18 +91,18 @@ where
             image_count,
             present_mode,
             caps,
-            blit_filter: rendy_core::hal::image::Filter::Nearest,
+            blit_filter: hal::image::Filter::Nearest,
         }
     }
 }
 
-fn create_per_image_data<B: rendy_core::hal::Backend>(
+fn create_per_image_data<B: hal::Backend>(
     ctx: &GraphContext<B>,
     input_image: &NodeImage,
-    pool: &mut CommandPool<B, rendy_core::hal::queue::QueueType>,
+    pool: &mut CommandPool<B, hal::queue::QueueType>,
     factory: &Factory<B>,
     target: &Target<B>,
-    blit_filter: rendy_core::hal::image::Filter,
+    blit_filter: hal::image::Filter,
 ) -> Vec<ForImage<B>> {
     let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
 
@@ -114,31 +115,24 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
             let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
             let mut encoder = buf_recording.encoder();
             let (mut stages, mut barriers) = gfx_acquire_barriers(ctx, None, Some(input_image));
-            stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
-            stages.end |= rendy_core::hal::pso::PipelineStage::TRANSFER;
-            barriers.push(rendy_core::hal::memory::Barrier::Image {
-                states: (
-                    rendy_core::hal::image::Access::empty(),
-                    rendy_core::hal::image::Layout::Undefined,
-                )
+            stages.start |= hal::pso::PipelineStage::TRANSFER;
+            stages.end |= hal::pso::PipelineStage::TRANSFER;
+            barriers.push(hal::memory::Barrier::Image {
+                states: (hal::image::Access::empty(), hal::image::Layout::Undefined)
                     ..(
-                        rendy_core::hal::image::Access::TRANSFER_WRITE,
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
+                        hal::image::Access::TRANSFER_WRITE,
+                        hal::image::Layout::TransferDstOptimal,
                     ),
                 families: None,
                 target: target_image.raw(),
-                range: rendy_core::hal::image::SubresourceRange {
-                    aspects: rendy_core::hal::format::Aspects::COLOR,
+                range: hal::image::SubresourceRange {
+                    aspects: hal::format::Aspects::COLOR,
                     levels: 0..1,
                     layers: 0..1,
                 },
             });
             unsafe {
-                encoder.pipeline_barrier(
-                    stages,
-                    rendy_core::hal::memory::Dependencies::empty(),
-                    barriers,
-                );
+                encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
             }
 
             let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
@@ -152,23 +146,23 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                         input_image_res.raw(),
                         input_image.layout,
                         target_image.raw(),
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
+                        hal::image::Layout::TransferDstOptimal,
                         blit_filter,
-                        Some(rendy_core::hal::command::ImageBlit {
-                            src_subresource: rendy_core::hal::image::SubresourceLayers {
+                        Some(hal::command::ImageBlit {
+                            src_subresource: hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
                                 layers: input_image.range.layers.start
                                     ..input_image.range.layers.start + 1,
                             },
-                            src_bounds: rendy_core::hal::image::Offset::ZERO
+                            src_bounds: hal::image::Offset::ZERO
                                 .into_bounds(&input_image_res.kind().extent()),
-                            dst_subresource: rendy_core::hal::image::SubresourceLayers {
-                                aspects: rendy_core::hal::format::Aspects::COLOR,
+                            dst_subresource: hal::image::SubresourceLayers {
+                                aspects: hal::format::Aspects::COLOR,
                                 level: 0,
                                 layers: 0..1,
                             },
-                            dst_bounds: rendy_core::hal::image::Offset::ZERO
+                            dst_bounds: hal::image::Offset::ZERO
                                 .into_bounds(&target_image.kind().extent()),
                         }),
                     );
@@ -179,22 +173,22 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                         input_image_res.raw(),
                         input_image.layout,
                         target_image.raw(),
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
-                        Some(rendy_core::hal::command::ImageCopy {
-                            src_subresource: rendy_core::hal::image::SubresourceLayers {
+                        hal::image::Layout::TransferDstOptimal,
+                        Some(hal::command::ImageCopy {
+                            src_subresource: hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
                                 layers: input_image.range.layers.start
                                     ..input_image.range.layers.start + 1,
                             },
-                            src_offset: rendy_core::hal::image::Offset::ZERO,
-                            dst_subresource: rendy_core::hal::image::SubresourceLayers {
-                                aspects: rendy_core::hal::format::Aspects::COLOR,
+                            src_offset: hal::image::Offset::ZERO,
+                            dst_subresource: hal::image::SubresourceLayers {
+                                aspects: hal::format::Aspects::COLOR,
                                 level: 0,
                                 layers: 0..1,
                             },
-                            dst_offset: rendy_core::hal::image::Offset::ZERO,
-                            extent: rendy_core::hal::image::Extent {
+                            dst_offset: hal::image::Offset::ZERO,
+                            extent: hal::image::Extent {
                                 width: target_image.kind().extent().width,
                                 height: target_image.kind().extent().height,
                                 depth: 1,
@@ -206,32 +200,25 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
 
             {
                 let (mut stages, mut barriers) = gfx_release_barriers(ctx, None, Some(input_image));
-                stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
-                stages.end |= rendy_core::hal::pso::PipelineStage::BOTTOM_OF_PIPE;
-                barriers.push(rendy_core::hal::memory::Barrier::Image {
+                stages.start |= hal::pso::PipelineStage::TRANSFER;
+                stages.end |= hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+                barriers.push(hal::memory::Barrier::Image {
                     states: (
-                        rendy_core::hal::image::Access::TRANSFER_WRITE,
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
+                        hal::image::Access::TRANSFER_WRITE,
+                        hal::image::Layout::TransferDstOptimal,
                     )
-                        ..(
-                            rendy_core::hal::image::Access::empty(),
-                            rendy_core::hal::image::Layout::Present,
-                        ),
+                        ..(hal::image::Access::empty(), hal::image::Layout::Present),
                     families: None,
                     target: target_image.raw(),
-                    range: rendy_core::hal::image::SubresourceRange {
-                        aspects: rendy_core::hal::format::Aspects::COLOR,
+                    range: hal::image::SubresourceRange {
+                        aspects: hal::format::Aspects::COLOR,
                         levels: 0..1,
                         layers: 0..1,
                     },
                 });
 
                 unsafe {
-                    encoder.pipeline_barrier(
-                        stages,
-                        rendy_core::hal::memory::Dependencies::empty(),
-                        barriers,
-                    );
+                    encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
                 }
             }
 
@@ -249,19 +236,19 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
 
 /// Presentation node description.
 #[derive(Debug)]
-pub struct PresentBuilder<B: rendy_core::hal::Backend> {
+pub struct PresentBuilder<B: hal::Backend> {
     surface: Surface<B>,
     image: ImageId,
     image_count: u32,
-    present_mode: rendy_core::hal::window::PresentMode,
-    caps: rendy_core::hal::window::SurfaceCapabilities,
+    present_mode: hal::window::PresentMode,
+    caps: hal::window::SurfaceCapabilities,
     dependencies: Vec<NodeId>,
-    blit_filter: rendy_core::hal::image::Filter,
+    blit_filter: hal::image::Filter,
 }
 
 impl<B> PresentBuilder<B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Add dependency.
     /// Node will be placed after its dependencies.
@@ -293,7 +280,7 @@ where
     /// Set up filter used for resizing when backbuffer size does not match source image size.
     ///
     /// Default is `Nearest`.
-    pub fn with_blit_filter(mut self, filter: rendy_core::hal::image::Filter) -> Self {
+    pub fn with_blit_filter(mut self, filter: hal::image::Filter) -> Self {
         self.blit_filter = filter;
         self
     }
@@ -305,7 +292,7 @@ where
     /// building to see the final present mode.
     ///
     /// ## Parameters
-    /// - present_modes_priority: A function which takes a `rendy_core::hal::PresentMode` and returns
+    /// - present_modes_priority: A function which takes a `hal::PresentMode` and returns
     /// an `Option<usize>`. `None` indicates not to use this mode, and a higher number returned
     /// indicates a higher prioirity for that mode.
     ///
@@ -313,9 +300,9 @@ where
     /// - Panics if none of the provided `PresentMode`s are supported.
     pub fn with_present_modes_priority<PF>(mut self, present_modes_priority: PF) -> Self
     where
-        PF: Fn(rendy_core::hal::window::PresentMode) -> Option<usize>,
+        PF: Fn(hal::window::PresentMode) -> Option<usize>,
     {
-        use rendy_core::hal::window::PresentMode;
+        use hal::window::PresentMode;
 
         let priority_mode = [
             PresentMode::FIFO,
@@ -347,14 +334,14 @@ where
     }
 
     /// Get present mode used by node.
-    pub fn present_mode(&self) -> rendy_core::hal::window::PresentMode {
+    pub fn present_mode(&self) -> hal::window::PresentMode {
         self.present_mode
     }
 }
 
 impl<B, T> NodeBuilder<B, T> for PresentBuilder<B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     fn family(&self, factory: &mut Factory<B>, families: &Families<B>) -> Option<FamilyId> {
@@ -370,10 +357,10 @@ where
         vec![(
             self.image,
             ImageAccess {
-                access: rendy_core::hal::image::Access::TRANSFER_READ,
-                layout: rendy_core::hal::image::Layout::TransferSrcOptimal,
-                usage: rendy_core::hal::image::Usage::TRANSFER_SRC,
-                stages: rendy_core::hal::pso::PipelineStage::TRANSFER,
+                access: hal::image::Access::TRANSFER_READ,
+                layout: hal::image::Layout::TransferSrcOptimal,
+                usage: hal::image::Usage::TRANSFER_SRC,
+                stages: hal::pso::PipelineStage::TRANSFER,
             },
         )]
     }
@@ -415,7 +402,7 @@ where
                 extent,
                 self.image_count,
                 self.present_mode,
-                rendy_core::hal::image::Usage::TRANSFER_DST,
+                hal::image::Usage::TRANSFER_DST,
             )
             .map_err(NodeBuildError::Swapchain)?;
 
@@ -445,7 +432,7 @@ where
 
 impl<B, T> DynNode<B, T> for PresentNode<B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
     T: ?Sized,
 {
     unsafe fn run<'a>(
@@ -455,7 +442,7 @@ where
         queue: &mut Queue<B>,
         _aux: &T,
         _frames: &Frames<B>,
-        waits: &[(&'a B::Semaphore, rendy_core::hal::pso::PipelineStage)],
+        waits: &[(&'a B::Semaphore, hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         mut fence: Option<&mut Fence<B>>,
     ) {
@@ -471,7 +458,7 @@ where
                                 .submits(Some(&for_image.submit))
                                 .wait(waits.iter().cloned().chain(Some((
                                     &for_image.acquire,
-                                    rendy_core::hal::pso::PipelineStage::TRANSFER,
+                                    hal::pso::PipelineStage::TRANSFER,
                                 ))))
                                 .signal(signals.iter().cloned().chain(Some(&for_image.release))),
                         ),
@@ -490,7 +477,7 @@ where
                         }
                     }
                 }
-                Err(rendy_core::hal::window::AcquireError::OutOfDate) => {
+                Err(hal::window::AcquireError::OutOfDate) => {
                     // recreate swapchain and try again.
                 }
                 e => {

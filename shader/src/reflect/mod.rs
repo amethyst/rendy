@@ -1,4 +1,5 @@
-use rendy_core::hal::pso::ShaderStageFlags;
+use rendy_core::hal;
+use hal::pso::ShaderStageFlags;
 use rendy_core::types::{vertex::VertexFormat, Layout, SetLayout};
 use spirv_reflect::ShaderModule;
 use std::collections::HashMap;
@@ -93,7 +94,7 @@ impl From<ReflectTypeError> for ReflectError {
 
 #[derive(Clone, Debug)]
 pub(crate) struct SpirvCachedGfxDescription {
-    pub vertices: Vec<(u32, String, u8, rendy_core::hal::format::Format)>,
+    pub vertices: Vec<(u32, String, u8, hal::format::Format)>,
     pub layout: Layout,
 }
 
@@ -101,11 +102,11 @@ pub(crate) struct SpirvCachedGfxDescription {
 #[derive(Clone, Debug)]
 pub struct SpirvReflection {
     /// Vec of output variables with names.
-    pub output_attributes: HashMap<(String, u8), rendy_core::hal::pso::AttributeDesc>,
+    pub output_attributes: HashMap<(String, u8), hal::pso::AttributeDesc>,
     /// Vec of output variables with names.
-    pub input_attributes: HashMap<(String, u8), rendy_core::hal::pso::AttributeDesc>,
+    pub input_attributes: HashMap<(String, u8), hal::pso::AttributeDesc>,
     /// Hashmap of output variables with names.
-    pub descriptor_sets: Vec<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>>,
+    pub descriptor_sets: Vec<Vec<hal::pso::DescriptorSetLayoutBinding>>,
     /// Stage flag of this shader
     pub stage_flag: ShaderStageFlags,
     /// Push Constants
@@ -138,9 +139,9 @@ impl SpirvReflection {
         stage_flag: ShaderStageFlags,
         entrypoint: Option<String>,
         entrypoints: Vec<(ShaderStageFlags, String)>,
-        input_attributes: HashMap<(String, u8), rendy_core::hal::pso::AttributeDesc>,
-        output_attributes: HashMap<(String, u8), rendy_core::hal::pso::AttributeDesc>,
-        descriptor_sets: Vec<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>>,
+        input_attributes: HashMap<(String, u8), hal::pso::AttributeDesc>,
+        output_attributes: HashMap<(String, u8), hal::pso::AttributeDesc>,
+        descriptor_sets: Vec<Vec<hal::pso::DescriptorSetLayoutBinding>>,
         push_constants: Vec<(ShaderStageFlags, Range<u32>)>,
     ) -> Result<Self, ReflectError> {
         Ok(SpirvReflection {
@@ -213,7 +214,7 @@ impl SpirvReflection {
                         ReflectError::Retrieval(RetrievalKind::DescriptorSets, e.to_string())
                     })?
                     .iter()
-                    .map(ReflectInto::<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>>::reflect_into)
+                    .map(ReflectInto::<Vec<hal::pso::DescriptorSetLayoutBinding>>::reflect_into)
                     .collect();
 
                 // This is a fixup-step required because of our implementation. Because we dont pass the module around
@@ -253,7 +254,7 @@ impl SpirvReflection {
         }
     }
 
-    /// Returns attributes based on their names in rendy/rendy_core::hal format in the form of a `VertexFormat`. Note that attributes are sorted in their layout location
+    /// Returns attributes based on their names in hal format in the form of a `VertexFormat`. Note that attributes are sorted in their layout location
     /// order, not in the order provided.
     pub fn attributes(&self, names: &[&str]) -> Result<VertexFormat, ReflectError> {
         let cache = self
@@ -285,7 +286,7 @@ impl SpirvReflection {
         ))
     }
 
-    /// Returns attributes within a given index range in rendy/rendy_core::hal format in the form of a `VertexFormat`
+    /// Returns attributes within a given index range in hal format in the form of a `VertexFormat`
     pub fn attributes_range<R: RangeBounds<u32>>(
         &self,
         range: R,
@@ -305,7 +306,7 @@ impl SpirvReflection {
         Ok(VertexFormat::new(attributes))
     }
 
-    /// Returns the merged descriptor set layouts of all shaders in this set in rendy_core::hal format in the form of a `Layout` structure.
+    /// Returns the merged descriptor set layouts of all shaders in this set in hal format in the form of a `Layout` structure.
     #[inline(always)]
     pub fn layout(&self) -> Result<Layout, ReflectError> {
         Ok(self
@@ -322,7 +323,7 @@ impl SpirvReflection {
         self.stage_flag
     }
 
-    /// Returns the reflected push constants of this shader set in rendy_core::hal format.
+    /// Returns the reflected push constants of this shader set in hal format.
     #[inline]
     pub fn push_constants(
         &self,
@@ -347,7 +348,7 @@ impl SpirvReflection {
 }
 
 pub(crate) fn merge(reflections: &[SpirvReflection]) -> Result<SpirvReflection, ReflectError> {
-    let mut descriptor_sets = Vec::<Vec<rendy_core::hal::pso::DescriptorSetLayoutBinding>>::new();
+    let mut descriptor_sets = Vec::<Vec<hal::pso::DescriptorSetLayoutBinding>>::new();
     let mut set_push_constants = Vec::new();
     let mut set_stage_flags = ShaderStageFlags::empty();
     let mut set_entry_points = Vec::new();
@@ -412,8 +413,8 @@ pub enum BindingEquality {
 
 /// Logically compares two descriptor layout bindings to determine their relational equality.
 pub fn compare_bindings(
-    lhv: &rendy_core::hal::pso::DescriptorSetLayoutBinding,
-    rhv: &rendy_core::hal::pso::DescriptorSetLayoutBinding,
+    lhv: &hal::pso::DescriptorSetLayoutBinding,
+    rhv: &hal::pso::DescriptorSetLayoutBinding,
 ) -> BindingEquality {
     if lhv.binding == rhv.binding
         && lhv.count == rhv.count
@@ -445,8 +446,8 @@ enum SetEquality {
 }
 
 fn compare_set(
-    lhv: &[rendy_core::hal::pso::DescriptorSetLayoutBinding],
-    rhv: &[rendy_core::hal::pso::DescriptorSetLayoutBinding],
+    lhv: &[hal::pso::DescriptorSetLayoutBinding],
+    rhv: &[hal::pso::DescriptorSetLayoutBinding],
 ) -> SetEquality {
     // Bindings may not be in order, so we need to make a copy and index them by binding.
     let mut lhv_bindings = HashMap::new();

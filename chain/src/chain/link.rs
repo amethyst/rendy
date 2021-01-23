@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use crate::{
     node::State,
     resource::{AccessFlags, Resource},
@@ -11,7 +12,7 @@ pub struct LinkQueueState<R: Resource> {
     pub first: usize,
     pub last: usize,
     pub access: R::Access,
-    pub stages: rendy_core::hal::pso::PipelineStage,
+    pub stages: hal::pso::PipelineStage,
 }
 
 impl<R> LinkQueueState<R>
@@ -50,7 +51,7 @@ pub struct Link<R: Resource> {
     layout: R::Layout,
 
     /// Combination of all stages.
-    stages: rendy_core::hal::pso::PipelineStage,
+    stages: hal::pso::PipelineStage,
 
     /// Number of queues involved.
     queue_count: usize,
@@ -59,7 +60,7 @@ pub struct Link<R: Resource> {
     queues: Vec<Option<LinkQueueState<R>>>,
 
     /// Family of queues.
-    family: rendy_core::hal::queue::QueueFamilyId,
+    family: hal::queue::QueueFamilyId,
 }
 
 /// Node for the link.
@@ -109,7 +110,7 @@ where
 
     /// Get queue family that owns the resource at the link.
     /// All associated submissions must be from the same queue family.
-    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
+    pub fn family(&self) -> hal::queue::QueueFamilyId {
         self.family
     }
 
@@ -150,7 +151,7 @@ where
     }
 
     // /// Get usage.
-    // pub fn stages(&self) -> rendy_core::hal::pso::PipelineStage {
+    // pub fn stages(&self) -> hal::pso::PipelineStage {
     //     self.stages
     // }
 

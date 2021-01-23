@@ -248,6 +248,8 @@ where
     }
 }
 
+use rendy_core::hal;
+
 /// AsPixel trait for extracting the underlying data representation information from a Rust data type
 /// # Example
 /// ```rust,no-run
@@ -261,7 +263,7 @@ pub trait AsPixel: Copy + std::fmt::Debug + Default + Send + Sync + 'static {
     const SIZE: u32;
 
     /// Pixel format.
-    const FORMAT: rendy_core::hal::format::Format;
+    const FORMAT: hal::format::Format;
 }
 
 macro_rules! impl_pixel {
@@ -273,7 +275,7 @@ macro_rules! impl_pixel {
             impl AsPixel for $alias {
                 const NAME: &'static str = stringify!($alias);
                 const SIZE: u32 = num_channels!($channels) * <$size as ChannelSize>::SIZE;
-                const FORMAT: rendy_core::hal::format::Format = rendy_core::hal::format::Format::$alias;
+                const FORMAT: hal::format::Format = hal::format::Format::$alias;
             }
         )*
     };

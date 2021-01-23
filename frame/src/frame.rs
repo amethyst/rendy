@@ -1,6 +1,7 @@
 //! Frame module docs.
 
 use crate::{command::Fence, factory::Factory};
+use rendy_core::hal;
 
 /// Fences collection.
 pub type Fences<B> = smallvec::SmallVec<[Fence<B>; 8]>;
@@ -69,14 +70,14 @@ impl FramesRange {
 
 /// Timeline of frames, complete, pending and next.
 #[derive(Debug)]
-pub struct Frames<B: rendy_core::hal::Backend> {
+pub struct Frames<B: hal::Backend> {
     pending: std::collections::VecDeque<Fences<B>>,
     next: u64,
 }
 
 impl<B> Frames<B>
 where
-    B: rendy_core::hal::Backend,
+    B: hal::Backend,
 {
     /// Create new `Frames` instance.
     pub fn new() -> Self {
@@ -145,7 +146,7 @@ where
             factory
                 .wait_for_fences(
                     self.pending.iter_mut().take(count).flatten(),
-                    rendy_core::hal::device::WaitFor::All,
+                    hal::device::WaitFor::All,
                     !0,
                 )
                 .unwrap();
@@ -161,7 +162,7 @@ where
         factory
             .wait_for_fences(
                 self.pending.iter_mut().flatten(),
-                rendy_core::hal::device::WaitFor::All,
+                hal::device::WaitFor::All,
                 !0,
             )
             .unwrap();

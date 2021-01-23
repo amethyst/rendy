@@ -1,10 +1,11 @@
+use rendy_core::hal;
 use super::submission::{Submission, SubmissionId};
 
 /// Queue id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct QueueId {
     /// Family id of the queue.
-    pub family: rendy_core::hal::queue::QueueFamilyId,
+    pub family: hal::queue::QueueFamilyId,
 
     /// Index of the queue.
     pub index: usize,
@@ -12,12 +13,12 @@ pub struct QueueId {
 
 impl QueueId {
     /// Create queue id from family id and index.
-    pub fn new(family: rendy_core::hal::queue::QueueFamilyId, index: usize) -> Self {
+    pub fn new(family: hal::queue::QueueFamilyId, index: usize) -> Self {
         QueueId { family, index }
     }
 
     /// Get family id.
-    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
+    pub fn family(&self) -> hal::queue::QueueFamilyId {
         self.family
     }
 

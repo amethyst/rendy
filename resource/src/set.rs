@@ -1,11 +1,12 @@
+use rendy_core::hal;
 use {
     crate::{
         core::{device_owned, Device, DeviceId},
         descriptor,
         escape::Handle,
     },
+    hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend},
     relevant::Relevant,
-    rendy_core::hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend},
     smallvec::SmallVec,
 };
 
@@ -42,7 +43,7 @@ where
     pub unsafe fn create(
         device: &Device<B>,
         info: DescriptorSetInfo,
-    ) -> Result<Self, rendy_core::hal::device::OutOfMemory> {
+    ) -> Result<Self, hal::device::OutOfMemory> {
         let raw = device
             .create_descriptor_set_layout(&info.bindings, std::iter::empty::<B::Sampler>())?;
 
@@ -96,7 +97,7 @@ where
         device: &Device<B>,
         allocator: &mut descriptor::DescriptorAllocator<B>,
         layout: Handle<DescriptorSetLayout<B>>,
-    ) -> Result<Self, rendy_core::hal::device::OutOfMemory> {
+    ) -> Result<Self, hal::device::OutOfMemory> {
         let mut sets = SmallVec::<[_; 1]>::new();
 
         allocator.allocate(device, layout.raw(), layout.info().ranges(), 1, &mut sets)?;
@@ -116,7 +117,7 @@ where
         layout: Handle<DescriptorSetLayout<B>>,
         count: u32,
         extend: &mut impl Extend<Self>,
-    ) -> Result<(), rendy_core::hal::device::OutOfMemory> {
+    ) -> Result<(), hal::device::OutOfMemory> {
         let mut sets = SmallVec::<[_; 32]>::new();
 
         allocator.allocate(

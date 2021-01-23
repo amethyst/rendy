@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use super::state::*;
 
 /// This flag specify that buffer can be reset individually.
@@ -11,18 +12,18 @@ pub struct NoIndividualReset;
 /// Specify flags required for command pool creation to allow individual buffer reset.
 pub trait Reset: Copy + Default + std::fmt::Debug + 'static {
     /// Get flags for reset parameter.
-    fn flags(&self) -> rendy_core::hal::pool::CommandPoolCreateFlags;
+    fn flags(&self) -> hal::pool::CommandPoolCreateFlags;
 }
 
 impl Reset for IndividualReset {
-    fn flags(&self) -> rendy_core::hal::pool::CommandPoolCreateFlags {
-        rendy_core::hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL
+    fn flags(&self) -> hal::pool::CommandPoolCreateFlags {
+        hal::pool::CommandPoolCreateFlags::RESET_INDIVIDUAL
     }
 }
 
 impl Reset for NoIndividualReset {
-    fn flags(&self) -> rendy_core::hal::pool::CommandPoolCreateFlags {
-        rendy_core::hal::pool::CommandPoolCreateFlags::empty()
+    fn flags(&self) -> hal::pool::CommandPoolCreateFlags {
+        hal::pool::CommandPoolCreateFlags::empty()
     }
 }
 

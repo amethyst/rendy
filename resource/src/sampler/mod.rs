@@ -1,11 +1,12 @@
 //! Sampler creation-info and wrappers.
 
 mod cache;
+use rendy_core::hal;
 
 use {
     crate::core::{device_owned, Device, DeviceId},
+    hal::{device::Device as _, image::SamplerDesc, Backend},
     relevant::Relevant,
-    rendy_core::hal::{device::Device as _, image::SamplerDesc, Backend},
 };
 
 pub use crate::sampler::cache::SamplerCache;
@@ -29,7 +30,7 @@ where
     pub fn create(
         device: &Device<B>,
         info: SamplerDesc,
-    ) -> Result<Self, rendy_core::hal::device::AllocationError> {
+    ) -> Result<Self, hal::device::AllocationError> {
         // TODO: Check info is valid.
         let raw = unsafe { device.create_sampler(&info) }?;
         Ok(Sampler {

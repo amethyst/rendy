@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use std::collections::hash_map::{HashMap, Iter as HashMapIter};
 
 use crate::{
@@ -15,7 +16,7 @@ pub struct State<R: Resource> {
     pub layout: R::Layout,
 
     /// Stages at which resource is accessed.
-    pub stages: rendy_core::hal::pso::PipelineStage,
+    pub stages: hal::pso::PipelineStage,
 
     /// Usage flags required for resource.
     pub usage: R::Usage,
@@ -34,7 +35,7 @@ pub struct Node {
     pub id: usize,
 
     /// Family required to execute the node.
-    pub family: rendy_core::hal::queue::QueueFamilyId,
+    pub family: hal::queue::QueueFamilyId,
 
     /// Dependencies of the node.
     /// Those are indices of other nodes in array.
@@ -49,7 +50,7 @@ pub struct Node {
 
 impl Node {
     /// Get family on which this node will be executed.
-    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
+    pub fn family(&self) -> hal::queue::QueueFamilyId {
         self.family
     }
 

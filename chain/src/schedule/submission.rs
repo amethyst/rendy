@@ -1,3 +1,4 @@
+use rendy_core::hal;
 use super::queue::QueueId;
 use crate::Id;
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ impl SubmissionId {
     }
 
     /// Get family id.
-    pub fn family(&self) -> rendy_core::hal::queue::QueueFamilyId {
+    pub fn family(&self) -> hal::queue::QueueFamilyId {
         self.queue.family()
     }
 

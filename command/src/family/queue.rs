@@ -1,7 +1,8 @@
+use rendy_core::hal;
 use {
     super::{submission::*, QueueId},
     crate::{buffer::Submittable, fence::*},
-    rendy_core::hal::{queue::CommandQueue, Backend},
+    hal::{queue::CommandQueue, Backend},
 };
 
 /// Command queue wrapper.
@@ -51,7 +52,7 @@ where
                 impl IntoIterator<
                     Item = (
                         &'a (impl std::borrow::Borrow<B::Semaphore> + 'a),
-                        rendy_core::hal::pso::PipelineStage,
+                        hal::pso::PipelineStage,
                     ),
                 >,
                 impl IntoIterator<Item = impl Submittable<B>>,
@@ -63,7 +64,7 @@ where
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
-                rendy_core::hal::queue::Submission {
+                hal::queue::Submission {
                     command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
                     wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
                     signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
@@ -73,7 +74,7 @@ where
         } else {
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
-                    rendy_core::hal::queue::Submission {
+                    hal::queue::Submission {
                         command_buffers: submission.submits.into_iter().map(|submit| submit.raw()),
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
                         signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
@@ -105,7 +106,7 @@ where
                 impl IntoIterator<
                     Item = (
                         &'a (impl std::borrow::Borrow<B::Semaphore> + 'a),
-                        rendy_core::hal::pso::PipelineStage,
+                        hal::pso::PipelineStage,
                     ),
                 >,
                 impl IntoIterator<Item = impl Submittable<B>>,
@@ -117,7 +118,7 @@ where
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
-                rendy_core::hal::queue::Submission {
+                hal::queue::Submission {
                     command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
                     wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
                     signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
@@ -127,7 +128,7 @@ where
         } else {
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
-                    rendy_core::hal::queue::Submission {
+                    hal::queue::Submission {
                         command_buffers: submission.submits.into_iter().map(|submit| submit.raw()),
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
                         signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
@@ -139,7 +140,7 @@ where
     }
 
     /// Wait for queue to finish all pending commands.
-    pub fn wait_idle(&self) -> Result<(), rendy_core::hal::device::OutOfMemory> {
+    pub fn wait_idle(&self) -> Result<(), hal::device::OutOfMemory> {
         self.raw.wait_idle()
     }
 }

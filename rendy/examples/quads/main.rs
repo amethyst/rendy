@@ -1,3 +1,4 @@
+use rendy_core::hal;
 //!
 //! First non-trivial example simulates miriad of quads floating in gravity field and bouce of window borders.
 //! It uses compute node to move quads and simple render pass to draw them.
@@ -181,7 +182,7 @@ where
         buffers: Vec<NodeBuffer>,
         _images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
-    ) -> Result<QuadsRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
+    ) -> Result<QuadsRenderPipeline<B>, hal::pso::CreationError> {
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         let mut indirect = factory
@@ -436,7 +437,7 @@ where
         }?;
 
         let module = unsafe { BOUNCE_COMPUTE.module(factory) }
-            .map_err(rendy_core::hal::pso::CreationError::Shader)
+            .map_err(hal::pso::CreationError::Shader)
             .map_err(NodeBuildError::Pipeline)?;
 
         let set_layout = Handle::from(
