@@ -4,7 +4,7 @@ mod cache;
 use rendy_core::hal;
 
 use {
-    crate::core::{device_owned, Device, DeviceId},
+    crate::core::{Device, DeviceId},
     hal::{device::Device as _, image::SamplerDesc, Backend},
     relevant::Relevant,
 };
@@ -19,8 +19,6 @@ pub struct Sampler<B: Backend> {
     info: SamplerDesc,
     relevant: Relevant,
 }
-
-device_owned!(Sampler<B>);
 
 impl<B> Sampler<B>
 where

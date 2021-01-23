@@ -74,11 +74,6 @@ where
         _device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
-        debug_assert!(
-            range.start < range.end,
-            "Memory mapping region must have valid size"
-        );
-
         if !self.shared_memory().host_visible() {
             //TODO: invalid access error
             return Err(gfx_hal::device::MapError::MappingFailed);
@@ -205,11 +200,6 @@ where
             config
         );
 
-        assert!(
-            config.block_size_granularity.is_power_of_two(),
-            "Allocation granularity must be power of two"
-        );
-
         let block_size_granularity = if is_non_coherent_visible(memory_properties) {
             non_coherent_atom_size
                 .max(config.block_size_granularity)
@@ -217,28 +207,6 @@ where
         } else {
             config.block_size_granularity
         };
-
-        assert!(
-            config.max_chunk_size.is_power_of_two(),
-            "Max chunk size must be power of two"
-        );
-
-        assert!(
-            config.min_device_allocation.is_power_of_two(),
-            "Min device allocation must be power of two"
-        );
-
-        assert!(
-            config.min_device_allocation <= config.max_chunk_size,
-            "Min device allocation must be less than or equalt to max chunk size"
-        );
-
-        if memory_properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE) {
-            debug_assert!(
-                fits_usize(config.max_chunk_size),
-                "Max chunk size must fit usize for mapping"
-            );
-        }
 
         DynamicAllocator {
             memory_type,

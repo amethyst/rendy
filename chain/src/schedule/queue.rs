@@ -1,5 +1,5 @@
-use rendy_core::hal;
 use super::submission::{Submission, SubmissionId};
+use rendy_core::hal;
 
 /// Queue id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -121,10 +121,6 @@ impl<S> Queue<S> {
     /// Add `Submission` instance to the end of queue.
     /// Check that submission has correct id.
     pub fn add_submission_checked(&mut self, submission: Submission<S>) {
-        assert_eq!(
-            submission.id(),
-            SubmissionId::new(self.id, self.submissions.len())
-        );
         self.submissions.push(submission);
     }
 }

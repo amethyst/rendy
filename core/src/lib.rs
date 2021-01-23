@@ -11,7 +11,7 @@
     unused_qualifications
 )]
 
-pub use crate::{backend::*, casts::*, slow::*, wrap::*};
+pub use crate::{backend::*, casts::*, wrap::*};
 
 #[doc(inline)]
 pub use gfx_hal as hal;
@@ -61,6 +61,5 @@ mod backend;
 #[macro_use]
 mod features;
 mod casts;
-mod slow;
 pub mod types;
 mod wrap;

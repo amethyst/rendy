@@ -60,22 +60,8 @@ where
     //     device: &B::Device,
     //     range: Range<u64>,
     // ) -> Result<Self, gfx_hal::device::MapError> {
-    //     assert!(
-    //         range.start < range.end,
-    //         "Memory mapping region must have valid size"
-    //     );
-    //     assert!(
-    //         fits_usize(range.end - range.start),
-    //         "Range length must fit in usize"
-    //     );
 
     //     let ptr = device.map_memory(memory.raw(), range.clone())?;
-    //     assert!(
-    //         (ptr as usize).wrapping_neg() >= (range.end - range.start) as usize,
-    //         "Resulting pointer value + range length must fit in usize. Pointer: {:p}, range {:?}",
-    //         ptr,
-    //         range,
-    //     );
 
     //     Ok(Self::from_raw(memory, NonNull::new_unchecked(ptr), range))
     // }
@@ -93,24 +79,6 @@ where
         mapping_range: Range<u64>,
         requested_range: Range<u64>,
     ) -> Self {
-        debug_assert!(
-            mapping_range.start < mapping_range.end,
-            "Memory mapping region must have valid size"
-        );
-
-        debug_assert!(
-            requested_range.start < requested_range.end,
-            "Memory mapping region must have valid size"
-        );
-
-        if !memory.host_coherent() {
-            debug_assert!(
-                is_sub_range(mapping_range.clone(), requested_range.clone()),
-                "`requested_range` must be sub-range of `mapping_range`",
-            );
-        } else {
-        }
-
         MappedRange {
             ptr,
             mapping_range,
@@ -154,15 +122,6 @@ where
         'a: 'b,
         T: Copy,
     {
-        debug_assert!(
-            range.start < range.end,
-            "Memory mapping region must have valid size"
-        );
-        debug_assert!(
-            fits_usize(range.end - range.start),
-            "Range length must fit in usize"
-        );
-
         let sub_range = relative_to_sub_range(self.requested_range.clone(), range)
             .ok_or(gfx_hal::device::MapError::OutOfBounds)?;
 
@@ -173,10 +132,6 @@ where
 
         if !self.coherent.0 {
             let aligned_sub_range = align_range(sub_range, self.memory.non_coherent_atom_size());
-            debug_assert!(is_sub_range(
-                self.mapping_range.clone(),
-                aligned_sub_range.clone()
-            ));
             device.invalidate_mapped_memory_ranges(Some((
                 self.memory.raw(),
                 gfx_hal::memory::Segment {
@@ -205,15 +160,6 @@ where
         'a: 'b,
         T: Copy,
     {
-        assert!(
-            range.start < range.end,
-            "Memory mapping region must have valid size"
-        );
-        assert!(
-            fits_usize(range.end - range.start),
-            "Range length must fit in usize"
-        );
-
         let sub_range = relative_to_sub_range(self.requested_range.clone(), range)
             .ok_or(gfx_hal::device::MapError::OutOfBounds)?;
 
@@ -227,10 +173,6 @@ where
         let memory = &self.memory;
         let flush = if !self.coherent.0 {
             let aligned_sub_range = align_range(sub_range, self.memory.non_coherent_atom_size());
-            debug_assert!(is_sub_range(
-                self.mapping_range.clone(),
-                aligned_sub_range.clone()
-            ));
             Some(move || {
                 device
                     .flush_mapped_memory_ranges(Some((
@@ -317,15 +259,6 @@ where
     where
         U: Copy,
     {
-        assert!(
-            range.start < range.end,
-            "Memory mapping region must have valid size"
-        );
-        assert!(
-            fits_usize(range.end - range.start),
-            "Range length must fit in usize"
-        );
-
         let sub_range = relative_to_sub_range(self.requested_range.clone(), range)
             .ok_or(gfx_hal::device::MapError::OutOfBounds)?;
 

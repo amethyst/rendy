@@ -64,11 +64,6 @@ where
         device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
-        assert!(
-            range.start < range.end,
-            "Memory mapping region must have valid size"
-        );
-
         if !self.memory.host_visible() {
             //TODO: invalid access error
             return Err(gfx_hal::device::MapError::MappingFailed);

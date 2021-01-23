@@ -76,11 +76,6 @@ where
         _device: &B::Device,
         range: Range<u64>,
     ) -> Result<MappedRange<'a, B>, gfx_hal::device::MapError> {
-        assert!(
-            range.start < range.end,
-            "Memory mapping region must have valid size"
-        );
-
         if !self.memory.host_visible() {
             //TODO: invalid access error
             return Err(gfx_hal::device::MapError::MappingFailed);
@@ -181,10 +176,6 @@ where
         } else {
             config.linear_size
         };
-        assert!(
-            fits_usize(linear_size),
-            "Linear size must fit in both usize and u64"
-        );
         LinearAllocator {
             memory_type,
             memory_properties,
@@ -248,10 +239,6 @@ where
         size: u64,
         align: u64,
     ) -> Result<(LinearBlock<B>, u64), gfx_hal::device::AllocationError> {
-        debug_assert!(self
-            .memory_properties
-            .contains(gfx_hal::memory::Properties::CPU_VISIBLE));
-
         let (size, align) = if is_non_coherent_visible(self.memory_properties) {
             (
                 align_size(size, self.non_coherent_atom_size),
@@ -336,15 +323,7 @@ where
 
     fn free(&mut self, device: &B::Device, block: Self::Block) -> u64 {
         let index = block.linear_index - self.offset;
-        assert!(
-            fits_usize(index),
-            "This can't exceed lines list length which fits into usize by definition"
-        );
         let index = index as usize;
-        assert!(
-            index < self.lines.len(),
-            "Can't be allocated from not yet created line"
-        );
         {
             let line = &mut self.lines[index];
             line.free += block.size();

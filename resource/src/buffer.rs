@@ -4,7 +4,7 @@ pub use rendy_core::hal::buffer::*;
 
 use {
     crate::{
-        core::{device_owned, Device, DeviceId},
+        core::{Device, DeviceId},
         memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
         CreationError,
     },
@@ -36,7 +36,6 @@ pub struct Buffer<B: Backend> {
     relevant: Relevant,
 }
 
-device_owned!(Buffer<B>);
 /// Alias for the error to create a buffer.
 pub type BufferCreationError = CreationError<hal::buffer::CreationError>;
 

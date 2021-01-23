@@ -114,14 +114,6 @@ impl IntegerFitting for u32 {
     }
 }
 
-pub(crate) fn fits_usize<T: IntegerFitting>(value: T) -> bool {
-    value.fits_usize()
-}
-
-pub(crate) fn fits_u32(value: usize) -> bool {
-    u32::usize_fits(value)
-}
-
 pub(crate) fn align_range(range: std::ops::Range<u64>, align: u64) -> std::ops::Range<u64> {
     let start = range.start - range.start % align;
     let end = ((range.end - 1) / align + 1) * align;
@@ -148,8 +140,4 @@ pub(crate) fn relative_to_sub_range(
     } else {
         None
     }
-}
-
-pub(crate) fn is_sub_range(range: std::ops::Range<u64>, sub: std::ops::Range<u64>) -> bool {
-    sub.start >= range.start && sub.end <= range.end
 }

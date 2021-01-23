@@ -3,7 +3,7 @@ mod memory_type;
 
 use {
     self::{heap::MemoryHeap, memory_type::MemoryType},
-    crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, util::*, utilization::*},
+    crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, utilization::*},
     std::ops::Range,
 };
 
@@ -77,14 +77,6 @@ where
                 .into_iter()
                 .enumerate()
                 .map(|(index, (properties, heap_index, config))| {
-                    assert!(
-                        fits_u32(index),
-                        "Number of memory types must fit in u32 limit"
-                    );
-                    assert!(
-                        fits_usize(heap_index),
-                        "Number of memory types must fit in u32 limit"
-                    );
                     let memory_type = gfx_hal::MemoryTypeId(index);
                     let heap_index = heap_index as usize;
                     MemoryType::new(

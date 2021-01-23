@@ -262,10 +262,6 @@ where
         suggested_extent: hal::window::Extent2D,
         clear: Option<hal::command::ClearValue>,
     ) -> &mut Self {
-        assert!(
-            self.surface.is_none(),
-            "Only one surface can be attachend to rende pass"
-        );
         self.surface = Some((surface, suggested_extent, clear));
         self
     }
@@ -359,10 +355,6 @@ where
 
             for group in &subpass.groups {
                 for (id, access) in group.images() {
-                    assert!(
-                        !attachments.contains_key(&id),
-                        "Attachment image can't be used otherwise in render pass"
-                    );
                     let entry = images.entry(id).or_insert(empty);
                     entry.access |= access.access;
                     entry.usage |= access.usage;
@@ -685,11 +677,6 @@ where
                 factory
                     .device()
                     .create_render_pass(pass_attachments, subpasses, {
-                        assert_eq!(
-                            self.subpasses.len(),
-                            1,
-                            "TODO: Implement subpass dependencies to allow more than one subpass"
-                        );
                         std::iter::empty::<hal::pass::SubpassDependency>()
                     })
             }

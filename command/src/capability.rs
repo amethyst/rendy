@@ -108,9 +108,6 @@ impl Capability for General {
 pub trait Supports<C>: Capability {
     /// Check runtime capability.
     fn supports(&self) -> Option<C>;
-
-    /// Assert capability.
-    fn assert(&self) {}
 }
 
 impl Supports<Transfer> for Transfer {

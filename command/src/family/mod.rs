@@ -8,7 +8,7 @@ use {
     crate::{
         buffer::Reset,
         capability::{Capability, QueueType, Supports},
-        core::{device_owned, Device, DeviceId},
+        core::{Device, DeviceId},
         pool::CommandPool,
     },
     hal::Backend,
@@ -52,8 +52,6 @@ pub struct Family<B: Backend, C = QueueType> {
     // min_image_transfer_granularity: hal::image::Extent,
     capability: C,
 }
-
-device_owned!(Family<B, C> @ |f: &Self| f.id.device);
 
 impl<B> Family<B, QueueType>
 where

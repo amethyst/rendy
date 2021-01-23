@@ -19,9 +19,7 @@ use {
         window::{Extent2D, Surface as _, SurfaceCapabilities},
         Backend, Instance as _,
     },
-    rendy_core::{
-        device_owned, instance_owned, Device, DeviceId, HasRawWindowHandle, Instance, InstanceId,
-    },
+    rendy_core::{Device, HasRawWindowHandle, Instance, InstanceId},
     rendy_resource::{Image, ImageInfo},
 };
 
@@ -83,8 +81,6 @@ where
             .finish()
     }
 }
-
-instance_owned!(Surface<B>);
 
 impl<B> Surface<B>
 where
@@ -191,12 +187,6 @@ where
         present_mode: hal::window::PresentMode,
         usage: hal::image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
-        assert_eq!(
-            device.id().instance,
-            self.instance,
-            "Resource is not owned by specified instance"
-        );
-
         let (swapchain, backbuffer, extent) = create_swapchain(
             &mut self,
             physical_device,
@@ -208,7 +198,6 @@ where
         )?;
 
         Ok(Target {
-            device: device.id(),
             relevant: relevant::Relevant,
             surface: self,
             swapchain: Some(swapchain),
@@ -233,43 +222,14 @@ unsafe fn create_swapchain<B: Backend>(
     let format = surface.format(physical_device);
 
     if !capabilities.present_modes.contains(present_mode) {
-        log::warn!(
-            "Present mode is not supported. Supported: {:#?}, requested: {:#?}",
-            capabilities.present_modes,
-            present_mode,
-        );
         return Err(SwapchainError::BadPresentMode(present_mode));
     }
-
-    log::trace!(
-        "Surface present modes: {:#?}. Pick {:#?}",
-        capabilities.present_modes,
-        present_mode
-    );
 
     if image_count < *capabilities.image_count.start()
         || image_count > *capabilities.image_count.end()
     {
-        log::warn!(
-            "Image count not supported. Supported: {:#?}, requested: {:#?}",
-            capabilities.image_count,
-            image_count
-        );
         return Err(SwapchainError::BadImageCount(image_count));
     }
-
-    log::trace!(
-        "Surface capabilities: {:#?}. Pick {} images",
-        capabilities.image_count,
-        image_count
-    );
-
-    assert!(
-        capabilities.usage.contains(usage),
-        "Surface supports {:?}, but {:?} was requested",
-        capabilities.usage,
-        usage
-    );
 
     let extent = capabilities.current_extent.unwrap_or(suggest_extent);
 
@@ -322,7 +282,6 @@ unsafe fn create_swapchain<B: Backend>(
 /// Rendering target bound to window.
 /// With swapchain created.
 pub struct Target<B: Backend> {
-    device: DeviceId,
     surface: Surface<B>,
     swapchain: Option<B::Swapchain>,
     backbuffer: Option<Vec<Image<B>>>,
@@ -331,8 +290,6 @@ pub struct Target<B: Backend> {
     usage: hal::image::Usage,
     relevant: relevant::Relevant,
 }
-
-device_owned!(Target<B>);
 
 impl<B> std::fmt::Debug for Target<B>
 where

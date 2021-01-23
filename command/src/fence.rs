@@ -1,7 +1,7 @@
 use rendy_core::hal;
 use {
     crate::{
-        core::{device_owned, Device, DeviceId},
+        core::{Device, DeviceId},
         family::QueueId,
     },
     hal::{device::Device as _, Backend},
@@ -31,8 +31,6 @@ pub struct Fence<B: Backend> {
     raw: B::Fence,
     state: FenceState,
 }
-
-device_owned!(Fence<B>);
 
 impl<B> Fence<B>
 where

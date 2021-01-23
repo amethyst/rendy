@@ -1,5 +1,4 @@
 use std::{
-    mem::{align_of, size_of},
     ops::Range,
     ptr::NonNull,
     slice::{from_raw_parts, from_raw_parts_mut},
@@ -15,15 +14,6 @@ pub(crate) fn mapped_sub_range(
     range: Range<u64>,
     fitting: Range<u64>,
 ) -> Option<NonNull<u8>> {
-    assert!(
-        range.start < range.end,
-        "Memory mapping region must have valid size"
-    );
-    assert!(
-        fitting.start < fitting.end,
-        "Memory mapping region must have valid size"
-    );
-
     if fitting.start < range.start || fitting.end > range.end {
         None
     } else {
@@ -43,17 +33,6 @@ pub(crate) fn mapped_sub_range(
 /// * returned slice doesn't outlive mapping.
 /// * `T` Must be plain-old-data type compatible with data in mapped region.
 pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a mut [T] {
-    assert_eq!(
-        size % size_of::<T>(),
-        0,
-        "Range length must be multiple of element size"
-    );
-    let offset = ptr.as_ptr() as usize;
-    assert_eq!(
-        offset % align_of::<T>(),
-        0,
-        "Range offset must be multiple of element alignment"
-    );
     from_raw_parts_mut(ptr.as_ptr() as *mut T, size)
 }
 
@@ -63,16 +42,5 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, size: usize) -> &
 /// * returned slice doesn't outlive mapping.
 /// * `T` Must be plain-old-data type compatible with data in mapped region.
 pub(crate) unsafe fn mapped_slice<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a [T] {
-    assert_eq!(
-        size % size_of::<T>(),
-        0,
-        "Range length must be multiple of element size"
-    );
-    let offset = ptr.as_ptr() as usize;
-    assert_eq!(
-        offset % align_of::<T>(),
-        0,
-        "Range offset must be multiple of element alignment"
-    );
     from_raw_parts(ptr.as_ptr() as *const T, size)
 }

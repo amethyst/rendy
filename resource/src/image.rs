@@ -3,7 +3,7 @@
 pub use rendy_core::hal::image::*;
 use {
     crate::{
-        core::{device_owned, Device, DeviceId},
+        core::{Device, DeviceId},
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
         CreationError,
@@ -48,7 +48,6 @@ pub struct Image<B: Backend> {
     relevant: Relevant,
 }
 
-device_owned!(Image<B>);
 /// Alias for the error to create an image.
 pub type ImageCreationError = CreationError<hal::image::CreationError>;
 
@@ -71,14 +70,6 @@ where
         info: ImageInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, ImageCreationError> {
-        assert!(
-            info.levels <= info.kind.num_levels(),
-            "Number of mip leves ({}) cannot be greater than {} for given kind {:?}",
-            info.levels,
-            info.kind.num_levels(),
-            info.kind,
-        );
-
         let mut img = device
             .create_image(
                 info.kind,
@@ -210,7 +201,6 @@ pub struct ImageView<B: Backend> {
     relevant: Relevant,
 }
 
-device_owned!(ImageView<B> @ |view: &Self| view.image.device_id());
 /// Alias for the error to create an image view.
 pub type ImageViewCreationError = CreationError<ViewCreationError>;
 
@@ -224,12 +214,6 @@ where
         info: ImageViewInfo,
         image: Handle<Image<B>>,
     ) -> Result<Self, ImageViewCreationError> {
-        assert!(match_kind(
-            image.kind(),
-            info.view_kind,
-            image.info().view_caps
-        ));
-
         let view = unsafe {
             device
                 .create_image_view(
@@ -279,26 +263,5 @@ where
     /// Get image of this view.
     pub fn image(&self) -> &Handle<Image<B>> {
         &self.image
-    }
-}
-
-fn match_kind(kind: Kind, view_kind: ViewKind, view_caps: ViewCapabilities) -> bool {
-    match kind {
-        Kind::D1(..) => match view_kind {
-            ViewKind::D1 | ViewKind::D1Array => true,
-            _ => false,
-        },
-        Kind::D2(..) => match view_kind {
-            ViewKind::D2 | ViewKind::D2Array => true,
-            ViewKind::Cube => view_caps.contains(ViewCapabilities::KIND_CUBE),
-            _ => false,
-        },
-        Kind::D3(..) => {
-            if view_caps == ViewCapabilities::KIND_2D_ARRAY {
-                view_kind == ViewKind::D2 || view_kind == ViewKind::D2Array
-            } else {
-                view_kind == ViewKind::D3
-            }
-        }
     }
 }

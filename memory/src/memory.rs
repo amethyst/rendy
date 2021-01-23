@@ -37,10 +37,6 @@ where
     }
 
     pub(crate) fn non_coherent_atom_size(&self) -> u64 {
-        debug_assert!(
-            self.host_visible() && !self.host_coherent(),
-            "Irrelevent and shouldn't be called",
-        );
         self.non_coherent_atom_size
     }
 

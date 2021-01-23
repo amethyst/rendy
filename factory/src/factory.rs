@@ -142,13 +142,6 @@ impl<B> InstanceOrId<B>
 where
     B: Backend,
 {
-    fn id(&self) -> InstanceId {
-        match self {
-            InstanceOrId::Instance(instance) => instance.id(),
-            InstanceOrId::Id(id) => *id,
-        }
-    }
-
     fn as_instance(&self) -> Option<&Instance<B>> {
         match self {
             InstanceOrId::Instance(instance) => Some(instance),
@@ -600,16 +593,6 @@ where
         T: 'static + Copy,
     {
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
-        let format_desc = image.format().surface_desc();
-        let texels_count = (image_extent.width / format_desc.dim.0 as u32) as u64
-            * (image_extent.height / format_desc.dim.1 as u32) as u64
-            * image_extent.depth as u64
-            * (image_layers.layers.end - image_layers.layers.start) as u64;
-        let total_bytes = (format_desc.bits as u64 / 8) * texels_count;
-        assert_eq!(
-            total_bytes, content_size,
-            "Size of must match size of the image region"
-        );
 
         let mut staging = self
             .create_buffer(
@@ -681,11 +664,6 @@ where
     ///
     /// Panics if `surface` was not created by this `Factory`
     pub fn get_surface_formats(&self, surface: &Surface<B>) -> Option<Vec<hal::format::Format>> {
-        assert_eq!(
-            surface.instance_id(),
-            self.instance.id(),
-            "Resource is not owned by specified instance"
-        );
         unsafe { surface.supported_formats(&self.adapter.physical_device) }
     }
 
@@ -698,11 +676,6 @@ where
         &self,
         surface: &Surface<B>,
     ) -> hal::window::SurfaceCapabilities {
-        assert_eq!(
-            surface.instance_id(),
-            self.instance.id(),
-            "Resource is not owned by specified instance"
-        );
         unsafe { surface.capabilities(&self.adapter.physical_device) }
     }
 
@@ -712,21 +685,11 @@ where
     ///
     /// Panics if `surface` was not created by this `Factory`
     pub fn get_surface_format(&self, surface: &Surface<B>) -> format::Format {
-        assert_eq!(
-            surface.instance_id(),
-            self.instance.id(),
-            "Resource is not owned by specified instance"
-        );
         unsafe { surface.format(&self.adapter.physical_device) }
     }
 
     /// Check if queue family supports presentation to the specified surface.
     pub fn surface_support(&self, family: FamilyId, surface: &Surface<B>) -> bool {
-        assert_eq!(
-            surface.instance_id(),
-            self.instance.id(),
-            "Resource is not owned by specified instance"
-        );
         surface
             .raw()
             .supports_queue_family(&self.adapter.queue_families[family.index])
@@ -738,11 +701,6 @@ where
     ///
     /// Panics if `surface` was not created by this `Factory`
     pub fn destroy_surface(&mut self, surface: Surface<B>) {
-        assert_eq!(
-            surface.instance_id(),
-            self.instance.id(),
-            "Resource is not owned by specified instance"
-        );
         drop(surface);
     }
 
@@ -869,7 +827,6 @@ where
         let fences = fences
             .into_iter()
             .map(|f| f.borrow_mut())
-            .inspect(|f| f.assert_device_owner(&self.device))
             .collect::<SmallVec<[_; 32]>>();
 
         if fences.is_empty() {

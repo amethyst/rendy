@@ -3,7 +3,7 @@ use {
     crate::{
         chain,
         command::{Families, FamilyId, QueueId},
-        core::{device_owned, DeviceId},
+        core::DeviceId,
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::Data,
@@ -37,8 +37,6 @@ pub struct Graph<B: Backend, T: ?Sized> {
     inflight: u32,
     ctx: GraphContext<B>,
 }
-
-device_owned!(Graph<B, T: ?Sized>);
 
 /// Error building the graph itself or one of it's nodes.
 #[derive(Debug)]
@@ -212,11 +210,6 @@ where
                 .nodes
                 .get_mut(submission.node())
                 .expect("Submission references node with out of bound index");
-            debug_assert_eq!(
-                (qid.family(), qid.index()),
-                (QueueFamilyId(queue.0), queue.1),
-                "Node's queue doesn't match schedule"
-            );
 
             let last_in_queue = sid.index() + 1 == self.schedule.queue(qid).unwrap().len();
             let fence = if last_in_queue {

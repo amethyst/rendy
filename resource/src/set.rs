@@ -1,7 +1,7 @@
 use rendy_core::hal;
 use {
     crate::{
-        core::{device_owned, Device, DeviceId},
+        core::{Device, DeviceId},
         descriptor,
         escape::Handle,
     },
@@ -32,8 +32,6 @@ pub struct DescriptorSetLayout<B: Backend> {
     info: DescriptorSetInfo,
     relevant: Relevant,
 }
-
-device_owned!(DescriptorSetLayout<B>);
 
 impl<B> DescriptorSetLayout<B>
 where
