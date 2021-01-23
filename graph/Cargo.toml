@@ -38,3 +38,4 @@ relevant = { version = "0.4.2", features = ["log"] }
 serde = { version = "1.0.118", optional = true, features = ["derive"] }
 smallvec = "1.5.1"
 thread_profiler = "0.3.0"
+derivative = "2.2.0"

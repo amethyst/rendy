@@ -21,20 +21,14 @@ impl Epochs {
     }
 }
 
+use derivative::Derivative;
+
 /// Resource handler.
-#[derive(Debug)]
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct ResourceTracker<T> {
     terminal: Terminal<T>,
     dropped: VecDeque<(Epochs, T)>,
-}
-
-impl<T> Default for ResourceTracker<T> {
-    fn default() -> Self {
-        ResourceTracker {
-            terminal: Terminal::default(),
-            dropped: VecDeque::default(),
-        }
-    }
 }
 
 impl<T> ResourceTracker<T> {

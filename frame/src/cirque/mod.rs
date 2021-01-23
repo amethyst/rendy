@@ -112,26 +112,17 @@ impl<'a, T, I, P> ReadyRef<'a, T, I, P> {
     }
 }
 
+use derivative::Derivative;
 /// Resource cirque.
 /// It simplifies using multiple resources
 /// when same resource cannot be used simulteneously.
-#[derive(Debug)]
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct Cirque<T, I = T, P = T> {
     pending: VecDeque<(P, usize, Frame)>,
     ready: VecDeque<(T, usize)>,
     marker: std::marker::PhantomData<fn() -> I>,
     counter: usize,
-}
-
-impl<T, I, P> Default for Cirque<T, I, P> {
-    fn default() -> Self {
-        Cirque {
-            pending: VecDeque::default(),
-            ready: VecDeque::default(),
-            marker: std::marker::PhantomData,
-            counter: usize::default(),
-        }
-    }
 }
 
 impl<T, I, P> Cirque<T, I, P> {
@@ -192,17 +183,9 @@ impl<T, I, P> Cirque<T, I, P> {
 /// Resource cirque that depends on another one.
 /// It relies on trusted ready index instead of frame indices.
 /// It guarantees to always return same resource for same index.
-#[derive(Debug)]
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct DependentCirque<T, I = T, P = T> {
     values: Vec<either::Either<T, P>>,
     marker: std::marker::PhantomData<fn() -> I>,
-}
-
-impl<T, I, P> Default for DependentCirque<T, I, P> {
-    fn default() -> Self {
-        DependentCirque {
-            values: Vec::default(),
-            marker: std::marker::PhantomData,
-        }
-    }
 }

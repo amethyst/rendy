@@ -1,14 +1,15 @@
 use rendy_core::hal;
+use rendy_core::{
+    hal::{device::Device as _, image::Layout, Backend},
+    uses_pipeline_barriers,
+};
+
 use {
     crate::{
         command::{
             CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence,
             Graphics, IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
             SecondaryLevel, SimultaneousUse, Submission, Submit,
-        },
-        core::{
-            hal::{device::Device as _, image::Layout, Backend},
-            uses_pipeline_barriers,
         },
         factory::Factory,
         frame::{
@@ -33,7 +34,11 @@ struct RenderPassSurface;
 
 type Attachment = Either<ImageId, RenderPassSurface>;
 
+use derivative::Derivative;
+
 /// Build for rendering sub-pass.
+#[derive(Derivative)]
+#[derivative(Default(bound = "", new = "true"))]
 pub struct SubpassBuilder<B: Backend, T: ?Sized> {
     groups: Vec<Box<dyn RenderGroupBuilder<B, T>>>,
     inputs: Vec<Attachment>,
@@ -58,32 +63,11 @@ where
     }
 }
 
-impl<B, T> Default for SubpassBuilder<B, T>
-where
-    B: Backend,
-    T: ?Sized,
-{
-    fn default() -> Self {
-        SubpassBuilder {
-            groups: Vec::default(),
-            inputs: Vec::default(),
-            colors: Vec::default(),
-            depth_stencil: None,
-            dependencies: Vec::default(),
-        }
-    }
-}
-
 impl<B, T> SubpassBuilder<B, T>
 where
     B: Backend,
     T: ?Sized,
 {
-    /// Create new empty subpass builder.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Add render group to this subpass.
     pub fn add_group<R>(&mut self, group: R) -> &mut Self
     where
@@ -195,6 +179,8 @@ where
 }
 
 /// Builder for render-pass node.
+#[derive(Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct RenderPassNodeBuilder<B: Backend, T: ?Sized> {
     subpasses: Vec<SubpassBuilder<B, T>>,
     surface: Option<(
@@ -214,19 +200,6 @@ where
             .field("subpasses", &self.subpasses)
             .field("surface", &self.surface)
             .finish()
-    }
-}
-
-impl<B, T> Default for RenderPassNodeBuilder<B, T>
-where
-    B: Backend,
-    T: ?Sized,
-{
-    fn default() -> Self {
-        RenderPassNodeBuilder {
-            subpasses: Vec::default(),
-            surface: None,
-        }
     }
 }
 

@@ -1,10 +1,8 @@
 use rendy_core::hal;
+use rendy_core::{Device, DeviceId};
+
 use {
-    crate::{
-        core::{Device, DeviceId},
-        descriptor,
-        escape::Handle,
-    },
+    crate::{descriptor, escape::Handle},
     hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend},
     relevant::Relevant,
     smallvec::SmallVec,

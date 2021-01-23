@@ -12,7 +12,6 @@
     unused_qualifications
 )]
 #![allow(clippy::missing_safety_doc)]
-use rendy_core as core;
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;
 
@@ -24,8 +23,8 @@ mod set;
 mod resources;
 mod sampler;
 
-use crate::core::hal;
 pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};
+use rendy_core::hal;
 
 /// Error creating a resource.
 #[derive(Clone, Debug, PartialEq)]

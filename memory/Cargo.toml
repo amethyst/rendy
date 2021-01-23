@@ -22,6 +22,7 @@ serde = { version = "1.0.118", optional = true, features = ["derive"] }
 smallvec = "1.5.1"
 slab = "0.4.2"
 colorful = "0.2.1"
+derivative = "2.2.0"
 
 [dev-dependencies]
 rand = "0.8.0"

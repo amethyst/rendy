@@ -152,7 +152,10 @@ pub struct DynamicAllocator<B: Backend> {
 unsafe impl<B> Send for DynamicAllocator<B> where B: Backend {}
 unsafe impl<B> Sync for DynamicAllocator<B> where B: Backend {}
 
-#[derive(Debug)]
+use derivative::Derivative;
+
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 struct SizeEntry<B: Backend> {
     /// Total count of allocated blocks with size corresponding to this entry.
     total_blocks: u64,
@@ -162,19 +165,6 @@ struct SizeEntry<B: Backend> {
 
     /// List of chunks.
     chunks: slab::Slab<Chunk<B>>,
-}
-
-impl<B> Default for SizeEntry<B>
-where
-    B: Backend,
-{
-    fn default() -> Self {
-        SizeEntry {
-            chunks: Default::default(),
-            total_blocks: 0,
-            ready_chunks: Default::default(),
-        }
-    }
 }
 
 const MAX_BLOCKS_PER_CHUNK: u32 = 64;

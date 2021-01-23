@@ -13,7 +13,7 @@ use {
     hal::{device::Device as _, Backend},
 };
 
-pub use crate::core::types::{Layout, SetLayout};
+pub use rendy_core::types::{Layout, SetLayout};
 
 /// Pipeline info
 #[derive(Clone, Debug)]

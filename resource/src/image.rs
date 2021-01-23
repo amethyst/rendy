@@ -1,9 +1,10 @@
 //! Image usage, format, kind, extent, creation-info and wrappers.
 
 pub use rendy_core::hal::image::*;
+use rendy_core::{Device, DeviceId};
+
 use {
     crate::{
-        core::{Device, DeviceId},
         escape::Handle,
         memory::{Block, Heaps, MemoryBlock, MemoryUsage},
         CreationError,

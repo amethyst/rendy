@@ -4,9 +4,9 @@ mod cache;
 use rendy_core::hal;
 
 use {
-    crate::core::{Device, DeviceId},
     hal::{device::Device as _, image::SamplerDesc, Backend},
     relevant::Relevant,
+    rendy_core::{Device, DeviceId},
 };
 
 pub use crate::sampler::cache::SamplerCache;

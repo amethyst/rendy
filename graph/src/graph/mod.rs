@@ -1,9 +1,10 @@
 use rendy_core::hal;
+use rendy_core::DeviceId;
+
 use {
     crate::{
         chain,
         command::{Families, FamilyId, QueueId},
-        core::DeviceId,
         factory::Factory,
         frame::{Fences, Frame, Frames},
         memory::Data,
@@ -283,26 +284,12 @@ where
 }
 
 /// Build graph from nodes and resource.
+#[derive(Default)]
 pub struct GraphBuilder<B: Backend, T: ?Sized> {
     nodes: Vec<Box<dyn NodeBuilder<B, T>>>,
     buffers: Vec<BufferInfo>,
     images: Vec<(ImageInfo, Option<hal::command::ClearValue>)>,
     frames_in_flight: u32,
-}
-
-impl<B, T> Default for GraphBuilder<B, T>
-where
-    B: Backend,
-    T: ?Sized,
-{
-    fn default() -> Self {
-        GraphBuilder {
-            nodes: Vec::default(),
-            buffers: Vec::default(),
-            images: Vec::default(),
-            frames_in_flight: u32::default(),
-        }
-    }
 }
 
 impl<B, T> std::fmt::Debug for GraphBuilder<B, T>

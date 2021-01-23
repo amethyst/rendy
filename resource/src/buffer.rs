@@ -1,10 +1,10 @@
 //! Buffer usage, creation-info and wrappers.
 
 pub use rendy_core::hal::buffer::*;
+use rendy_core::{Device, DeviceId};
 
 use {
     crate::{
-        core::{Device, DeviceId},
         memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
         CreationError,
     },
