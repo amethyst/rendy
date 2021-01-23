@@ -137,7 +137,7 @@ where
     }
 
     /// Drop image wrapper for swapchain image.
-    pub unsafe fn dispose_swapchain_image(self, device: DeviceId) {
+    pub unsafe fn dispose_swapchain_image(self, _device: DeviceId) {
         self.relevant.dispose();
     }
 

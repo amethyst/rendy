@@ -193,8 +193,8 @@ where
         factory: &mut Factory<B>,
         _queue: QueueId,
         _scene: &Scene<B>,
-        buffers: Vec<NodeBuffer>,
-        images: Vec<NodeImage>,
+        _buffers: Vec<NodeBuffer>,
+        _images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<MeshRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
         let frames = ctx.frames_in_flight as _;

@@ -616,7 +616,6 @@ where
         &mut self,
         submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>,
     ) {
-        let family = self.inner.family;
         unsafe {
             rendy_core::hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
@@ -749,7 +748,6 @@ where
         &mut self,
         submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>,
     ) {
-        let family = self.inner.family;
         unsafe {
             rendy_core::hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,

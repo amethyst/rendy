@@ -135,8 +135,8 @@ where
         factory: &mut Factory<B>,
         queue: QueueId,
         _aux: &T,
-        buffers: Vec<NodeBuffer>,
-        images: Vec<NodeImage>,
+        _buffers: Vec<NodeBuffer>,
+        _images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<SpriteGraphicsPipeline<B>, hal::pso::CreationError> {
         // This is how we can load an image and create a new texture.

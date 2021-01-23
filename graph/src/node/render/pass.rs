@@ -816,9 +816,6 @@ where
             .into_iter()
             .enumerate()
             .map(|(index, subpass)| {
-                let subpass_colors = subpass.colors.len();
-                let subpass_depth = subpass.depth_stencil.is_some();
-
                 subpass
                     .groups
                     .into_iter()

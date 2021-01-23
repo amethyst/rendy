@@ -11,15 +11,11 @@ categories = ["rendering"]
 description = "Rendy's factory tool"
 
 [features]
-serde-1 = [
-    "serde",
-    "rendy-core/serde-1",
-    "rendy-memory/serde-1",
-]
+serde-1 = ["serde", "rendy-core/serde-1", "rendy-memory/serde-1"]
 
 empty = ["rendy-core/empty"]
 dx12 = ["rendy-core/dx12"]
-gl = ["rendy-core/gl"]
+# gl = ["rendy-core/gl"]
 metal = ["rendy-core/metal"]
 no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
 profiler = ["thread_profiler/thread_profiler"]

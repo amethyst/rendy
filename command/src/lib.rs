@@ -22,18 +22,6 @@ macro_rules! family_owned {
             pub fn family_id(&self) -> $crate::FamilyId {
                 ($getter)(self)
             }
-
-            /// Assert specified family is owner.
-            pub fn assert_family_owner(&self, family: &$crate::Family<B, C>) {
-            }
-
-            /// Assert specified device is owner.
-            pub fn assert_device_owner(&self, device: &$crate::core::Device<B>) {
-            }
-
-            /// Assert specified instance is owner.
-            pub fn assert_instance_owner(&self, instance: &$crate::core::Instance<B>) {
-            }
         }
     };
 
@@ -50,18 +38,6 @@ macro_rules! family_owned {
             /// Get owner id.
             pub fn family_id(&self) -> $crate::FamilyId {
                 ($getter)(self)
-            }
-
-            /// Assert specified family is owner.
-            pub fn assert_family_owner<C>(&self, family: &$crate::Family<B, C>) {
-            }
-
-            /// Assert specified device is owner.
-            pub fn assert_device_owner(&self, device: &$crate::core::Device<B>) {
-            }
-
-            /// Assert specified instance is owner.
-            pub fn assert_instance_owner(&self, instance: &$crate::core::Instance<B>) {
             }
         }
     };

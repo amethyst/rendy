@@ -476,7 +476,7 @@ where
         self.alloc_from_entry(device, block_size, 1, align)
     }
 
-    fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>, block_size: u64) -> u64 {
+    fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>, _block_size: u64) -> u64 {
         log::trace!("Free chunk: {:#?}", chunk);
         match chunk.flavor {
             ChunkFlavor::Dedicated(boxed, _) => {
@@ -523,9 +523,7 @@ where
 
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(self) {
-        if !thread::panicking() {
-            for (index, size) in self.sizes {}
-        } else {
+        if thread::panicking() {
             for (index, size) in self.sizes {
                 if !size.chunks.is_empty() {
                     log::error!("Memory leak: SizeEntry({}) is still used", index);

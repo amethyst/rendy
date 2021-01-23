@@ -288,7 +288,7 @@ where
                 let sync = sync.convert_signal(|semaphore| match signals.get_mut(&semaphore) {
                     None => {
                         let (signal, wait) = new_semaphore();
-                        let old = waits.insert(semaphore, Some(wait));
+                        waits.insert(semaphore, Some(wait));
                         signal
                     }
                     Some(signal) => signal.take().unwrap(),
@@ -296,7 +296,7 @@ where
                 let sync = sync.convert_wait(|semaphore| match waits.get_mut(&semaphore) {
                     None => {
                         let (signal, wait) = new_semaphore();
-                        let old = signals.insert(semaphore, Some(signal));
+                        signals.insert(semaphore, Some(signal));
                         wait
                     }
                     Some(wait) => wait.take().unwrap(),

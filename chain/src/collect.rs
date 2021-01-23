@@ -207,8 +207,6 @@ fn resolve_nodes<Q>(nodes: Vec<Node>, max_queues: Q) -> (ResolvedNodeSet, Vec<us
 where
     Q: Fn(rendy_core::hal::queue::QueueFamilyId) -> usize,
 {
-    let node_count = nodes.len();
-
     let mut unscheduled_nodes = fill(nodes.len());
     let mut reified_nodes: Vec<ResolvedNode> = fill(nodes.len());
     let mut node_ids = LookupBuilder::new();

@@ -1,11 +1,8 @@
-use {
-    crate::util::fits_usize,
-    std::{
-        mem::{align_of, size_of},
-        ops::Range,
-        ptr::NonNull,
-        slice::{from_raw_parts, from_raw_parts_mut},
-    },
+use std::{
+    mem::{align_of, size_of},
+    ops::Range,
+    ptr::NonNull,
+    slice::{from_raw_parts, from_raw_parts_mut},
 };
 
 /// Get sub-range of memory mapping.

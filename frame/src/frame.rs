@@ -142,11 +142,13 @@ where
             // p - n + t + 1 >= 1
             // count >= 1
             let count = self.pending.len() - (self.next - target.index - 1) as usize;
-            let ready = factory.wait_for_fences(
-                self.pending.iter_mut().take(count).flatten(),
-                rendy_core::hal::device::WaitFor::All,
-                !0,
-            );
+            factory
+                .wait_for_fences(
+                    self.pending.iter_mut().take(count).flatten(),
+                    rendy_core::hal::device::WaitFor::All,
+                    !0,
+                )
+                .unwrap();
             self.pending.drain(..count).for_each(free);
             CompleteFrame {
                 index: target.index,
@@ -156,11 +158,13 @@ where
 
     /// Dispose of the `Frames`
     pub fn dispose(mut self, factory: &mut Factory<B>) {
-        let ready = factory.wait_for_fences(
-            self.pending.iter_mut().flatten(),
-            rendy_core::hal::device::WaitFor::All,
-            !0,
-        );
+        factory
+            .wait_for_fences(
+                self.pending.iter_mut().flatten(),
+                rendy_core::hal::device::WaitFor::All,
+                !0,
+            )
+            .unwrap();
 
         self.pending
             .drain(..)

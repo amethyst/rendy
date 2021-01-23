@@ -134,10 +134,6 @@ f 2/1/5 8/2/5 4/3/5\nf 4/3/5 8/2/5 6/4/5
 s 6
 f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
 ";
-        let result = load_from_obj(quad).ok().unwrap();
-        // dbg!(& result);
-
-        // When compressed into unique vertices there should be 4 vertices per side of the quad
-        // assert!()
+        load_from_obj(quad).unwrap();
     }
 }

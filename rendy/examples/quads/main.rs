@@ -179,7 +179,7 @@ where
         _queue: QueueId,
         _aux: &T,
         buffers: Vec<NodeBuffer>,
-        images: Vec<NodeImage>,
+        _images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<QuadsRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
@@ -411,7 +411,7 @@ where
         queue: usize,
         _aux: &T,
         buffers: Vec<NodeBuffer>,
-        images: Vec<NodeImage>,
+        _images: Vec<NodeImage>,
     ) -> Result<Self::Node, NodeBuildError> {
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 

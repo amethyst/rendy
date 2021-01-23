@@ -127,9 +127,9 @@ where
         _factory: &mut Factory<B>,
         _queue: QueueId,
         _aux: &T,
-        buffers: Vec<NodeBuffer>,
-        images: Vec<NodeImage>,
-        set_layouts: &[Handle<DescriptorSetLayout<B>>],
+        _buffers: Vec<NodeBuffer>,
+        _images: Vec<NodeImage>,
+        _set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<TriangleRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
         Ok(TriangleRenderPipeline { vertex: None })
     }

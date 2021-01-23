@@ -69,7 +69,7 @@ where
     pub unsafe fn from_device(
         queue_groups: &mut Vec<rendy_core::hal::queue::QueueGroup<B>>,
         id: FamilyId,
-        count: usize,
+        _count: usize,
         family: &impl rendy_core::hal::queue::QueueFamily,
     ) -> Self {
         Family {

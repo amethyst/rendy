@@ -71,7 +71,6 @@ where
                 fence.as_ref().map(|f| f.raw()),
             );
         } else {
-            let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
                     rendy_core::hal::queue::Submission {
@@ -126,7 +125,6 @@ where
                 fence,
             );
         } else {
-            let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
                     rendy_core::hal::queue::Submission {

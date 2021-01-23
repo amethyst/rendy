@@ -515,26 +515,6 @@ fn is_compatible(left: &VertexFormat, right: &VertexFormat) -> bool {
     })
 }
 
-/// Chech if slice o f ordered values is sorted.
-fn is_slice_sorted<T: Ord>(slice: &[T]) -> bool {
-    is_slice_sorted_by_key(slice, |i| i)
-}
-
-/// Check if slice is sorted using ordered key and key extractor
-fn is_slice_sorted_by_key<'a, T, K: Ord>(slice: &'a [T], f: impl Fn(&'a T) -> K) -> bool {
-    if let Some((first, slice)) = slice.split_first() {
-        let mut cmp = f(first);
-        for item in slice {
-            let item = f(item);
-            if cmp > item {
-                return false;
-            }
-            cmp = item;
-        }
-    }
-    true
-}
-
 impl<'a, A> From<Vec<A>> for MeshBuilder<'a>
 where
     A: AsVertex + 'a,

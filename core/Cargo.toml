@@ -21,7 +21,7 @@ serde-1 = ["serde", "gfx-hal/serde"]
 empty = ["gfx-backend-empty"]
 dx12 = ["gfx-backend-dx12"]
 metal = ["gfx-backend-metal"]
-gl = ["gfx-backend-gl"]
+# gl = ["gfx-backend-gl"]
 vulkan = ["gfx-backend-vulkan"]
 no-slow-safety-checks = []
 

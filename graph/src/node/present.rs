@@ -397,7 +397,7 @@ where
         family: &mut Family<B>,
         _queue: usize,
         _aux: &T,
-        buffers: Vec<NodeBuffer>,
+        _buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
         let input_image = images.into_iter().next().unwrap();
