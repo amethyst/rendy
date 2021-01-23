@@ -441,7 +441,6 @@ where
         }
 
         if surface.is_some() {
-            log::debug!("Surface usage {:#?}", surface_usage);
         } else {
         }
 
@@ -461,14 +460,11 @@ where
 
         let mut node_target = None;
 
-        log::trace!("Configure attachments");
-
         let views: Vec<_> = attachments
             .iter()
             .map(|&attachment| -> Result<Vec<_>, NodeBuildError> {
                 match attachment {
                     Either::Left(image_id) => {
-                        log::debug!("Image {:?} attachment", image_id);
 
                         let node_image = find_attachment_node_image(image_id);
                         let image = ctx.get_image(image_id).expect("Image does not exist");
@@ -499,17 +495,14 @@ where
                             }])
                     },
                     Either::Right(RenderPassSurface) => {
-                        log::trace!("Surface attachment");
 
                         let surface = surface.take().expect("Render pass should be configured with Surface instance if at least one subpass uses surface attachment");
                         let surface_extent = unsafe {
                             surface.extent(factory.physical()).unwrap_or(suggested_extent.expect("Must be set with surface"))
                         };
 
-                        log::debug!("Surface extent {:#?}", surface_extent);
 
                         if !factory.surface_support(family.id(), &surface) {
-                            log::warn!("Surface {:?} presentation is unsupported by family {:?} bound to the node", surface, family);
                             return Err(NodeBuildError::QueueFamily(family.id()));
                         }
 
@@ -567,8 +560,6 @@ where
             }).collect::<Result<Vec<_>, _>>()?
             .into_iter().flatten().collect();
 
-        log::trace!("Configure render pass instance");
-
         let render_pass: B::RenderPass = {
             let pass_attachments: Vec<_> = attachments
                 .iter()
@@ -616,8 +607,6 @@ where
                     }
                 })
                 .collect();
-
-            log::debug!("Attachments {:#?}", pass_attachments);
 
             #[derive(Debug)]
             struct OwningSubpassDesc {
@@ -680,8 +669,6 @@ where
                 })
                 .collect();
 
-            log::debug!("Subpasses {:#?}", subpasses);
-
             let subpasses: Vec<_> = subpasses
                 .iter()
                 .map(|subpass| rendy_core::hal::pass::SubpassDesc {
@@ -707,7 +694,6 @@ where
             }
             .unwrap();
 
-            log::trace!("RenderPass instance created");
             result
         };
 
@@ -740,8 +726,6 @@ where
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        log::trace!("Collect clears for render pass");
-
         let clears: Vec<_> = attachments
             .iter()
             .filter_map(|&a| match a {
@@ -765,7 +749,6 @@ where
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
                 let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
-                log::debug!("Acquire {:?} : {:#?}", stages, barriers);
                 unsafe {
                     recording.encoder().pipeline_barrier(
                         stages,
@@ -791,7 +774,6 @@ where
             if !barriers.is_empty() {
                 let initial = command_pool.allocate_buffers(1).pop().unwrap();
                 let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
-                log::debug!("Release {:?} : {:#?}", stages, barriers);
                 unsafe {
                     recording.encoder().pipeline_barrier(
                         stages,
@@ -868,67 +850,61 @@ where
             .map_err(NodeBuildError::Pipeline)?;
 
         let node: Box<dyn DynNode<B, T>> = match node_target {
-            Some(target) => {
-                log::debug!("Construct RenderPassNodeWithSurface");
-                Box::new(RenderPassNodeWithSurface {
-                    common: RenderPassNodeCommon {
-                        subpasses,
+            Some(target) => Box::new(RenderPassNodeWithSurface {
+                common: RenderPassNodeCommon {
+                    subpasses,
 
-                        framebuffer_width,
-                        framebuffer_height,
-                        _framebuffer_layers: framebuffer_layers,
+                    framebuffer_width,
+                    framebuffer_height,
+                    _framebuffer_layers: framebuffer_layers,
 
-                        render_pass,
-                        views,
-                        clears,
+                    render_pass,
+                    views,
+                    clears,
 
-                        command_pool,
-                        command_cirque,
+                    command_pool,
+                    command_cirque,
 
-                        acquire,
-                        release,
+                    acquire,
+                    release,
 
-                        relevant: relevant::Relevant,
-                    },
+                    relevant: relevant::Relevant,
+                },
 
-                    per_image: framebuffers
-                        .into_iter()
-                        .map(|fb| PerImage {
-                            framebuffer: fb,
-                            acquire: factory.create_semaphore().unwrap(),
-                            release: factory.create_semaphore().unwrap(),
-                            index: 0,
-                        })
-                        .collect(),
-                    free_acquire: factory.create_semaphore().unwrap(),
-                    target,
-                })
-            }
-            None => {
-                log::debug!("Construct RenderPassNodeWithoutSurface");
-                Box::new(RenderPassNodeWithoutSurface {
-                    common: RenderPassNodeCommon {
-                        subpasses,
+                per_image: framebuffers
+                    .into_iter()
+                    .map(|fb| PerImage {
+                        framebuffer: fb,
+                        acquire: factory.create_semaphore().unwrap(),
+                        release: factory.create_semaphore().unwrap(),
+                        index: 0,
+                    })
+                    .collect(),
+                free_acquire: factory.create_semaphore().unwrap(),
+                target,
+            }),
+            None => Box::new(RenderPassNodeWithoutSurface {
+                common: RenderPassNodeCommon {
+                    subpasses,
 
-                        framebuffer_width,
-                        framebuffer_height,
-                        _framebuffer_layers: framebuffer_layers,
+                    framebuffer_width,
+                    framebuffer_height,
+                    _framebuffer_layers: framebuffer_layers,
 
-                        render_pass,
-                        views,
-                        clears,
+                    render_pass,
+                    views,
+                    clears,
 
-                        command_pool,
-                        command_cirque,
+                    command_pool,
+                    command_cirque,
 
-                        acquire,
-                        release,
+                    acquire,
+                    release,
 
-                        relevant: relevant::Relevant,
-                    },
-                    framebuffer: { framebuffers.remove(0) },
-                })
-            }
+                    relevant: relevant::Relevant,
+                },
+                framebuffer: { framebuffers.remove(0) },
+            }),
         };
 
         Ok(node)
@@ -1132,14 +1108,10 @@ where
 
         let next = match target.next_image(&free_acquire) {
             Ok(next) => {
-                log::trace!("Presentable image acquired: {:#?}", next);
                 std::mem::swap(&mut per_image[next[0] as usize].acquire, free_acquire);
                 Some(next)
             }
-            Err(err) => {
-                log::debug!("Swapchain acquisition error: {:#?}", err);
-                None
-            }
+            Err(_) => None,
         };
 
         let submit = command_cirque.encode(frames, command_pool, |mut cbuf| {
@@ -1230,8 +1202,6 @@ where
             })
         });
 
-        log::trace!("Submit render pass");
-
         queue.submit(
             Some(
                 Submission::new()
@@ -1253,11 +1223,8 @@ where
         );
 
         if let Some(next) = next {
-            log::trace!("Present");
             let for_image = &mut per_image[next[0] as usize];
-            if let Err(err) = next.present(queue.raw(), Some(&for_image.release)) {
-                log::debug!("Swapchain presentation error: {:#?}", err);
-            }
+            next.present(queue.raw(), Some(&for_image.release)).unwrap();
         }
     }
 

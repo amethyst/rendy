@@ -246,8 +246,6 @@ unsafe fn create_swapchain<B: Backend>(
         present_mode
     );
 
-    log::trace!("Surface chosen format {:#?}", format);
-
     if image_count < *capabilities.image_count.start()
         || image_count > *capabilities.image_count.end()
     {

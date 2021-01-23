@@ -80,8 +80,6 @@ where
             info.kind,
         );
 
-        log::trace!("{:#?}@{:#?}", info, memory_usage);
-
         let mut img = device
             .create_image(
                 info.kind,
@@ -227,8 +225,6 @@ where
         info: ImageViewInfo,
         image: Handle<Image<B>>,
     ) -> Result<Self, ImageViewCreationError> {
-        log::trace!("{:#?}@{:#?}", info, image);
-
         assert!(match_kind(
             image.kind(),
             info.view_kind,

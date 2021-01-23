@@ -219,7 +219,6 @@ where
             unsafe {
                 match Arc::try_unwrap(line.memory) {
                     Ok(memory) => {
-                        // trace!("Unmap memory: {:#?}", line.memory);
                         device.unmap_memory(memory.raw());
 
                         freed += memory.size();

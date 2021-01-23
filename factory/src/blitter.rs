@@ -208,7 +208,6 @@ where
     ) -> Result<(), OutOfMemory> {
         let (queue, blits) = BlitRegion::mip_blits_for_image(&image, last, next);
         for blit in blits {
-            log::trace!("Blit: {:#?}", blit);
             self.blit_image(device, queue, &image, &image, filter, Some(blit))?;
         }
         Ok(())
@@ -398,7 +397,6 @@ where
             .enumerate()
             .filter_map(|(i, x)| x.map(|x| (i, x)))
         {
-            log::trace!("Flush blitter");
             let (submit, command_buffer) = next.command_buffer.finish().submit_once();
 
             family.queue_mut(queue).submit_raw_fence(

@@ -114,7 +114,6 @@ where
     fn unmap(&mut self, device: &B::Device) {
         if self.mapping.take().is_some() {
             unsafe {
-                // trace!("Unmap memory: {:#?}", self.memory);
                 device.unmap_memory(self.memory.raw());
             }
         }
@@ -210,8 +209,6 @@ where
 
 impl Drop for DedicatedAllocator {
     fn drop(&mut self) {
-        if self.used > 0 {
-            log::error!("Not all allocation from DedicatedAllocator was freed");
-        }
+        if self.used > 0 {}
     }
 }

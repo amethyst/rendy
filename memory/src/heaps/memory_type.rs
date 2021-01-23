@@ -133,15 +133,11 @@ where
     }
 
     pub(super) fn dispose(self, device: &B::Device) {
-        log::trace!("Dispose memory allocators");
-
         if let Some(linear) = self.linear {
             linear.dispose(device);
-            log::trace!("Linear allocator disposed");
         }
         if let Some(dynamic) = self.dynamic {
             dynamic.dispose();
-            log::trace!("Dynamic allocator disposed");
         }
     }
 

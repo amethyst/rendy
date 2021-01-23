@@ -145,10 +145,7 @@ where
                 env!("CARGO_MANIFEST_DIR"),
                 "/examples/sprite/logo.png"
             ))
-            .map_err(|e| {
-                log::error!("Unable to open {}: {:?}", "/examples/sprite/logo.png", e);
-                hal::pso::CreationError::Other
-            })?,
+            .map_err(|e| hal::pso::CreationError::Other)?,
         );
 
         let texture_builder = rendy::texture::image::load_from_image(
@@ -158,10 +155,7 @@ where
                 ..Default::default()
             },
         )
-        .map_err(|e| {
-            log::error!("Unable to load image: {:?}", e);
-            hal::pso::CreationError::Other
-        })?;
+        .map_err(|e| hal::pso::CreationError::Other)?;
 
         let texture = texture_builder
             .build(

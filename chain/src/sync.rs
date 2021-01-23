@@ -380,7 +380,6 @@ where
         );
 
     for (prev_link, link) in pairs {
-        log::trace!("Sync {:#?}:{:#?}", prev_link.access(), link.access());
         if prev_link.family() == link.family() {
             // Prefer to generate barriers on the acquire side, if possible.
             if prev_link.access().exclusive() && !link.access().exclusive() {

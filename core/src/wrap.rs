@@ -20,7 +20,6 @@ fn new_instance_id() -> InstanceId {
 
     if id == 0 {
         // Warn once.
-        log::info!("Slow safety checks are enabled! You can disable them in production by enabling the 'no-slow-safety-checks' feature!");
     }
 
     InstanceId { id: id as u32 }

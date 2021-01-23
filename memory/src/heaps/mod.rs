@@ -140,10 +140,7 @@ where
                 .into_iter()
                 .filter(|(_, mt, _)| self.heaps[mt.heap_index()].available() > size + align)
                 .max_by_key(|&(_, _, fitness)| fitness)
-                .ok_or_else(|| {
-                    log::error!("All suitable heaps are exhausted. {:#?}", self);
-                    gfx_hal::device::OutOfMemory::Device
-                })?
+                .ok_or_else(|| gfx_hal::device::OutOfMemory::Device)?
         };
 
         self.allocate_from(device, memory_index as u32, usage, size, align)
@@ -190,7 +187,6 @@ where
     ///
     /// Memory block must be allocated from this heap.
     pub fn free(&mut self, device: &B::Device, block: MemoryBlock<B>) {
-        // trace!("Free block '{:#?}'", block);
         let memory_index = block.memory_index;
         let size = block.size();
 

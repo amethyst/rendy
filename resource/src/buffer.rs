@@ -59,8 +59,6 @@ where
         info: BufferInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, BufferCreationError> {
-        log::trace!("{:#?}@{:#?}", info, memory_usage);
-
         let mut buf = device
             .create_buffer(info.size, info.usage)
             .map_err(CreationError::Create)?;

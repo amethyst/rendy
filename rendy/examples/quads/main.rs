@@ -435,7 +435,6 @@ where
                 .map_err(NodeBuildError::Upload)
         }?;
 
-        log::trace!("Load shader module BOUNCE_COMPUTE");
         let module = unsafe { BOUNCE_COMPUTE.module(factory) }
             .map_err(rendy_core::hal::pso::CreationError::Shader)
             .map_err(NodeBuildError::Pipeline)?;
@@ -528,14 +527,12 @@ where
 
             {
                 let (stages, barriers) = gfx_acquire_barriers(ctx, &*buffers, None);
-                log::info!("Acquire {:?} : {:#?}", stages, barriers);
                 encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
             }
             encoder.dispatch(QUADS, 1, 1);
 
             {
                 let (stages, barriers) = gfx_release_barriers(ctx, &*buffers, None);
-                log::info!("Release {:?} : {:#?}", stages, barriers);
                 encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
             }
         }
@@ -606,7 +603,6 @@ fn build_graph<B: hal::Backend>(
 
     let started = std::time::Instant::now();
     let graph = graph_builder.build(factory, families, &()).unwrap();
-    log::trace!("Graph built in: {:?}", started.elapsed());
     graph
 }
 
@@ -635,7 +631,6 @@ fn main() {
                         WindowEvent::Resized(_dims) => {
                             let started = std::time::Instant::now();
                             graph.take().unwrap().dispose(&mut factory, &());
-                            log::trace!("Graph disposed in: {:?}", started.elapsed());
                             return;
                         }
                         _ => {}

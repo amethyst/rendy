@@ -15,7 +15,6 @@ use {
         image, Backend,
     },
     std::num::NonZeroU8,
-    thread_profiler::profile_scope,
 };
 
 /// Static image.
@@ -318,8 +317,6 @@ impl<'a> TextureBuilder<'a> {
     where
         B: Backend,
     {
-        profile_scope!("build");
-
         let view_caps = match self.view_kind {
             rendy_core::hal::image::ViewKind::D2Array => {
                 rendy_core::hal::image::ViewCapabilities::KIND_2D_ARRAY
@@ -366,7 +363,6 @@ impl<'a> TextureBuilder<'a> {
         let buffer: &[u8] = match transform {
             BufferTransform::Intact => &self.data,
             BufferTransform::AddPadding { stride, padding } => {
-                profile_scope!("add_padding");
                 let new_stride = stride + padding.len();
                 let data_len = self.data.len() / stride * new_stride;
 
@@ -402,8 +398,6 @@ impl<'a> TextureBuilder<'a> {
         // must have been created by the same factory and that it is not in use; we guarantee
         // that here because we just created the image on the same factory right before.
         unsafe {
-            profile_scope!("upload_image");
-
             factory
                 .upload_image(
                     image.clone(),
@@ -428,7 +422,6 @@ impl<'a> TextureBuilder<'a> {
         }
 
         if mip_levels > 1 && generate_mips {
-            profile_scope!("fill_mips");
             unsafe {
                 factory
                     .blitter()
@@ -457,7 +450,6 @@ impl<'a> TextureBuilder<'a> {
         }
 
         let view = {
-            profile_scope!("create_image_view");
             factory
                 .create_image_view(
                     image.clone(),
@@ -520,8 +512,6 @@ fn find_compatible_format<B: Backend>(
     factory: &Factory<B>,
     info: ImageInfo,
 ) -> Option<(ImageInfo, BufferTransform, Swizzle)> {
-    profile_scope!("find_compatible_format");
-
     if let Some(info) = image_format_supported(factory, info) {
         return Some((info, BufferTransform::Intact, Swizzle::NO));
     }
@@ -529,7 +519,6 @@ fn find_compatible_format<B: Backend>(
         let mut new_info = info;
         new_info.format = format;
         if let Some(new_info) = image_format_supported(factory, new_info) {
-            log::trace!("Converting image from {:?} to {:?}", info, new_info);
             return Some((new_info, transform, swizzle));
         }
     }

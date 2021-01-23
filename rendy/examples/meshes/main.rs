@@ -445,7 +445,6 @@ fn main() {
             ],
         };
 
-        log::info!("{:#?}", scene);
 
         let graph = graph_builder
             .build(&mut factory, &mut families, &scene)
@@ -534,7 +533,6 @@ fn main() {
             }
 
             if *control_flow == ControlFlow::Exit {
-                log::info!("FPS: {:#?}", fpss);
                 if let Some(graph) = graph.take() {
                     graph.dispose(&mut factory, &scene);
                 }

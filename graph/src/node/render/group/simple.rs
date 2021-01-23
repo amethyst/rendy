@@ -244,8 +244,6 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
     ) -> Result<Box<dyn RenderGroup<B, T>>, rendy_core::hal::pso::CreationError> {
-        log::trace!("Load shader sets for");
-
         let mut shader_set = self.inner.load_shader_set(factory, aux);
 
         let pipeline = self.inner.pipeline();
@@ -291,9 +289,8 @@ where
         };
 
         let shaders = match shader_set.raw() {
-            Err(e) => {
+            Err(_) => {
                 shader_set.dispose(factory);
-                log::warn!("Shader error {:?}", e);
                 return Err(rendy_core::hal::pso::CreationError::Other);
             }
             Ok(s) => s,

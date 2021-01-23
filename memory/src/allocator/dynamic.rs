@@ -2,7 +2,6 @@ use std::{
     collections::{BTreeSet, HashMap},
     ops::Range,
     ptr::NonNull,
-    thread,
 };
 
 use {
@@ -280,7 +279,6 @@ where
                 .memory_properties
                 .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
             {
-                log::trace!("Map new memory object");
                 match device.map_memory(
                     &raw,
                     gfx_hal::memory::Segment {
@@ -447,8 +445,6 @@ where
         block_size: u64,
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        log::trace!("Allocate block of size {}", block_size);
-
         let size_entry = self.sizes.entry(block_size).or_default();
         size_entry.total_blocks += 1;
 
@@ -477,7 +473,6 @@ where
     }
 
     fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>, _block_size: u64) -> u64 {
-        log::trace!("Free chunk: {:#?}", chunk);
         match chunk.flavor {
             ChunkFlavor::Dedicated(boxed, _) => {
                 let size = boxed.size();
@@ -486,7 +481,6 @@ where
                         .memory_properties
                         .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
                     {
-                        log::trace!("Unmap memory: {:#?}", boxed);
                         device.unmap_memory(boxed.raw());
                     }
                     device.free_memory(boxed.into_raw());
@@ -498,8 +492,6 @@ where
     }
 
     fn free_block(&mut self, device: &B::Device, block: DynamicBlock<B>) -> u64 {
-        log::trace!("Free block: {:#?}", block);
-
         let block_size = block.size() / block.count as u64;
         let size_entry = &mut self
             .sizes
@@ -522,15 +514,7 @@ where
     }
 
     /// Perform full cleanup of the memory allocated.
-    pub fn dispose(self) {
-        if thread::panicking() {
-            for (index, size) in self.sizes {
-                if !size.chunks.is_empty() {
-                    log::error!("Memory leak: SizeEntry({}) is still used", index);
-                }
-            }
-        }
-    }
+    pub fn dispose(self) {}
 }
 
 impl<B> Allocator<B> for DynamicAllocator<B>

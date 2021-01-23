@@ -123,9 +123,7 @@ where
     }
 
     unsafe fn dispose(mut self, device: &B::Device) {
-        if self.total > 0 {
-            log::error!("Not all descriptor sets were deallocated");
-        }
+        if self.total > 0 {}
 
         while let Some(pool) = self.pools.pop_front() {
             if pool.freed + pool.free < pool.size {
@@ -134,7 +132,6 @@ where
                     pool
                 );
             } else {
-                log::trace!("Destroying used up descriptor pool");
                 device.destroy_descriptor_pool(pool.raw);
                 self.pools_offset += 1;
             }
@@ -163,7 +160,6 @@ where
             }
 
             let allocate = pool.free.min(count);
-            log::trace!("Allocate {} from exising pool", allocate);
             allocate_from_pool::<B>(&mut pool.raw, layout, allocate, &mut allocation.sets)?;
             allocation.pools.extend(
                 std::iter::repeat(index as u64 + self.pools_offset).take(allocate as usize),
@@ -219,7 +215,6 @@ where
         let freed = sets.into_iter().count() as u32;
         pool.freed += freed;
         self.total -= freed as u64;
-        log::trace!("Freed {} from descriptor bucket", freed);
     }
 
     unsafe fn cleanup(&mut self, device: &B::Device) {
@@ -228,7 +223,6 @@ where
                 self.pools.push_front(pool);
                 break;
             }
-            log::trace!("Destroying used up descriptor pool");
             device.destroy_descriptor_pool(pool.raw);
             self.pools_offset += 1;
         }

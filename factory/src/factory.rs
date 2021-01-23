@@ -29,7 +29,6 @@ use {
     },
     smallvec::SmallVec,
     std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
-    thread_profiler::profile_scope,
 };
 
 #[derive(Debug)]
@@ -184,39 +183,30 @@ where
     B: Backend,
 {
     fn drop(&mut self) {
-        log::debug!("Dropping factory");
         self.wait_idle().unwrap();
 
         unsafe {
             // Device is idle.
             self.uploader.dispose(&self.device);
-            log::trace!("Uploader disposed");
             self.blitter.dispose(&self.device);
-            log::trace!("Blitter disposed");
             std::ptr::read(&mut *self.resources).dispose(
                 &self.device,
                 self.heaps.get_mut(),
                 self.descriptor_allocator.get_mut(),
             );
-
-            log::trace!("Resources disposed");
         }
 
         unsafe {
             std::ptr::read(&mut *self.heaps)
                 .into_inner()
                 .dispose(&self.device);
-            log::trace!("Heaps disposed");
         }
 
         unsafe {
             std::ptr::read(&mut *self.descriptor_allocator)
                 .into_inner()
                 .dispose(&self.device);
-            log::trace!("Descriptor allocator disposed");
         }
-
-        log::trace!("Factory dropped");
     }
 }
 
@@ -228,11 +218,7 @@ where
     /// This function is very heavy and
     /// usually used only for teardown.
     pub fn wait_idle(&self) -> Result<(), OutOfMemory> {
-        profile_scope!("wait_idle");
-
-        log::debug!("Wait device idle");
         self.device.wait_idle()?;
-        log::trace!("Device idle");
         Ok(())
     }
 
@@ -247,8 +233,6 @@ where
         info: BufferInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Buffer<B>, BufferCreationError> {
-        profile_scope!("create_relevant_buffer");
-
         unsafe { Buffer::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
     }
 
@@ -291,8 +275,6 @@ where
         info: ImageInfo,
         memory_usage: impl MemoryUsage,
     ) -> Result<Image<B>, ImageCreationError> {
-        profile_scope!("create_relevant_image");
-
         unsafe { Image::create(&self.device, &mut self.heaps.lock(), info, memory_usage) }
     }
 
@@ -667,7 +649,6 @@ where
         &mut self,
         handle: &impl HasRawWindowHandle,
     ) -> Result<Surface<B>, InitError> {
-        profile_scope!("create_surface");
         Surface::new(
             self.instance
                 .as_instance()
@@ -685,7 +666,6 @@ where
         &mut self,
         f: impl FnOnce(&B::Instance) -> B::Surface,
     ) -> Surface<B> {
-        profile_scope!("create_surface");
         Surface::new_with(
             self.instance
                 .as_instance()
@@ -703,8 +683,6 @@ where
         &self,
         surface: &Surface<B>,
     ) -> Option<Vec<rendy_core::hal::format::Format>> {
-        profile_scope!("get_surface_compatibility");
-
         assert_eq!(
             surface.instance_id(),
             self.instance.id(),
@@ -722,8 +700,6 @@ where
         &self,
         surface: &Surface<B>,
     ) -> rendy_core::hal::window::SurfaceCapabilities {
-        profile_scope!("get_surface_compatibility");
-
         assert_eq!(
             surface.instance_id(),
             self.instance.id(),
@@ -738,8 +714,6 @@ where
     ///
     /// Panics if `surface` was not created by this `Factory`
     pub fn get_surface_format(&self, surface: &Surface<B>) -> format::Format {
-        profile_scope!("get_surface_format");
-
         assert_eq!(
             surface.instance_id(),
             self.instance.id(),
@@ -790,8 +764,6 @@ where
         present_mode: rendy_core::hal::window::PresentMode,
         usage: image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
-        profile_scope!("create_target");
-
         unsafe {
             surface.into_target(
                 &self.adapter.physical_device,
@@ -825,8 +797,6 @@ where
 
     /// Create new semaphore.
     pub fn create_semaphore(&self) -> Result<B::Semaphore, OutOfMemory> {
-        profile_scope!("create_semaphore");
-
         self.device.create_semaphore()
     }
 
@@ -878,8 +848,6 @@ where
         fence: &mut Fence<B>,
         timeout_ns: u64,
     ) -> Result<bool, OomOrDeviceLost> {
-        profile_scope!("wait_for_fence");
-
         if let Some(fence_epoch) = fence.wait_signaled(&self.device, timeout_ns)? {
             // Now we can update epochs counter.
             let family_index = self.families_indices[fence_epoch.queue.family.index];
@@ -900,8 +868,6 @@ where
         wait_for: WaitFor,
         timeout_ns: u64,
     ) -> Result<bool, OomOrDeviceLost> {
-        profile_scope!("wait_for_fences");
-
         let fences = fences
             .into_iter()
             .map(|f| f.borrow_mut())
@@ -985,8 +951,6 @@ where
     where
         R: Reset,
     {
-        profile_scope!("create_command_pool");
-
         family.create_pool(&self.device)
     }
 
@@ -1024,8 +988,6 @@ where
 
     /// Cleanup unused resources
     pub fn cleanup(&mut self, families: &Families<B>) {
-        profile_scope!("cleanup");
-
         let next = self.next_epochs(families);
         let complete = self.complete_epochs();
         unsafe {
@@ -1111,8 +1073,6 @@ where
     where
         T: std::iter::FromIterator<Escape<DescriptorSet<B>>>,
     {
-        profile_scope!("create_descriptor_sets");
-
         let mut result = SmallVec::<[_; 32]>::new();
         unsafe {
             DescriptorSet::create_many(
@@ -1181,7 +1141,6 @@ where
     let mut adapters = instance.enumerate_adapters();
 
     if adapters.is_empty() {
-        log::warn!("No physical devices found");
         return Err(rendy_core::hal::device::CreationError::InitializationFailed);
     }
 
@@ -1233,8 +1192,6 @@ where
             })
             .unzip();
 
-        log::debug!("Queues: {:#?}", get_queues);
-
         let Gpu {
             device,
             mut queue_groups,
@@ -1263,8 +1220,6 @@ where
         .configure(&adapter.physical_device.memory_properties());
     let heaps = heaps.into_iter().collect::<SmallVec<[_; 16]>>();
     let types = types.into_iter().collect::<SmallVec<[_; 32]>>();
-
-    log::debug!("Heaps: {:#?}\nTypes: {:#?}", heaps, types);
 
     let heaps = unsafe {
         Heaps::new(

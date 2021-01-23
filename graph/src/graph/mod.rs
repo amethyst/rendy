@@ -16,7 +16,6 @@ use {
         BufferId, ImageId, NodeId,
     },
     rendy_core::hal::{queue::QueueFamilyId, Backend},
-    thread_profiler::profile_scope,
 };
 
 #[derive(Debug)]
@@ -113,9 +112,6 @@ impl<B: Backend> GraphContext<B> {
         images: impl IntoIterator<Item = &'a (ImageInfo, Option<rendy_core::hal::command::ClearValue>)>,
         frames_in_flight: u32,
     ) -> Result<Self, GraphBuildError> {
-        profile_scope!("alloc");
-
-        log::trace!("Allocate buffers");
         let buffers: Vec<Option<Handle<Buffer<B>>>> = buffers
             .into_iter()
             .enumerate()
@@ -139,7 +135,6 @@ impl<B: Backend> GraphContext<B> {
             .collect::<Result<_, _>>()
             .map_err(GraphBuildError::Buffer)?;
 
-        log::trace!("Allocate images");
         let images: Vec<Option<(Handle<Image<B>>, _)>> = images
             .into_iter()
             .enumerate()
@@ -203,8 +198,6 @@ where
     /// Perform graph execution.
     /// Run every node of the graph and submit resulting command buffers to the queues.
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
-        profile_scope!("run");
-
         if self.frames.next().index() >= self.inflight as _ {
             let wait = Frame::with_index(self.frames.next().index() - self.inflight as u64);
             let self_fences = &mut self.fences;
@@ -219,7 +212,6 @@ where
         let semaphores = &self.semaphores;
 
         for submission in self.schedule.ordered() {
-            log::trace!("Run node {}", submission.node());
             let sid = submission.id();
             let qid = sid.queue();
 
@@ -300,8 +292,6 @@ where
 
     /// Dispose of the `Graph`.
     pub fn dispose(self, factory: &mut Factory<B>, data: &T) {
-        profile_scope!("dispose");
-
         self.frames.dispose(factory);
 
         unsafe {
@@ -375,8 +365,6 @@ where
 
     /// Create new buffer owned by graph.
     pub fn create_buffer(&mut self, size: u64) -> BufferId {
-        profile_scope!("create_buffer");
-
         self.buffers.push(BufferInfo {
             size,
             usage: rendy_core::hal::buffer::Usage::empty(),
@@ -392,8 +380,6 @@ where
         format: rendy_core::hal::format::Format,
         clear: Option<rendy_core::hal::command::ClearValue>,
     ) -> ImageId {
-        profile_scope!("create_image");
-
         self.images.push((
             ImageInfo {
                 kind,
@@ -442,11 +428,7 @@ where
         families: &mut Families<B>,
         aux: &T,
     ) -> Result<Graph<B, T>, GraphBuildError> {
-        profile_scope!("build");
-
-        log::trace!("Schedule nodes execution");
         let chain_nodes: Vec<chain::Node> = {
-            profile_scope!("schedule_nodes");
             self.nodes
                 .iter()
                 .enumerate()
@@ -457,7 +439,6 @@ where
         let chains = chain::collect(chain_nodes, |id| {
             families.family_by_index(id.0).as_slice().len()
         });
-        log::trace!("Scheduled nodes execution {:#?}", chains);
 
         let mut ctx = GraphContext::alloc(
             factory,
@@ -467,31 +448,21 @@ where
             self.frames_in_flight,
         )?;
 
-        log::trace!("Synchronize");
-
         let mut semaphores = 0..;
         let mut schedule = chain::sync(&chains, || {
             let id = semaphores.next().unwrap();
             (id, id)
         });
         schedule.build_order();
-        log::trace!("Schedule: {:#?}", schedule);
 
-        log::trace!("Build nodes");
         let mut built_nodes: Vec<_> = (0..self.nodes.len()).map(|_| None).collect();
         let mut node_descs: Vec<_> = self.nodes.into_iter().map(Some).collect();
 
         {
-            profile_scope!("build_nodes");
-
             for family in schedule.iter() {
-                log::trace!("For family {:#?}", family);
                 for queue in family.iter() {
-                    log::trace!("For queue {:#?}", queue.id());
                     for submission in queue.iter() {
-                        log::trace!("For submission {:#?}", submission.id());
                         let builder = node_descs[submission.node()].take().unwrap();
-                        log::trace!("Build node {:#?}", builder);
                         let node = build_node(
                             &mut ctx,
                             builder,
@@ -503,14 +474,12 @@ where
                             &submission,
                         )
                         .map_err(GraphBuildError::Node)?;
-                        log::debug!("Node built: {:#?}", node);
                         built_nodes[submission.node()] = Some((node, submission.id().queue()));
                     }
                 }
             }
         }
 
-        log::debug!("Create {} semaphores", semaphores.start);
         let semaphores = (0..semaphores.start)
             .map(|_| factory.create_semaphore())
             .collect::<Result<_, _>>()

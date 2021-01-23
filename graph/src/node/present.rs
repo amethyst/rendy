@@ -113,8 +113,7 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
         .map(|(target_image, buf_initial)| {
             let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
             let mut encoder = buf_recording.encoder();
-            let (mut stages, mut barriers) =
-                gfx_acquire_barriers(ctx, None, Some(input_image));
+            let (mut stages, mut barriers) = gfx_acquire_barriers(ctx, None, Some(input_image));
             stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
             stages.end |= rendy_core::hal::pso::PipelineStage::TRANSFER;
             barriers.push(rendy_core::hal::memory::Barrier::Image {
@@ -134,7 +133,6 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                     layers: 0..1,
                 },
             });
-            log::trace!("Acquire {:?} : {:#?}", stages, barriers);
             unsafe {
                 encoder.pipeline_barrier(
                     stages,
@@ -146,14 +144,9 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
             let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
             let formats_differ = target_image.format() != input_image_res.format();
 
-            if extents_differ || formats_differ
-            {
-                if formats_differ {
-                    log::debug!("Present node is blitting because target format {:?} doesnt match image format {:?}", target_image.format(), input_image_res.format());
-                }
-                if extents_differ {
-                    log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
-                }
+            if extents_differ || formats_differ {
+                if formats_differ {}
+                if extents_differ {}
                 unsafe {
                     encoder.blit_image(
                         input_image_res.raw(),
@@ -165,7 +158,8 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                             src_subresource: rendy_core::hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
-                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                                layers: input_image.range.layers.start
+                                    ..input_image.range.layers.start + 1,
                             },
                             src_bounds: rendy_core::hal::image::Offset::ZERO
                                 .into_bounds(&input_image_res.kind().extent()),
@@ -180,7 +174,6 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                     );
                 }
             } else {
-                log::debug!("Present node is copying");
                 unsafe {
                     encoder.copy_image(
                         input_image_res.raw(),
@@ -191,7 +184,8 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                             src_subresource: rendy_core::hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
-                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+                                layers: input_image.range.layers.start
+                                    ..input_image.range.layers.start + 1,
                             },
                             src_offset: rendy_core::hal::image::Offset::ZERO,
                             dst_subresource: rendy_core::hal::image::SubresourceLayers {
@@ -211,8 +205,7 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
             }
 
             {
-                let (mut stages, mut barriers) =
-                    gfx_release_barriers(ctx, None, Some(input_image));
+                let (mut stages, mut barriers) = gfx_release_barriers(ctx, None, Some(input_image));
                 stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
                 stages.end |= rendy_core::hal::pso::PipelineStage::BOTTOM_OF_PIPE;
                 barriers.push(rendy_core::hal::memory::Barrier::Image {
@@ -233,7 +226,6 @@ fn create_per_image_data<B: rendy_core::hal::Backend>(
                     },
                 });
 
-                log::trace!("Release {:?} : {:#?}", stages, barriers);
                 unsafe {
                     encoder.pipeline_barrier(
                         stages,
@@ -470,7 +462,6 @@ where
         loop {
             match self.target.next_image(&self.free_acquire) {
                 Ok(next) => {
-                    log::trace!("Present: {:#?}", next);
                     let for_image = &mut self.per_image[next[0] as usize];
                     core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
 

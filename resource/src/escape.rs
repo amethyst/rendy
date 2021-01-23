@@ -80,9 +80,7 @@ impl<T> Drop for Escape<T> {
             // Read value from `ManuallyDrop` wrapper and send it over the channel.
             match self.sender.send(read(&mut *self.value)) {
                 Ok(_) => {}
-                Err(_) => {
-                    log::error!("`Escape` was dropped after a `Terminal`?");
-                }
+                Err(_) => {}
             }
         }
     }
@@ -125,7 +123,6 @@ impl<T> Terminal<T> {
     /// Get iterator over values from dropped `Escape` instances that was created by this `Terminal`.
     pub fn drain(&mut self) -> impl Iterator<Item = T> + '_ {
         repeat(()).scan(&mut self.receiver, move |receiver, ()| {
-            // trace!("Drain escape");
             if !receiver.is_empty() {
                 receiver.recv().ok()
             } else {
@@ -141,9 +138,7 @@ impl<T> Drop for Terminal<T> {
             ManuallyDrop::drop(&mut self.sender);
             match self.receiver.try_recv() {
                 Err(TryRecvError::Disconnected) => {}
-                _ => {
-                    log::error!("Terminal must be dropped after all `Escape`s");
-                }
+                _ => {}
             }
         }
     }

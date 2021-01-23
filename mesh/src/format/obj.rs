@@ -1,6 +1,5 @@
 //! Loading mesh data from obj format.
 
-use log::trace;
 use {
     crate::{mesh::MeshBuilder, Normal, Position, TexCoord},
     wavefront_obj::obj,
@@ -45,7 +44,6 @@ fn load_from_data(
     // Takes a list of objects that contain geometries that contain shapes that contain
     // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.
-    trace!("Loading mesh");
     let mut objects = vec![];
 
     for object in obj_set.objects {
@@ -71,7 +69,6 @@ fn load_from_data(
                 })
                 .collect::<Vec<_>>();
 
-            trace!("Loading normals");
             let normals = indices
                 .iter()
                 .map(|index| {
@@ -108,7 +105,6 @@ fn load_from_data(
             objects.push((builder, geometry.material_name.clone()))
         }
     }
-    trace!("Loaded mesh");
     Ok(objects)
 }
 

@@ -148,7 +148,6 @@ impl<S> Schedule<S> {
             }
         }
 
-        log::debug!("Schedule order: {:#?}", oredered);
         self.ordered = oredered;
     }
 }
