@@ -88,6 +88,7 @@ use gfx_auxil::read_spirv;
 
 #[cfg(feature = "serde")]
 mod serde_spirv {
+    use gfx_auxil::read_spirv;
 
     pub fn serialize<S>(data: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error>
     where
