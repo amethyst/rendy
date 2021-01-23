@@ -1,6 +1,4 @@
-//!
 //! Texture creation and usage
-//!
 
 #![warn(
     missing_debug_implementations,

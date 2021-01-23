@@ -1,5 +1,4 @@
 //! This module provide functions for find all required synchronizations (barriers and semaphores).
-//!
 use rendy_core::hal;
 use std::collections::HashMap;
 use std::ops::{Range, RangeFrom, RangeTo};

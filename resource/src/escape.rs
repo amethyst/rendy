@@ -7,7 +7,6 @@
 //! underlying value to a `Terminal` when it is dropped.  The user can
 //! then remove those values from the `Terminal` elsewhere in the program
 //! and destroy them however necessary.
-//!
 //! Users are encouraged to dispose of values manually while using `Escape`
 //! as just a safety net.
 

@@ -1,7 +1,5 @@
-//!
 //! Advanced render pass node.
 //! Will replace render pass node when polished.
-//!
 
 mod group;
 mod pass;

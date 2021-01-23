@@ -1,12 +1,9 @@
-//!
 //! This module defines types for execution hierarchy.
-//!
 //! `Submission` is a piece of work that can be recorded into single primary command buffer.
 //! `Submission` contains references to links and semaphores required to wait/signal.
 //! `Queue` contains array of `Submission`'s. User is expected to submission corresponding command buffers in the order.
 //! `Queue`'s are grouped into `Family`. All queues from one `Family` has identical capabilities.
 //! `Schedule` is a set or `Family` instances.
-//!
 use rendy_core::hal;
 
 mod family;

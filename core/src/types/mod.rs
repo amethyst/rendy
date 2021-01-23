@@ -1,6 +1,4 @@
-//!
 //! Types shared across rendy
-//!
 pub mod vertex;
 
 /// Set layout

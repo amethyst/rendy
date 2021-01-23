@@ -1,6 +1,5 @@
 //! Typed pixel formats.
 //! More information on these can be found [here](https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch31s03.html#VkFormat)
-//!
 
 /// Normalized unsigned integer representation
 #[derive(Clone, Copy, Debug, Default)]
@@ -391,7 +390,6 @@ impl_pixel! {
 mod palette_pixel {
     //! A palette_pixel represents is a type that represents a single color value
     //! in a color space.
-    //!
     use palette::{
         encoding,
         luma::{Luma, LumaStandard, Lumaa},

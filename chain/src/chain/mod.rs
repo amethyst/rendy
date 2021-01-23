@@ -1,8 +1,6 @@
-//!
 //! This module defines types to reason about what resources referenced in what submissions.
 //! How commands from those submissions access resources.
 //! This information allows to derive synchronization required.
-//!
 
 use std::collections::HashMap;
 

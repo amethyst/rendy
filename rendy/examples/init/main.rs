@@ -1,6 +1,4 @@
-//!
 //! Basic example initializes core type of the rendy - `Factory` and exits.
-//!
 
 use rendy::{factory::Config, init::AnyRendy};
 

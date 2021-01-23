@@ -1,10 +1,7 @@
-//!
 //! This crates provides means to deal with vertex buffers and meshes.
-//!
 //! `Attribute` and `VertexFormat` allow vertex structure to declare semantics.
 //! `Mesh` can be created from typed vertex structures and provides mechanism to bind
 //! vertex attributes required by shader interface.
-//!
 
 #![warn(
     missing_debug_implementations,

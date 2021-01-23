@@ -1,5 +1,4 @@
 //! Defines node - building block for framegraph.
-//!
 
 pub mod present;
 pub mod render;

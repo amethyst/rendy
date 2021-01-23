@@ -1,5 +1,4 @@
 //! GPU memory management
-//!
 
 #![warn(
     missing_debug_implementations,

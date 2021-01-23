@@ -1,8 +1,6 @@
-//!
 //! The mighty triangle example.
 //! This examples shows colord triangle on white background.
 //! Nothing fancy. Just prove that `rendy` works.
-//!
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},

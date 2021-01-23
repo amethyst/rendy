@@ -1,8 +1,6 @@
-//!
 //! The mighty triangle example, used in an iOS app.
 //! This examples shows a colored triangle on a white background.
 //! Nothing fancy. Just to prove that `rendy` works.
-//!
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},

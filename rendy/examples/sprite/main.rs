@@ -1,7 +1,5 @@
-//!
 //! A simple sprite example.
 //! This examples shows how to render a sprite on a white background.
-//!
 
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},

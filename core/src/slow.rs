@@ -1,6 +1,5 @@
 //! Macros that do run-time safety checks. These can be disabled, but this increases
 //! the risk of unsafe behavior.
-//!
 
 /// `assert!` that is exists only if `"no-slow-safety-checks"` feature is not enabled.
 #[macro_export]

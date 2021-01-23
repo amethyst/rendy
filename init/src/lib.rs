@@ -1,8 +1,6 @@
-//!
 //! Simple rendy initialization.
 //! Takes most bolierplate required for init rendy on different platforms/backends.
 //! It is still possible to construct everything manually if your case is not supported by this module.
-//!
 
 // #[allow(unused)]
 use {
