@@ -39,6 +39,8 @@ impl std::fmt::Display for ShaderError {
     }
 }
 
+use std::ops::Deref;
+
 /// Interface to create shader modules from shaders.
 /// Implemented for static shaders via [`compile_to_spirv!`] macro.
 ///
@@ -67,7 +69,7 @@ pub trait Shader {
         B: Backend,
     {
         hal::device::Device::create_shader_module(
-            factory.device().raw(),
+            factory.device().deref(),
             &self
                 .spirv()
                 .map_err(|e| hal::device::ShaderError::CompilationFailed(format!("{:?}", e)))?,
@@ -459,7 +461,7 @@ impl<B: Backend> ShaderStorage<B> {
         factory: &rendy_factory::Factory<B>,
     ) -> Result<(), hal::device::ShaderError> {
         self.module = Some(hal::device::Device::create_shader_module(
-            factory.device().raw(),
+            factory.device().deref(),
             &self.spirv,
         )?);
 

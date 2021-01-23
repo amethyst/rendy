@@ -371,30 +371,12 @@ where
     }
 }
 
+use derive_more::{Deref, DerefMut};
+
 /// Special encoder to record render-pass commands.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct RenderPassEncoder<'a, B: hal::Backend> {
     inner: EncoderCommon<'a, B, Graphics>,
-}
-
-impl<'a, B> std::ops::Deref for RenderPassEncoder<'a, B>
-where
-    B: hal::Backend,
-{
-    type Target = EncoderCommon<'a, B, Graphics>;
-
-    fn deref(&self) -> &EncoderCommon<'a, B, Graphics> {
-        &self.inner
-    }
-}
-
-impl<'a, B> std::ops::DerefMut for RenderPassEncoder<'a, B>
-where
-    B: hal::Backend,
-{
-    fn deref_mut(&mut self) -> &mut EncoderCommon<'a, B, Graphics> {
-        &mut self.inner
-    }
 }
 
 impl<'a, B> RenderPassEncoder<'a, B>
@@ -508,7 +490,7 @@ where
 }
 
 /// Special encoder to record commands inside render pass.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct RenderPassInlineEncoder<'a, B: hal::Backend> {
     inner: RenderPassEncoder<'a, B>,
 }
@@ -519,26 +501,6 @@ where
 {
     fn drop(&mut self) {
         unsafe { hal::command::CommandBuffer::end_render_pass(self.inner.inner.raw) }
-    }
-}
-
-impl<'a, B> std::ops::Deref for RenderPassInlineEncoder<'a, B>
-where
-    B: hal::Backend,
-{
-    type Target = RenderPassEncoder<'a, B>;
-
-    fn deref(&self) -> &RenderPassEncoder<'a, B> {
-        &self.inner
-    }
-}
-
-impl<'a, B> std::ops::DerefMut for RenderPassInlineEncoder<'a, B>
-where
-    B: hal::Backend,
-{
-    fn deref_mut(&mut self) -> &mut RenderPassEncoder<'a, B> {
-        &mut self.inner
     }
 }
 
@@ -643,30 +605,12 @@ where
 }
 
 /// Trait to encode commands outside render pass.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Encoder<'a, B: hal::Backend, C, L> {
+    #[deref]
+    #[deref_mut]
     inner: EncoderCommon<'a, B, C>,
     level: L,
-}
-
-impl<'a, B, C, L> std::ops::Deref for Encoder<'a, B, C, L>
-where
-    B: hal::Backend,
-{
-    type Target = EncoderCommon<'a, B, C>;
-
-    fn deref(&self) -> &EncoderCommon<'a, B, C> {
-        &self.inner
-    }
-}
-
-impl<'a, B, C, L> std::ops::DerefMut for Encoder<'a, B, C, L>
-where
-    B: hal::Backend,
-{
-    fn deref_mut(&mut self) -> &mut EncoderCommon<'a, B, C> {
-        &mut self.inner
-    }
 }
 
 impl<'a, B, C> Encoder<'a, B, C, PrimaryLevel>

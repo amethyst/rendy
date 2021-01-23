@@ -3,10 +3,7 @@
 //! Instance or Device. This is required to ensure we are making a safe
 //! call.
 
-use {
-    crate::hal::Backend,
-    std::ops::{Deref, DerefMut},
-};
+use crate::hal::Backend;
 
 #[cfg(not(feature = "no-slow-safety-checks"))]
 fn new_instance_id() -> InstanceId {
@@ -66,8 +63,13 @@ impl InstanceId {
     }
 }
 
+use derive_more::{Deref, DerefMut};
+
 /// Raw instance wrapper with id.
+#[derive(Deref, DerefMut)]
 pub struct Instance<B: Backend> {
+    #[deref]
+    #[deref_mut]
     instance: B::Instance,
     id: InstanceId,
 }
@@ -94,39 +96,9 @@ where
         self.id
     }
 
-    /// Get reference to raw instance.
-    pub fn raw(&self) -> &B::Instance {
-        &self.instance
-    }
-
-    /// Get mutable reference to raw instance.
-    pub fn raw_mut(&mut self) -> &mut B::Instance {
-        &mut self.instance
-    }
-
     /// Get inner raw instance
     pub fn into_raw(self) -> B::Instance {
         self.instance
-    }
-}
-
-impl<B> Deref for Instance<B>
-where
-    B: Backend,
-{
-    type Target = B::Instance;
-
-    fn deref(&self) -> &B::Instance {
-        self.raw()
-    }
-}
-
-impl<B> DerefMut for Instance<B>
-where
-    B: Backend,
-{
-    fn deref_mut(&mut self) -> &mut B::Instance {
-        self.raw_mut()
     }
 }
 
@@ -158,8 +130,10 @@ impl DeviceId {
 }
 
 /// Raw device wrapper with id.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Device<B: Backend> {
+    #[deref]
+    #[deref_mut]
     device: B::Device,
     id: DeviceId,
 }
@@ -186,30 +160,9 @@ where
         self.id
     }
 
-    /// Get reference to raw device.
-    pub fn raw(&self) -> &B::Device {
-        &self.device
-    }
-
-    /// Get mutable reference to raw device.
-    pub fn raw_mut(&mut self) -> &mut B::Device {
-        &mut self.device
-    }
-
     /// Get inner raw device
     pub fn into_raw(self) -> B::Device {
         self.device
-    }
-}
-
-impl<B> Deref for Device<B>
-where
-    B: Backend,
-{
-    type Target = B::Device;
-
-    fn deref(&self) -> &B::Device {
-        self.raw()
     }
 }
 

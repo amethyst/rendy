@@ -40,7 +40,7 @@ where
 {
     /// Create new fence in signaled or unsignaled state.
     pub fn new(device: &Device<B>, signaled: bool) -> Result<Self, hal::device::OutOfMemory> {
-        let raw = device.raw().create_fence(false)?;
+        let raw = device.create_fence(false)?;
         Ok(Fence {
             device: device.id(),
             raw,

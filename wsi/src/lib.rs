@@ -112,7 +112,7 @@ where
         f: impl FnOnce(&B::Instance) -> B::Surface,
     ) -> Self {
         Surface {
-            raw: f(instance.raw()),
+            raw: f(instance),
             instance: instance.id(),
         }
     }
