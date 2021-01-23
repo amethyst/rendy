@@ -133,7 +133,7 @@ impl<B: Backend> WindowedRendy<B> {
         #![allow(unused_variables)]
 
         rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-            Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop)) }
+            // Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop)) }
             _ => { Self::init_non_gl(config, Cow::Owned(window_builder), event_loop) }
         })
     }
@@ -147,7 +147,7 @@ impl<B: Backend> WindowedRendy<B> {
         #![allow(unused_variables)]
 
         rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-            Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder.clone(), event_loop)) }
+            // Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder.clone(), event_loop)) }
             _ => { Self::init_non_gl(config, Cow::Borrowed(window_builder), event_loop) }
         })
     }
@@ -267,58 +267,58 @@ impl AnyWindowedRendy {
     }
 }
 
-rendy_with_gl_backend! {
-    /// Wrap raw GL surface.
-    #[allow(unused)]
-    unsafe fn wrap_surface(factory: &Factory<rendy_core::gl::Backend>, surface: rendy_core::gl::Surface) -> Surface<rendy_core::gl::Backend> {
-        Surface::from_raw(surface, factory.instance_id())
-    }
+// rendy_with_gl_backend! {
+//     /// Wrap raw GL surface.
+//     #[allow(unused)]
+//     unsafe fn wrap_surface(factory: &Factory<rendy_core::gl::Backend>, surface: rendy_core::gl::Surface) -> Surface<rendy_core::gl::Backend> {
+//         Surface::from_raw(surface, factory.instance_id())
+//     }
 
-    rendy_not_wasm32! {
-        impl WindowedRendy<rendy_core::gl::Backend> {
-            pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
-                use {hal::format::AsFormat, rendy_core::Instance};
+//     rendy_not_wasm32! {
+//         impl WindowedRendy<rendy_core::gl::Backend> {
+//             pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
+//                 use {hal::format::AsFormat, rendy_core::Instance};
 
-                let windowed_context = unsafe {
-                    let builder = rendy_core::gl::config_context(
-                        rendy_core::gl::glutin::ContextBuilder::new(),
-                        hal::format::Rgba8Srgb::SELF,
-                        None,
-                    )
-                    .with_vsync(true); // TODO: Unhardcode it.
+//                 let windowed_context = unsafe {
+//                     let builder = rendy_core::gl::config_context(
+//                         rendy_core::gl::glutin::ContextBuilder::new(),
+//                         hal::format::Rgba8Srgb::SELF,
+//                         None,
+//                     )
+//                     .with_vsync(true); // TODO: Unhardcode it.
 
-                    builder
-                        .build_windowed(window_builder, event_loop)
-                        .map_err(|err| WindowedRendyInitError::Other(format!("{}", err)))?
-                        .make_current()
-                        .map_err(|(_ctx, err)| WindowedRendyInitError::Other(format!("{}", err)))?
-                };
-                let (context, window) = unsafe { windowed_context.split() };
-                let surface = rendy_core::gl::Surface::from_context(context);
-                let instance = Instance::new(rendy_core::gl::Instance::Surface(surface));
+//                     builder
+//                         .build_windowed(window_builder, event_loop)
+//                         .map_err(|err| WindowedRendyInitError::Other(format!("{}", err)))?
+//                         .make_current()
+//                         .map_err(|(_ctx, err)| WindowedRendyInitError::Other(format!("{}", err)))?
+//                 };
+//                 let (context, window) = unsafe { windowed_context.split() };
+//                 let surface = rendy_core::gl::Surface::from_context(context);
+//                 let instance = Instance::new(rendy_core::gl::Instance::Surface(surface));
 
-                let (factory, families) = rendy_factory::init_with_instance_ref(&instance, config)?;
-                let surface = match rendy_core::Instance::into_raw(instance) {
-                    rendy_core::gl::Instance::Surface(surface) => surface,
-                    _ => unreachable!(),
-                };
-                let surface = unsafe { wrap_surface(&factory, surface) };
-                Ok(WindowedRendy {factory, families, surface, window })
-            }
-        }
-    }
+//                 let (factory, families) = rendy_factory::init_with_instance_ref(&instance, config)?;
+//                 let surface = match rendy_core::Instance::into_raw(instance) {
+//                     rendy_core::gl::Instance::Surface(surface) => surface,
+//                     _ => unreachable!(),
+//                 };
+//                 let surface = unsafe { wrap_surface(&factory, surface) };
+//                 Ok(WindowedRendy {factory, families, surface, window })
+//             }
+//         }
+//     }
 
-    rendy_wasm32! {
-        impl WindowedRendy<rendy_core::gl::Backend> {
-            pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
-                let window = window_builder.build(event_loop)?;
-                let surface = rendy_core::gl::Surface::from_raw_handle(&window);
-                let instance = rendy_core::Instance::new(surface);
+//     rendy_wasm32! {
+//         impl WindowedRendy<rendy_core::gl::Backend> {
+//             pub fn init_gl<T: 'static>(config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>, window_builder: WindowBuilder, event_loop: &EventLoop<T>) -> Result<Self, WindowedRendyInitError> {
+//                 let window = window_builder.build(event_loop)?;
+//                 let surface = rendy_core::gl::Surface::from_raw_handle(&window);
+//                 let instance = rendy_core::Instance::new(surface);
 
-                let (factory, families) = rendy_factory::init_with_instance_ref(&instance, config)?;
-                let surface = unsafe { wrap_surface(&factory, instance.into_raw()) };
-                Ok(WindowedRendy {factory, families, surface, window })
-            }
-        }
-    }
-}
+//                 let (factory, families) = rendy_factory::init_with_instance_ref(&instance, config)?;
+//                 let surface = unsafe { wrap_surface(&factory, instance.into_raw()) };
+//                 Ok(WindowedRendy {factory, families, surface, window })
+//             }
+//         }
+//     }
+// }
