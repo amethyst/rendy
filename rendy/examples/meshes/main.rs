@@ -1,4 +1,3 @@
-use rendy_core::hal;
 //!
 //! The mighty triangle example.
 //! This examples shows colord triangle on white background.
@@ -223,7 +222,7 @@ where
                     .create_descriptor_set(set_layouts[0].clone())
                     .unwrap();
                 factory.write_descriptor_sets(Some(hal::pso::DescriptorSetWrite {
-                    set: set.raw(),
+                    set: &**set,
                     binding: 0,
                     array_offset: 0,
                     descriptors: Some(hal::pso::Descriptor::Buffer(
@@ -327,7 +326,7 @@ where
             encoder.bind_graphics_descriptor_sets(
                 layout,
                 0,
-                Some(self.sets[index].raw()),
+                Some(&**self.sets[index]),
                 std::iter::empty(),
             );
 

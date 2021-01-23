@@ -1225,7 +1225,9 @@ where
 
         if let Some(next) = next {
             let for_image = &mut per_image[next[0] as usize];
-            next.present(queue.raw(), Some(&for_image.release)).unwrap();
+            if let Err(err) = next.present(queue.raw(), Some(&for_image.release)) {
+                log::debug!("Swapchain presentation error: {:#?}", err);
+            }
         }
     }
 

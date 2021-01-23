@@ -1,4 +1,3 @@
-use rendy_core::hal;
 //!
 //! The mighty triangle example.
 //! This examples shows colord triangle on white background.
