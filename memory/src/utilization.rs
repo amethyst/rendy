@@ -105,7 +105,6 @@ impl std::fmt::Display for TotalMemoryUtilization {
 }
 
 fn format_basis_points(basis_points: u64) -> CString {
-    debug_assert!(basis_points <= 10000);
     let s = format!("{:>3}.{:02}%", basis_points / 100, basis_points % 100);
     if basis_points > 7500 {
         s.red()
@@ -121,7 +120,6 @@ fn format_basis_points(basis_points: u64) -> CString {
 }
 
 fn format_basis_points_inverted(basis_points: u64) -> CString {
-    debug_assert!(basis_points <= 10000);
     let s = format!("{:>3}.{:02}%", basis_points / 100, basis_points % 100);
     if basis_points > 9900 {
         s.white()

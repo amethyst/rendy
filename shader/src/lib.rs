@@ -107,7 +107,6 @@ mod serde_spirv {
 impl SpirvShader {
     /// Create Spir-V shader from bytes.
     pub fn new(spirv: Vec<u32>, stage: ShaderStageFlags, entrypoint: &str) -> Self {
-        assert!(!spirv.is_empty());
         Self {
             spirv,
             stage,

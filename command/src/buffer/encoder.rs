@@ -101,7 +101,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::bind_index_buffer(
             self.raw,
             rendy_core::hal::buffer::IndexBufferView {
@@ -133,7 +132,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::bind_vertex_buffers(
             self.raw,
             first_binding,
@@ -156,8 +154,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
-
         unsafe {
             rendy_core::hal::command::CommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
         }
@@ -177,8 +173,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::bind_graphics_descriptor_sets(
             self.raw,
             layout,
@@ -193,8 +187,6 @@ where
     where
         C: Supports<Compute>,
     {
-        self.capability.assert();
-
         unsafe {
             rendy_core::hal::command::CommandBuffer::bind_compute_pipeline(self.raw, pipeline);
         }
@@ -214,8 +206,6 @@ where
     ) where
         C: Supports<Compute>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::bind_compute_descriptor_sets(
             self.raw,
             layout,
@@ -275,7 +265,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_viewports(self.raw, first_viewport, viewports)
     }
 
@@ -294,7 +283,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_scissors(self.raw, first_scissor, rects)
     }
 
@@ -308,7 +296,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_stencil_reference(self.raw, faces, value);
     }
 
@@ -322,7 +309,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_stencil_read_mask(self.raw, faces, value);
     }
 
@@ -336,7 +322,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_stencil_write_mask(self.raw, faces, value);
     }
 
@@ -347,7 +332,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_blend_constants(self.raw, color);
     }
 
@@ -358,7 +342,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_depth_bounds(self.raw, bounds);
     }
 
@@ -369,7 +352,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_line_width(self.raw, width);
     }
 
@@ -380,7 +362,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
         rendy_core::hal::command::CommandBuffer::set_depth_bias(self.raw, depth_bias);
     }
 
@@ -639,10 +620,7 @@ where
         unsafe {
             rendy_core::hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
-                submittables.into_iter().map(|submit| {
-                    assert_eq!(family, submit.family());
-                    submit.raw()
-                }),
+                submittables.into_iter().map(|submit| submit.raw()),
             )
         }
     }
@@ -721,8 +699,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
-
         unsafe {
             rendy_core::hal::command::CommandBuffer::begin_render_pass(
                 self.inner.raw,
@@ -752,8 +728,6 @@ where
     where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
-
         unsafe {
             rendy_core::hal::command::CommandBuffer::begin_render_pass(
                 self.inner.raw,
@@ -779,10 +753,7 @@ where
         unsafe {
             rendy_core::hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
-                submittables.into_iter().map(|submit| {
-                    assert_eq!(family, submit.family());
-                    submit.raw()
-                }),
+                submittables.into_iter().map(|submit| submit.raw()),
             )
         }
     }
@@ -819,8 +790,6 @@ where
     ) where
         C: Supports<Transfer>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
     }
 
@@ -840,8 +809,6 @@ where
     ) where
         C: Supports<Transfer>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::copy_buffer_to_image(
             self.inner.raw,
             src,
@@ -868,8 +835,6 @@ where
     ) where
         C: Supports<Transfer>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::copy_image(
             self.inner.raw,
             src,
@@ -896,8 +861,6 @@ where
     ) where
         C: Supports<Transfer>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::copy_image_to_buffer(
             self.inner.raw,
             src,
@@ -925,8 +888,6 @@ where
     ) where
         C: Supports<Graphics>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::blit_image(
             self.inner.raw,
             src,
@@ -947,8 +908,6 @@ where
     where
         C: Supports<Compute>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::dispatch(self.inner.raw, [x, y, z])
     }
 
@@ -966,8 +925,6 @@ where
     where
         C: Supports<Compute>,
     {
-        self.capability.assert();
-
         rendy_core::hal::command::CommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
     }
 }

@@ -87,7 +87,6 @@ where
                     );
                     let memory_type = gfx_hal::MemoryTypeId(index);
                     let heap_index = heap_index as usize;
-                    assert!(heap_index < heaps.len());
                     MemoryType::new(
                         memory_type,
                         heap_index,
@@ -114,8 +113,6 @@ where
         size: u64,
         align: u64,
     ) -> Result<MemoryBlock<B>, HeapsError> {
-        debug_assert!(fits_u32(self.types.len()));
-
         let (memory_index, _, _) = {
             let suitable_types = self
                 .types
@@ -172,7 +169,6 @@ where
             size,
             align
         );
-        assert!(fits_usize(memory_index));
 
         let memory_type = &mut self.types[memory_index as usize];
         let memory_heap = &mut self.heaps[memory_type.heap_index()];
@@ -196,7 +192,6 @@ where
     pub fn free(&mut self, device: &B::Device, block: MemoryBlock<B>) {
         // trace!("Free block '{:#?}'", block);
         let memory_index = block.memory_index;
-        debug_assert!(fits_usize(memory_index));
         let size = block.size();
 
         let memory_type = &mut self.types[memory_index as usize];

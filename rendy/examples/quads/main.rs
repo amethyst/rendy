@@ -182,9 +182,6 @@ where
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<QuadsRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
-        assert_eq!(buffers.len(), 1);
-        assert!(images.is_empty());
-
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         let mut indirect = factory
@@ -264,8 +261,6 @@ where
                 )
                 .unwrap();
         }
-
-        assert_eq!(set_layouts.len(), 1);
 
         let descriptor_set = factory
             .create_descriptor_set(set_layouts[0].clone())
@@ -418,9 +413,6 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
     ) -> Result<Self::Node, NodeBuildError> {
-        assert!(images.is_empty());
-        assert_eq!(buffers.len(), 1);
-
         let posvelbuff = ctx.get_buffer(buffers[0].id).unwrap();
 
         unsafe {

@@ -400,9 +400,6 @@ where
         buffers: Vec<NodeBuffer>,
         images: Vec<NodeImage>,
     ) -> Result<Box<dyn DynNode<B, T>>, NodeBuildError> {
-        assert_eq!(buffers.len(), 0);
-        assert_eq!(images.len(), 1);
-
         let input_image = images.into_iter().next().unwrap();
         let extent = ctx
             .get_image(input_image.id)

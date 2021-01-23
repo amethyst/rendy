@@ -42,7 +42,6 @@ where
 
     /// Destroy sampler resource.
     pub unsafe fn dispose(self, device: &Device<B>) {
-        self.assert_device_owner(device);
         device.destroy_sampler(self.raw);
         self.relevant.dispose();
     }

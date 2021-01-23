@@ -94,7 +94,6 @@ unsafe fn allocate_from_pool<B: Backend>(
                 panic!("Unexpected error: {:?}", err);
             }
         })?;
-    assert_eq!(allocation.len(), sets_were + count as usize);
     Ok(())
 }
 
@@ -130,7 +129,6 @@ where
         }
 
         while let Some(pool) = self.pools.pop_front() {
-            assert!(pool.freed + pool.free <= pool.size);
             if pool.freed + pool.free < pool.size {
                 log::error!(
                     "Descriptor pool is still in use during allocator disposal. {:?}",
@@ -367,7 +365,6 @@ where
                         .buckets
                         .get_mut(ranges)
                         .expect("Set should be allocated from this allocator");
-                    debug_assert!(bucket.total >= raw_sets.len() as u64);
 
                     bucket.free(raw_sets.drain(..), *pool);
                     *pool = set.pool;
@@ -382,7 +379,6 @@ where
                 .buckets
                 .get_mut(&ranges)
                 .expect("Set should be allocated from this allocator");
-            debug_assert!(bucket.total >= raw_sets.len() as u64);
 
             bucket.free(raw_sets, pool);
         }

@@ -94,7 +94,6 @@ where
         &mut self,
         device: &Device<B>,
     ) -> Result<(), rendy_core::hal::device::OutOfMemory> {
-        self.assert_device_owner(device);
         match self.state {
             FenceState::Signaled => {
                 unsafe { device.reset_fence(&self.raw) }?;
@@ -139,8 +138,6 @@ where
         device: &Device<B>,
         timeout_ns: u64,
     ) -> Result<Option<FenceEpoch>, rendy_core::hal::device::OomOrDeviceLost> {
-        self.assert_device_owner(device);
-
         match self.state {
             FenceState::Submitted(epoch) => {
                 if unsafe { device.wait_for_fence(&self.raw, timeout_ns) }? {
@@ -161,8 +158,6 @@ where
         &mut self,
         device: &Device<B>,
     ) -> Result<Option<FenceEpoch>, rendy_core::hal::device::DeviceLost> {
-        self.assert_device_owner(device);
-
         match self.state {
             FenceState::Submitted(epoch) => {
                 if unsafe { device.get_fence_status(&self.raw) }? {

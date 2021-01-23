@@ -139,10 +139,6 @@ where
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<SpriteGraphicsPipeline<B>, hal::pso::CreationError> {
-        assert!(buffers.is_empty());
-        assert!(images.is_empty());
-        assert_eq!(set_layouts.len(), 1);
-
         // This is how we can load an image and create a new texture.
         let image_reader = BufReader::new(
             File::open(concat!(

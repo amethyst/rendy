@@ -17,7 +17,6 @@ pub trait Write<T: Copy> {
     fn write(&mut self, data: &[T]) {
         unsafe {
             let slice = self.slice();
-            assert!(data.len() <= slice.len());
             copy_nonoverlapping(data.as_ptr(), slice.as_mut_ptr(), data.len());
         }
     }

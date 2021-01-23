@@ -26,8 +26,6 @@ pub(crate) fn mapped_sub_range(
         fitting.start < fitting.end,
         "Memory mapping region must have valid size"
     );
-    assert!(fits_usize(range.end - range.start));
-    assert!(usize::max_value() - (range.end - range.start) as usize >= ptr.as_ptr() as usize);
 
     if fitting.start < range.start || fitting.end > range.end {
         None
@@ -59,7 +57,6 @@ pub(crate) unsafe fn mapped_slice_mut<'a, T>(ptr: NonNull<u8>, size: usize) -> &
         0,
         "Range offset must be multiple of element alignment"
     );
-    assert!(usize::max_value() - size >= ptr.as_ptr() as usize);
     from_raw_parts_mut(ptr.as_ptr() as *mut T, size)
 }
 
@@ -80,6 +77,5 @@ pub(crate) unsafe fn mapped_slice<'a, T>(ptr: NonNull<u8>, size: usize) -> &'a [
         0,
         "Range offset must be multiple of element alignment"
     );
-    assert!(usize::max_value() - size >= ptr.as_ptr() as usize);
     from_raw_parts(ptr.as_ptr() as *const T, size)
 }

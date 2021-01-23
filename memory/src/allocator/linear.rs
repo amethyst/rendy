@@ -105,9 +105,7 @@ where
     }
 
     #[inline]
-    fn unmap(&mut self, _device: &B::Device) {
-        debug_assert!(self.memory.host_visible());
-    }
+    fn unmap(&mut self, _device: &B::Device) {}
 }
 
 /// Config for `LinearAllocator`.
@@ -183,7 +181,6 @@ where
         } else {
             config.linear_size
         };
-        assert!(memory_properties.contains(Self::properties_required()));
         assert!(
             fits_usize(linear_size),
             "Linear size must fit in both usize and u64"
@@ -264,9 +261,6 @@ where
         } else {
             (size, align)
         };
-
-        assert!(size <= self.linear_size);
-        assert!(align <= self.linear_size);
 
         let count = self.lines.len() as u64;
         if let Some(line) = self.lines.back_mut() {

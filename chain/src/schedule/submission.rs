@@ -78,9 +78,7 @@ impl<S> Submission<S> {
     }
 
     /// Set link index for given chain.
-    pub fn set_buffer_link(&mut self, id: Id, link: usize) {
-        assert!(self.buffer_links.insert(id, link).is_none());
-    }
+    pub fn set_buffer_link(&mut self, id: Id, link: usize) {}
 
     /// Get link index for resource by id.
     pub fn image_link_index(&self, id: Id) -> usize {
@@ -88,9 +86,7 @@ impl<S> Submission<S> {
     }
 
     /// Set link index for given chain.
-    pub fn set_image_link(&mut self, id: Id, link: usize) {
-        assert!(self.image_links.insert(id, link).is_none());
-    }
+    pub fn set_image_link(&mut self, id: Id, link: usize) {}
 
     /// Create new submission with specified pass.
     pub(crate) fn new(

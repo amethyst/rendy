@@ -48,7 +48,6 @@ impl MemoryUsage for Data {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        assert!(properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL));
         0 | ((!properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE)) as u32) << 3
             | ((!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED)) as u32) << 2
             | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 1
@@ -78,9 +77,6 @@ impl MemoryUsage for Dynamic {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
-        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
-
         0 | (properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
             | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
             | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
@@ -108,9 +104,6 @@ impl MemoryUsage for Upload {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
-        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
-
         0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
             | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
             | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
@@ -138,9 +131,6 @@ impl MemoryUsage for Download {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        assert!(properties.contains(gfx_hal::memory::Properties::CPU_VISIBLE));
-        assert!(!properties.contains(gfx_hal::memory::Properties::LAZILY_ALLOCATED));
-
         0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
             | (properties.contains(gfx_hal::memory::Properties::CPU_CACHED) as u32) << 1
             | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 0

@@ -60,8 +60,6 @@ where
         >,
         fence: Option<&mut Fence<B>>,
     ) {
-        assert!(fence.as_ref().map_or(true, |f| f.is_unsignaled()));
-
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
@@ -77,10 +75,7 @@ where
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
                     rendy_core::hal::queue::Submission {
-                        command_buffers: submission.submits.into_iter().map(|submit| {
-                            assert_eq!(submit.family(), family);
-                            submit.raw()
-                        }),
+                        command_buffers: submission.submits.into_iter().map(|submit| submit.raw()),
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
                         signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
                     },
@@ -135,10 +130,7 @@ where
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
                     rendy_core::hal::queue::Submission {
-                        command_buffers: submission.submits.into_iter().map(|submit| {
-                            assert_eq!(submit.family(), family);
-                            submit.raw()
-                        }),
+                        command_buffers: submission.submits.into_iter().map(|submit| submit.raw()),
                         wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
                         signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
                     },

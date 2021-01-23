@@ -510,8 +510,6 @@ where
     where
         T: 'static + Copy,
     {
-        assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
-
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
         let mut staging = self
             .create_buffer(
@@ -553,8 +551,6 @@ where
         last: Option<BufferState>,
         next: BufferState,
     ) -> Result<(), OutOfMemory> {
-        assert!(buffer.info().usage.contains(buffer::Usage::TRANSFER_DST));
-        assert!(staging.info().usage.contains(buffer::Usage::TRANSFER_SRC));
         self.uploader
             .upload_buffer(&self.device, buffer, offset, staging, last, next)
     }
@@ -620,12 +616,6 @@ where
     where
         T: 'static + Copy,
     {
-        assert!(image.info().usage.contains(image::Usage::TRANSFER_DST));
-        assert_eq!(image.format().surface_desc().aspects, image_layers.aspects);
-        assert!(image_layers.layers.start <= image_layers.layers.end);
-        assert!(image_layers.layers.end <= image.kind().num_layers());
-        assert!(image_layers.level <= image.info().levels);
-
         let content_size = content.len() as u64 * std::mem::size_of::<T>() as u64;
         let format_desc = image.format().surface_desc();
         let texels_count = (image_extent.width / format_desc.dim.0 as u32) as u64
@@ -872,8 +862,6 @@ where
             .into_iter()
             .map(|f| {
                 let f = f.borrow_mut();
-                f.assert_device_owner(&self.device);
-                assert!(f.is_signaled());
                 f
             })
             .collect::<SmallVec<[_; 32]>>();
@@ -891,8 +879,6 @@ where
         timeout_ns: u64,
     ) -> Result<bool, OomOrDeviceLost> {
         profile_scope!("wait_for_fence");
-
-        fence.assert_device_owner(&self.device);
 
         if let Some(fence_epoch) = fence.wait_signaled(&self.device, timeout_ns)? {
             // Now we can update epochs counter.

@@ -110,9 +110,7 @@ pub trait Supports<C>: Capability {
     fn supports(&self) -> Option<C>;
 
     /// Assert capability.
-    fn assert(&self) {
-        assert!(self.supports().is_some());
-    }
+    fn assert(&self) {}
 }
 
 impl Supports<Transfer> for Transfer {

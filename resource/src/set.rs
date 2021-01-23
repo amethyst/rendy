@@ -56,7 +56,6 @@ where
 
     /// Destroy descriptor set layout resource.
     pub unsafe fn dispose(self, device: &Device<B>) {
-        self.assert_device_owner(device);
         device.destroy_descriptor_set_layout(self.raw);
         self.relevant.dispose();
     }
@@ -102,7 +101,6 @@ where
 
         allocator.allocate(device, layout.raw(), layout.info().ranges(), 1, &mut sets)?;
 
-        assert_eq!(sets.len() as u32, 1);
         Ok(DescriptorSet {
             device: device.id(),
             set: sets.swap_remove(0),
@@ -128,8 +126,6 @@ where
             count,
             &mut sets,
         )?;
-
-        assert_eq!(sets.len() as u32, count);
 
         extend.extend(sets.into_iter().map(|set| DescriptorSet {
             device: device.id(),

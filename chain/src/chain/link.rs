@@ -28,7 +28,6 @@ where
     }
 
     fn push(&mut self, node: &LinkNode<R>) {
-        assert!(self.last < node.sid.index());
         self.access |= node.state.access;
         self.stages |= node.state.stages;
         self.last = node.sid.index();
@@ -116,7 +115,6 @@ where
 
     /// Get usage.
     pub fn submission_state(&self, sid: SubmissionId) -> State<R> {
-        assert_eq!(sid.family(), self.family);
         let lqs = self.queues[sid.queue().index()].as_ref().unwrap();
         State {
             access: lqs.access,
@@ -180,7 +178,6 @@ where
     /// E.g. `Link::compatible` didn't return `true` for the arguments.
     ///
     pub fn add_node(&mut self, node: LinkNode<R>) {
-        assert_eq!(self.family, node.sid.family());
         self.ensure_queue(node.sid.queue().index());
 
         self.access |= node.state.access;
@@ -218,7 +215,6 @@ where
 
     /// Get particular queue
     pub fn queue(&self, qid: QueueId) -> &LinkQueueState<R> {
-        assert_eq!(qid.family(), self.family);
         self.queues[qid.index()].as_ref().unwrap()
     }
 }

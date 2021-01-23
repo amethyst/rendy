@@ -127,7 +127,6 @@ where
     ///
     /// All buffers allocated from this pool must be [freed](#method.free_buffers).
     pub unsafe fn dispose(self, device: &Device<B>) {
-        self.assert_device_owner(device);
         device.destroy_command_pool(self.raw);
         self.relevant.dispose();
     }

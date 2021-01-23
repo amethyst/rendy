@@ -373,8 +373,6 @@ where
         let block_index = chunk.acquire_blocks(count, block_size, align)?;
         let block_range = chunk.blocks_range(block_size, block_index, count);
 
-        debug_assert_eq!((block_range.end - block_range.start) % count as u64, 0);
-
         Some(DynamicBlock {
             range: block_range.clone(),
             memory: chunk.shared_memory(),
@@ -403,7 +401,6 @@ where
             block_size
         );
 
-        debug_assert!(count < MIN_BLOCKS_PER_CHUNK);
         let size_entry = self.sizes.entry(block_size).or_default();
 
         for chunk_index in (&size_entry.ready_chunks).iter() {
@@ -452,7 +449,6 @@ where
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
         log::trace!("Allocate block of size {}", block_size);
 
-        debug_assert_eq!(block_size % self.block_size_granularity, 0);
         let size_entry = self.sizes.entry(block_size).or_default();
         size_entry.total_blocks += 1;
 
@@ -482,7 +478,6 @@ where
 
     fn free_chunk(&mut self, device: &B::Device, chunk: Chunk<B>, block_size: u64) -> u64 {
         log::trace!("Free chunk: {:#?}", chunk);
-        assert!(chunk.is_unused(block_size));
         match chunk.flavor {
             ChunkFlavor::Dedicated(boxed, _) => {
                 let size = boxed.size();
@@ -529,9 +524,7 @@ where
     /// Perform full cleanup of the memory allocated.
     pub fn dispose(self) {
         if !thread::panicking() {
-            for (index, size) in self.sizes {
-                assert_eq!(size.chunks.len(), 0, "SizeEntry({}) is still used", index);
-            }
+            for (index, size) in self.sizes {}
         } else {
             for (index, size) in self.sizes {
                 if !size.chunks.is_empty() {
@@ -558,8 +551,6 @@ where
         size: u64,
         align: u64,
     ) -> Result<(DynamicBlock<B>, u64), gfx_hal::device::AllocationError> {
-        debug_assert!(size <= self.max_allocation());
-        debug_assert!(align.is_power_of_two());
         let aligned_size = ((size - 1) | (align - 1) | (self.block_size_granularity - 1)) + 1;
 
         // This will change nothing if `self.non_coherent_atom_size` is power of two.
@@ -608,7 +599,6 @@ where
 {
     fn from_memory(block_size: u64, memory: Memory<B>, mapping: Option<NonNull<u8>>) -> Self {
         let blocks = memory.size() / block_size;
-        debug_assert!(blocks <= MAX_BLOCKS_PER_CHUNK as u64);
 
         let high_bit = 1 << (blocks - 1);
 
@@ -653,7 +643,6 @@ where
         let range = self.range();
         let start = range.start + block_size * block_index as u64;
         let end = start + block_size * count as u64;
-        debug_assert!(end <= range.end);
         start..end
     }
 
@@ -664,7 +653,6 @@ where
         let high_bit = 1 << (blocks - 1);
         let mask = (high_bit - 1) | high_bit;
 
-        debug_assert!(self.blocks <= mask);
         self.blocks == mask
     }
 
@@ -674,8 +662,6 @@ where
     }
 
     fn acquire_blocks(&mut self, count: u32, block_size: u64, align: u64) -> Option<u32> {
-        debug_assert!(count > 0 && count <= MAX_BLOCKS_PER_CHUNK);
-
         // Holds a bit-array of all positions with `count` free blocks.
         let mut blocks = !0;
         for i in 0..count {
@@ -697,7 +683,6 @@ where
 
     fn release_blocks(&mut self, index: u32, count: u32) {
         let mask = ((1 << count) - 1) << index;
-        debug_assert_eq!(self.blocks & mask, 0);
         self.blocks |= mask;
     }
 
@@ -711,6 +696,5 @@ where
 
 fn max_chunks_per_size() -> usize {
     let value = (std::mem::size_of::<usize>() * 8).pow(4);
-    debug_assert!(fits_u32(value));
     value
 }

@@ -112,10 +112,6 @@ where
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<TriangleRenderPipeline<B>, gfx_hal::pso::CreationError> {
-        assert!(buffers.is_empty());
-        assert!(images.is_empty());
-        assert!(set_layouts.is_empty());
-
         Ok(TriangleRenderPipeline { vertex: None })
     }
 }

@@ -356,8 +356,6 @@ where
     ///
     /// Swapchain must be not in use.
     pub unsafe fn dispose(mut self, device: &Device<B>) -> Surface<B> {
-        self.assert_device_owner(device);
-
         match self.backbuffer {
             Some(images) => {
                 images
@@ -395,8 +393,6 @@ where
         device: &Device<B>,
         suggest_extent: Extent2D,
     ) -> Result<(), SwapchainError> {
-        self.assert_device_owner(device);
-
         let image_count = match self.backbuffer.take() {
             Some(images) => {
                 let count = images.len();

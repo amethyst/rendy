@@ -14,11 +14,10 @@ pub struct Epochs {
 
 impl Epochs {
     fn is_before(&self, other: &Self) -> bool {
-        debug_assert_eq!(self.values.len(), other.values.len());
-        self.values.iter().zip(other.values.iter()).all(|(a, b)| {
-            debug_assert_eq!(a.len(), b.len());
-            a.iter().zip(b.iter()).all(|(a, b)| a < b)
-        })
+        self.values
+            .iter()
+            .zip(other.values.iter())
+            .all(|(a, b)| a.iter().zip(b.iter()).all(|(a, b)| a < b))
     }
 }
 

@@ -28,13 +28,11 @@ impl MemoryHeap {
     pub(super) fn allocated(&mut self, used: u64, effective: u64) {
         self.used += used;
         self.effective += effective;
-        debug_assert!(self.used >= self.effective);
     }
 
     pub(super) fn freed(&mut self, used: u64, effective: u64) {
         self.used -= used;
         self.effective -= effective;
-        debug_assert!(self.used >= self.effective);
     }
 
     pub(super) fn utilization(&self) -> MemoryHeapUtilization {

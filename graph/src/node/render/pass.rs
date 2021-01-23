@@ -243,7 +243,6 @@ where
     pub fn add_subpass(&mut self, subpass: SubpassBuilder<B, T>) -> &mut Self {
         // Since GFX only allows us to pass a u8 for the subpass index, we need
         // to make sure that the subpass count never exceeds 255.
-        assert!(self.subpasses.len() < 255);
 
         self.subpasses.push(subpass);
         self
@@ -444,7 +443,6 @@ where
         if surface.is_some() {
             log::debug!("Surface usage {:#?}", surface_usage);
         } else {
-            debug_assert_eq!(surface_usage, rendy_core::hal::image::Usage::empty());
         }
 
         attachments.sort();
@@ -825,9 +823,6 @@ where
                     .groups
                     .into_iter()
                     .map(|group| {
-                        assert_eq!(group.colors(), subpass_colors);
-                        assert_eq!(group.depth(), subpass_depth);
-
                         let buffers: Vec<_> = group
                             .buffers()
                             .into_iter()
@@ -934,10 +929,7 @@ where
 
                         relevant: relevant::Relevant,
                     },
-                    framebuffer: {
-                        assert_eq!(framebuffers.len(), 1);
-                        framebuffers.remove(0)
-                    },
+                    framebuffer: { framebuffers.remove(0) },
                 })
             }
         };

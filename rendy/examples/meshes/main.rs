@@ -197,10 +197,6 @@ where
         images: Vec<NodeImage>,
         set_layouts: &[Handle<DescriptorSetLayout<B>>],
     ) -> Result<MeshRenderPipeline<B>, rendy_core::hal::pso::CreationError> {
-        assert!(buffers.is_empty());
-        assert!(images.is_empty());
-        assert_eq!(set_layouts.len(), 1);
-
         let frames = ctx.frames_in_flight as _;
         let align = factory
             .physical()

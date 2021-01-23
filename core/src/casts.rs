@@ -51,7 +51,6 @@ pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
 ///
 /// ```
 pub fn identical_cast<T: 'static, U: 'static>(value: T) -> U {
-    assert_eq!(TypeId::of::<T>(), TypeId::of::<U>());
     unsafe {
         // We know types are the same.
         let mut value = std::mem::ManuallyDrop::new(value);

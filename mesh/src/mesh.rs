@@ -383,9 +383,6 @@ where
         &'a self,
         formats: &[VertexFormat],
     ) -> Result<impl IntoIterator<Item = (&'a B::Buffer, u64)>, Incompatible> {
-        debug_assert!(is_slice_sorted(formats), "Formats: {:#?}", formats);
-        debug_assert!(is_slice_sorted_by_key(&self.vertex_layouts, |l| &l.format));
-
         let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
 
         let mut next = 0;
@@ -490,9 +487,7 @@ fn find_compatible_buffer(
     vertex_layouts: &[VertexBufferLayout],
     format: &VertexFormat,
 ) -> Option<usize> {
-    debug_assert!(is_slice_sorted(&*format.attributes));
     for (i, layout) in vertex_layouts.iter().enumerate() {
-        debug_assert!(is_slice_sorted(&*layout.format.attributes));
         if is_compatible(&layout.format, format) {
             return Some(i);
         }

@@ -462,14 +462,12 @@ where
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
         let desc_buffers = self.desc.buffers();
-        assert_eq!(self.buffers.len(), desc_buffers.len());
 
         self.buffers.iter().cloned().zip(desc_buffers).collect()
     }
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
         let desc_images = self.desc.images();
-        assert_eq!(self.images.len(), desc_images.len());
 
         self.images.iter().cloned().zip(desc_images).collect()
     }

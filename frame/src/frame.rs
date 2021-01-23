@@ -94,7 +94,6 @@ where
     /// Advance to the next frame.
     /// All fences of the next frame must be queued.
     pub fn advance(&mut self, fences: Fences<B>) {
-        assert!(fences.iter().all(Fence::is_submitted));
         self.pending.push_back(fences);
         self.next += 1;
     }
@@ -102,7 +101,6 @@ where
     /// Get upper bound of complete frames.
     /// All frames with index less than result of this function are complete.
     pub fn complete_upper_bound(&self) -> u64 {
-        debug_assert!(self.pending.len() as u64 <= self.next);
         self.next - self.pending.len() as u64
     }
 
@@ -137,7 +135,6 @@ where
         factory: &Factory<B>,
         free: impl FnMut(Fences<B>),
     ) -> CompleteFrame {
-        assert!(target.index <= self.next);
         if let Some(complete) = self.complete(target) {
             complete
         } else {
@@ -150,7 +147,6 @@ where
                 rendy_core::hal::device::WaitFor::All,
                 !0,
             );
-            assert_eq!(ready, Ok(true));
             self.pending.drain(..count).for_each(free);
             CompleteFrame {
                 index: target.index,
@@ -165,7 +161,6 @@ where
             rendy_core::hal::device::WaitFor::All,
             !0,
         );
-        assert_eq!(ready, Ok(true));
 
         self.pending
             .drain(..)

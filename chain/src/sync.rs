@@ -289,7 +289,6 @@ where
                     None => {
                         let (signal, wait) = new_semaphore();
                         let old = waits.insert(semaphore, Some(wait));
-                        assert!(old.is_none());
                         signal
                     }
                     Some(signal) => signal.take().unwrap(),
@@ -298,7 +297,6 @@ where
                     None => {
                         let (signal, wait) = new_semaphore();
                         let old = signals.insert(semaphore, Some(signal));
-                        assert!(old.is_none());
                         wait
                     }
                     Some(wait) => wait.take().unwrap(),
@@ -311,10 +309,6 @@ where
         }
         result.set_queue(new_queue);
     }
-
-    debug_assert!(sync.0.is_empty());
-    debug_assert!(signals.values().all(|x| x.is_none()));
-    debug_assert!(waits.values().all(|x| x.is_none()));
 
     result
 }

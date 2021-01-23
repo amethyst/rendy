@@ -163,7 +163,6 @@ where
             scheduled += 1;
         }
     }
-    assert_eq!(scheduled, nodes.nodes.len(), "Dependency loop found!");
 
     Chains {
         schedule: reify_schedule(schedule),
@@ -224,7 +223,6 @@ where
         let family = node.family;
         if !family_full.contains_key(&family) {
             let count = max_queues(family);
-            assert!(count > 0, "Cannot create a family with 0 max queues.");
             for i in 0..count {
                 queues.forward(QueueId::new(family, i));
             }
@@ -235,7 +233,6 @@ where
         }
 
         let id = node_ids.forward(node.id);
-        assert!(id < node_count, "Dependency not found."); // This implies a dep is not there.
         let unscheduled_count = node.dependencies.len();
 
         for dep in node.dependencies {

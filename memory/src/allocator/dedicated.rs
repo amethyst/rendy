@@ -28,7 +28,6 @@ where
     /// Get inner memory.
     /// Panics if mapped.
     pub fn unwrap_memory(self) -> Memory<B> {
-        assert!(self.mapping.is_none());
         self.memory
     }
 

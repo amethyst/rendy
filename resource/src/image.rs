@@ -129,7 +129,6 @@ where
 
     /// Destroy image resource.
     pub unsafe fn dispose(self, device: &Device<B>, heaps: &mut Heaps<B>) {
-        self.assert_device_owner(device);
         device.destroy_image(self.raw);
         if let Some(block) = self.block {
             heaps.free(device, block)
@@ -139,8 +138,6 @@ where
 
     /// Drop image wrapper for swapchain image.
     pub unsafe fn dispose_swapchain_image(self, device: DeviceId) {
-        assert_eq!(self.device_id(), device);
-        assert!(self.block.is_none());
         self.relevant.dispose();
     }
 
@@ -231,8 +228,6 @@ where
         image: Handle<Image<B>>,
     ) -> Result<Self, ImageViewCreationError> {
         log::trace!("{:#?}@{:#?}", info, image);
-
-        image.assert_device_owner(device);
 
         assert!(match_kind(
             image.kind(),

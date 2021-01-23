@@ -53,8 +53,6 @@ impl BlitRegion {
         last: impl IntoIterator<Item = ImageState>,
         next: impl IntoIterator<Item = ImageState>,
     ) -> (QueueId, Vec<BlitRegion>) {
-        assert!(image.levels() > 1);
-
         let aspects = image.format().surface_desc().aspects;
 
         let transfer = rendy_core::hal::pso::PipelineStage::TRANSFER;
@@ -67,7 +65,6 @@ impl BlitRegion {
 
         let mut src_last = last_iter.next().unwrap();
         let mut src_next = next_iter.next().unwrap();
-        assert_eq!(src_last.queue, src_next.queue);
 
         let queue = src_last.queue;
 
@@ -77,8 +74,6 @@ impl BlitRegion {
             .into_iter()
             .zip(last_iter.zip(next_iter))
         {
-            assert_eq!(dst_last.queue, dst_next.queue);
-
             let begin = level == 1;
             let end = level == image.levels() - 1;
 

@@ -77,7 +77,6 @@ where
             queues: {
                 let pos = queue_groups.iter().position(|qg| qg.family.0 == id.index);
                 let group = queue_groups.swap_remove(pos.unwrap());
-                assert_eq!(group.queues.len(), count);
                 group
                     .queues
                     .into_iter()
@@ -130,7 +129,6 @@ where
         R: Reset,
         C: Capability,
     {
-        self.assert_device_owner(device);
         unsafe { CommandPool::create(self.id, self.capability, device) }
     }
 
@@ -188,7 +186,6 @@ where
 {
     /// Get queue family by id.
     pub fn family(&self, id: FamilyId) -> &Family<B> {
-        assert_eq!(id.device, self.device);
         self.family_by_index(id.index)
     }
 
@@ -199,7 +196,6 @@ where
 
     /// Get queue family by id.
     pub fn family_mut(&mut self, id: FamilyId) -> &mut Family<B> {
-        assert_eq!(id.device, self.device);
         self.family_by_index_mut(id.index)
     }
 

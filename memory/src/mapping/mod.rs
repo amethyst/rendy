@@ -68,7 +68,6 @@ where
     //         fits_usize(range.end - range.start),
     //         "Range length must fit in usize"
     //     );
-    //     assert!(memory.host_visible());
 
     //     let ptr = device.map_memory(memory.raw(), range.clone())?;
     //     assert!(
@@ -105,14 +104,11 @@ where
         );
 
         if !memory.host_coherent() {
-            debug_assert_eq!(mapping_range.start % memory.non_coherent_atom_size(), 0, "Bounds of non-coherent memory mapping ranges must be multiple of `Limits::non_coherent_atom_size`");
-            debug_assert_eq!(mapping_range.end % memory.non_coherent_atom_size(), 0, "Bounds of non-coherent memory mapping ranges must be multiple of `Limits::non_coherent_atom_size`");
             debug_assert!(
                 is_sub_range(mapping_range.clone(), requested_range.clone()),
                 "`requested_range` must be sub-range of `mapping_range`",
             );
         } else {
-            debug_assert_eq!(mapping_range, requested_range);
         }
 
         MappedRange {

@@ -100,9 +100,6 @@ fn load_from_data(
 
             // builder.set_indices(indices.iter().map(|i| i.0 as u16).collect::<Vec<u16>>());
 
-            debug_assert!(&normals.len() == &positions.len());
-            debug_assert!(&tex_coords.len() == &positions.len());
-
             builder.add_vertices(positions);
             builder.add_vertices(normals);
             builder.add_vertices(tex_coords);
@@ -139,7 +136,6 @@ f 7/1/6 1/2/6 5/3/6\nf 5/3/6 1/2/6 3/4/6
 ";
         let result = load_from_obj(quad).ok().unwrap();
         // dbg!(& result);
-        assert_eq!(result.len(), 1);
 
         // When compressed into unique vertices there should be 4 vertices per side of the quad
         // assert!()

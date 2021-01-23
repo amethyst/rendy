@@ -276,8 +276,6 @@ where
             rendy_core::hal::pso::CreationError::OutOfMemory(e)
         })?;
 
-        assert_eq!(pipeline.colors.len(), self.inner.colors().len());
-
         let mut vertex_buffers = Vec::new();
         let mut attributes = Vec::new();
 

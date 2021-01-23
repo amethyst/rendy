@@ -25,17 +25,14 @@ macro_rules! family_owned {
 
             /// Assert specified family is owner.
             pub fn assert_family_owner(&self, family: &$crate::Family<B, C>) {
-                assert_eq!(self.family_id(), family.id(), "Resource is not owned by specified family");
             }
 
             /// Assert specified device is owner.
             pub fn assert_device_owner(&self, device: &$crate::core::Device<B>) {
-                assert_eq!(self.family_id().device, device.id(), "Resource is not owned by specified device");
             }
 
             /// Assert specified instance is owner.
             pub fn assert_instance_owner(&self, instance: &$crate::core::Instance<B>) {
-                assert_eq!(self.family_id().device.instance, instance.id(), "Resource is not owned by specified instance");
             }
         }
     };
@@ -57,17 +54,14 @@ macro_rules! family_owned {
 
             /// Assert specified family is owner.
             pub fn assert_family_owner<C>(&self, family: &$crate::Family<B, C>) {
-                assert_eq!(self.family_id(), family.id(), "Resource is not owned by specified family");
             }
 
             /// Assert specified device is owner.
             pub fn assert_device_owner(&self, device: &$crate::core::Device<B>) {
-                assert_eq!(self.family_id().device, device.id(), "Resource is not owned by specified device");
             }
 
             /// Assert specified instance is owner.
             pub fn assert_instance_owner(&self, instance: &$crate::core::Instance<B>) {
-                assert_eq!(self.family_id().device.instance, instance.id(), "Resource is not owned by specified instance");
             }
         }
     };

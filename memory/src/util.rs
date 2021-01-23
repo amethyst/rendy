@@ -1,6 +1,4 @@
 pub(crate) fn aligned(value: u64, align: u64) -> u64 {
-    debug_assert_ne!(align, 0);
-    debug_assert_eq!(align.count_ones(), 1);
     if value == 0 {
         0
     } else {

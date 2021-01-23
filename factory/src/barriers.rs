@@ -148,7 +148,6 @@ impl<B: Backend> Barriers<B> {
                 );
             }
         } else {
-            assert_eq!(self.before_image_transitions.len(), 0);
         }
 
         self.before_stages = pso::PipelineStage::empty();
@@ -178,7 +177,6 @@ impl<B: Backend> Barriers<B> {
                 );
             }
         } else {
-            assert_eq!(self.after_image_transitions.len(), 0);
         }
 
         self.after_stages = pso::PipelineStage::empty();

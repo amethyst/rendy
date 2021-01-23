@@ -60,7 +60,6 @@ where
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, BufferCreationError> {
         log::trace!("{:#?}@{:#?}", info, memory_usage);
-        assert_ne!(info.size, 0);
 
         let mut buf = device
             .create_buffer(info.size, info.usage)
@@ -92,7 +91,6 @@ where
     /// Dispose of buffer resource.
     /// Deallocate memory block.
     pub unsafe fn dispose(self, device: &Device<B>, heaps: &mut Heaps<B>) {
-        self.assert_device_owner(device);
         device.destroy_buffer(self.raw);
         heaps.free(device, self.block);
         self.relevant.dispose();

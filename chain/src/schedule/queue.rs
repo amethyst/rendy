@@ -79,7 +79,6 @@ impl<S> Queue<S> {
     /// This function will panic if requested submission isn't part of this queue.
     ///
     pub fn submission(&self, sid: SubmissionId) -> Option<&Submission<S>> {
-        assert_eq!(self.id, sid.queue());
         self.submissions.get(sid.index())
     }
 
@@ -90,7 +89,6 @@ impl<S> Queue<S> {
     /// This function will panic if requested submission isn't part of this queue.
     ///
     pub fn submission_mut(&mut self, sid: SubmissionId) -> Option<&mut Submission<S>> {
-        assert_eq!(self.id, sid.queue());
         self.submissions.get_mut(sid.index())
     }
 

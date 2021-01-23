@@ -205,8 +205,6 @@ where
     pub fn run(&mut self, factory: &mut Factory<B>, families: &mut Families<B>, aux: &T) {
         profile_scope!("run");
 
-        self.assert_device_owner(factory.device());
-
         if self.frames.next().index() >= self.inflight as _ {
             let wait = Frame::with_index(self.frames.next().index() - self.inflight as u64);
             let self_fences = &mut self.fences;
@@ -304,9 +302,6 @@ where
     pub fn dispose(self, factory: &mut Factory<B>, data: &T) {
         profile_scope!("dispose");
 
-        self.assert_device_owner(factory.device());
-
-        assert!(factory.wait_idle().is_ok());
         self.frames.dispose(factory);
 
         unsafe {
