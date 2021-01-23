@@ -448,11 +448,6 @@ impl<'a, B> NextImages<'a, B>
 where
     B: Backend,
 {
-    // /// Get indices.
-    // pub fn indices(&self) -> impl IntoIterator<Item = u32> + '_ {
-    //     self.targets.iter().map(|(_s, i)| *i)
-    // }
-
     /// Present images by the queue.
     pub unsafe fn present<'b>(
         self,
@@ -469,14 +464,3 @@ where
         }
     }
 }
-
-// impl<'a, B> std::ops::Index<usize> for NextImages<'a, B>
-// where
-//     B: Backend,
-// {
-//     type Output = u32;
-
-//     fn index(&self, index: usize) -> &u32 {
-//         &self.targets[index].1
-//     }
-// }

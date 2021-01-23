@@ -493,7 +493,7 @@ where
                                         // NOTE: Framebuffer must always be created with only one mip level. If image contains multiple levels,
                                         // only the first one is bound as an attachment.
                                         // TODO: Allow customizing this behaviour to choose which level to bind.
-                                        levels: 0 .. 1,
+                                        level_count: Some(1),
                                         ..node_image.range.clone()
                                     }
                                 )
