@@ -116,17 +116,6 @@ where
         })
     }
 
-    /// Create image handler for swapchain image.
-    pub unsafe fn create_from_swapchain(device: DeviceId, info: ImageInfo, raw: B::Image) -> Self {
-        Image {
-            device,
-            raw,
-            block: None,
-            info,
-            relevant: Relevant,
-        }
-    }
-
     /// Destroy image resource.
     pub unsafe fn dispose(self, device: &Device<B>, heaps: &mut Heaps<B>) {
         self.assert_device_owner(device);

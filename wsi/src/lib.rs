@@ -13,6 +13,7 @@
 
 use hal::window::AcquireError;
 use hal::window::PresentationSurface;
+use relevant::Relevant;
 use rendy_core::hal;
 
 use {
@@ -24,7 +25,7 @@ use {
     rendy_core::{
         device_owned, instance_owned, Device, DeviceId, HasRawWindowHandle, Instance, InstanceId,
     },
-    rendy_resource::{Image, ImageInfo},
+    rendy_resource::Image,
 };
 
 /// Error creating a new swapchain.
@@ -137,7 +138,7 @@ where
         &self.raw
     }
 
-    pub fn raw_mut(&self) -> &mut B::Surface {
+    pub fn raw_mut(&mut self) -> &mut B::Surface {
         &mut self.raw
     }
 
@@ -203,7 +204,7 @@ where
             "Resource is not owned by specified instance"
         );
 
-        let (backbuffer, extent) = create_swapchain(
+        let extent = create_swapchain(
             &mut self,
             physical_device,
             device,
@@ -215,13 +216,11 @@ where
 
         Ok(Target {
             device: device.id(),
-            relevant: relevant::Relevant,
+            relevant: Relevant,
             surface: self,
-            backbuffer: Some(backbuffer),
             extent,
             present_mode,
             usage,
-            frame: 0,
         })
     }
 }
@@ -234,7 +233,7 @@ unsafe fn create_swapchain<B: Backend>(
     image_count: u32,
     present_mode: hal::window::PresentMode,
     usage: hal::image::Usage,
-) -> Result<(Vec<Image<B>>, Extent2D), SwapchainError> {
+) -> Result<Extent2D, SwapchainError> {
     let capabilities = surface.capabilities(physical_device);
     let format = surface.format(physical_device);
 
@@ -254,23 +253,6 @@ unsafe fn create_swapchain<B: Backend>(
     );
 
     log::trace!("Surface chosen format {:#?}", format);
-
-    if image_count < *capabilities.image_count.start()
-        || image_count > *capabilities.image_count.end()
-    {
-        log::warn!(
-            "Image count not supported. Supported: {:#?}, requested: {:#?}",
-            capabilities.image_count,
-            image_count
-        );
-        return Err(SwapchainError::BadImageCount(image_count));
-    }
-
-    log::trace!(
-        "Surface capabilities: {:#?}. Pick {} images",
-        capabilities.image_count,
-        image_count
-    );
 
     assert!(
         capabilities.usage.contains(usage),
@@ -301,29 +283,29 @@ unsafe fn create_swapchain<B: Backend>(
     };
 
     surface
-        .raw()
+        .raw_mut()
         .configure_swapchain(&device, swap_config)
         .expect("Could not configure swapchain.");
 
-    let backbuffer = images
-        .into_iter()
-        .map(|image| {
-            Image::create_from_swapchain(
-                device.id(),
-                ImageInfo {
-                    kind: hal::image::Kind::D2(extent.width, extent.height, 1, 1),
-                    levels: 1,
-                    format,
-                    tiling: hal::image::Tiling::Optimal,
-                    view_caps: hal::image::ViewCapabilities::empty(),
-                    usage,
-                },
-                image,
-            )
-        })
-        .collect();
+    // let backbuffer = images
+    //     .into_iter()
+    //     .map(|image| Image {
+    //         device: device.id(),
+    //         block: None,
+    //         relevant: Relevant,
+    //         raw: image,
+    //         info: ImageInfo {
+    //             kind: hal::image::Kind::D2(extent.width, extent.height, 1, 1),
+    //             levels: 1,
+    //             format,
+    //             tiling: hal::image::Tiling::Optimal,
+    //             view_caps: hal::image::ViewCapabilities::empty(),
+    //             usage,
+    //         },
+    //     })
+    //     .collect();
 
-    Ok((backbuffer, extent))
+    Ok(extent)
 }
 
 /// Rendering target bound to window.
@@ -331,12 +313,10 @@ unsafe fn create_swapchain<B: Backend>(
 pub struct Target<B: Backend> {
     device: DeviceId,
     surface: Surface<B>,
-    backbuffer: Option<Vec<Image<B>>>,
     extent: Extent2D,
     present_mode: hal::window::PresentMode,
     usage: hal::image::Usage,
-    relevant: relevant::Relevant,
-    frame: u64,
+    relevant: Relevant,
 }
 
 device_owned!(Target<B>);
@@ -346,9 +326,7 @@ where
     B: Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Target")
-            .field("backbuffer", &self.backbuffer)
-            .finish()
+        fmt.debug_struct("Target").finish()
     }
 }
 
@@ -361,17 +339,17 @@ where
     /// # Safety
     ///
     /// Swapchain must be not in use.
-    pub unsafe fn dispose(mut self, device: &Device<B>) -> Surface<B> {
+    pub unsafe fn dispose(self, device: &Device<B>) -> Surface<B> {
         self.assert_device_owner(device);
 
-        match self.backbuffer {
-            Some(images) => {
-                images
-                    .into_iter()
-                    .for_each(|image| image.dispose_swapchain_image(device.id()));
-            }
-            _ => {}
-        };
+        // match self.backbuffer {
+        //     Some(images) => {
+        //         images
+        //             .into_iter()
+        //             .for_each(|image| image.dispose_swapchain_image(device.id()));
+        //     }
+        //     _ => {}
+        // };
 
         self.relevant.dispose();
         self.surface
@@ -395,38 +373,35 @@ where
     ) -> Result<(), SwapchainError> {
         self.assert_device_owner(device);
 
-        let image_count = match self.backbuffer.take() {
-            Some(images) => {
-                let count = images.len();
-                images
-                    .into_iter()
-                    .for_each(|image| image.dispose_swapchain_image(device.id()));
-                count
-            }
-            None => 0,
-        };
+        // let image_count = match self.backbuffer.take() {
+        //     Some(images) => {
+        //         let count = images.len();
+        //         images
+        //             .into_iter()
+        //             .for_each(|image| image.dispose_swapchain_image(device.id()));
+        //         count
+        //     }
+        //     None => 0,
+        // };
 
-        let (backbuffer, extent) = create_swapchain(
+        let extent = create_swapchain(
             &mut self.surface,
             physical_device,
             device,
             suggest_extent,
-            image_count as u32,
+            3,
             self.present_mode,
             self.usage,
         )?;
 
-        self.backbuffer.replace(backbuffer);
         self.extent = extent;
 
         Ok(())
     }
 
     /// Get raw handlers for the swapchain images.
-    pub fn backbuffer(&self) -> &Vec<Image<B>> {
-        self.backbuffer
-            .as_ref()
-            .expect("Swapchain already disposed")
+    pub fn backbuffer(&self) -> Vec<Image<B>> {
+        Vec::new()
     }
 
     /// Get render target size.
@@ -442,20 +417,18 @@ where
     /// Acquire next image.
     pub unsafe fn next_image(
         &mut self,
-        signal: &B::Semaphore,
+        _signal: &B::Semaphore,
     ) -> Result<NextImages<'_, B>, AcquireError> {
-        let surface_image = unsafe {
-            match self.surface.raw.acquire_image(!0) {
-                Ok((image, _)) => image,
-                Err(_) => {
-                    // FIXME self.recreate_swapchain();
-                    return Err(AcquireError::OutOfDate);
-                }
+        let surface_image = match self.surface.raw.acquire_image(!0) {
+            Ok((image, _)) => image,
+            Err(_) => {
+                // FIXME self.recreate_swapchain();
+                return Err(AcquireError::OutOfDate);
             }
         };
 
         Ok(NextImages {
-            targets: std::iter::once((&*self, surface_image)).collect(),
+            targets: std::iter::once((&mut *self, surface_image)).collect(),
         })
     }
 }
@@ -465,7 +438,7 @@ where
 pub struct NextImages<'a, B: Backend> {
     targets: smallvec::SmallVec<
         [(
-            &'a Target<B>,
+            &'a mut Target<B>,
             <<B as hal::Backend>::Surface as PresentationSurface<B>>::SwapchainImage,
         ); 8],
     >,
@@ -489,8 +462,11 @@ where
     where
         'a: 'b,
     {
-        let Some((target, image)) = self.targets.into_iter().next();
-        queue.present(target.surface.raw_mut(), image, wait)
+        if let Some((target, image)) = self.targets.into_iter().next() {
+            queue.present(target.surface.raw_mut(), image, wait)
+        } else {
+            Err(hal::window::PresentError::OutOfDate)
+        }
     }
 }
 
