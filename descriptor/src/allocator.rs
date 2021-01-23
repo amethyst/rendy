@@ -6,48 +6,22 @@ use {
         Backend,
     },
     smallvec::{smallvec, SmallVec},
-    std::{
-        collections::{HashMap, VecDeque},
-        ops::Deref,
-    },
+    std::collections::{HashMap, VecDeque},
 };
 
 const MIN_SETS: u32 = 64;
 const MAX_SETS: u32 = 512;
 
+use derive_more::{Deref, DerefMut};
+
 /// Descriptor set from allocator.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct DescriptorSet<B: Backend> {
+    #[deref]
+    #[deref_mut]
     raw: B::DescriptorSet,
     pool: u64,
     ranges: DescriptorRanges,
-}
-
-impl<B> DescriptorSet<B>
-where
-    B: Backend,
-{
-    /// Get raw set
-    pub fn raw(&self) -> &B::DescriptorSet {
-        &self.raw
-    }
-
-    /// Get raw set
-    /// It must not be replaced.
-    pub unsafe fn raw_mut(&mut self) -> &mut B::DescriptorSet {
-        &mut self.raw
-    }
-}
-
-impl<B> Deref for DescriptorSet<B>
-where
-    B: Backend,
-{
-    type Target = B::DescriptorSet;
-
-    fn deref(&self) -> &B::DescriptorSet {
-        &self.raw
-    }
 }
 
 #[derive(Debug)]

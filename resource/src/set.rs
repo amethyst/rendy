@@ -77,10 +77,14 @@ where
     }
 }
 
+use derive_more::{Deref, DerefMut};
+
 /// Generic descriptor set resource wrapper.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct DescriptorSet<B: Backend> {
     device: DeviceId,
+    #[deref]
+    #[deref_mut]
     set: descriptor::DescriptorSet<B>,
     layout: Handle<DescriptorSetLayout<B>>,
     relevant: Relevant,
@@ -142,16 +146,6 @@ where
     pub unsafe fn dispose(self, allocator: &mut descriptor::DescriptorAllocator<B>) {
         allocator.free(Some(self.set));
         self.relevant.dispose();
-    }
-
-    /// Get reference to raw descriptor set resource.
-    pub fn raw(&self) -> &B::DescriptorSet {
-        self.set.raw()
-    }
-
-    /// Get mutable reference to raw descriptor set resource.
-    pub unsafe fn raw_mut(&mut self) -> &mut B::DescriptorSet {
-        self.set.raw_mut()
     }
 
     /// Get layout of descriptor set.

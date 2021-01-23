@@ -16,15 +16,18 @@ use {
     std::{
         iter::repeat,
         mem::ManuallyDrop,
-        ops::{Deref, DerefMut},
         ptr::{drop_in_place, read},
         sync::Arc,
     },
 };
 
+use derive_more::{Deref, DerefMut};
+
 /// Allows values to "escape" dropping by sending them to the `Terminal`.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Escape<T> {
+    #[deref(forward)]
+    #[deref_mut(forward)]
     value: ManuallyDrop<T>,
     sender: Sender<T>,
 }
@@ -58,19 +61,6 @@ impl<T> Escape<T> {
     /// Share escaped value.
     pub fn share(escape: Self) -> Handle<T> {
         escape.into()
-    }
-}
-
-impl<T> Deref for Escape<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        &*self.value
-    }
-}
-
-impl<T> DerefMut for Escape<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut *self.value
     }
 }
 
@@ -148,7 +138,8 @@ impl<T> Drop for Terminal<T> {
 /// Permit sharing unlike [`Escape`]
 ///
 /// [`Escape`]: ./struct.Escape.html
-#[derive(Debug)]
+#[derive(Debug, Deref)]
+#[deref(forward)]
 pub struct Handle<T> {
     inner: Arc<Escape<T>>,
 }
@@ -166,13 +157,5 @@ impl<T> From<Escape<T>> for Handle<T> {
         Handle {
             inner: Arc::new(value),
         }
-    }
-}
-
-impl<T> Deref for Handle<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &**self.inner
     }
 }

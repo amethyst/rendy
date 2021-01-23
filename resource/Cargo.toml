@@ -21,3 +21,4 @@ rendy-descriptor = { version = "0.5.1", path = "../descriptor" }
 rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-core = { version = "0.5.1", path = "../core" }
 smallvec = "1.5.1"
+derive_more = "0.99.11"
