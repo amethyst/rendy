@@ -1,7 +1,10 @@
 [package]
 name = "rendy-shader"
 version = "0.5.1"
-authors = ["omni-viral <scareaangel@gmail.com>", "Walter Pearce <jaynus@gmail.com>"]
+authors = [
+    "omni-viral <scareaangel@gmail.com>",
+    "Walter Pearce <jaynus@gmail.com>",
+]
 edition = "2018"
 repository = "https://github.com/amethyst/rendy"
 license = "MIT OR Apache-2.0"
@@ -12,7 +15,7 @@ description = "Rendy's shader compilation tool"
 
 [features]
 shader-compiler = ["shaderc"]
-spirv-reflection = [ "spirv-reflect" ]
+spirv-reflection = ["spirv-reflect"]
 serde-1 = ["serde", "rendy-core/serde-1"]
 
 [dependencies]
@@ -23,3 +26,4 @@ rendy-core = { version = "0.5.1", path = "../core" }
 shaderc = { version = "0.7.0", optional = true }
 serde = { version = "1.0.118", optional = true, features = ["derive"] }
 spirv-reflect = { version = "0.2.3", optional = true }
+gfx-auxil = "0.7.0"

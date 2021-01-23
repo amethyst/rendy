@@ -84,8 +84,11 @@ pub struct SpirvShader {
     entry: String,
 }
 
+use gfx_auxil::read_spirv;
+
 #[cfg(feature = "serde")]
 mod serde_spirv {
+
     pub fn serialize<S>(data: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -99,8 +102,7 @@ mod serde_spirv {
     {
         // Via the serde::Deserialize impl for &[u8].
         let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
-        rendy_core::hal::pso::read_spirv(std::io::Cursor::new(bytes))
-            .map_err(serde::de::Error::custom)
+        read_spirv(std::io::Cursor::new(bytes)).map_err(serde::de::Error::custom)
     }
 }
 
@@ -123,7 +125,7 @@ impl SpirvShader {
         entrypoint: &str,
     ) -> std::io::Result<Self> {
         Ok(Self::new(
-            rendy_core::hal::pso::read_spirv(std::io::Cursor::new(spirv))?,
+            read_spirv(std::io::Cursor::new(spirv))?,
             stage,
             entrypoint,
         ))
