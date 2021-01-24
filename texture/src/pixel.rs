@@ -208,6 +208,7 @@ impl_pixel_repr! {
 
 /// One pixel
 #[repr(transparent)]
+#[derive(Default)]
 pub struct Pixel<C, S, T>
 where
     C: PixelRepr<S, T>,
@@ -233,17 +234,6 @@ where
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Pixel").field("repr", &self.repr).finish()
-    }
-}
-
-impl<C, S, T> Default for Pixel<C, S, T>
-where
-    C: PixelRepr<S, T>,
-{
-    fn default() -> Self {
-        Pixel {
-            repr: C::Repr::default(),
-        }
     }
 }
 

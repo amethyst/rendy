@@ -1,5 +1,5 @@
-use rendy_core::hal;
 use hal::pso::ShaderStageFlags;
+use rendy_core::hal;
 use rendy_core::types::{vertex::VertexFormat, Layout, SetLayout};
 use spirv_reflect::ShaderModule;
 use std::collections::HashMap;
@@ -143,8 +143,8 @@ impl SpirvReflection {
         output_attributes: HashMap<(String, u8), hal::pso::AttributeDesc>,
         descriptor_sets: Vec<Vec<hal::pso::DescriptorSetLayoutBinding>>,
         push_constants: Vec<(ShaderStageFlags, Range<u32>)>,
-    ) -> Result<Self, ReflectError> {
-        Ok(SpirvReflection {
+    ) -> Self {
+        SpirvReflection {
             output_attributes,
             input_attributes,
             descriptor_sets,
@@ -153,7 +153,7 @@ impl SpirvReflection {
             entrypoints,
             entrypoint,
             cache: None,
-        })
+        }
     }
 
     pub(crate) fn compile_cache(mut self) -> Result<Self, ReflectError> {
@@ -236,7 +236,7 @@ impl SpirvReflection {
 
                 let entrypoint = if let Some(e) = entrypoint { e } else { "main" };
 
-                Self::new(
+                Ok(Self::new(
                     stage_flag,
                     Some(entrypoint.to_string()),
                     vec![(stage_flag, module.get_entry_point_name())],
@@ -248,7 +248,7 @@ impl SpirvReflection {
                     })?,
                     descriptor_sets_final,
                     push_constants?,
-                )
+                ))
             }
             Err(e) => Err(ReflectError::General(e.to_string())),
         }
@@ -386,7 +386,7 @@ pub(crate) fn merge(reflections: &[SpirvReflection]) -> Result<SpirvReflection, 
         }
     }
 
-    SpirvReflection::new(
+    Ok(SpirvReflection::new(
         set_stage_flags,
         None,
         set_entry_points,
@@ -394,7 +394,7 @@ pub(crate) fn merge(reflections: &[SpirvReflection]) -> Result<SpirvReflection, 
         HashMap::new(),
         descriptor_sets,
         set_push_constants,
-    )
+    ))
 }
 
 /// This enum provides logical comparison results for descriptor sets. Because shaders can share bindings,
