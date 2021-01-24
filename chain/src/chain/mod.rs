@@ -2,8 +2,6 @@
 //! How commands from those submissions access resources.
 //! This information allows to derive synchronization required.
 
-use std::collections::HashMap;
-
 mod link;
 
 use std::ops::BitOr;
@@ -11,10 +9,7 @@ use std::ops::BitOr;
 use derivative::Derivative;
 
 pub use self::link::{Link, LinkNode};
-use crate::{
-    resource::{Buffer, Image, Resource},
-    Id,
-};
+use crate::resource::Resource;
 
 /// This type corresponds to resource category.
 /// All resources from the same category must be accessed as permitted by links of the chain.
@@ -52,9 +47,3 @@ where
             .fold(R::no_usage(), BitOr::bitor)
     }
 }
-
-/// Type alias for map of chains by id for buffers.
-pub(crate) type BufferChains = HashMap<Id, Chain<Buffer>>;
-
-/// Type alias for map of chains by id for images.
-pub(crate) type ImageChains = HashMap<Id, Chain<Image>>;

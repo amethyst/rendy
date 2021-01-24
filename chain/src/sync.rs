@@ -140,34 +140,18 @@ where
     }
 }
 
-/// Map of barriers by resource id.
-pub type Barriers<R> = HashMap<Id, Barrier<R>>;
-
-/// Map of barriers by buffer id.
-pub type BufferBarriers = Barriers<Buffer>;
-
-/// Map of barriers by image id.
-pub type ImageBarriers = Barriers<Image>;
-
 /// Synchronization for submission at one side.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Guard {
     /// Buffer pipeline barriers to be inserted before or after (depends on the side) commands of the submission.
-    pub buffers: BufferBarriers,
+    pub buffers: HashMap<Id, Barrier<Buffer>>,
 
     /// Image pipeline barriers to be inserted before or after (depends on the side) commands of the submission.
-    pub images: ImageBarriers,
+    pub images: HashMap<Id, Barrier<Image>>,
 }
 
 impl Guard {
-    fn new() -> Self {
-        Guard {
-            buffers: HashMap::default(),
-            images: HashMap::default(),
-        }
-    }
-
-    fn pick<R: Resource>(&mut self) -> &mut Barriers<R> {
+    fn pick<R: Resource>(&mut self) -> &mut HashMap<Id, Barrier<R>> {
         use std::any::Any;
         let Guard {
             ref mut buffers,
@@ -179,8 +163,11 @@ impl Guard {
     }
 }
 
+use derivative::Derivative;
+
 /// Both sides of synchronization for submission.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct SyncData<S, W> {
     /// Points at other queues that must be waited before commands from the submission can be executed.
     pub wait: Vec<Wait<W>>,
@@ -198,15 +185,6 @@ pub struct SyncData<S, W> {
 }
 
 impl<S, W> SyncData<S, W> {
-    fn new() -> Self {
-        SyncData {
-            wait: Vec::new(),
-            acquire: Guard::new(),
-            release: Guard::new(),
-            signal: Vec::new(),
-        }
-    }
-
     fn convert_signal<F, T>(self, mut f: F) -> SyncData<T, W>
     where
         F: FnMut(S) -> T,
@@ -255,7 +233,7 @@ impl<S, W> SyncData<S, W> {
 struct SyncTemp(HashMap<SubmissionId, SyncData<Semaphore, Semaphore>>);
 impl SyncTemp {
     fn get_sync(&mut self, sid: SubmissionId) -> &mut SyncData<Semaphore, Semaphore> {
-        self.0.entry(sid).or_insert_with(SyncData::new)
+        self.0.entry(sid).or_insert_with(SyncData::default)
     }
 }
 
@@ -309,7 +287,7 @@ where
                 });
                 sync
             } else {
-                SyncData::new()
+                SyncData::default()
             };
             new_queue.add_submission_checked(submission.set_sync(sync));
         }

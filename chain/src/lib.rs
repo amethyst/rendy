@@ -29,5 +29,5 @@ pub use crate::{
     node::{Node, State},
     resource::{AccessFlags, Buffer, Image, Resource, UsageFlags},
     schedule::{Family, Queue, QueueId, Schedule, Submission, SubmissionId},
-    sync::{sync, Barrier, Barriers, BufferBarriers, Guard, ImageBarriers, Signal, SyncData, Wait},
+    sync::{sync, Barrier, Guard, Signal, SyncData, Wait},
 };

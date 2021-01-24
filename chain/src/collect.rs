@@ -8,7 +8,7 @@ use std::{
 use rendy_core::hal;
 
 use crate::{
-    chain::{BufferChains, Chain, ImageChains, Link, LinkNode},
+    chain::{Chain, Link, LinkNode},
     node::{Node, State},
     resource::{Buffer, Image, Resource},
     schedule::{Queue, QueueId, Schedule, Submission, SubmissionId},
@@ -26,10 +26,10 @@ pub struct Chains {
     pub schedule: Schedule<Unsynchronized>,
 
     /// Contains all buffer chains.
-    pub buffers: BufferChains,
+    pub buffers: HashMap<Id, Chain<Buffer>>,
 
     /// Contains all image chains.
-    pub images: ImageChains,
+    pub images: HashMap<Id, Chain<Image>>,
 }
 
 #[derive(PartialEq, PartialOrd, Eq, Ord)]
