@@ -2,7 +2,11 @@
 
 use std::{borrow::Cow, mem::size_of};
 
-use rendy_core::{hal, hal::adapter::PhysicalDevice};
+use rendy_core::{
+    hal,
+    hal::{adapter::PhysicalDevice, command::CommandBuffer},
+};
+use smallvec::{IntoIter, SmallVec};
 
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
@@ -81,7 +85,7 @@ impl<'a> From<Cow<'a, [u32]>> for Indices<'a> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MeshBuilder<'a> {
     #[cfg_attr(feature = "serde", serde(borrow))]
-    vertices: smallvec::SmallVec<[RawVertices<'a>; 16]>,
+    vertices: SmallVec<[RawVertices<'a>; 16]>,
     #[cfg_attr(feature = "serde", serde(borrow))]
     indices: Option<RawIndices<'a>>,
     prim: hal::pso::Primitive,
@@ -388,8 +392,8 @@ where
     fn get_vertex_iter<'a>(
         &'a self,
         formats: &[VertexFormat],
-    ) -> Result<impl IntoIterator<Item = (&'a B::Buffer, u64)>, Incompatible> {
-        let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
+    ) -> Result<IntoIter<[(&'a B::Buffer, u64); 16]>, Incompatible> {
+        let mut vertex = SmallVec::<[_; 16]>::new();
 
         let mut next = 0;
         for format in formats {
@@ -411,7 +415,9 @@ where
 
         Ok(vertex
             .into_iter()
-            .map(move |offset| (&**self.vertex_buffer, offset)))
+            .map(move |offset| (&**self.vertex_buffer, offset))
+            .collect::<SmallVec<_>>()
+            .into_iter())
     }
 
     /// Bind buffers to specified attribute locations.
