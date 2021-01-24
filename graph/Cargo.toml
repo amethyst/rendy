@@ -17,8 +17,6 @@ dx12 = ["rendy-core/dx12"]
 metal = ["rendy-core/metal"]
 vulkan = ["rendy-core/vulkan"]
 
-profiler = ["thread_profiler/thread_profiler"]
-
 [dependencies]
 rendy-chain = { version = "0.5.1", path = "../chain" }
 rendy-command = { version = "0.5.1", path = "../command" }
@@ -30,12 +28,10 @@ rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi" }
 rendy-shader = { version = "0.5.1", path = "../shader" }
-
 either = "1.6.1"
 bitflags = "1.2.1"
 log = "0.4.11"
 relevant = { version = "0.4.2", features = ["log"] }
 serde = { version = "1.0.118", optional = true, features = ["derive"] }
 smallvec = "1.5.1"
-thread_profiler = "0.3.0"
 derivative = "2.2.0"

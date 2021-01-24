@@ -17,7 +17,6 @@ dx12 = ["rendy-core/dx12"]
 metal = ["rendy-core/metal"]
 vulkan = ["rendy-core/vulkan"]
 
-
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command" }
 rendy-factory = { version = "0.5.1", path = "../factory" }

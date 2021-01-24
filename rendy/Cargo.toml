@@ -42,7 +42,6 @@ dx12 = ["rendy-core/dx12"]
 metal = ["rendy-core/metal"]
 vulkan = ["rendy-core/vulkan"]
 
-profiler = ["thread_profiler/thread_profiler"]
 
 # Base feature enables all subcrates
 base = [
@@ -97,8 +96,6 @@ rendy-resource = { version = "0.5.1", path = "../resource", optional = true }
 rendy-texture = { version = "0.5.1", path = "../texture", optional = true }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi", optional = true }
-
-thread_profiler = "0.3.0"
 
 [dev-dependencies]
 genmesh = "0.6.2"

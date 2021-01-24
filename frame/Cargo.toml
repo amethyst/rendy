@@ -10,20 +10,14 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's frame synchronization tool"
 
-[features]
-
-profiler = ["thread_profiler/thread_profiler"]
-
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command" }
 rendy-factory = { version = "0.5.1", path = "../factory" }
 rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-core = { version = "0.5.1", path = "../core" }
-
 either = "1.6.1"
 log = "0.4.11"
 relevant = { version = "0.4.2", features = ["log"] }
 smallvec = "1.5.1"
-thread_profiler = "0.3.0"
 derivative = "2.2.0"

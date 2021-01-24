@@ -10,9 +10,6 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's resource manager"
 
-[features]
-
-
 [dependencies]
 crossbeam-channel = "0.5.0"
 log = "0.4.11"

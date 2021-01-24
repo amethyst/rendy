@@ -10,14 +10,8 @@ keywords = ["graphics", "gfx-hal", "rendy"]
 categories = ["rendering"]
 description = "Rendy's queues and commands tools"
 
-[features]
-
-profiler = ["thread_profiler/thread_profiler"]
-
 [dependencies]
 relevant = { version = "0.4.2", features = ["log", "backtrace"] }
 smallvec = "1.5.1"
 rendy-core = { version = "0.5.1", path = "../core" }
-thread_profiler = "0.3.0"
 derive_more = "0.99.11"
-derivative = "2.2.0"
