@@ -81,7 +81,6 @@ pub enum EnabledBackend {
 impl EnabledBackend {
     /// Check which backend is it.
     pub fn which<B: crate::hal::Backend>() -> Self {
-        #[allow(unused_variables)]
         let tid = TypeId::of::<B>();
         match () {
             #[cfg(all(
@@ -428,12 +427,17 @@ macro_rules! rendy_backend {
 /// Check if specified backend would use pipeline barriers or using them is futile.
 /// Piece of internal knowledge.
 #[inline]
-#[rustfmt::skip]
 pub fn uses_pipeline_barriers<B: crate::hal::Backend>(_device: &B::Device) -> bool {
     rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-        Gl => { false }
-        Metal => { false }
-        _ => { true }
+        Gl => {
+            false
+        }
+        Metal => {
+            false
+        }
+        _ => {
+            true
+        }
     })
 }
 

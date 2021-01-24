@@ -109,8 +109,6 @@ impl<B: Backend> WindowedRendy<B> {
         window_builder: Cow<WindowBuilder>,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unused_variables)]
-
         let mut rendy = Rendy::<B>::init(config)?;
         let window = window_builder.into_owned().build(event_loop)?;
         let surface = rendy.factory.create_surface(&window)?;
@@ -124,31 +122,37 @@ impl<B: Backend> WindowedRendy<B> {
 }
 
 impl<B: Backend> WindowedRendy<B> {
-    #[rustfmt::skip]
     pub fn init<T: 'static>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unused_variables)]
-
         rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-            Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop)) }
-            _ => { Self::init_non_gl(config, Cow::Owned(window_builder), event_loop) }
+            Gl => {
+                identical_cast(WindowedRendy::init_gl(config, window_builder, event_loop))
+            }
+            _ => {
+                Self::init_non_gl(config, Cow::Owned(window_builder), event_loop)
+            }
         })
     }
 
-    #[rustfmt::skip]
     pub fn init_ref_builder<T: 'static>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: &WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unused_variables)]
-
         rendy_backend!(match (EnabledBackend::which::<B>()): EnabledBackend {
-            Gl => { identical_cast(WindowedRendy::init_gl(config, window_builder.clone(), event_loop)) }
-            _ => { Self::init_non_gl(config, Cow::Borrowed(window_builder), event_loop) }
+            Gl => {
+                identical_cast(WindowedRendy::init_gl(
+                    config,
+                    window_builder.clone(),
+                    event_loop,
+                ))
+            }
+            _ => {
+                Self::init_non_gl(config, Cow::Borrowed(window_builder), event_loop)
+            }
         })
     }
 }
@@ -185,24 +189,22 @@ impl std::fmt::Display for WindowedRendyAutoInitError {
                     writeln!(fmt, "  {:#}: {:#}", backend, error)?;
                 }
             }
-        } else {
-            if self.errors.is_empty() {
-                write!(fmt, "No enabled backends among available:")?;
-                for &backend in BASIC_PRIORITY {
-                    write!(fmt, "  {}", backend)?;
-                }
+        } else if self.errors.is_empty() {
+            write!(fmt, "No enabled backends among available:")?;
+            for &backend in BASIC_PRIORITY {
+                write!(fmt, "  {}", backend)?;
+            }
 
-                if !UNAVAILABLE.is_empty() {
-                    writeln!(fmt, "Following backends are unavailable:")?;
-                    for &backend in UNAVAILABLE {
-                        writeln!(fmt, "  {}", backend)?;
-                    }
+            if !UNAVAILABLE.is_empty() {
+                writeln!(fmt, "Following backends are unavailable:")?;
+                for &backend in UNAVAILABLE {
+                    writeln!(fmt, "  {}", backend)?;
                 }
-            } else {
-                write!(fmt, "Initialization failed for all backends")?;
-                for (backend, error) in &self.errors {
-                    write!(fmt, "  {}: {}", backend, error)?;
-                }
+            }
+        } else {
+            write!(fmt, "Initialization failed for all backends")?;
+            for (backend, error) in &self.errors {
+                write!(fmt, "  {}: {}", backend, error)?;
             }
         }
         Ok(())
@@ -232,44 +234,115 @@ impl AnyWindowedRendy {
         Err(WindowedRendyAutoInitError { errors })
     }
 
-    #[rustfmt::skip]
     pub fn init<T>(
         back: EnabledBackend,
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unused_variables)]
         rendy_backend!(match (back): EnabledBackend {
-            Dx12 => { Ok(AnyWindowedRendy::Dx12(WindowedRendy::<rendy_core::dx12::Backend>::init(config, window_builder, event_loop)?)) }
-            Empty => { Ok(AnyWindowedRendy::Empty(WindowedRendy::<rendy_core::empty::Backend>::init(config, window_builder, event_loop)?)) }
-            Gl => { Ok(AnyWindowedRendy::Gl(WindowedRendy::<rendy_core::gl::Backend>::init(config, window_builder, event_loop)?)) }
-            Metal => { Ok(AnyWindowedRendy::Metal(WindowedRendy::<rendy_core::metal::Backend>::init(config, window_builder, event_loop)?)) }
-            Vulkan => { Ok(AnyWindowedRendy::Vulkan(WindowedRendy::<rendy_core::vulkan::Backend>::init(config, window_builder, event_loop)?)) }
+            Dx12 => {
+                Ok(AnyWindowedRendy::Dx12(WindowedRendy::<
+                    rendy_core::dx12::Backend,
+                >::init(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
+            Empty => {
+                Ok(AnyWindowedRendy::Empty(WindowedRendy::<
+                    rendy_core::empty::Backend,
+                >::init(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
+            Gl => {
+                Ok(AnyWindowedRendy::Gl(WindowedRendy::<
+                    rendy_core::gl::Backend,
+                >::init(
+                    config, window_builder, event_loop
+                )?))
+            }
+            Metal => {
+                Ok(AnyWindowedRendy::Metal(WindowedRendy::<
+                    rendy_core::metal::Backend,
+                >::init(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
+            Vulkan => {
+                Ok(AnyWindowedRendy::Vulkan(WindowedRendy::<
+                    rendy_core::vulkan::Backend,
+                >::init(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
         })
     }
 
-    #[rustfmt::skip]
     fn init_ref_builder<T>(
         back: EnabledBackend,
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: &WindowBuilder,
         event_loop: &EventLoop<T>,
     ) -> Result<Self, WindowedRendyInitError> {
-        #![allow(unused_variables)]
         rendy_backend!(match (back): EnabledBackend {
-            Dx12 => { Ok(AnyWindowedRendy::Dx12(WindowedRendy::<rendy_core::dx12::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
-            Empty => { Ok(AnyWindowedRendy::Empty(WindowedRendy::<rendy_core::empty::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
-            Gl => { Ok(AnyWindowedRendy::Gl(WindowedRendy::<rendy_core::gl::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
-            Metal => { Ok(AnyWindowedRendy::Metal(WindowedRendy::<rendy_core::metal::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
-            Vulkan => { Ok(AnyWindowedRendy::Vulkan(WindowedRendy::<rendy_core::vulkan::Backend>::init_ref_builder(config, window_builder, event_loop)?)) }
+            Dx12 => {
+                Ok(AnyWindowedRendy::Dx12(WindowedRendy::<
+                    rendy_core::dx12::Backend,
+                >::init_ref_builder(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
+            Empty => {
+                Ok(AnyWindowedRendy::Empty(WindowedRendy::<
+                    rendy_core::empty::Backend,
+                >::init_ref_builder(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
+            Gl => {
+                Ok(AnyWindowedRendy::Gl(WindowedRendy::<
+                    rendy_core::gl::Backend,
+                >::init_ref_builder(
+                    config, window_builder, event_loop
+                )?))
+            }
+            Metal => {
+                Ok(AnyWindowedRendy::Metal(WindowedRendy::<
+                    rendy_core::metal::Backend,
+                >::init_ref_builder(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
+            Vulkan => {
+                Ok(AnyWindowedRendy::Vulkan(WindowedRendy::<
+                    rendy_core::vulkan::Backend,
+                >::init_ref_builder(
+                    config,
+                    window_builder,
+                    event_loop,
+                )?))
+            }
         })
     }
 }
 
 rendy_with_gl_backend! {
     /// Wrap raw GL surface.
-    #[allow(unused)]
     unsafe fn wrap_surface(factory: &Factory<rendy_core::gl::Backend>, surface: rendy_core::gl::Surface) -> Surface<rendy_core::gl::Backend> {
         Surface::from_raw(surface, factory.instance_id())
     }

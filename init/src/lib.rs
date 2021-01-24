@@ -2,7 +2,6 @@
 //! Takes most bolierplate required for init rendy on different platforms/backends.
 //! It is still possible to construct everything manually if your case is not supported by this module.
 
-// #[allow(unused)]
 use rendy_command::Families;
 use rendy_core::{
     backend_enum,
@@ -158,25 +157,42 @@ impl AnyRendy {
         Err(RendyAutoInitError { errors })
     }
 
-    #[rustfmt::skip]
     pub fn init(
         back: EnabledBackend,
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
     ) -> Result<Self, RendyInitError> {
-        #![allow(unused_variables)]
         rendy_backend!(match (back): EnabledBackend {
-            Dx12 => { Ok(AnyRendy::Dx12(Rendy::<rendy_core::dx12::Backend>::init(config)?)) }
-            Empty => { Ok(AnyRendy::Empty(Rendy::<rendy_core::empty::Backend>::init(config)?)) }
-            Gl => { Ok(AnyRendy::Gl(Rendy::<rendy_core::gl::Backend>::init(config)?)) }
-            Metal => { Ok(AnyRendy::Metal(Rendy::<rendy_core::metal::Backend>::init(config)?)) }
-            Vulkan => { Ok(AnyRendy::Vulkan(Rendy::<rendy_core::vulkan::Backend>::init(config)?)) }
+            Dx12 => {
+                Ok(AnyRendy::Dx12(Rendy::<rendy_core::dx12::Backend>::init(
+                    config,
+                )?))
+            }
+            Empty => {
+                Ok(AnyRendy::Empty(Rendy::<rendy_core::empty::Backend>::init(
+                    config,
+                )?))
+            }
+            Gl => {
+                Ok(AnyRendy::Gl(Rendy::<rendy_core::gl::Backend>::init(
+                    config,
+                )?))
+            }
+            Metal => {
+                Ok(AnyRendy::Metal(Rendy::<rendy_core::metal::Backend>::init(
+                    config,
+                )?))
+            }
+            Vulkan => {
+                Ok(AnyRendy::Vulkan(
+                    Rendy::<rendy_core::vulkan::Backend>::init(config)?,
+                ))
+            }
         })
     }
 }
 
 /// Get available backends
 pub fn available_backends() -> smallvec::SmallVec<[EnabledBackend; 5]> {
-    #[allow(unused_mut)]
     let mut backends = smallvec::SmallVec::<[EnabledBackend; 5]>::new();
     rendy_with_dx12_backend!(backends.push(EnabledBackend::Dx12));
     rendy_with_empty_backend!(backends.push(EnabledBackend::Empty));
