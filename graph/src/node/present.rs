@@ -1,6 +1,6 @@
 //! Defines present node.
 
-use rendy_core::hal;
+use rendy_core::{hal, hal::window::PresentationSurface};
 
 use crate::{
     command::{
@@ -435,7 +435,7 @@ where
         mut fence: Option<&mut Fence<B>>,
     ) {
         loop {
-            match self.target.next_image(&self.free_acquire) {
+            match self.target.surface().raw_mut().acquire_image(!0) {
                 Ok(next) => {
                     let for_image = &mut self.per_image[next[0] as usize];
                     core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);

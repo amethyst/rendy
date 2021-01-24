@@ -3,7 +3,10 @@ use std::{cmp::min, collections::HashMap};
 use either::Either;
 use rendy_core::{
     hal,
-    hal::{command::CommandBuffer as _, device::Device as _, image::Layout, Backend},
+    hal::{
+        command::CommandBuffer as _, device::Device as _, image::Layout,
+        window::PresentationSurface, Backend,
+    },
     uses_pipeline_barriers,
 };
 
@@ -1062,7 +1065,7 @@ where
             per_image,
         } = self;
 
-        let next = match target.next_image(&free_acquire) {
+        let next = match target.surface().raw_mut().acquire_image(!0) {
             Ok(next) => {
                 std::mem::swap(&mut per_image[next[0] as usize].acquire, free_acquire);
                 Some(next)
