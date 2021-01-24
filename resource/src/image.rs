@@ -193,9 +193,13 @@ pub struct ImageViewInfo {
     pub range: SubresourceRange,
 }
 
+use derive_more::{Deref, DerefMut};
+
 /// Generic image view resource wrapper.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct ImageView<B: Backend> {
+    #[deref]
+    #[deref_mut]
     raw: B::ImageView,
     image: Handle<Image<B>>,
     info: ImageViewInfo,
@@ -244,16 +248,6 @@ where
         device.destroy_image_view(self.raw);
         drop(self.image);
         self.relevant.dispose();
-    }
-
-    /// Get reference to raw image view resoruce.
-    pub fn raw(&self) -> &B::ImageView {
-        &self.raw
-    }
-
-    /// Get mutable reference to raw image view resoruce.
-    pub unsafe fn raw_mut(&mut self) -> &mut B::ImageView {
-        &mut self.raw
     }
 
     /// Get image view info.

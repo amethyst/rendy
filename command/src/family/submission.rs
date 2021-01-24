@@ -2,14 +2,11 @@ use rendy_core::hal;
 
 use crate::buffer::{NoSimultaneousUse, OutsideRenderPass, PrimaryLevel, Submit, Submittable};
 
-#[allow(unused)]
 type NoWaits<B> = std::iter::Empty<(
     &'static <B as hal::Backend>::Semaphore,
     hal::pso::PipelineStage,
 )>;
-#[allow(unused)]
 type NoSignals<B> = std::iter::Empty<&'static <B as hal::Backend>::Semaphore>;
-#[allow(unused)]
 type NoSubmits<B> = std::iter::Empty<Submit<B, NoSimultaneousUse, PrimaryLevel, OutsideRenderPass>>;
 
 /// Command queue submission.

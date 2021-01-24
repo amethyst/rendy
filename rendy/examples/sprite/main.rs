@@ -178,7 +178,7 @@ where
                     binding: 0,
                     array_offset: 0,
                     descriptors: vec![hal::pso::Descriptor::Image(
-                        texture.view().raw(),
+                        texture.view().deref(),
                         hal::image::Layout::ShaderReadOnlyOptimal,
                     )],
                 },
