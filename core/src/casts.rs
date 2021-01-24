@@ -48,7 +48,6 @@ pub fn cast_cow<T: Copy>(cow: Cow<'_, [T]>) -> Cow<'_, [u8]> {
 ///     let value: T = identical_cast(42u32);
 /// }
 /// # }
-///
 /// ```
 pub fn identical_cast<T: 'static, U: 'static>(value: T) -> U {
     unsafe {

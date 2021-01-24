@@ -1,21 +1,21 @@
 //! Module for creating a `Texture` from an image
-use {
-    crate::{
-        core::{cast_cow, cast_slice},
-        factory::{Factory, ImageState, UploadError},
-        memory::Data,
-        pixel::AsPixel,
-        resource::{
-            Escape, Handle, Image, ImageCreationError, ImageInfo, ImageView,
-            ImageViewCreationError, ImageViewInfo, Sampler,
-        },
+use std::num::NonZeroU8;
+
+use rendy_core::hal::{
+    self,
+    format::{Component, Format, Swizzle},
+    image, Backend,
+};
+
+use crate::{
+    core::{cast_cow, cast_slice},
+    factory::{Factory, ImageState, UploadError},
+    memory::Data,
+    pixel::AsPixel,
+    resource::{
+        Escape, Handle, Image, ImageCreationError, ImageInfo, ImageView, ImageViewCreationError,
+        ImageViewInfo, Sampler,
     },
-    rendy_core::hal::{
-        self,
-        format::{Component, Format, Swizzle},
-        image, Backend,
-    },
-    std::num::NonZeroU8,
 };
 
 /// Static image.
@@ -326,11 +326,13 @@ impl<'a> TextureBuilder<'a> {
         let (mip_levels, generate_mips) = match self.mip_levels {
             MipLevels::GenerateLevels(val) => (val.get(), true),
             MipLevels::Levels(val) => (val.get(), false),
-            MipLevels::GenerateAuto => match self.kind {
-                hal::image::Kind::D1(_, _) => (1, false),
-                hal::image::Kind::D2(w, h, _, _) => (mip_levels_from_dims(w, h), true),
-                hal::image::Kind::D3(_, _, _) => (1, false),
-            },
+            MipLevels::GenerateAuto => {
+                match self.kind {
+                    hal::image::Kind::D1(_, _) => (1, false),
+                    hal::image::Kind::D2(w, h, _, _) => (mip_levels_from_dims(w, h), true),
+                    hal::image::Kind::D3(_, _, _) => (1, false),
+                }
+            }
         };
 
         let (info, transform, transform_swizzle) = find_compatible_format(

@@ -1,19 +1,15 @@
+use hal::{device::Device as _, Backend};
 use rendy_core::hal;
-use {
-    super::{RenderGroup, RenderGroupDesc},
-    crate::{
-        command::{QueueId, RenderPassEncoder},
-        factory::Factory,
-        graph::GraphContext,
-        node::{
-            render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
-        },
-        resource::{DescriptorSetLayout, Handle},
-    },
-    hal::{device::Device as _, Backend},
-};
-
 pub use rendy_core::types::{Layout, SetLayout};
+
+use super::{RenderGroup, RenderGroupDesc};
+use crate::{
+    command::{QueueId, RenderPassEncoder},
+    factory::Factory,
+    graph::GraphContext,
+    node::{render::PrepareResult, BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage},
+    resource::{DescriptorSetLayout, Handle},
+};
 
 /// Pipeline info
 #[derive(Clone, Debug)]
@@ -138,7 +134,6 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// `factory`   - factory to create shader modules.
     ///
     /// `aux`       - auxiliary data container. May be anything the implementation desires.
-    ///
     fn load_shader_set(&self, factory: &mut Factory<B>, aux: &T) -> rendy_shader::ShaderSet<B>;
 
     /// Build pass instance.

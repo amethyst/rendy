@@ -1,12 +1,9 @@
-use rendy_core::hal;
-use rendy_core::{Device, DeviceId};
+use hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend};
+use relevant::Relevant;
+use rendy_core::{hal, Device, DeviceId};
+use smallvec::SmallVec;
 
-use {
-    crate::{descriptor, escape::Handle},
-    hal::{device::Device as _, pso::DescriptorSetLayoutBinding, Backend},
-    relevant::Relevant,
-    smallvec::SmallVec,
-};
+use crate::{descriptor, escape::Handle};
 
 /// Descriptor set layout info.
 #[derive(Clone, Debug)]
@@ -126,11 +123,13 @@ where
             &mut sets,
         )?;
 
-        extend.extend(sets.into_iter().map(|set| DescriptorSet {
-            device: device.id(),
-            set,
-            layout: layout.clone(),
-            relevant: Relevant,
+        extend.extend(sets.into_iter().map(|set| {
+            DescriptorSet {
+                device: device.id(),
+                set,
+                layout: layout.clone(),
+                relevant: Relevant,
+            }
         }));
 
         Ok(())

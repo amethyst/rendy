@@ -1,8 +1,9 @@
 use rendy_core::hal;
+pub use shaderc::{self, ShaderKind, SourceLanguage};
+
 // This module is gated under "shader-compiler" feature
 use super::Shader;
 use crate::SpirvShader;
-pub use shaderc::{self, ShaderKind, SourceLanguage};
 
 macro_rules! vk_make_version {
     ($major: expr, $minor: expr, $patch: expr) => {{

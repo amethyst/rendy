@@ -19,15 +19,17 @@ mod shaderc;
 #[allow(dead_code)]
 mod reflect;
 
-#[cfg(feature = "shader-compiler")]
-pub use self::shaderc::*;
+use std::collections::HashMap;
+
+use rendy_core::{
+    hal,
+    hal::{pso::ShaderStageFlags, Backend},
+};
 
 #[cfg(feature = "spirv-reflection")]
 pub use self::reflect::{ReflectError, ReflectTypeError, RetrievalKind, SpirvReflection};
-
-use rendy_core::hal;
-use rendy_core::hal::{pso::ShaderStageFlags, Backend};
-use std::collections::HashMap;
+#[cfg(feature = "shader-compiler")]
+pub use self::shaderc::*;
 
 /// Error type returned by this module.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -44,7 +46,6 @@ use std::ops::Deref;
 
 /// Interface to create shader modules from shaders.
 /// Implemented for static shaders via [`compile_to_spirv!`] macro.
-///
 pub trait Shader {
     /// The error type returned by the spirv function of this shader.
     type Error: std::fmt::Debug;
@@ -245,7 +246,6 @@ impl ShaderSetBuilder {
     /// # Parameters
     ///
     /// `factory`   - factory to create shader modules.
-    ///
     pub fn build<B: Backend>(
         &self,
         factory: &rendy_factory::Factory<B>,

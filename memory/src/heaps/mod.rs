@@ -1,11 +1,10 @@
 mod heap;
 mod memory_type;
 
-use {
-    self::{heap::MemoryHeap, memory_type::MemoryType},
-    crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, utilization::*},
-    std::ops::Range,
-};
+use std::ops::Range;
+
+use self::{heap::MemoryHeap, memory_type::MemoryType};
+use crate::{allocator::*, block::Block, mapping::*, usage::MemoryUsage, utilization::*};
 
 /// Possible errors returned by `Heaps`.
 #[allow(missing_copy_implementations)]
@@ -21,11 +20,13 @@ impl std::fmt::Display for HeapsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             HeapsError::AllocationError(e) => write!(f, "{:?}", e),
-            HeapsError::NoSuitableMemory(e, e2) => write!(
-                f,
-                "Memory type among ({}) with properties ({:?}) not found",
-                e, e2
-            ),
+            HeapsError::NoSuitableMemory(e, e2) => {
+                write!(
+                    f,
+                    "Memory type among ({}) with properties ({:?}) not found",
+                    e, e2
+                )
+            }
         }
     }
 }

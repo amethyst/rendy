@@ -1,32 +1,31 @@
-use rendy_core::hal;
+use std::{cmp::min, collections::HashMap};
+
+use either::Either;
 use rendy_core::{
+    hal,
     hal::{device::Device as _, image::Layout, Backend},
     uses_pipeline_barriers,
 };
 
-use {
-    crate::{
-        command::{
-            CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence,
-            Graphics, IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
-            SecondaryLevel, SimultaneousUse, Submission, Submit,
-        },
-        factory::Factory,
-        frame::{
-            cirque::{CirqueRef, CommandCirque},
-            Frames,
-        },
-        graph::GraphContext,
-        node::{
-            gfx_acquire_barriers, gfx_release_barriers,
-            render::group::{RenderGroup, RenderGroupBuilder},
-            BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuildError, NodeBuilder, NodeImage,
-        },
-        wsi::{Surface, Target},
-        BufferId, ImageId, NodeId,
+use crate::{
+    command::{
+        CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence, Graphics,
+        IndividualReset, MultiShot, NoSimultaneousUse, PendingState, Queue, QueueId,
+        SecondaryLevel, SimultaneousUse, Submission, Submit,
     },
-    either::Either,
-    std::{cmp::min, collections::HashMap},
+    factory::Factory,
+    frame::{
+        cirque::{CirqueRef, CommandCirque},
+        Frames,
+    },
+    graph::GraphContext,
+    node::{
+        gfx_acquire_barriers, gfx_release_barriers,
+        render::group::{RenderGroup, RenderGroupBuilder},
+        BufferAccess, DynNode, ImageAccess, NodeBuffer, NodeBuildError, NodeBuilder, NodeImage,
+    },
+    wsi::{Surface, Target},
+    BufferId, ImageId, NodeId,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -537,16 +536,18 @@ where
                                 image.kind().num_samples(),
                             )
                         }
-                        Either::Right(RenderPassSurface) => (
-                            node_target
-                                .as_ref()
-                                .expect("Expect target created")
-                                .backbuffer()[0]
-                                .format(),
-                            surface_clear,
-                            hal::image::Layout::Present,
-                            1,
-                        ),
+                        Either::Right(RenderPassSurface) => {
+                            (
+                                node_target
+                                    .as_ref()
+                                    .expect("Expect target created")
+                                    .backbuffer()[0]
+                                    .format(),
+                                surface_clear,
+                                hal::image::Layout::Present,
+                                1,
+                            )
+                        }
                     };
 
                     hal::pass::Attachment {
@@ -580,65 +581,69 @@ where
             let subpasses: Vec<_> = self
                 .subpasses
                 .iter()
-                .map(|subpass| OwningSubpassDesc {
-                    inputs: subpass
-                        .inputs
-                        .iter()
-                        .map(|&i| {
+                .map(|subpass| {
+                    OwningSubpassDesc {
+                        inputs: subpass
+                            .inputs
+                            .iter()
+                            .map(|&i| {
+                                (
+                                    attachments.iter().position(|&a| a == i).unwrap(),
+                                    match i {
+                                        Either::Left(image_id) => {
+                                            find_attachment_node_image(image_id).layout
+                                        }
+                                        Either::Right(RenderPassSurface) => {
+                                            hal::image::Layout::ShaderReadOnlyOptimal
+                                        }
+                                    },
+                                )
+                            })
+                            .collect(),
+                        colors: subpass
+                            .colors
+                            .iter()
+                            .map(|&c| {
+                                (
+                                    attachments.iter().position(|&a| a == c).unwrap(),
+                                    match c {
+                                        Either::Left(image_id) => {
+                                            find_attachment_node_image(image_id).layout
+                                        }
+                                        Either::Right(RenderPassSurface) => {
+                                            hal::image::Layout::ColorAttachmentOptimal
+                                        }
+                                    },
+                                )
+                            })
+                            .collect(),
+                        depth_stencil: subpass.depth_stencil.map(|ds| {
                             (
-                                attachments.iter().position(|&a| a == i).unwrap(),
-                                match i {
+                                attachments.iter().position(|&a| a == ds).unwrap(),
+                                match ds {
                                     Either::Left(image_id) => {
                                         find_attachment_node_image(image_id).layout
                                     }
                                     Either::Right(RenderPassSurface) => {
-                                        hal::image::Layout::ShaderReadOnlyOptimal
+                                        hal::image::Layout::DepthStencilAttachmentOptimal
                                     }
                                 },
                             )
-                        })
-                        .collect(),
-                    colors: subpass
-                        .colors
-                        .iter()
-                        .map(|&c| {
-                            (
-                                attachments.iter().position(|&a| a == c).unwrap(),
-                                match c {
-                                    Either::Left(image_id) => {
-                                        find_attachment_node_image(image_id).layout
-                                    }
-                                    Either::Right(RenderPassSurface) => {
-                                        hal::image::Layout::ColorAttachmentOptimal
-                                    }
-                                },
-                            )
-                        })
-                        .collect(),
-                    depth_stencil: subpass.depth_stencil.map(|ds| {
-                        (
-                            attachments.iter().position(|&a| a == ds).unwrap(),
-                            match ds {
-                                Either::Left(image_id) => {
-                                    find_attachment_node_image(image_id).layout
-                                }
-                                Either::Right(RenderPassSurface) => {
-                                    hal::image::Layout::DepthStencilAttachmentOptimal
-                                }
-                            },
-                        )
-                    }),
+                        }),
+                    }
                 })
                 .collect();
 
             let subpasses: Vec<_> = subpasses
                 .iter()
-                .map(|subpass| hal::pass::SubpassDesc {
-                    inputs: &subpass.inputs[..],
-                    colors: &subpass.colors[..],
-                    depth_stencil: subpass.depth_stencil.as_ref(),
-                    resolves: &[],
-                    preserves: &[],
+                .map(|subpass| {
+                    hal::pass::SubpassDesc {
+                        inputs: &subpass.inputs[..],
+                        colors: &subpass.colors[..],
+                        depth_stencil: subpass.depth_stencil.as_ref(),
+                        resolves: &[],
+                        preserves: &[],
+                    }
                 })
                 .collect();
 
@@ -674,9 +679,11 @@ where
 
         let clears: Vec<_> = attachments
             .iter()
-            .filter_map(|&a| match a {
-                Either::Left(image_id) => find_attachment_node_image(image_id).clear,
-                Either::Right(RenderPassSurface) => surface_clear,
+            .filter_map(|&a| {
+                match a {
+                    Either::Left(image_id) => find_attachment_node_image(image_id).clear,
+                    Either::Right(RenderPassSurface) => surface_clear,
+                }
             })
             .map(Into::into)
             .collect();
@@ -796,61 +803,67 @@ where
             .map_err(NodeBuildError::Pipeline)?;
 
         let node: Box<dyn DynNode<B, T>> = match node_target {
-            Some(target) => Box::new(RenderPassNodeWithSurface {
-                common: RenderPassNodeCommon {
-                    subpasses,
+            Some(target) => {
+                Box::new(RenderPassNodeWithSurface {
+                    common: RenderPassNodeCommon {
+                        subpasses,
 
-                    framebuffer_width,
-                    framebuffer_height,
-                    _framebuffer_layers: framebuffer_layers,
+                        framebuffer_width,
+                        framebuffer_height,
+                        _framebuffer_layers: framebuffer_layers,
 
-                    render_pass,
-                    views,
-                    clears,
+                        render_pass,
+                        views,
+                        clears,
 
-                    command_pool,
-                    command_cirque,
+                        command_pool,
+                        command_cirque,
 
-                    acquire,
-                    release,
+                        acquire,
+                        release,
 
-                    relevant: relevant::Relevant,
-                },
+                        relevant: relevant::Relevant,
+                    },
 
-                per_image: framebuffers
-                    .into_iter()
-                    .map(|fb| PerImage {
-                        framebuffer: fb,
-                        acquire: factory.create_semaphore().unwrap(),
-                        release: factory.create_semaphore().unwrap(),
-                        index: 0,
-                    })
-                    .collect(),
-                free_acquire: factory.create_semaphore().unwrap(),
-                target,
-            }),
-            None => Box::new(RenderPassNodeWithoutSurface {
-                common: RenderPassNodeCommon {
-                    subpasses,
+                    per_image: framebuffers
+                        .into_iter()
+                        .map(|fb| {
+                            PerImage {
+                                framebuffer: fb,
+                                acquire: factory.create_semaphore().unwrap(),
+                                release: factory.create_semaphore().unwrap(),
+                                index: 0,
+                            }
+                        })
+                        .collect(),
+                    free_acquire: factory.create_semaphore().unwrap(),
+                    target,
+                })
+            }
+            None => {
+                Box::new(RenderPassNodeWithoutSurface {
+                    common: RenderPassNodeCommon {
+                        subpasses,
 
-                    framebuffer_width,
-                    framebuffer_height,
-                    _framebuffer_layers: framebuffer_layers,
+                        framebuffer_width,
+                        framebuffer_height,
+                        _framebuffer_layers: framebuffer_layers,
 
-                    render_pass,
-                    views,
-                    clears,
+                        render_pass,
+                        views,
+                        clears,
 
-                    command_pool,
-                    command_cirque,
+                        command_pool,
+                        command_cirque,
 
-                    acquire,
-                    release,
+                        acquire,
+                        release,
 
-                    relevant: relevant::Relevant,
-                },
-                framebuffer: { framebuffers.remove(0) },
-            }),
+                        relevant: relevant::Relevant,
+                    },
+                    framebuffer: { framebuffers.remove(0) },
+                })
+            }
         };
 
         Ok(node)

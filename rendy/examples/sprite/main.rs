@@ -1,6 +1,12 @@
 //! A simple sprite example.
 //! This examples shows how to render a sprite on a white background.
 
+use std::{fs::File, io::BufReader, ops::Deref};
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflection;
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory, ImageState},
@@ -8,28 +14,21 @@ use rendy::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
     hal::{self, device::Device as _},
-    init::winit::{
-        dpi::Size as DpiSize,
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
+    init::{
+        winit::{
+            dpi::Size as DpiSize,
+            event::{Event, WindowEvent},
+            event_loop::{ControlFlow, EventLoop},
+            window::WindowBuilder,
+        },
+        AnyWindowedRendy,
     },
-    init::AnyWindowedRendy,
     memory::Dynamic,
     mesh::PosTex,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
     texture::{image::ImageTextureConfig, Texture},
 };
-use std::ops::Deref;
-
-#[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflection;
-
-#[cfg(not(feature = "spirv-reflection"))]
-use rendy::mesh::AsVertex;
-
-use std::{fs::File, io::BufReader};
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
@@ -315,10 +314,12 @@ fn run<B: hal::Backend>(
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                _ => {}
-            },
+            Event::WindowEvent { event, .. } => {
+                match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    _ => {}
+                }
+            }
             Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {

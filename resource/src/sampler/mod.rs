@@ -1,13 +1,9 @@
 //! Sampler creation-info and wrappers.
 
 mod cache;
-use rendy_core::hal;
-
-use {
-    hal::{device::Device as _, image::SamplerDesc, Backend},
-    relevant::Relevant,
-    rendy_core::{Device, DeviceId},
-};
+use hal::{device::Device as _, image::SamplerDesc, Backend};
+use relevant::Relevant;
+use rendy_core::{hal, Device, DeviceId};
 
 pub use crate::sampler::cache::SamplerCache;
 

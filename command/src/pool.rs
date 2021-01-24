@@ -1,9 +1,10 @@
 //! CommandPool module docs.
-use {
-    crate::{buffer::*, capability::*, family::FamilyId},
-    rendy_core::hal::{self, device::Device as _, pool::CommandPool as _, Backend},
-    rendy_core::Device,
+use rendy_core::{
+    hal::{self, device::Device as _, pool::CommandPool as _, Backend},
+    Device,
 };
+
+use crate::{buffer::*, capability::*, family::FamilyId};
 
 /// Simple pool wrapper.
 /// Doesn't provide any guarantees.

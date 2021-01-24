@@ -1,12 +1,11 @@
-use rendy_core::hal;
 use std::cmp::min;
+
+use rendy_core::{hal, DeviceId};
 
 use crate::{
     command::FamilyId,
     memory::{DynamicConfig, HeapsConfig, LinearConfig},
 };
-
-use rendy_core::DeviceId;
 
 /// Factory initialization config.
 ///
@@ -220,7 +219,6 @@ pub trait DevicesConfigure {
     /// # Panics
     ///
     /// This function may panic if empty slice is provided.
-    ///
     fn pick<B>(&self, adapters: &[hal::adapter::Adapter<B>]) -> usize
     where
         B: hal::Backend;
@@ -248,12 +246,14 @@ impl DevicesConfigure for BasicDevicesConfigure {
         adapters
             .iter()
             .enumerate()
-            .min_by_key(|(_, adapter)| match adapter.info.device_type {
-                hal::adapter::DeviceType::DiscreteGpu => 0,
-                hal::adapter::DeviceType::IntegratedGpu => 1,
-                hal::adapter::DeviceType::VirtualGpu => 2,
-                hal::adapter::DeviceType::Cpu => 3,
-                _ => 4,
+            .min_by_key(|(_, adapter)| {
+                match adapter.info.device_type {
+                    hal::adapter::DeviceType::DiscreteGpu => 0,
+                    hal::adapter::DeviceType::IntegratedGpu => 1,
+                    hal::adapter::DeviceType::VirtualGpu => 2,
+                    hal::adapter::DeviceType::Cpu => 3,
+                    _ => 4,
+                }
             })
             .expect("No adapters present")
             .0

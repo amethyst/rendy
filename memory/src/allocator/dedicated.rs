@@ -1,14 +1,13 @@
 use std::{ops::Range, ptr::NonNull};
 
-use {
-    crate::{
-        allocator::{Allocator, Kind},
-        block::Block,
-        mapping::{mapped_sub_range, MappedRange},
-        memory::*,
-        util::*,
-    },
-    gfx_hal::{device::Device as _, Backend},
+use gfx_hal::{device::Device as _, Backend};
+
+use crate::{
+    allocator::{Allocator, Kind},
+    block::Block,
+    mapping::{mapped_sub_range, MappedRange},
+    memory::*,
+    util::*,
 };
 
 /// Memory block allocated from `DedicatedAllocator`

@@ -11,26 +11,18 @@
     unused_qualifications
 )]
 
-pub use crate::{backend::*, casts::*, wrap::*};
-
-#[doc(inline)]
-pub use gfx_hal as hal;
-
 #[cfg(all(
     feature = "dx12",
     all(target_os = "windows", not(target_arch = "wasm32"))
 ))]
 #[doc(inline)]
 pub use gfx_backend_dx12 as dx12;
-
-#[cfg(feature = "gl")]
-#[doc(inline)]
-pub use gfx_backend_gl as gl;
-
 #[cfg(feature = "gfx-backend-empty")]
 #[doc(inline)]
 pub use gfx_backend_empty as empty;
-
+#[cfg(feature = "gl")]
+#[doc(inline)]
+pub use gfx_backend_gl as gl;
 #[cfg(all(
     feature = "metal",
     any(
@@ -40,7 +32,6 @@ pub use gfx_backend_empty as empty;
 ))]
 #[doc(inline)]
 pub use gfx_backend_metal as metal;
-
 #[cfg(all(
     feature = "vulkan",
     any(
@@ -51,9 +42,12 @@ pub use gfx_backend_metal as metal;
 ))]
 #[doc(inline)]
 pub use gfx_backend_vulkan as vulkan;
-
+#[doc(inline)]
+pub use gfx_hal as hal;
 #[doc(inline)]
 pub use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+
+pub use crate::{backend::*, casts::*, wrap::*};
 
 #[macro_use]
 mod backend;

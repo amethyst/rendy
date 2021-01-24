@@ -1,16 +1,16 @@
 //! Image usage, format, kind, extent, creation-info and wrappers.
 
+use relevant::Relevant;
 pub use rendy_core::hal::image::*;
-use rendy_core::{Device, DeviceId};
+use rendy_core::{
+    hal::{self, device::Device as _, format, Backend},
+    Device, DeviceId,
+};
 
-use {
-    crate::{
-        escape::Handle,
-        memory::{Block, Heaps, MemoryBlock, MemoryUsage},
-        CreationError,
-    },
-    relevant::Relevant,
-    rendy_core::hal::{self, device::Device as _, format, Backend},
+use crate::{
+    escape::Handle,
+    memory::{Block, Heaps, MemoryBlock, MemoryUsage},
+    CreationError,
 };
 
 /// Image info.

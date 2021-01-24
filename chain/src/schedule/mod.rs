@@ -10,16 +10,18 @@ mod family;
 mod queue;
 mod submission;
 
-use std::collections::HashMap;
-use std::ops::{Index, IndexMut};
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut},
+};
+
+use derivative::Derivative;
 
 pub use self::{
     family::Family,
     queue::{Queue, QueueId},
     submission::{Submission, SubmissionId},
 };
-
-use derivative::Derivative;
 
 /// Whole passes schedule.
 #[derive(Clone, Debug, Derivative)]

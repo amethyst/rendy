@@ -1,5 +1,6 @@
-use super::submission::{Submission, SubmissionId};
 use rendy_core::hal;
+
+use super::submission::{Submission, SubmissionId};
 
 /// Queue id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -70,7 +71,6 @@ impl<S> Queue<S> {
     /// # Panic
     ///
     /// This function will panic if requested submission isn't part of this queue.
-    ///
     pub fn submission(&self, sid: SubmissionId) -> Option<&Submission<S>> {
         self.submissions.get(sid.index())
     }
@@ -80,7 +80,6 @@ impl<S> Queue<S> {
     /// # Panic
     ///
     /// This function will panic if requested submission isn't part of this queue.
-    ///
     pub fn submission_mut(&mut self, sid: SubmissionId) -> Option<&mut Submission<S>> {
         self.submissions.get_mut(sid.index())
     }

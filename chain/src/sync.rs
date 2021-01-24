@@ -1,7 +1,10 @@
 //! This module provide functions for find all required synchronizations (barriers and semaphores).
+use std::{
+    collections::HashMap,
+    ops::{Range, RangeFrom, RangeTo},
+};
+
 use rendy_core::hal;
-use std::collections::HashMap;
-use std::ops::{Range, RangeFrom, RangeTo};
 
 use crate::{
     chain::{Chain, Link},
@@ -284,21 +287,25 @@ where
         let mut new_queue = Queue::new(queue.id());
         for submission in queue.iter() {
             let sync = if let Some(sync) = sync.0.remove(&submission.id()) {
-                let sync = sync.convert_signal(|semaphore| match signals.get_mut(&semaphore) {
-                    None => {
-                        let (signal, wait) = new_semaphore();
-                        waits.insert(semaphore, Some(wait));
-                        signal
+                let sync = sync.convert_signal(|semaphore| {
+                    match signals.get_mut(&semaphore) {
+                        None => {
+                            let (signal, wait) = new_semaphore();
+                            waits.insert(semaphore, Some(wait));
+                            signal
+                        }
+                        Some(signal) => signal.take().unwrap(),
                     }
-                    Some(signal) => signal.take().unwrap(),
                 });
-                let sync = sync.convert_wait(|semaphore| match waits.get_mut(&semaphore) {
-                    None => {
-                        let (signal, wait) = new_semaphore();
-                        signals.insert(semaphore, Some(signal));
-                        wait
+                let sync = sync.convert_wait(|semaphore| {
+                    match waits.get_mut(&semaphore) {
+                        None => {
+                            let (signal, wait) = new_semaphore();
+                            signals.insert(semaphore, Some(signal));
+                            wait
+                        }
+                        Some(wait) => wait.take().unwrap(),
                     }
-                    Some(wait) => wait.take().unwrap(),
                 });
                 sync
             } else {

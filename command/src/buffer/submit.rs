@@ -1,13 +1,12 @@
 use rendy_core::hal;
-use {
-    super::{
-        level::PrimaryLevel,
-        state::{ExecutableState, InvalidState, PendingState},
-        usage::{MultiShot, NoSimultaneousUse, OneShot, OutsideRenderPass, SimultaneousUse},
-        CommandBuffer,
-    },
-    crate::family::FamilyId,
+
+use super::{
+    level::PrimaryLevel,
+    state::{ExecutableState, InvalidState, PendingState},
+    usage::{MultiShot, NoSimultaneousUse, OneShot, OutsideRenderPass, SimultaneousUse},
+    CommandBuffer,
 };
+use crate::family::FamilyId;
 
 /// Structure contains command buffer ready for submission.
 #[derive(Debug)]

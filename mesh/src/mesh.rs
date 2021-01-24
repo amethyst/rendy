@@ -1,5 +1,9 @@
 //! Manage vertex and index buffers of single objects with ease.
 
+use std::{borrow::Cow, mem::size_of};
+
+use rendy_core::{hal, hal::adapter::PhysicalDevice};
+
 use crate::{
     command::{EncoderCommon, Graphics, QueueId, RenderPassEncoder, Supports},
     core::cast_cow,
@@ -8,9 +12,6 @@ use crate::{
     resource::{Buffer, BufferInfo, Escape},
     AsVertex, VertexFormat,
 };
-use rendy_core::hal;
-use rendy_core::hal::adapter::PhysicalDevice;
-use std::{borrow::Cow, mem::size_of};
 
 /// Vertex buffer with it's format
 #[derive(Debug)]
@@ -126,14 +127,18 @@ impl<'a> MeshBuilder<'a> {
             vertices: self
                 .vertices
                 .into_iter()
-                .map(|v| RawVertices {
-                    vertices: Cow::Owned(v.vertices.into_owned()),
-                    format: v.format,
+                .map(|v| {
+                    RawVertices {
+                        vertices: Cow::Owned(v.vertices.into_owned()),
+                        format: v.format,
+                    }
                 })
                 .collect(),
-            indices: self.indices.map(|i| RawIndices {
-                indices: Cow::Owned(i.indices.into_owned()),
-                index_type: i.index_type,
+            indices: self.indices.map(|i| {
+                RawIndices {
+                    indices: Cow::Owned(i.indices.into_owned()),
+                    index_type: i.index_type,
+                }
             }),
             prim: self.prim,
         }
@@ -155,14 +160,18 @@ impl<'a> MeshBuilder<'a> {
     {
         self.indices = match indices.into() {
             Indices::None => None,
-            Indices::U16(i) => Some(RawIndices {
-                indices: cast_cow(i),
-                index_type: hal::IndexType::U16,
-            }),
-            Indices::U32(i) => Some(RawIndices {
-                indices: cast_cow(i),
-                index_type: hal::IndexType::U32,
-            }),
+            Indices::U16(i) => {
+                Some(RawIndices {
+                    indices: cast_cow(i),
+                    index_type: hal::IndexType::U16,
+                })
+            }
+            Indices::U32(i) => {
+                Some(RawIndices {
+                    indices: cast_cow(i),
+                    index_type: hal::IndexType::U32,
+                })
+            }
         };
         self
     }

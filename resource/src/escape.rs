@@ -10,18 +10,15 @@
 //! Users are encouraged to dispose of values manually while using `Escape`
 //! as just a safety net.
 
-use {
-    crossbeam_channel::{Receiver, Sender},
-    std::{
-        iter::repeat,
-        mem::ManuallyDrop,
-        ptr::{drop_in_place, read},
-        sync::Arc,
-    },
+use std::{
+    iter::repeat,
+    mem::ManuallyDrop,
+    ops::Deref as StdDeref,
+    ptr::{drop_in_place, read},
+    sync::Arc,
 };
 
-use std::ops::Deref as StdDeref;
-
+use crossbeam_channel::{Receiver, Sender};
 use derive_more::{Deref, DerefMut};
 
 /// Allows values to "escape" dropping by sending them to the `Terminal`.

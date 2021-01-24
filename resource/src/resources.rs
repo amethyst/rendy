@@ -1,8 +1,8 @@
-use {
-    crate::escape::{Escape, Handle, Terminal},
-    smallvec::SmallVec,
-    std::collections::VecDeque,
-};
+use std::collections::VecDeque;
+
+use smallvec::SmallVec;
+
+use crate::escape::{Escape, Handle, Terminal};
 
 /// Resource usage epochs.
 #[doc(hidden)]
@@ -60,7 +60,6 @@ impl<T> ResourceTracker<T> {
     /// `next` epochs must contain epoch indices that aren't started yet
     /// `complete` epochs must contain epoch indices that are complete.
     /// Can be guaranteed with fence wait.
-    ///
     pub fn cleanup(&mut self, mut dispose: impl FnMut(T), next: &Epochs, complete: &Epochs) {
         while let Some((epoch, resource)) = self.dropped.pop_front() {
             if !epoch.is_before(complete) {
@@ -81,7 +80,6 @@ impl<T> ResourceTracker<T> {
     ///
     /// All dropped resources must be unused.
     /// Can be guaranteed with device idle wait.
-    ///
     pub fn dispose(&mut self, dispose: impl FnMut(T)) {
         self.dropped
             .drain(..)

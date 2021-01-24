@@ -1,9 +1,8 @@
 //! Loading mesh data from obj format.
 
-use {
-    crate::{mesh::MeshBuilder, Normal, Position, TexCoord},
-    wavefront_obj::obj,
-};
+use wavefront_obj::obj;
+
+use crate::{mesh::MeshBuilder, Normal, Position, TexCoord};
 
 /// Object loading error.Option
 #[derive(Debug, PartialEq)]
@@ -19,11 +18,13 @@ impl std::fmt::Display for ObjError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjError::Utf8(e) => write!(f, "{}", e),
-            ObjError::Parse(e) => write!(
-                f,
-                "Error parsing object file at line {}: {}",
-                e.line_number, e.message
-            ),
+            ObjError::Parse(e) => {
+                write!(
+                    f,
+                    "Error parsing object file at line {}: {}",
+                    e.line_number, e.message
+                )
+            }
         }
     }
 }

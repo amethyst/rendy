@@ -2,34 +2,33 @@
 //! This examples shows colord triangle on white background.
 //! Nothing fancy. Just prove that `rendy` works.
 
-use {
-    genmesh::generators::{IndexedPolygon, SharedVertex},
-    rand::distributions::{Distribution, Uniform},
-    rendy::{
-        command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
-        factory::{Config, Factory},
-        graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-        hal::{self, adapter::PhysicalDevice as _, device::Device as _},
-        init::winit::{
+use std::{cmp::min, mem::size_of, time};
+
+use genmesh::generators::{IndexedPolygon, SharedVertex};
+use rand::distributions::{Distribution, Uniform};
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflection;
+use rendy::{
+    command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
+    factory::{Config, Factory},
+    graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
+    hal::{self, adapter::PhysicalDevice as _, device::Device as _},
+    init::{
+        winit::{
             dpi::Size as DpiSize,
             event::{Event, WindowEvent},
             event_loop::{ControlFlow, EventLoop},
             window::WindowBuilder,
         },
-        init::AnyWindowedRendy,
-        memory::Dynamic,
-        mesh::{Mesh, Model, PosColorNorm},
-        resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
-        shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
+        AnyWindowedRendy,
     },
-    std::{cmp::min, mem::size_of, time},
+    memory::Dynamic,
+    mesh::{Mesh, Model, PosColorNorm},
+    resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
+    shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
 };
-
-#[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflection;
-
-#[cfg(not(feature = "spirv-reflection"))]
-use rendy::mesh::AsVertex;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(

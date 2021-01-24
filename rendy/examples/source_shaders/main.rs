@@ -2,6 +2,10 @@
 //! This examples shows colord triangle on white background.
 //! Nothing fancy. Just prove that `rendy` works.
 
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflection;
 use rendy::{
     command::{Families, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
@@ -9,24 +13,20 @@ use rendy::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
     hal,
-    init::winit::{
-        dpi::Size as DpiSize,
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::WindowBuilder,
+    init::{
+        winit::{
+            dpi::Size as DpiSize,
+            event::{Event, WindowEvent},
+            event_loop::{ControlFlow, EventLoop},
+            window::WindowBuilder,
+        },
+        AnyWindowedRendy,
     },
-    init::AnyWindowedRendy,
     memory::Dynamic,
     mesh::PosColor,
     resource::{Buffer, BufferInfo, DescriptorSetLayout, Escape, Handle},
     shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
 };
-
-#[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflection;
-
-#[cfg(not(feature = "spirv-reflection"))]
-use rendy::mesh::AsVertex;
 
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
@@ -227,10 +227,12 @@ fn run<B: hal::Backend>(
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                _ => {}
-            },
+            Event::WindowEvent { event, .. } => {
+                match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    _ => {}
+                }
+            }
             Event::MainEventsCleared => {
                 factory.maintain(&mut families);
                 if let Some(ref mut graph) = graph {

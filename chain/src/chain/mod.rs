@@ -8,14 +8,13 @@ mod link;
 
 use std::ops::BitOr;
 
+use derivative::Derivative;
+
+pub use self::link::{Link, LinkNode};
 use crate::{
     resource::{Buffer, Image, Resource},
     Id,
 };
-
-pub use self::link::{Link, LinkNode};
-
-use derivative::Derivative;
 
 /// This type corresponds to resource category.
 /// All resources from the same category must be accessed as permitted by links of the chain.

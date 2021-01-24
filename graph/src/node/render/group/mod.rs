@@ -1,20 +1,18 @@
 use rendy_core::hal;
 mod simple;
 
-pub use self::simple::*;
+use hal::Backend;
 
-use {
-    crate::{
-        command::{QueueId, RenderPassEncoder},
-        factory::Factory,
-        graph::GraphContext,
-        node::{
-            render::{pass::SubpassBuilder, PrepareResult},
-            BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
-        },
-        BufferId, ImageId, NodeId,
+pub use self::simple::*;
+use crate::{
+    command::{QueueId, RenderPassEncoder},
+    factory::Factory,
+    graph::GraphContext,
+    node::{
+        render::{pass::SubpassBuilder, PrepareResult},
+        BufferAccess, DescBuilder, ImageAccess, NodeBuffer, NodeImage,
     },
-    hal::Backend,
+    BufferId, ImageId, NodeId,
 };
 
 /// Descriptor for render group

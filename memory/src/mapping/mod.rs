@@ -1,14 +1,13 @@
 mod range;
 pub(crate) mod write;
 
-use {
-    crate::{memory::Memory, util::*},
-    gfx_hal::{device::Device as _, Backend},
-    std::{ops::Range, ptr::NonNull},
-};
+use std::{ops::Range, ptr::NonNull};
+
+use gfx_hal::{device::Device as _, Backend};
 
 pub(crate) use self::range::*;
 use self::write::{Write, WriteCoherent, WriteFlush};
+use crate::{memory::Memory, util::*};
 
 /// Non-coherent marker.
 #[derive(Clone, Copy, Debug)]

@@ -1,9 +1,8 @@
+use hal::{queue::CommandQueue, Backend};
 use rendy_core::hal;
-use {
-    super::{submission::*, QueueId},
-    crate::{buffer::Submittable, fence::*},
-    hal::{queue::CommandQueue, Backend},
-};
+
+use super::{submission::*, QueueId};
+use crate::{buffer::Submittable, fence::*};
 
 /// Command queue wrapper.
 #[derive(Debug)]

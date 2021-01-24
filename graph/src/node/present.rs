@@ -1,5 +1,7 @@
 //! Defines present node.
 
+use rendy_core::hal;
+
 use crate::{
     command::{
         CommandBuffer, CommandPool, ExecutableState, Families, Family, FamilyId, Fence, MultiShot,
@@ -15,7 +17,6 @@ use crate::{
     wsi::{Surface, Target},
     BufferId, ImageId, NodeId,
 };
-use rendy_core::hal;
 
 #[derive(Debug)]
 struct ForImage<B: hal::Backend> {

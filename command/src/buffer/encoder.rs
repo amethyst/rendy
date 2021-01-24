@@ -1,16 +1,15 @@
 use rendy_core::hal;
-use {
-    super::{
-        level::{Level, PrimaryLevel, SecondaryLevel},
-        state::RecordingState,
-        submit::Submittable,
-        usage::RenderPassContinue,
-        CommandBuffer,
-    },
-    crate::{
-        capability::{Capability, Compute, Graphics, Supports, Transfer},
-        family::FamilyId,
-    },
+
+use super::{
+    level::{Level, PrimaryLevel, SecondaryLevel},
+    state::RecordingState,
+    submit::Submittable,
+    usage::RenderPassContinue,
+    CommandBuffer,
+};
+use crate::{
+    capability::{Capability, Compute, Graphics, Supports, Transfer},
+    family::FamilyId,
 };
 
 /// Draw command for [`draw_indirect`].

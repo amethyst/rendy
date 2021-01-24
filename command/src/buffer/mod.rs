@@ -6,17 +6,13 @@ mod reset;
 mod state;
 mod submit;
 mod usage;
-use rendy_core::hal;
-
-use {
-    crate::{
-        capability::{Capability, Supports},
-        family::FamilyId,
-    },
-    rendy_core::hal::Backend,
-};
+use rendy_core::{hal, hal::Backend};
 
 pub use self::{encoder::*, level::*, reset::*, state::*, submit::*, usage::*};
+use crate::{
+    capability::{Capability, Supports},
+    family::FamilyId,
+};
 
 /// Command buffer wrapper.
 /// This wrapper defines state with usage, level and ability to be individually reset at type level.

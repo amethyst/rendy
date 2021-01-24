@@ -4,16 +4,15 @@ use std::{
     ptr::NonNull,
 };
 
-use {
-    crate::{
-        allocator::{Allocator, Kind},
-        block::Block,
-        mapping::*,
-        memory::*,
-        util::*,
-    },
-    gfx_hal::{device::Device as _, Backend},
-    hibitset::{BitSet, BitSetLike as _},
+use gfx_hal::{device::Device as _, Backend};
+use hibitset::{BitSet, BitSetLike as _};
+
+use crate::{
+    allocator::{Allocator, Kind},
+    block::Block,
+    mapping::*,
+    memory::*,
+    util::*,
 };
 
 /// Memory block allocated from `DynamicAllocator`

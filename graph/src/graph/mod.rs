@@ -1,23 +1,19 @@
-use rendy_core::hal;
-use rendy_core::DeviceId;
+use hal::{queue::QueueFamilyId, Backend};
+use rendy_core::{hal, DeviceId};
 
-use {
-    crate::{
-        chain,
-        command::{Families, FamilyId, QueueId},
-        factory::Factory,
-        frame::{Fences, Frame, Frames},
-        memory::Data,
-        node::{
-            BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuildError, NodeBuilder,
-            NodeImage,
-        },
-        resource::{
-            Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo,
-        },
-        BufferId, ImageId, NodeId,
+use crate::{
+    chain,
+    command::{Families, FamilyId, QueueId},
+    factory::Factory,
+    frame::{Fences, Frame, Frames},
+    memory::Data,
+    node::{
+        BufferBarrier, DynNode, ImageBarrier, NodeBuffer, NodeBuildError, NodeBuilder, NodeImage,
     },
-    hal::{queue::QueueFamilyId, Backend},
+    resource::{
+        Buffer, BufferCreationError, BufferInfo, Handle, Image, ImageCreationError, ImageInfo,
+    },
+    BufferId, ImageId, NodeId,
 };
 
 #[derive(Debug)]
@@ -55,26 +51,34 @@ pub enum GraphBuildError {
 impl std::fmt::Display for GraphBuildError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GraphBuildError::Buffer(err) => write!(
-                fmt,
-                "Failed to build graph because of failure to create a buffer: {:?}",
-                err
-            ),
-            GraphBuildError::Image(err) => write!(
-                fmt,
-                "Failed to build graph because of failure to create an image: {:?}",
-                err
-            ),
-            GraphBuildError::Semaphore(err) => write!(
-                fmt,
-                "Failed to build graph because of failure to create a semaphore: {:?}",
-                err
-            ),
-            GraphBuildError::Node(err) => write!(
-                fmt,
-                "Failed to build graph because of failure to build a node: {:?}",
-                err
-            ),
+            GraphBuildError::Buffer(err) => {
+                write!(
+                    fmt,
+                    "Failed to build graph because of failure to create a buffer: {:?}",
+                    err
+                )
+            }
+            GraphBuildError::Image(err) => {
+                write!(
+                    fmt,
+                    "Failed to build graph because of failure to create an image: {:?}",
+                    err
+                )
+            }
+            GraphBuildError::Semaphore(err) => {
+                write!(
+                    fmt,
+                    "Failed to build graph because of failure to create a semaphore: {:?}",
+                    err
+                )
+            }
+            GraphBuildError::Node(err) => {
+                write!(
+                    fmt,
+                    "Failed to build graph because of failure to build a node: {:?}",
+                    err
+                )
+            }
         }
     }
 }
@@ -450,9 +454,11 @@ where
             nodes: built_nodes
                 .into_iter()
                 .map(Option::unwrap)
-                .map(|(node, qid)| GraphNode {
-                    node,
-                    queue: (qid.family().0, qid.index()),
+                .map(|(node, qid)| {
+                    GraphNode {
+                        node,
+                        queue: (qid.family().0, qid.index()),
+                    }
                 })
                 .collect(),
             schedule,
@@ -490,17 +496,21 @@ fn build_node<'a, B: Backend, T: ?Sized>(
                 id,
                 range: 0..buffer.size(),
                 acquire: sync.acquire.buffers.get(&chain_id).map(
-                    |chain::Barrier { states, families }| BufferBarrier {
-                        states: states.start.0..states.end.0,
-                        stages: states.start.2..states.end.2,
-                        families: families.clone(),
+                    |chain::Barrier { states, families }| {
+                        BufferBarrier {
+                            states: states.start.0..states.end.0,
+                            stages: states.start.2..states.end.2,
+                            families: families.clone(),
+                        }
                     },
                 ),
                 release: sync.release.buffers.get(&chain_id).map(
-                    |chain::Barrier { states, families }| BufferBarrier {
-                        states: states.start.0..states.end.0,
-                        stages: states.start.2..states.end.2,
-                        families: families.clone(),
+                    |chain::Barrier { states, families }| {
+                        BufferBarrier {
+                            states: states.start.0..states.end.0,
+                            stages: states.start.2..states.end.2,
+                            families: families.clone(),
+                        }
                     },
                 ),
             }
@@ -532,24 +542,28 @@ fn build_node<'a, B: Backend, T: ?Sized>(
                     .layout,
                 clear: if link == 0 { clear } else { None },
                 acquire: sync.acquire.images.get(&chain_id).map(
-                    |chain::Barrier { states, families }| ImageBarrier {
-                        states: (
-                            states.start.0,
-                            if link == 0 {
-                                hal::image::Layout::Undefined
-                            } else {
-                                states.start.1
-                            },
-                        )..(states.end.0, states.end.1),
-                        stages: states.start.2..states.end.2,
-                        families: families.clone(),
+                    |chain::Barrier { states, families }| {
+                        ImageBarrier {
+                            states: (
+                                states.start.0,
+                                if link == 0 {
+                                    hal::image::Layout::Undefined
+                                } else {
+                                    states.start.1
+                                },
+                            )..(states.end.0, states.end.1),
+                            stages: states.start.2..states.end.2,
+                            families: families.clone(),
+                        }
                     },
                 ),
                 release: sync.release.images.get(&chain_id).map(
-                    |chain::Barrier { states, families }| ImageBarrier {
-                        states: (states.start.0, states.start.1)..(states.end.0, states.end.1),
-                        stages: states.start.2..states.end.2,
-                        families: families.clone(),
+                    |chain::Barrier { states, families }| {
+                        ImageBarrier {
+                            states: (states.start.0, states.start.1)..(states.end.0, states.end.1),
+                            stages: states.start.2..states.end.2,
+                            families: families.clone(),
+                        }
                     },
                 ),
             }

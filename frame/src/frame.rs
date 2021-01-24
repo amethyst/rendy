@@ -1,7 +1,8 @@
 //! Frame module docs.
 
-use crate::{command::Fence, factory::Factory};
 use rendy_core::hal;
+
+use crate::{command::Fence, factory::Factory};
 
 /// Fences collection.
 pub type Fences<B> = smallvec::SmallVec<[Fence<B>; 8]>;

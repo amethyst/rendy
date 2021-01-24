@@ -1,7 +1,5 @@
-use {
-    colorful::{core::color_string::CString, Color, Colorful as _},
-    gfx_hal::memory::Properties,
-};
+use colorful::{core::color_string::CString, Color, Colorful as _};
+use gfx_hal::memory::Properties;
 
 /// Memory utilization stats.
 #[derive(Clone, Copy, Debug)]

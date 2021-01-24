@@ -1,9 +1,8 @@
 //! Built-in vertex formats.
 
+use std::{borrow::Cow, cmp::Ordering, collections::HashMap, fmt::Debug};
+
 use crate::hal::format::Format;
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::{borrow::Cow, fmt::Debug};
 
 /// Trait for vertex attributes to implement
 pub trait AsAttribute: Debug + PartialEq + PartialOrd + Copy + Send + Sync + 'static {

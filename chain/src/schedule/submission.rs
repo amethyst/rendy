@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
+use rendy_core::hal;
+
 use super::queue::QueueId;
 use crate::Id;
-use rendy_core::hal;
-use std::collections::HashMap;
 
 /// Submission id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

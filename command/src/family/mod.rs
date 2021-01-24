@@ -4,17 +4,15 @@ use rendy_core::hal;
 mod queue;
 mod submission;
 
-use {
-    crate::{
-        buffer::Reset,
-        capability::{Capability, QueueType, Supports},
-        pool::CommandPool,
-    },
-    hal::Backend,
-    rendy_core::{Device, DeviceId},
-};
+use hal::Backend;
+use rendy_core::{Device, DeviceId};
 
 pub use self::{queue::*, submission::*};
+use crate::{
+    buffer::Reset,
+    capability::{Capability, QueueType, Supports},
+    pool::CommandPool,
+};
 
 /// Family id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -153,7 +151,6 @@ where
     }
 
     /// Convert capability into type-level one.
-    ///
     pub fn with_capability<U>(self) -> Result<Family<B, U>, Self>
     where
         C: Supports<U>,

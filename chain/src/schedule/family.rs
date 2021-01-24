@@ -1,4 +1,5 @@
 use rendy_core::hal;
+
 use super::{
     queue::{Queue, QueueId},
     submission::{Submission, SubmissionId},
@@ -31,7 +32,6 @@ impl<S> Family<S> {
     /// # Panic
     ///
     /// This function will panic if requested queue isn't part of this family.
-    ///
     pub fn queue(&self, qid: QueueId) -> Option<&Queue<S>> {
         self.queues.get(qid.index())
     }
@@ -41,7 +41,6 @@ impl<S> Family<S> {
     /// # Panic
     ///
     /// This function will panic if requested queue isn't part of this family.
-    ///
     pub fn queue_mut(&mut self, qid: QueueId) -> Option<&mut Queue<S>> {
         self.queues.get_mut(qid.index())
     }
@@ -52,7 +51,6 @@ impl<S> Family<S> {
     /// # Panic
     ///
     /// This function will panic if requested queue isn't part of this family.
-    ///
     pub fn ensure_queue(&mut self, qid: QueueId) -> &mut Queue<S> {
         let len = self.queues.len();
         self.queues
@@ -65,7 +63,6 @@ impl<S> Family<S> {
     /// # Panic
     ///
     /// This function will panic if requested submission isn't part of this family.
-    ///
     pub fn submission(&self, sid: SubmissionId) -> Option<&Submission<S>> {
         self.queue(sid.queue())
             .and_then(|queue| queue.submission(sid))
@@ -76,7 +73,6 @@ impl<S> Family<S> {
     /// # Panic
     ///
     /// This function will panic if requested submission isn't part of this family.
-    ///
     pub fn submission_mut(&mut self, sid: SubmissionId) -> Option<&mut Submission<S>> {
         self.queue_mut(sid.queue())
             .and_then(|queue| queue.submission_mut(sid))

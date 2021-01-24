@@ -1,13 +1,13 @@
-use {
-    crate::ranges::*,
-    gfx_hal::{
-        device::{Device, OutOfMemory},
-        pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
-        Backend,
-    },
-    smallvec::{smallvec, SmallVec},
-    std::collections::{HashMap, VecDeque},
+use std::collections::{HashMap, VecDeque};
+
+use gfx_hal::{
+    device::{Device, OutOfMemory},
+    pso::{AllocationError, DescriptorPool as _, DescriptorPoolCreateFlags},
+    Backend,
 };
+use smallvec::{smallvec, SmallVec};
+
+use crate::ranges::*;
 
 const MIN_SETS: u32 = 64;
 const MAX_SETS: u32 = 512;
@@ -49,22 +49,24 @@ unsafe fn allocate_from_pool<B: Backend>(
     allocation: &mut SmallVec<[B::DescriptorSet; 1]>,
 ) -> Result<(), OutOfMemory> {
     raw.allocate(std::iter::repeat(layout).take(count as usize), allocation)
-        .map_err(|err| match err {
-            AllocationError::Host => OutOfMemory::Host,
-            AllocationError::Device => OutOfMemory::Device,
-            err => {
-                // We check pool for free descriptors and sets before calling this function,
-                // so it can't be exhausted.
-                // And it can't be fragmented either according to spec
-                //
-                // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VkDescriptorPoolCreateInfo
-                //
-                // """
-                // Additionally, if all sets allocated from the pool since it was created or most recently reset
-                // use the same number of descriptors (of each type) and the requested allocation also
-                // uses that same number of descriptors (of each type), then fragmentation must not cause an allocation failure
-                // """
-                panic!("Unexpected error: {:?}", err);
+        .map_err(|err| {
+            match err {
+                AllocationError::Host => OutOfMemory::Host,
+                AllocationError::Device => OutOfMemory::Device,
+                err => {
+                    // We check pool for free descriptors and sets before calling this function,
+                    // so it can't be exhausted.
+                    // And it can't be fragmented either according to spec
+                    //
+                    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/html/vkspec.html#VkDescriptorPoolCreateInfo
+                    //
+                    // """
+                    // Additionally, if all sets allocated from the pool since it was created or most recently reset
+                    // use the same number of descriptors (of each type) and the requested allocation also
+                    // uses that same number of descriptors (of each type), then fragmentation must not cause an allocation failure
+                    // """
+                    panic!("Unexpected error: {:?}", err);
+                }
             }
         })?;
     Ok(())
@@ -259,10 +261,12 @@ where
                         self.allocation.pools.drain(..),
                         self.allocation.sets.drain(..),
                     )
-                    .map(|(pool, set)| DescriptorSet {
-                        raw: set,
-                        ranges: layout_ranges,
-                        pool,
+                    .map(|(pool, set)| {
+                        DescriptorSet {
+                            raw: set,
+                            ranges: layout_ranges,
+                            pool,
+                        }
                     }),
                 );
                 Ok(())

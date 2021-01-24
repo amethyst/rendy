@@ -1,19 +1,22 @@
-use rendy_core::hal;
-use {
-    crate::{
-        barriers::Barriers,
-        command::{
-            CommandBuffer, CommandPool, Encoder, Families, Family, Graphics, IndividualReset,
-            InitialState, Level, OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState,
-            Submission, Supports,
-        },
-        resource::{Handle, Image},
-        upload::ImageState,
+use std::{
+    collections::VecDeque,
+    iter::once,
+    ops::{DerefMut, Range},
+};
+
+use hal::device::{Device as _, OutOfMemory};
+use rendy_core::{hal, Device};
+use smallvec::SmallVec;
+
+use crate::{
+    barriers::Barriers,
+    command::{
+        CommandBuffer, CommandPool, Encoder, Families, Family, Graphics, IndividualReset,
+        InitialState, Level, OneShot, PendingOnceState, PrimaryLevel, QueueId, RecordingState,
+        Submission, Supports,
     },
-    hal::device::{Device as _, OutOfMemory},
-    rendy_core::Device,
-    smallvec::SmallVec,
-    std::{collections::VecDeque, iter::once, ops::DerefMut, ops::Range},
+    resource::{Handle, Image},
+    upload::ImageState,
 };
 
 /// Manages blitting images across families and queues.
@@ -219,7 +222,6 @@ where
     /// `src` and `dst` must belong to the `device`.
     /// regions' `last_*` states must be valid at the time of command execution (after memory transfers).
     /// All regions must have distinct subresource layer and level combination.
-    ///
     pub unsafe fn blit_image(
         &self,
         device: &Device<B>,
@@ -250,7 +252,6 @@ where
     /// # Safety
     ///
     /// `device` must be the same that was used to create this `Blitter`.
-    ///
     pub(crate) unsafe fn cleanup(&mut self, device: &Device<B>) {
         for blitter in self.family_ops.iter_mut() {
             if let Some(blitter) = blitter {
@@ -264,7 +265,6 @@ where
     /// # Safety
     ///
     /// `families` must be the same that was used to create this `Blitter`.
-    ///
     pub(crate) unsafe fn flush(&mut self, families: &mut Families<B>) {
         for family in families.as_slice_mut() {
             let blitter = self.family_ops[family.id().index]
@@ -278,7 +278,6 @@ where
     ///
     /// `device` must be the same that was used to create this `Blitter`.
     /// `device` must be idle.
-    ///
     pub(crate) unsafe fn dispose(&mut self, device: &Device<B>) {
         self.family_ops.drain(..).for_each(|fu| {
             if let Some(fu) = fu {
@@ -449,7 +448,6 @@ where
     /// # Safety
     ///
     /// `device` must be the same that was used with other methods of this instance.
-    ///
     unsafe fn cleanup(&mut self, device: &Device<B>) {
         while let Some(pending) = self.pending.pop_front() {
             match device.get_fence_status(&pending.fence) {
@@ -476,7 +474,6 @@ where
     /// # Safety
     ///
     /// Device must be idle.
-    ///
     unsafe fn dispose(mut self, device: &Device<B>) {
         let pool = &mut self.pool;
         self.pending.drain(..).for_each(|pending| {

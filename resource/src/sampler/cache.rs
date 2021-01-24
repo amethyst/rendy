@@ -1,17 +1,15 @@
 //! A cache to store and retrieve samplers
-use rendy_core::hal;
-
-use {
-    super::Sampler,
-    crate::escape::Handle,
-    hal::{image::SamplerDesc, Backend},
-    std::{
-        collections::hash_map::{Entry, HashMap},
-        ops::{Deref, DerefMut},
-    },
+use std::{
+    collections::hash_map::{Entry, HashMap},
+    ops::{Deref, DerefMut},
 };
 
 use derivative::Derivative;
+use hal::{image::SamplerDesc, Backend};
+use rendy_core::hal;
+
+use super::Sampler;
+use crate::escape::Handle;
 
 /// Sampler cache holds handlers to created samplers.
 #[derive(Debug, Derivative)]

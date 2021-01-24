@@ -1,15 +1,15 @@
 //! Buffer usage, creation-info and wrappers.
 
+use relevant::Relevant;
 pub use rendy_core::hal::buffer::*;
-use rendy_core::{Device, DeviceId};
+use rendy_core::{
+    hal::{self, device::Device as _, Backend},
+    Device, DeviceId,
+};
 
-use {
-    crate::{
-        memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
-        CreationError,
-    },
-    relevant::Relevant,
-    rendy_core::hal::{self, device::Device as _, Backend},
+use crate::{
+    memory::{Block, Heaps, MappedRange, MemoryBlock, MemoryUsage},
+    CreationError,
 };
 
 /// Buffer info.

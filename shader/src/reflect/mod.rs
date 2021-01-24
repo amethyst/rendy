@@ -1,9 +1,14 @@
+use std::{
+    collections::HashMap,
+    ops::{Bound, Range, RangeBounds},
+};
+
 use hal::pso::ShaderStageFlags;
-use rendy_core::hal;
-use rendy_core::types::{vertex::VertexFormat, Layout, SetLayout};
+use rendy_core::{
+    hal,
+    types::{vertex::VertexFormat, Layout, SetLayout},
+};
 use spirv_reflect::ShaderModule;
-use std::collections::HashMap;
-use std::ops::{Bound, Range, RangeBounds};
 
 pub(crate) mod types;
 pub use types::ReflectTypeError;
@@ -58,12 +63,14 @@ impl std::error::Error for ReflectError {}
 impl std::fmt::Display for ReflectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ReflectError::Retrieval(kind, msg) => write!(
-                f,
-                "failed to get {} from spirv-reflect: {}",
-                kind.as_str(),
-                msg
-            ),
+            ReflectError::Retrieval(kind, msg) => {
+                write!(
+                    f,
+                    "failed to get {} from spirv-reflect: {}",
+                    kind.as_str(),
+                    msg
+                )
+            }
             ReflectError::General(msg) => write!(f, "{}", msg),
             ReflectError::NameDoesNotExist(name) => {
                 write!(f, "attribute named {} does not exist", name)
@@ -74,10 +81,12 @@ impl std::fmt::Display for ReflectError {
             ReflectError::BindingsMismatch(set) => {
                 write!(f, "mismatching bindings between shaders for set {}", set)
             }
-            ReflectError::SpirvCachedGfxDescription => write!(
-                f,
-                "SpirvCachedGfxDescription not created for this reflection"
-            ),
+            ReflectError::SpirvCachedGfxDescription => {
+                write!(
+                    f,
+                    "SpirvCachedGfxDescription not created for this reflection"
+                )
+            }
             ReflectError::Type(e) => write!(f, "{}", e),
             ReflectError::NoVertComputeProvided => {
                 write!(f, "a vertex or compute shader must be provided")
@@ -164,8 +173,10 @@ impl SpirvReflection {
                 sets: self
                     .descriptor_sets
                     .iter()
-                    .map(|e| SetLayout {
-                        bindings: e.clone(),
+                    .map(|e| {
+                        SetLayout {
+                            bindings: e.clone(),
+                        }
                     })
                     .collect(),
                 push_constants: self.push_constants.clone(),

@@ -1,9 +1,9 @@
 //! Using spirv-reflect-rs for reflection.
 
-use rendy_core::hal;
-use rendy_core::hal::format::Format;
-use spirv_reflect::types::*;
 use std::collections::HashMap;
+
+use rendy_core::{hal, hal::format::Format};
+use spirv_reflect::types::*;
 
 /// A type reflection error.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -43,11 +43,13 @@ impl std::fmt::Display for ReflectTypeError {
             ReflectTypeError::UnrecognizedNumericTypeWidth(width) => {
                 write!(f, "unrecognized numeric type with width {}", width)
             }
-            ReflectTypeError::UnrecognizedNumericArrayCount(format, count) => write!(
-                f,
-                "unrecognized numeric array with format {:?} and component count {}",
-                format, count
-            ),
+            ReflectTypeError::UnrecognizedNumericArrayCount(format, count) => {
+                write!(
+                    f,
+                    "unrecognized numeric array with format {:?} and component count {}",
+                    format, count
+                )
+            }
             ReflectTypeError::VertexElement => write!(f, "Unable to reflect vertex element"),
             ReflectTypeError::UnhandledAccelerationStructureNV => {
                 write!(f, "We cant handle AccelerationStructureNV descriptor type")
@@ -202,49 +204,67 @@ impl ReflectInto<hal::pso::DescriptorType> for ReflectDescriptorType {
 
         match *self {
             Sampler => Ok(DescriptorType::Sampler),
-            CombinedImageSampler => Ok(DescriptorType::Image {
-                ty: ImageDescriptorType::Sampled { with_sampler: true },
-            }),
-            SampledImage => Ok(DescriptorType::Image {
-                ty: ImageDescriptorType::Sampled {
-                    with_sampler: false,
-                },
-            }),
-            StorageImage => Ok(DescriptorType::Image {
-                ty: ImageDescriptorType::Storage { read_only: false },
-            }),
-            UniformTexelBuffer => Ok(DescriptorType::Buffer {
-                ty: BufferDescriptorType::Uniform,
-                format: BufferDescriptorFormat::Texel,
-            }),
-            StorageTexelBuffer => Ok(DescriptorType::Buffer {
-                ty: BufferDescriptorType::Storage { read_only: false },
-                format: BufferDescriptorFormat::Texel,
-            }),
-            UniformBuffer => Ok(DescriptorType::Buffer {
-                ty: BufferDescriptorType::Uniform,
-                format: BufferDescriptorFormat::Structured {
-                    dynamic_offset: false,
-                },
-            }),
-            StorageBuffer => Ok(DescriptorType::Buffer {
-                ty: BufferDescriptorType::Storage { read_only: false },
-                format: BufferDescriptorFormat::Structured {
-                    dynamic_offset: false,
-                },
-            }),
-            UniformBufferDynamic => Ok(DescriptorType::Buffer {
-                ty: BufferDescriptorType::Uniform,
-                format: BufferDescriptorFormat::Structured {
-                    dynamic_offset: true,
-                },
-            }),
-            StorageBufferDynamic => Ok(DescriptorType::Buffer {
-                ty: BufferDescriptorType::Storage { read_only: false },
-                format: BufferDescriptorFormat::Structured {
-                    dynamic_offset: true,
-                },
-            }),
+            CombinedImageSampler => {
+                Ok(DescriptorType::Image {
+                    ty: ImageDescriptorType::Sampled { with_sampler: true },
+                })
+            }
+            SampledImage => {
+                Ok(DescriptorType::Image {
+                    ty: ImageDescriptorType::Sampled {
+                        with_sampler: false,
+                    },
+                })
+            }
+            StorageImage => {
+                Ok(DescriptorType::Image {
+                    ty: ImageDescriptorType::Storage { read_only: false },
+                })
+            }
+            UniformTexelBuffer => {
+                Ok(DescriptorType::Buffer {
+                    ty: BufferDescriptorType::Uniform,
+                    format: BufferDescriptorFormat::Texel,
+                })
+            }
+            StorageTexelBuffer => {
+                Ok(DescriptorType::Buffer {
+                    ty: BufferDescriptorType::Storage { read_only: false },
+                    format: BufferDescriptorFormat::Texel,
+                })
+            }
+            UniformBuffer => {
+                Ok(DescriptorType::Buffer {
+                    ty: BufferDescriptorType::Uniform,
+                    format: BufferDescriptorFormat::Structured {
+                        dynamic_offset: false,
+                    },
+                })
+            }
+            StorageBuffer => {
+                Ok(DescriptorType::Buffer {
+                    ty: BufferDescriptorType::Storage { read_only: false },
+                    format: BufferDescriptorFormat::Structured {
+                        dynamic_offset: false,
+                    },
+                })
+            }
+            UniformBufferDynamic => {
+                Ok(DescriptorType::Buffer {
+                    ty: BufferDescriptorType::Uniform,
+                    format: BufferDescriptorFormat::Structured {
+                        dynamic_offset: true,
+                    },
+                })
+            }
+            StorageBufferDynamic => {
+                Ok(DescriptorType::Buffer {
+                    ty: BufferDescriptorType::Storage { read_only: false },
+                    format: BufferDescriptorFormat::Structured {
+                        dynamic_offset: true,
+                    },
+                })
+            }
             InputAttachment => Ok(DescriptorType::InputAttachment),
             AccelerationStructureNV => Err(ReflectTypeError::UnhandledAccelerationStructureNV),
             Undefined => Err(ReflectTypeError::UnhandledUndefined),

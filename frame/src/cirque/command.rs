@@ -1,11 +1,10 @@
 use rendy_core::hal;
-use {
-    super::*,
-    crate::command::{
-        Capability, CommandBuffer, CommandPool, ExecutableState, IndividualReset, InitialState,
-        Level, MultiShot, NoSimultaneousUse, OutsideRenderPass, PendingState, PrimaryLevel,
-        RenderPassRelation, Submit,
-    },
+
+use super::*;
+use crate::command::{
+    Capability, CommandBuffer, CommandPool, ExecutableState, IndividualReset, InitialState, Level,
+    MultiShot, NoSimultaneousUse, OutsideRenderPass, PendingState, PrimaryLevel,
+    RenderPassRelation, Submit,
 };
 
 ///

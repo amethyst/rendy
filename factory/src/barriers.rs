@@ -1,11 +1,11 @@
+use std::ops::Range;
+
+use hal::{buffer, image, memory::Barrier, pso, Backend};
 use rendy_core::hal;
-use {
-    crate::{
-        command::Encoder,
-        resource::{Handle, Image},
-    },
-    hal::{buffer, image, memory::Barrier, pso, Backend},
-    std::ops::Range,
+
+use crate::{
+    command::Encoder,
+    resource::{Handle, Image},
 };
 
 /// A variant of `hal::image::Barrier` that uses Handle<Image<B>>
@@ -17,8 +17,8 @@ struct ImageBarrier<B: Backend> {
     pub target: Handle<Image<B>>,
     /// A `SubresourceRange` that defines which section of an image the barrier applies to.
     pub range: image::SubresourceRange,
-    // TODO: support queue transfers
-    // pub families: Option<Range<hal::queue::QueueFamilyId>>,
+    /* TODO: support queue transfers
+     * pub families: Option<Range<hal::queue::QueueFamilyId>>, */
 }
 
 impl<B: Backend> ImageBarrier<B> {

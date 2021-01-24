@@ -1,12 +1,12 @@
 //! Module that turns an image into a `Texture`
 
-use crate::{pixel, MipLevels, TextureBuilder};
-
-use rendy_core::hal;
 use std::num::NonZeroU8;
 
 // reexport for easy usage in ImageTextureConfig
 pub use image::ImageFormat;
+use rendy_core::hal;
+
+use crate::{pixel, MipLevels, TextureBuilder};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -234,11 +234,13 @@ where
             let (w, h) = image.dimensions();
 
             let (vec, format, swizzle) = match image {
-                DynamicImage::ImageLuma8(img) => (
-                    img.into_vec(),
-                    dyn_format!(R, _8, config.repr),
-                    Swizzle(Component::R, Component::R, Component::R, Component::One),
-                ),
+                DynamicImage::ImageLuma8(img) => {
+                    (
+                        img.into_vec(),
+                        dyn_format!(R, _8, config.repr),
+                        Swizzle(Component::R, Component::R, Component::R, Component::One),
+                    )
+                }
                 DynamicImage::ImageLumaA8(mut img) => {
                     if config.premultiply_alpha {
                         for pixel in img.pixels_mut() {
@@ -251,11 +253,13 @@ where
                         Swizzle(Component::R, Component::R, Component::R, Component::G),
                     )
                 }
-                DynamicImage::ImageRgb8(img) => (
-                    img.into_vec(),
-                    dyn_format!(Rgb, _8, config.repr),
-                    Swizzle::NO,
-                ),
+                DynamicImage::ImageRgb8(img) => {
+                    (
+                        img.into_vec(),
+                        dyn_format!(Rgb, _8, config.repr),
+                        Swizzle::NO,
+                    )
+                }
                 DynamicImage::ImageRgba8(mut img) => {
                     if config.premultiply_alpha {
                         for pixel in img.pixels_mut() {
@@ -268,11 +272,13 @@ where
                         Swizzle::NO,
                     )
                 }
-                DynamicImage::ImageBgr8(img) => (
-                    img.into_vec(),
-                    dyn_format!(Bgr, _8, config.repr),
-                    Swizzle::NO,
-                ),
+                DynamicImage::ImageBgr8(img) => {
+                    (
+                        img.into_vec(),
+                        dyn_format!(Bgr, _8, config.repr),
+                        Swizzle::NO,
+                    )
+                }
                 DynamicImage::ImageBgra8(mut img) => {
                     if config.premultiply_alpha {
                         for pixel in img.pixels_mut() {

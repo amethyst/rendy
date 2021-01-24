@@ -1,4 +1,5 @@
 use rendy_core::hal;
+
 use crate::{
     node::State,
     resource::{AccessFlags, Resource},
@@ -177,7 +178,6 @@ where
     ///
     /// This function will panic if `state` and `sid` are not compatible.
     /// E.g. `Link::compatible` didn't return `true` for the arguments.
-    ///
     pub fn add_node(&mut self, node: LinkNode<R>) {
         self.ensure_queue(node.sid.queue().index());
 

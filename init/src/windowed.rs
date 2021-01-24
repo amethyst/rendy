@@ -1,19 +1,19 @@
-use {
-    super::{Rendy, RendyInitError, BASIC_PRIORITY, UNAVAILABLE},
-    rendy_command::Families,
-    rendy_core::{
-        backend_enum,
-        hal::{self, device::CreationError, Backend, UnsupportedBackend},
-        rendy_backend, rendy_with_gl_backend, EnabledBackend,
-    },
-    rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure},
-    rendy_wsi::Surface,
-    std::borrow::Cow,
-    winit::{
-        event_loop::EventLoop,
-        window::{Window, WindowBuilder},
-    },
+use std::borrow::Cow;
+
+use rendy_command::Families;
+use rendy_core::{
+    backend_enum,
+    hal::{self, device::CreationError, Backend, UnsupportedBackend},
+    rendy_backend, rendy_with_gl_backend, EnabledBackend,
 };
+use rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure};
+use rendy_wsi::Surface;
+use winit::{
+    event_loop::EventLoop,
+    window::{Window, WindowBuilder},
+};
+
+use super::{Rendy, RendyInitError, BASIC_PRIORITY, UNAVAILABLE};
 
 rendy_with_gl_backend! {
     use rendy_core::{identical_cast, rendy_not_wasm32, rendy_wasm32};

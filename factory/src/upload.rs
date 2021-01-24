@@ -1,17 +1,15 @@
-use rendy_core::hal;
-use rendy_core::Device;
+use std::{collections::VecDeque, iter::once};
 
-use {
-    crate::{
-        barriers::Barriers,
-        command::{
-            CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
-            PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
-        },
-        resource::{Buffer, Escape, Handle, Image},
+use hal::device::{Device as _, OutOfMemory};
+use rendy_core::{hal, Device};
+
+use crate::{
+    barriers::Barriers,
+    command::{
+        CommandBuffer, CommandPool, Families, Family, IndividualReset, InitialState, OneShot,
+        PendingOnceState, PrimaryLevel, QueueId, RecordingState, Submission, Transfer,
     },
-    hal::device::{Device as _, OutOfMemory},
-    std::{collections::VecDeque, iter::once},
+    resource::{Buffer, Escape, Handle, Image},
 };
 
 /// State of the buffer on device.
@@ -167,7 +165,6 @@ where
     ///
     /// `device` must be the same that was used to create this `Uploader`.
     /// `buffer` and `staging` must belong to the `device`.
-    ///
     pub(crate) unsafe fn upload_buffer(
         &self,
         device: &Device<B>,
@@ -215,7 +212,6 @@ where
     /// # Safety
     ///
     /// `image` must belong to the `device` that was used to create this Uploader.
-    ///
     pub(crate) unsafe fn transition_image(
         &self,
         image: Handle<Image<B>>,
@@ -237,11 +233,13 @@ where
                 }
                 (last.stage, last.access, last.layout)
             }
-            ImageStateOrLayout::Layout(last_layout) => (
-                hal::pso::PipelineStage::TOP_OF_PIPE,
-                Access::empty(),
-                last_layout,
-            ),
+            ImageStateOrLayout::Layout(last_layout) => {
+                (
+                    hal::pso::PipelineStage::TOP_OF_PIPE,
+                    Access::empty(),
+                    last_layout,
+                )
+            }
         };
 
         if last_layout == Layout::Undefined || last_layout == next.layout {
@@ -265,7 +263,6 @@ where
     ///
     /// `device` must be the same that was used to create this `Uploader`.
     /// `image` and `staging` must belong to the `device`.
-    ///
     pub(crate) unsafe fn upload_image(
         &self,
         device: &Device<B>,
@@ -315,15 +312,17 @@ where
                     },
                 )
             }
-            ImageStateOrLayout::Layout(last_layout) => (
-                hal::pso::PipelineStage::TOP_OF_PIPE,
-                Access::empty(),
-                if whole_level {
-                    Layout::Undefined
-                } else {
-                    last_layout
-                },
-            ),
+            ImageStateOrLayout::Layout(last_layout) => {
+                (
+                    hal::pso::PipelineStage::TOP_OF_PIPE,
+                    Access::empty(),
+                    if whole_level {
+                        Layout::Undefined
+                    } else {
+                        last_layout
+                    },
+                )
+            }
         };
 
         let target_layout = match (last_layout, next.layout) {
@@ -374,7 +373,6 @@ where
     /// # Safety
     ///
     /// `device` must be the same that was used to create this `Uploader`.
-    ///
     pub(crate) unsafe fn cleanup(&mut self, device: &Device<B>) {
         for uploader in self.family_uploads.iter_mut() {
             if let Some(uploader) = uploader {
@@ -388,7 +386,6 @@ where
     /// # Safety
     ///
     /// `families` must be the same that was used to create this `Uploader`.
-    ///
     pub(crate) unsafe fn flush(&mut self, families: &mut Families<B>) {
         for family in families.as_slice_mut() {
             let uploader = self.family_uploads[family.id().index]
@@ -402,7 +399,6 @@ where
     ///
     /// `device` must be the same that was used to create this `Uploader`.
     /// `device` must be idle.
-    ///
     pub(crate) unsafe fn dispose(&mut self, device: &Device<B>) {
         self.family_uploads.drain(..).for_each(|fu| {
             if let Some(fu) = fu {
@@ -514,7 +510,6 @@ where
     /// # Safety
     ///
     /// `device` must be the same that was used with other methods of this instance.
-    ///
     unsafe fn cleanup(&mut self, device: &Device<B>) {
         while let Some(pending) = self.pending.pop_front() {
             match device.get_fence_status(&pending.fence) {
@@ -542,7 +537,6 @@ where
     /// # Safety
     ///
     /// Device must be idle.
-    ///
     unsafe fn dispose(mut self, device: &Device<B>) {
         let pool = &mut self.pool;
         self.pending.drain(..).for_each(|pending| {

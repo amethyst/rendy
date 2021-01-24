@@ -4,13 +4,12 @@ mod dedicated;
 mod dynamic;
 mod linear;
 
-use crate::block::Block;
-
 pub use self::{
     dedicated::{DedicatedAllocator, DedicatedBlock},
     dynamic::{DynamicAllocator, DynamicBlock, DynamicConfig},
     linear::{LinearAllocator, LinearBlock, LinearConfig},
 };
+use crate::block::Block;
 
 /// Allocator kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]

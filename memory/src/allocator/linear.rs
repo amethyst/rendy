@@ -1,15 +1,13 @@
-use std::{collections::VecDeque, ops::Range, ptr::NonNull};
+use std::{collections::VecDeque, ops::Range, ptr::NonNull, sync::Arc};
 
-use {
-    crate::{
-        allocator::{Allocator, Kind},
-        block::Block,
-        mapping::*,
-        memory::*,
-        util::*,
-    },
-    gfx_hal::{device::Device as _, Backend},
-    std::sync::Arc,
+use gfx_hal::{device::Device as _, Backend};
+
+use crate::{
+    allocator::{Allocator, Kind},
+    block::Block,
+    mapping::*,
+    memory::*,
+    util::*,
 };
 
 /// Memory block allocated from `LinearAllocator`

@@ -1,6 +1,12 @@
 //! First non-trivial example simulates miriad of quads floating in gravity field and bouce of window borders.
 //! It uses compute node to move quads and simple render pass to draw them.
 
+use std::ops::Deref;
+
+#[cfg(not(feature = "spirv-reflection"))]
+use rendy::mesh::AsVertex;
+#[cfg(feature = "spirv-reflection")]
+use rendy::shader::SpirvReflection;
 use rendy::{
     command::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
@@ -18,25 +24,20 @@ use rendy::{
         BufferAccess, Graph, GraphBuilder, GraphContext, Node, NodeBuffer, NodeBuildError,
         NodeDesc, NodeImage, NodeSubmittable,
     },
-    init::winit::{
-        dpi::Size as DpiSize,
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::{Window, WindowBuilder},
+    init::{
+        winit::{
+            dpi::Size as DpiSize,
+            event::{Event, WindowEvent},
+            event_loop::{ControlFlow, EventLoop},
+            window::{Window, WindowBuilder},
+        },
+        AnyWindowedRendy,
     },
-    init::AnyWindowedRendy,
     memory::Dynamic,
     mesh::Color,
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
 };
-use std::ops::Deref;
-
-#[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflection;
-
-#[cfg(not(feature = "spirv-reflection"))]
-use rendy::mesh::AsVertex;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -199,11 +200,13 @@ where
                     &mut indirect,
                     0,
                     &(0..DIVIDE)
-                        .map(|index| DrawCommand {
-                            vertex_count: 6,
-                            instance_count: PER_CALL,
-                            first_vertex: 0,
-                            first_instance: index * PER_CALL,
+                        .map(|index| {
+                            DrawCommand {
+                                vertex_count: 6,
+                                instance_count: PER_CALL,
+                                first_vertex: 0,
+                                first_instance: index * PER_CALL,
+                            }
                         })
                         .collect::<Vec<_>>(),
                 )

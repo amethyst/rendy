@@ -1,5 +1,6 @@
-use rendy_core::hal;
 use std::collections::hash_map::{HashMap, Iter as HashMapIter};
+
+use rendy_core::hal;
 
 use crate::{
     resource::{Buffer, Image, Resource},

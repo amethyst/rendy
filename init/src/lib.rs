@@ -3,16 +3,14 @@
 //! It is still possible to construct everything manually if your case is not supported by this module.
 
 // #[allow(unused)]
-use {
-    rendy_command::Families,
-    rendy_core::{
-        backend_enum,
-        hal::{device::CreationError, Backend, Instance as _, UnsupportedBackend},
-        rendy_backend, rendy_with_dx12_backend, rendy_with_empty_backend, rendy_with_gl_backend,
-        rendy_with_metal_backend, rendy_with_vulkan_backend, EnabledBackend, Instance,
-    },
-    rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure},
+use rendy_command::Families;
+use rendy_core::{
+    backend_enum,
+    hal::{device::CreationError, Backend, Instance as _, UnsupportedBackend},
+    rendy_backend, rendy_with_dx12_backend, rendy_with_empty_backend, rendy_with_gl_backend,
+    rendy_with_metal_backend, rendy_with_vulkan_backend, EnabledBackend, Instance,
 };
+use rendy_factory::{Config, DevicesConfigure, Factory, HeapsConfigure, QueuesConfigure};
 
 #[cfg(feature = "winit")]
 mod windowed;

@@ -1,8 +1,9 @@
-use rendy_core::hal;
 use std::{
     fmt::Debug,
     ops::{BitOr, BitOrAssign},
 };
+
+use rendy_core::hal;
 
 /// Trait to abstract of specific access flags.
 pub trait AccessFlags: Copy + Debug + BitOr<Output = Self> + BitOrAssign + 'static {

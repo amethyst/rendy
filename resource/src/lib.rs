@@ -23,8 +23,9 @@ mod set;
 mod resources;
 mod sampler;
 
-pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};
 use rendy_core::hal;
+
+pub use crate::{buffer::*, escape::*, image::*, resources::*, sampler::*, set::*};
 
 /// Error creating a resource.
 #[derive(Clone, Debug, PartialEq)]
@@ -43,7 +44,7 @@ where
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CreationError::Create(_err) => write!(fmt, "Failed to create object"), // Uncomment after gfx-0.4.1 std::fmt::Display::fmt(err, fmt),
+            CreationError::Create(_err) => write!(fmt, "Failed to create object"), /* Uncomment after gfx-0.4.1 std::fmt::Display::fmt(err, fmt), */
             CreationError::Allocate(err) => write!(fmt, "Failed to create object: {}", err),
             CreationError::Bind(err) => write!(fmt, "Failed to create object: {:?}", err),
         }

@@ -2,12 +2,12 @@
 
 mod command;
 
-pub use self::command::*;
+use std::collections::VecDeque;
+
 use rendy_core::hal;
-use {
-    crate::frame::{Frame, Frames},
-    std::collections::VecDeque,
-};
+
+pub use self::command::*;
+use crate::frame::{Frame, Frames};
 
 /// Reference to one of the values in the `Cirque`.
 /// It can be in either initial or ready state.

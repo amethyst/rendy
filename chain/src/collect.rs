@@ -1,9 +1,11 @@
+use std::{
+    cmp::max,
+    collections::{hash_map::RandomState, HashMap},
+    hash::Hash,
+    ops::Range,
+};
+
 use rendy_core::hal;
-use std::cmp::max;
-use std::collections::hash_map::RandomState;
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::ops::Range;
 
 use crate::{
     chain::{BufferChains, Chain, ImageChains, Link, LinkNode},

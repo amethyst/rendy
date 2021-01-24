@@ -1,8 +1,7 @@
-use {
-    super::{BlockFlavor, HeapsConfig},
-    crate::{allocator::*, usage::MemoryUsage, utilization::*},
-    gfx_hal::memory::Properties,
-};
+use gfx_hal::memory::Properties;
+
+use super::{BlockFlavor, HeapsConfig};
+use crate::{allocator::*, usage::MemoryUsage, utilization::*};
 
 #[derive(Debug)]
 pub(super) struct MemoryType<B: gfx_hal::Backend> {
@@ -117,10 +116,11 @@ where
                         .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
                 }
             }
-            (None, None) => self
-                .dedicated
-                .alloc(device, size, align)
-                .map(|(block, size)| (BlockFlavor::Dedicated(block), size)),
+            (None, None) => {
+                self.dedicated
+                    .alloc(device, size, align)
+                    .map(|(block, size)| (BlockFlavor::Dedicated(block), size))
+            }
         }
     }
 

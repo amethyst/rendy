@@ -3,17 +3,18 @@
 pub mod present;
 pub mod render;
 
-use rendy_core::hal;
-use {
-    crate::{
-        command::{Capability, Families, Family, FamilyId, Fence, Queue, Submission, Submittable},
-        factory::{Factory, UploadError},
-        frame::Frames,
-        graph::GraphContext,
-        wsi::SwapchainError,
-        BufferId, ImageId, NodeId,
-    },
-    rendy_core::hal::{queue::QueueFamilyId, Backend},
+use rendy_core::{
+    hal,
+    hal::{queue::QueueFamilyId, Backend},
+};
+
+use crate::{
+    command::{Capability, Families, Family, FamilyId, Fence, Queue, Submission, Submittable},
+    factory::{Factory, UploadError},
+    frame::Frames,
+    graph::GraphContext,
+    wsi::SwapchainError,
+    BufferId, ImageId, NodeId,
 };
 
 /// Buffer access node will perform.
@@ -146,7 +147,6 @@ pub trait NodeSubmittable<'a, B: Backend> {
 ///
 /// `B` - backend type.
 /// `T` - auxiliary data type.
-///
 pub trait Node<B: Backend, T: ?Sized>:
     for<'a> NodeSubmittable<'a, B> + std::fmt::Debug + Sized + Sync + Send + 'static
 {
@@ -203,7 +203,6 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
     /// `family`    - id of the family this node will be executed on.
     /// `resources` - set of transient resources managed by graph.
     ///               with barriers required for interface resources.
-    ///
     fn build<'a>(
         self,
         ctx: &GraphContext<B>,

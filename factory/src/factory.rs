@@ -1,38 +1,36 @@
-use rendy_core::hal;
-use rendy_core::{Device, DeviceId, Instance, InstanceId};
-use {
-    crate::{
-        blitter::Blitter,
-        command::{
-            families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
-        },
-        config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
-        descriptor::DescriptorAllocator,
-        memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
-        resource::*,
-        upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        wsi::{Surface, SwapchainError, Target},
-    },
-    rendy_core::{
-        hal::{
-            adapter::{Adapter, Gpu, PhysicalDevice},
-            buffer,
-            device::{
-                AllocationError, CreationError, Device as _, MapError, OomOrDeviceLost,
-                OutOfMemory, WaitFor,
-            },
-            format, image,
-            pso::DescriptorSetLayoutBinding,
-            window::{Extent2D, InitError, Surface as GfxSurface},
-            Backend, Features, Instance as _, Limits,
-        },
-        HasRawWindowHandle,
-    },
-    smallvec::SmallVec,
-    std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop},
-};
+use std::{borrow::BorrowMut, cmp::max, mem::ManuallyDrop};
 
 use derivative::Derivative;
+use rendy_core::{
+    hal,
+    hal::{
+        adapter::{Adapter, Gpu, PhysicalDevice},
+        buffer,
+        device::{
+            AllocationError, CreationError, Device as _, MapError, OomOrDeviceLost, OutOfMemory,
+            WaitFor,
+        },
+        format, image,
+        pso::DescriptorSetLayoutBinding,
+        window::{Extent2D, InitError, Surface as GfxSurface},
+        Backend, Features, Instance as _, Limits,
+    },
+    Device, DeviceId, HasRawWindowHandle, Instance, InstanceId,
+};
+use smallvec::SmallVec;
+
+use crate::{
+    blitter::Blitter,
+    command::{
+        families_from_device, CommandPool, Families, Family, FamilyId, Fence, QueueType, Reset,
+    },
+    config::{Config, DevicesConfigure, HeapsConfigure, QueuesConfigure},
+    descriptor::DescriptorAllocator,
+    memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
+    resource::*,
+    upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
+    wsi::{Surface, SwapchainError, Target},
+};
 
 #[derive(Debug, Derivative)]
 #[derivative(Default(bound = ""))]
@@ -996,7 +994,6 @@ where
     /// # Safety
     ///
     /// `layout` must be created by this `Factory`.
-    ///
     pub fn create_descriptor_sets<T>(
         &self,
         layout: Handle<DescriptorSetLayout<B>>,

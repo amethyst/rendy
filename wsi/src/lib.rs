@@ -12,17 +12,17 @@
 )]
 #![allow(clippy::missing_safety_doc)]
 
-use {
-    rendy_core::hal::{
+use rendy_core::{
+    hal::{
         self,
         device::Device as _,
         format::Format,
         window::{Extent2D, Surface as _, SurfaceCapabilities},
         Backend, Instance as _,
     },
-    rendy_core::{Device, HasRawWindowHandle, Instance, InstanceId},
-    rendy_resource::{Image, ImageInfo},
+    Device, HasRawWindowHandle, Instance, InstanceId,
 };
+use rendy_resource::{Image, ImageInfo};
 
 /// Error creating a new swapchain.
 #[derive(Debug)]
@@ -38,21 +38,27 @@ pub enum SwapchainError {
 impl std::fmt::Display for SwapchainError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SwapchainError::Create(err) => write!(
-                fmt,
-                "Failed to create swapchain because of a window creation error: {:?}",
-                err
-            ),
-            SwapchainError::BadPresentMode(present_mode) => write!(
+            SwapchainError::Create(err) => {
+                write!(
+                    fmt,
+                    "Failed to create swapchain because of a window creation error: {:?}",
+                    err
+                )
+            }
+            SwapchainError::BadPresentMode(present_mode) => {
+                write!(
                 fmt,
                 "Failed to create swapchain because requested present mode is not supported: {:?}",
                 present_mode
-            ),
-            SwapchainError::BadImageCount(image_count) => write!(
+            )
+            }
+            SwapchainError::BadImageCount(image_count) => {
+                write!(
                 fmt,
                 "Failed to create swapchain because requested image count is not supported: {:?}",
                 image_count
-            ),
+            )
+            }
         }
     }
 }
