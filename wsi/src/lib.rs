@@ -72,21 +72,15 @@ impl std::error::Error for SwapchainError {
         }
     }
 }
+
+use derivative::Derivative;
 /// Rendering target bound to window.
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct Surface<B: Backend> {
+    #[derivative(Debug = "ignore")]
     raw: B::Surface,
     instance: InstanceId,
-}
-
-impl<B> std::fmt::Debug for Surface<B>
-where
-    B: Backend,
-{
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Surface")
-            .field("instance", &self.instance)
-            .finish()
-    }
 }
 
 impl<B> Surface<B>

@@ -13,13 +13,16 @@ fn new_device_id(instance: InstanceId) -> DeviceId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InstanceId;
 
+use derivative::Derivative;
 use derive_more::{Deref, DerefMut};
 
 /// Raw instance wrapper with id.
-#[derive(Deref, DerefMut)]
+#[derive(Deref, DerefMut, Derivative)]
+#[derivative(Debug)]
 pub struct Instance<B: Backend> {
     #[deref]
     #[deref_mut]
+    #[derivative(Debug = "ignore")]
     instance: B::Instance,
     id: InstanceId,
 }
@@ -49,15 +52,6 @@ where
     /// Get inner raw instance
     pub fn into_raw(self) -> B::Instance {
         self.instance
-    }
-}
-
-impl<B> std::fmt::Debug for Instance<B>
-where
-    B: Backend,
-{
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "Instance {:?}", self.id)
     }
 }
 

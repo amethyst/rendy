@@ -24,3 +24,4 @@ rendy-core = { version = "0.5.1", path = "../core" }
 log = "0.4.11"
 relevant = { version = "0.4.2", features = ["log"] }
 smallvec = "1.5.1"
+derivative = "2.2.0"
