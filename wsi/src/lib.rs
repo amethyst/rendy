@@ -21,7 +21,6 @@ use rendy_core::{
     },
     Device, HasRawWindowHandle, Instance, InstanceId,
 };
-use rendy_resource::{Image, ImageInfo};
 
 /// Error creating a new swapchain.
 #[derive(Debug)]
@@ -294,7 +293,7 @@ where
     /// # Safety
     ///
     /// Swapchain must be not in use.
-    pub unsafe fn dispose(mut self, device: &Device<B>) -> Surface<B> {
+    pub unsafe fn dispose(self, _device: &Device<B>) -> Surface<B> {
         // if let Some(images) = self.backbuffer {
         //     images
         //         .into_iter()
