@@ -220,14 +220,6 @@ macro_rules! rendy_not_wasm32 {
 
 /// Resolve into input AST if rendy is requested to not perform slow safety checks.
 #[macro_export]
-#[cfg(feature = "no-slow-safety-checks")]
 macro_rules! rendy_without_slow_safety_checks {
     ($($tt:tt)*) => { $($tt)* };
-}
-
-/// Resolve into input AST if rendy is requested to not perform slow safety checks.
-#[macro_export]
-#[cfg(not(feature = "no-slow-safety-checks"))]
-macro_rules! rendy_without_slow_safety_checks {
-    ($($tt:tt)*) => {};
 }

@@ -11,7 +11,7 @@ categories = ["rendering"]
 description = "Rendy's queues and commands tools"
 
 [features]
-no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
+
 profiler = ["thread_profiler/thread_profiler"]
 
 [dependencies]

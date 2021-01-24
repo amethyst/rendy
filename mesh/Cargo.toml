@@ -14,7 +14,7 @@ readme = "README.md"
 [features]
 obj = ["wavefront_obj"]
 serde-1 = ["serde", "serde_bytes", "smallvec/serde", "rendy-factory/serde-1"]
-no-slow-safety-checks = ["rendy-core/no-slow-safety-checks"]
+
 
 [dependencies]
 rendy-command = { version = "0.5.1", path = "../command" }
