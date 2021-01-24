@@ -134,98 +134,86 @@ fn create_per_image_data<B: hal::Backend>(
                     layer_count: Some(1),
                 },
             });
-            unsafe {
-                encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
-            }
+            encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
 
             let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
             let formats_differ = target_image.format() != input_image_res.format();
 
             if extents_differ || formats_differ {
-                if formats_differ {}
-                if extents_differ {}
-                unsafe {
-                    encoder.blit_image(
-                        input_image_res.raw(),
-                        input_image.layout,
-                        target_image.raw(),
-                        hal::image::Layout::TransferDstOptimal,
-                        blit_filter,
-                        Some(hal::command::ImageBlit {
-                            src_subresource: hal::image::SubresourceLayers {
-                                aspects: input_image.range.aspects,
-                                level: 0,
-                                layers: input_image.range.layer_start
-                                    ..input_image.range.layer_start + 1,
-                            },
-                            src_bounds: hal::image::Offset::ZERO
-                                .into_bounds(&input_image_res.kind().extent()),
-                            dst_subresource: hal::image::SubresourceLayers {
-                                aspects: hal::format::Aspects::COLOR,
-                                level: 0,
-                                layers: 0..1,
-                            },
-                            dst_bounds: hal::image::Offset::ZERO
-                                .into_bounds(&target_image.kind().extent()),
-                        }),
-                    );
-                }
+                encoder.blit_image(
+                    input_image_res.raw(),
+                    input_image.layout,
+                    target_image.raw(),
+                    hal::image::Layout::TransferDstOptimal,
+                    blit_filter,
+                    Some(hal::command::ImageBlit {
+                        src_subresource: hal::image::SubresourceLayers {
+                            aspects: input_image.range.aspects,
+                            level: 0,
+                            layers: input_image.range.layer_start
+                                ..input_image.range.layer_start + 1,
+                        },
+                        src_bounds: hal::image::Offset::ZERO
+                            .into_bounds(&input_image_res.kind().extent()),
+                        dst_subresource: hal::image::SubresourceLayers {
+                            aspects: hal::format::Aspects::COLOR,
+                            level: 0,
+                            layers: 0..1,
+                        },
+                        dst_bounds: hal::image::Offset::ZERO
+                            .into_bounds(&target_image.kind().extent()),
+                    }),
+                );
             } else {
-                unsafe {
-                    encoder.copy_image(
-                        input_image_res.raw(),
-                        input_image.layout,
-                        target_image.raw(),
-                        hal::image::Layout::TransferDstOptimal,
-                        Some(hal::command::ImageCopy {
-                            src_subresource: hal::image::SubresourceLayers {
-                                aspects: input_image.range.aspects,
-                                level: 0,
-                                layers: input_image.range.layer_start
-                                    ..input_image.range.layer_start + 1,
-                            },
-                            src_offset: hal::image::Offset::ZERO,
-                            dst_subresource: hal::image::SubresourceLayers {
-                                aspects: hal::format::Aspects::COLOR,
-                                level: 0,
-                                layers: 0..1,
-                            },
-                            dst_offset: hal::image::Offset::ZERO,
-                            extent: hal::image::Extent {
-                                width: target_image.kind().extent().width,
-                                height: target_image.kind().extent().height,
-                                depth: 1,
-                            },
-                        }),
-                    );
-                }
+                encoder.copy_image(
+                    input_image_res.raw(),
+                    input_image.layout,
+                    target_image.raw(),
+                    hal::image::Layout::TransferDstOptimal,
+                    Some(hal::command::ImageCopy {
+                        src_subresource: hal::image::SubresourceLayers {
+                            aspects: input_image.range.aspects,
+                            level: 0,
+                            layers: input_image.range.layer_start
+                                ..input_image.range.layer_start + 1,
+                        },
+                        src_offset: hal::image::Offset::ZERO,
+                        dst_subresource: hal::image::SubresourceLayers {
+                            aspects: hal::format::Aspects::COLOR,
+                            level: 0,
+                            layers: 0..1,
+                        },
+                        dst_offset: hal::image::Offset::ZERO,
+                        extent: hal::image::Extent {
+                            width: target_image.kind().extent().width,
+                            height: target_image.kind().extent().height,
+                            depth: 1,
+                        },
+                    }),
+                );
             }
 
-            {
-                let (mut stages, mut barriers) = gfx_release_barriers(ctx, None, Some(input_image));
-                stages.start |= hal::pso::PipelineStage::TRANSFER;
-                stages.end |= hal::pso::PipelineStage::BOTTOM_OF_PIPE;
-                barriers.push(hal::memory::Barrier::Image {
-                    states: (
-                        hal::image::Access::TRANSFER_WRITE,
-                        hal::image::Layout::TransferDstOptimal,
-                    )
-                        ..(hal::image::Access::empty(), hal::image::Layout::Present),
-                    families: None,
-                    target: target_image.raw(),
-                    range: hal::image::SubresourceRange {
-                        aspects: hal::format::Aspects::COLOR,
-                        level_start: 0,
-                        level_count: Some(1),
-                        layer_start: 0,
-                        layer_count: Some(1),
-                    },
-                });
+            let (mut stages, mut barriers) = gfx_release_barriers(ctx, None, Some(input_image));
+            stages.start |= hal::pso::PipelineStage::TRANSFER;
+            stages.end |= hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+            barriers.push(hal::memory::Barrier::Image {
+                states: (
+                    hal::image::Access::TRANSFER_WRITE,
+                    hal::image::Layout::TransferDstOptimal,
+                )
+                    ..(hal::image::Access::empty(), hal::image::Layout::Present),
+                families: None,
+                target: target_image.raw(),
+                range: hal::image::SubresourceRange {
+                    aspects: hal::format::Aspects::COLOR,
+                    level_start: 0,
+                    level_count: Some(1),
+                    layer_start: 0,
+                    layer_count: Some(1),
+                },
+            });
 
-                unsafe {
-                    encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
-                }
-            }
+            encoder.pipeline_barrier(stages, hal::memory::Dependencies::empty(), barriers);
 
             let (submit, buffer) = buf_recording.finish().submit();
 
