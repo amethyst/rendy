@@ -192,7 +192,7 @@ where
         present_mode: hal::window::PresentMode,
         usage: hal::image::Usage,
     ) -> Result<Target<B>, SwapchainError> {
-        let (backbuffer, extent) = create_swapchain(
+        let extent = create_swapchain(
             &mut self,
             physical_device,
             device,
@@ -205,7 +205,7 @@ where
         Ok(Target {
             relevant: relevant::Relevant,
             surface: self,
-            backbuffer: Some(backbuffer),
+            image_count,
             extent,
             present_mode,
             usage,
@@ -221,7 +221,7 @@ unsafe fn create_swapchain<B: Backend>(
     image_count: u32,
     present_mode: hal::window::PresentMode,
     usage: hal::image::Usage,
-) -> Result<(Vec<Image<B>>, Extent2D), SwapchainError> {
+) -> Result<Extent2D, SwapchainError> {
     let capabilities = surface.capabilities(physical_device);
     let format = surface.format(physical_device);
 
@@ -262,37 +262,15 @@ unsafe fn create_swapchain<B: Backend>(
         )
         .map_err(SwapchainError::Create)?;
 
-    // let (swapchain, images) = device
-    //     .create_swapchain(&mut surface.raw, None)
-    //     .map_err(SwapchainError::Create)?;
-
-    let backbuffer = images
-        .into_iter()
-        .map(|image| {
-            Image::create_from_swapchain(
-                device.id(),
-                ImageInfo {
-                    kind: hal::image::Kind::D2(extent.width, extent.height, 1, 1),
-                    levels: 1,
-                    format,
-                    tiling: hal::image::Tiling::Optimal,
-                    view_caps: hal::image::ViewCapabilities::empty(),
-                    usage,
-                },
-                image,
-            )
-        })
-        .collect();
-
-    Ok((backbuffer, extent))
+    Ok(extent)
 }
 
 /// Rendering target bound to window.
 /// With swapchain created.
 pub struct Target<B: Backend> {
     surface: Surface<B>,
-    backbuffer: Option<Vec<Image<B>>>,
     extent: Extent2D,
+    image_count: u32,
     present_mode: hal::window::PresentMode,
     usage: hal::image::Usage,
     relevant: relevant::Relevant,
@@ -303,9 +281,7 @@ where
     B: Backend,
 {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("Target")
-            .field("backbuffer", &self.backbuffer)
-            .finish()
+        fmt.debug_struct("Target").finish()
     }
 }
 
@@ -319,11 +295,11 @@ where
     ///
     /// Swapchain must be not in use.
     pub unsafe fn dispose(mut self, device: &Device<B>) -> Surface<B> {
-        if let Some(images) = self.backbuffer {
-            images
-                .into_iter()
-                .for_each(|image| image.dispose_swapchain_image(device.id()));
-        }
+        // if let Some(images) = self.backbuffer {
+        //     images
+        //         .into_iter()
+        //         .for_each(|image| image.dispose_swapchain_image(device.id()));
+        // }
 
         self.relevant.dispose();
         // if let Some(s) = self.swapchain.take() {
@@ -348,42 +324,32 @@ where
         device: &Device<B>,
         suggest_extent: Extent2D,
     ) -> Result<(), SwapchainError> {
-        let image_count = match self.backbuffer.take() {
-            Some(images) => {
-                let count = images.len();
-                images
-                    .into_iter()
-                    .for_each(|image| image.dispose_swapchain_image(device.id()));
-                count
-            }
-            None => 0,
-        };
+        // let image_count = match self.backbuffer.take() {
+        //     Some(images) => {
+        //         let count = images.len();
+        //         images
+        //             .into_iter()
+        //             .for_each(|image| image.dispose_swapchain_image(device.id()));
+        //         count
+        //     }
+        //     None => 0,
+        // };
 
         // if let Some(s) = self.swapchain.take() {
         //     device.destroy_swapchain(s)
         // }
 
-        let (backbuffer, extent) = create_swapchain(
+        self.extent = create_swapchain(
             &mut self.surface,
             physical_device,
             device,
             suggest_extent,
-            image_count as u32,
+            self.image_count,
             self.present_mode,
             self.usage,
         )?;
 
-        self.backbuffer.replace(backbuffer);
-        self.extent = extent;
-
         Ok(())
-    }
-
-    /// Get raw handlers for the swapchain images.
-    pub fn backbuffer(&self) -> &Vec<Image<B>> {
-        self.backbuffer
-            .as_ref()
-            .expect("Swapchain already disposed")
     }
 
     /// Get render target size.
