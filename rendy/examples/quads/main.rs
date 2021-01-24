@@ -38,6 +38,7 @@ use rendy::{
     resource::{Buffer, BufferInfo, DescriptorSet, DescriptorSetLayout, Escape, Handle},
     shader::{Shader, ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader},
 };
+use rendy_graph::ImageAccess;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -403,6 +404,10 @@ where
             stages: hal::pso::PipelineStage::COMPUTE_SHADER,
             usage: hal::buffer::Usage::STORAGE | hal::buffer::Usage::TRANSFER_DST,
         }]
+    }
+
+    fn images(&self) -> Vec<ImageAccess> {
+        Vec::new()
     }
 
     fn build<'a>(

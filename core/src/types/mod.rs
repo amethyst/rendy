@@ -9,7 +9,7 @@ pub struct SetLayout {
 }
 
 /// Pipeline layout
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Layout {
     /// Sets in pipeline layout.
     pub sets: Vec<SetLayout>,

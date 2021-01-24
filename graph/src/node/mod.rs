@@ -185,14 +185,10 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
     }
 
     /// Get set or buffer resources the node uses.
-    fn buffers(&self) -> Vec<BufferAccess> {
-        Vec::new()
-    }
+    fn buffers(&self) -> Vec<BufferAccess>;
 
     /// Get set or image resources the node uses.
-    fn images(&self) -> Vec<ImageAccess> {
-        Vec::new()
-    }
+    fn images(&self) -> Vec<ImageAccess>;
 
     /// Build the node.
     ///
@@ -460,15 +456,11 @@ where
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
-        let desc_buffers = self.desc.buffers();
-
-        self.buffers.iter().cloned().zip(desc_buffers).collect()
+        self.buffers.iter().cloned().zip(Vec::new()).collect()
     }
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
-        let desc_images = self.desc.images();
-
-        self.images.iter().cloned().zip(desc_images).collect()
+        self.images.iter().cloned().zip(Vec::new()).collect()
     }
 
     fn dependencies(&self) -> Vec<NodeId> {

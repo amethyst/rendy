@@ -401,10 +401,6 @@ where
             surface_usage |= hal::image::Usage::DEPTH_STENCIL_ATTACHMENT;
         }
 
-        if surface.is_some() {
-        } else {
-        }
-
         attachments.sort();
         attachments.dedup();
 

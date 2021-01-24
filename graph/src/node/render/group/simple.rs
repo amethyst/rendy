@@ -99,10 +99,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Layout for graphics pipeline
     /// Default implementation for `pipeline` will use this.
     fn layout(&self) -> Layout {
-        Layout {
-            sets: Vec::new(),
-            push_constants: Vec::new(),
-        }
+        Layout::default()
     }
 
     /// Returns the InputAssemblerDesc. Defaults to a TriangleList with Restart disabled, can be overriden.
@@ -117,8 +114,8 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Graphics pipelines
     fn pipeline(&self) -> Pipeline {
         Pipeline {
-            layout: self.layout(),
-            vertices: self.vertices(),
+            layout: Layout::default(),
+            vertices: Vec::new(),
             colors: self.colors(),
             depth_stencil: self.depth_stencil().unwrap_or_default(),
             rasterizer: self.rasterizer(),
