@@ -301,8 +301,10 @@ impl<'a> TextureBuilder<'a> {
                     image.clone(),
                     image::SubresourceRange {
                         aspects: info.format.surface_desc().aspects,
-                        levels: 1..mip_levels,
-                        layers: 0..info.kind.num_layers(),
+                        level_start: 1,
+                        level_count: Some(mip_levels),
+                        layer_start: 0,
+                        layer_count: Some(info.kind.num_layers()),
                     },
                     image::Layout::Undefined,
                     next_state,
