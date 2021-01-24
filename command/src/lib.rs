@@ -12,8 +12,6 @@
 )]
 #![allow(clippy::missing_safety_doc)]
 
-use rendy_core as core;
-
 mod buffer;
 mod capability;
 mod family;

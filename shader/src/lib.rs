@@ -10,6 +10,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+#![allow(clippy::missing_safety_doc)]
 
 #[cfg(feature = "shader-compiler")]
 mod shaderc;

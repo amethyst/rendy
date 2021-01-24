@@ -60,14 +60,6 @@ impl<S> Queue<S> {
         self.submissions.iter_mut()
     }
 
-    // /// Iterate over mutable references to each submission in this queue
-    // pub fn into_iter(self) -> QueueIntoIter<S> {
-    //     QueueIntoIter {
-    //         qid: self.id,
-    //         iter: self.submissions.into_iter().enumerate(),
-    //     }
-    // }
-
     /// Get the number of submissions in queue.
     pub fn len(&self) -> usize {
         self.submissions.len()
@@ -92,16 +84,6 @@ impl<S> Queue<S> {
     pub fn submission_mut(&mut self, sid: SubmissionId) -> Option<&mut Submission<S>> {
         self.submissions.get_mut(sid.index())
     }
-
-    // /// Get reference to last `Submission` instance.
-    // pub fn last_submission(&self) -> Option<&Submission<S>> {
-    //     self.submissions.last()
-    // }
-
-    // /// Get mutable reference to last `Submission` instance.
-    // pub fn last_submission_mut(&mut self) -> Option<&mut Submission<S>> {
-    //     self.submissions.last_mut()
-    // }
 
     /// Add `Submission` instance to the end of queue.
     /// Returns id of the added submission.

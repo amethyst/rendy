@@ -11,7 +11,7 @@
 //! as just a safety net.
 
 use {
-    crossbeam_channel::{Receiver, Sender, TryRecvError},
+    crossbeam_channel::{Receiver, Sender},
     std::{
         iter::repeat,
         mem::ManuallyDrop,
@@ -121,10 +121,7 @@ impl<T> Drop for Terminal<T> {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.sender);
-            match self.receiver.try_recv() {
-                Err(TryRecvError::Disconnected) => {}
-                _ => {}
-            }
+            let _ = self.receiver.try_recv();
         }
     }
 }

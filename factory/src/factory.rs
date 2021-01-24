@@ -766,10 +766,7 @@ where
     ) -> Result<(), OutOfMemory> {
         let fences = fences
             .into_iter()
-            .map(|f| {
-                let f = f.borrow_mut();
-                f
-            })
+            .map(|f| f.borrow_mut())
             .collect::<SmallVec<[_; 32]>>();
         unsafe {
             self.device.reset_fences(fences.iter().map(|f| f.raw()))?;

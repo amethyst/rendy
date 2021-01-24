@@ -1,10 +1,8 @@
 use rendy_core::hal;
 use {
-    crate::{
-        core::{Device, DeviceId},
-        family::QueueId,
-    },
+    crate::family::QueueId,
     hal::{device::Device as _, Backend},
+    rendy_core::{Device, DeviceId},
 };
 
 /// Queue epoch is the point in particluar queue timeline when fence is submitted.

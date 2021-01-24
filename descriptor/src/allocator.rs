@@ -24,7 +24,7 @@ pub struct DescriptorSet<B: Backend> {
     ranges: DescriptorRanges,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 struct Allocation<B: Backend> {
     sets: SmallVec<[B::DescriptorSet; 1]>,
     pools: Vec<u64>,

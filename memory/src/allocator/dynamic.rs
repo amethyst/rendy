@@ -595,6 +595,5 @@ where
 }
 
 fn max_chunks_per_size() -> usize {
-    let value = (std::mem::size_of::<usize>() * 8).pow(4);
-    value
+    (std::mem::size_of::<usize>() * 8).pow(4)
 }

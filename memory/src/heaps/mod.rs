@@ -71,7 +71,6 @@ where
         P: IntoIterator<Item = (gfx_hal::memory::Properties, u32, HeapsConfig)>,
         H: IntoIterator<Item = u64>,
     {
-        let heaps = heaps.into_iter().map(MemoryHeap::new).collect::<Vec<_>>();
         Heaps {
             types: types
                 .into_iter()
@@ -88,7 +87,7 @@ where
                     )
                 })
                 .collect(),
-            heaps,
+            heaps: heaps.into_iter().map(MemoryHeap::new).collect::<Vec<_>>(),
         }
     }
 
@@ -132,7 +131,7 @@ where
                 .into_iter()
                 .filter(|(_, mt, _)| self.heaps[mt.heap_index()].available() > size + align)
                 .max_by_key(|&(_, _, fitness)| fitness)
-                .ok_or_else(|| gfx_hal::device::OutOfMemory::Device)?
+                .ok_or(gfx_hal::device::OutOfMemory::Device)?
         };
 
         self.allocate_from(device, memory_index as u32, usage, size, align)

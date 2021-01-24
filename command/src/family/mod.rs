@@ -8,10 +8,10 @@ use {
     crate::{
         buffer::Reset,
         capability::{Capability, QueueType, Supports},
-        core::{Device, DeviceId},
         pool::CommandPool,
     },
     hal::Backend,
+    rendy_core::{Device, DeviceId},
 };
 
 pub use self::{queue::*, submission::*};

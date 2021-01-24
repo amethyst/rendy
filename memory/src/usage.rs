@@ -77,9 +77,9 @@ impl MemoryUsage for Dynamic {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        0 | (properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
+        (properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL) as u32) << 2
             | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
-            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32)
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -104,9 +104,9 @@ impl MemoryUsage for Upload {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
+        ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
             | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 1
-            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32) << 0
+            | ((!properties.contains(gfx_hal::memory::Properties::CPU_CACHED)) as u32)
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
@@ -131,9 +131,9 @@ impl MemoryUsage for Download {
 
     #[inline]
     fn memory_fitness(&self, properties: gfx_hal::memory::Properties) -> u32 {
-        0 | ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
+        ((!properties.contains(gfx_hal::memory::Properties::DEVICE_LOCAL)) as u32) << 2
             | (properties.contains(gfx_hal::memory::Properties::CPU_CACHED) as u32) << 1
-            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32) << 0
+            | (properties.contains(gfx_hal::memory::Properties::COHERENT) as u32)
     }
 
     fn allocator_fitness(&self, kind: Kind) -> u32 {
