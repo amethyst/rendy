@@ -154,6 +154,7 @@ use derivative::Derivative;
 #[derive(Debug, Derivative)]
 #[derivative(Default(bound = ""))]
 pub struct ShaderSet<B: Backend> {
+    /// the shaders
     pub shaders: HashMap<ShaderStageFlags, ShaderStorage<B>>,
 }
 
