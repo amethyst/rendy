@@ -296,11 +296,11 @@ impl ReflectInto<hal::pso::DescriptorSetLayoutBinding> for ReflectDescriptorBind
 pub(crate) fn convert_push_constant(
     stage: hal::pso::ShaderStageFlags,
     variable: &ReflectBlockVariable,
-) -> Result<(hal::pso::ShaderStageFlags, std::ops::Range<u32>), ReflectTypeError> {
-    Ok((
+) -> (hal::pso::ShaderStageFlags, std::ops::Range<u32>) {
+    (
         stage,
         variable.offset..variable.offset / 4 + variable.size / 4,
-    ))
+    )
 }
 
 pub(crate) fn convert_stage(stage: ReflectShaderStageFlags) -> hal::pso::ShaderStageFlags {

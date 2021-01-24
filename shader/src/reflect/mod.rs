@@ -236,7 +236,7 @@ impl SpirvReflection {
                         .for_each(|mut set| set.stage_flags = stage_flag);
                 });
 
-                let push_constants: Result<Vec<_>, _> = module
+                let push_constants: Vec<_> = module
                     .enumerate_push_constant_blocks(None)
                     .map_err(|e| {
                         ReflectError::Retrieval(RetrievalKind::PushConstants, e.to_string())
@@ -258,7 +258,7 @@ impl SpirvReflection {
                         ReflectError::Retrieval(RetrievalKind::OutputAttrib, e.to_string())
                     })?,
                     descriptor_sets_final,
-                    push_constants?,
+                    push_constants,
                 ))
             }
             Err(e) => Err(ReflectError::General(e.to_string())),

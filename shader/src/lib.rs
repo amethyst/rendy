@@ -90,7 +90,7 @@ pub struct SpirvShader {
 
 #[cfg(feature = "serde")]
 mod serde_spirv {
-    pub fn serialize<S>(data: &Vec<u32>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(data: &[u32], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -172,7 +172,7 @@ impl<B: Backend> ShaderSet<B> {
     }
 
     /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in hal.
-    pub fn raw<'a>(&'a self) -> Result<hal::pso::GraphicsShaderSet<'a, B>, ShaderError> {
+    pub fn raw(&self) -> Result<hal::pso::GraphicsShaderSet<B>, ShaderError> {
         Ok(hal::pso::GraphicsShaderSet {
             vertex: self
                 .shaders
@@ -437,9 +437,7 @@ pub struct ShaderStorage<B: Backend> {
 }
 impl<B: Backend> ShaderStorage<B> {
     /// Builds the `EntryPoint` structure used by hal to determine how to utilize this shader
-    pub fn get_entry_point<'a>(
-        &'a self,
-    ) -> Result<Option<hal::pso::EntryPoint<'a, B>>, ShaderError> {
+    pub fn get_entry_point(&self) -> Result<Option<hal::pso::EntryPoint<B>>, ShaderError> {
         Ok(Some(hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),

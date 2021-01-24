@@ -275,7 +275,7 @@ where
                         Some(signal) => signal.take().unwrap(),
                     }
                 });
-                let sync = sync.convert_wait(|semaphore| {
+                sync.convert_wait(|semaphore| {
                     match waits.get_mut(&semaphore) {
                         None => {
                             let (signal, wait) = new_semaphore();
@@ -284,8 +284,7 @@ where
                         }
                         Some(wait) => wait.take().unwrap(),
                     }
-                });
-                sync
+                })
             } else {
                 SyncData::default()
             };

@@ -403,7 +403,7 @@ where
             families.family_by_index(id.0).as_slice().len()
         });
 
-        let mut ctx = GraphContext::alloc(
+        let ctx = GraphContext::alloc(
             factory,
             &chains,
             &self.buffers,
@@ -427,7 +427,7 @@ where
                     for submission in queue.iter() {
                         let builder = node_descs[submission.node()].take().unwrap();
                         let node = build_node(
-                            &mut ctx,
+                            &ctx,
                             builder,
                             factory,
                             families.family_by_index_mut(family.id().0),
