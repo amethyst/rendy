@@ -1,6 +1,12 @@
 use hal::{device::Device as _, Backend};
 pub use rendy_core::types::{Layout, SetLayout};
-use rendy_core::{hal, hal::command::CommandBuffer};
+use rendy_core::{
+    hal,
+    hal::{
+        command::CommandBuffer,
+        pso::{PrimitiveAssemblerDesc, ShaderStageFlags},
+    },
+};
 
 use super::{RenderGroup, RenderGroupDesc};
 use crate::{
@@ -281,22 +287,44 @@ where
             h: framebuffer_height as i16,
         };
 
-        let shaders = match shader_set.raw() {
-            Err(_) => {
-                shader_set.dispose(factory);
-                return Err(hal::pso::CreationError::Other);
-            }
-            Ok(s) => s,
-        };
-
         let graphics_pipeline = unsafe {
             factory.device().create_graphics_pipelines(
                 Some(hal::pso::GraphicsPipelineDesc {
-                    shaders,
+                    fragment: None,
+                    primitive_assembler: PrimitiveAssemblerDesc::Vertex {
+                        buffers: &vertex_buffers,
+                        attributes: &attributes,
+                        input_assembler: pipeline.input_assembler_desc,
+                        vertex: shader_set
+                            .shaders
+                            .get(&ShaderStageFlags::VERTEX)
+                            .expect("ShaderSet doesn't contain vertex shader")
+                            .get_entry_point()
+                            .unwrap()
+                            .unwrap(),
+                        tessellation: Some((
+                            shader_set
+                                .shaders
+                                .get(&ShaderStageFlags::HULL)
+                                .unwrap()
+                                .get_entry_point()
+                                .unwrap()
+                                .unwrap(),
+                            shader_set
+                                .shaders
+                                .get(&ShaderStageFlags::DOMAIN)
+                                .unwrap()
+                                .get_entry_point()
+                                .unwrap()
+                                .unwrap(),
+                        )),
+                        geometry: shader_set
+                            .shaders
+                            .get(&ShaderStageFlags::GEOMETRY)
+                            .map(|geo| geo.get_entry_point().unwrap())
+                            .unwrap_or(None),
+                    },
                     rasterizer: pipeline.rasterizer,
-                    vertex_buffers,
-                    attributes,
-                    input_assembler: pipeline.input_assembler_desc,
                     blender: hal::pso::BlendDesc {
                         logic_op: None,
                         targets: pipeline.colors.clone(),
