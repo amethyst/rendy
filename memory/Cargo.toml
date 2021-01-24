@@ -18,7 +18,7 @@ gfx-hal = "0.5"
 log = "0.4.11"
 hibitset = { version = "0.6.3", default-features = false }
 relevant = { version = "0.4.2", features = ["log"] }
-serde = { version = "1.0.118", optional = true, features = ["derive"] }
+serde = { version = "1", optional = true, features = ["derive"] }
 smallvec = "1.5.1"
 slab = "0.4.2"
 colorful = "0.2.1"

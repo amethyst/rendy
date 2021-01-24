@@ -31,7 +31,7 @@ gfx-backend-gl = { version = "0.5", features = ["glutin"], default_features = fa
 lazy_static = "1.4.0"
 log = "0.4.11"
 parking_lot = "0.11.1"
-serde = { version = "1.0.118", optional = true, features = ["derive"] }
+serde = { version = "1", optional = true, features = ["derive"] }
 raw-window-handle = "0.3.3"
 derive_more = "0.99.11"
 
