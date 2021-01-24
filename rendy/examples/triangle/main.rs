@@ -29,7 +29,7 @@ use rendy::{
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
@@ -37,7 +37,7 @@ lazy_static::lazy_static! {
 
     static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -201,11 +201,11 @@ fn run<B: Backend>(
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
-            Event::WindowEvent { event, .. } => {
-                match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    _ => {}
-                }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                *control_flow = ControlFlow::Exit;
             }
             Event::MainEventsCleared => {
                 factory.maintain(&mut families);

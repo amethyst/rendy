@@ -41,11 +41,7 @@ where
     }
 
     /// Create memory from raw object.
-    ///
-    /// # Safety
-    ///
-    /// TODO:
-    pub unsafe fn from_raw(
+    pub fn from_raw(
         raw: B::Memory,
         size: u64,
         properties: gfx_hal::memory::Properties,

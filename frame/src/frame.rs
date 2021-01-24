@@ -68,9 +68,11 @@ impl FramesRange {
         Frame { index: self.next }
     }
 }
+use derivative::Derivative;
 
 /// Timeline of frames, complete, pending and next.
-#[derive(Debug)]
+#[derive(Debug, Derivative)]
+#[derivative(Default(bound = ""))]
 pub struct Frames<B: hal::Backend> {
     pending: std::collections::VecDeque<Fences<B>>,
     next: u64,
@@ -80,14 +82,6 @@ impl<B> Frames<B>
 where
     B: hal::Backend,
 {
-    /// Create new `Frames` instance.
-    pub fn new() -> Self {
-        Frames {
-            pending: Default::default(),
-            next: 0,
-        }
-    }
-
     /// Get next frame reference.
     pub fn next(&self) -> Frame {
         Frame { index: self.next }

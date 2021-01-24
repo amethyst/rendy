@@ -227,11 +227,11 @@ fn run<B: hal::Backend>(
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
-            Event::WindowEvent { event, .. } => {
-                match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    _ => {}
-                }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                *control_flow = ControlFlow::Exit;
             }
             Event::MainEventsCleared => {
                 factory.maintain(&mut families);
@@ -304,7 +304,7 @@ fn main() {
             graph_builder.add_node(PresentNode::builder(&factory, surface, color).with_dependency(pass));
 
             let graph = graph_builder
-                .build(&mut factory, &mut families, &mut ())
+                .build(&mut factory, &mut families, &())
                 .unwrap();
 
             run(event_loop, factory, families, graph);

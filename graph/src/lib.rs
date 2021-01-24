@@ -10,6 +10,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+#![allow(clippy::clippy::too_many_arguments)]
 use rendy_chain as chain;
 use rendy_command as command;
 use rendy_factory as factory;

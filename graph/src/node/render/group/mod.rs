@@ -52,7 +52,7 @@ pub trait RenderGroupDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     }
 
     /// Build render group.
-    fn build<'a>(
+    fn build(
         self,
         ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
@@ -117,7 +117,7 @@ pub trait RenderGroupBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn dependencies(&self) -> Vec<NodeId>;
 
     /// Build render group instance.
-    fn build<'a>(
+    fn build(
         self: Box<Self>,
         ctx: &GraphContext<B>,
         factory: &mut Factory<B>,

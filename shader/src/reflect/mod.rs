@@ -165,7 +165,7 @@ impl SpirvReflection {
         }
     }
 
-    pub(crate) fn compile_cache(mut self) -> Result<Self, ReflectError> {
+    pub(crate) fn compile_cache(mut self) -> Self {
         // BBreak apart the sets into the appropriate grouping
 
         let layout = if !self.descriptor_sets.is_empty() {
@@ -197,7 +197,7 @@ impl SpirvReflection {
 
         self.cache = Some(SpirvCachedGfxDescription { vertices, layout });
 
-        Ok(self)
+        self
     }
 
     /// This function performs the actual SPIRV reflection utilizing spirv-reflect-rs, and then converting it into appropriate structures which are then consumed by rendy.
@@ -271,7 +271,7 @@ impl SpirvReflection {
         let cache = self
             .cache
             .as_ref()
-            .ok_or(ReflectError::CacheNotConstructued(self.stage()))?;
+            .ok_or_else(|| ReflectError::CacheNotConstructued(self.stage()))?;
         let mut attributes = smallvec::SmallVec::<[_; 64]>::new();
 
         for name in names {
@@ -305,7 +305,7 @@ impl SpirvReflection {
         let cache = self
             .cache
             .as_ref()
-            .ok_or(ReflectError::CacheNotConstructued(self.stage()))?;
+            .ok_or_else(|| ReflectError::CacheNotConstructued(self.stage()))?;
 
         let attributes = cache
             .vertices

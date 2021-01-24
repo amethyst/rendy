@@ -422,7 +422,7 @@ impl ShaderSetBuilder {
             reflections.push(SpirvReflection::reflect(&geometry.0, None)?);
         }
 
-        reflect::merge(&reflections)?.compile_cache()
+        Ok(reflect::merge(&reflections)?.compile_cache())
     }
 }
 

@@ -455,7 +455,7 @@ where
 
                         let surface = surface.take().expect("Render pass should be configured with Surface instance if at least one subpass uses surface attachment");
                         let surface_extent = unsafe {
-                            surface.extent(factory.physical()).unwrap_or(suggested_extent.expect("Must be set with surface"))
+                            surface.extent(factory.physical()).unwrap_or_else(|| suggested_extent.expect("Must be set with surface"))
                         };
 
 

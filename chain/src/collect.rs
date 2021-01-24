@@ -205,16 +205,15 @@ where
 
     for node in nodes {
         let family = node.family;
-        if !family_full.contains_key(&family) {
+        family_full.entry(family).or_insert_with(|| {
             let count = max_queues(family);
             for i in 0..count {
                 queues.forward(QueueId::new(family, i));
             }
 
-            let full_range = queues.forward(QueueId::new(family, 0))
-                ..queues.forward(QueueId::new(family, count - 1)) + 1;
-            family_full.insert(family, full_range);
-        }
+            queues.forward(QueueId::new(family, 0))
+                ..queues.forward(QueueId::new(family, count - 1)) + 1
+        });
 
         let id = node_ids.forward(node.id);
         let unscheduled_count = node.dependencies.len();

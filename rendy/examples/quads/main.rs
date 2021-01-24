@@ -50,7 +50,7 @@ struct PosVel {
 lazy_static::lazy_static! {
     static ref RENDER_VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("render.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
@@ -58,7 +58,7 @@ lazy_static::lazy_static! {
 
     static ref RENDER_FRAGMENT: SpirvShader = SourceShaderInfo::new(
         include_str!("render.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/render.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -66,7 +66,7 @@ lazy_static::lazy_static! {
 
     static ref BOUNCE_COMPUTE: SpirvShader = SourceShaderInfo::new(
         include_str!("bounce.comp"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/quads/bounce.comp"),
         ShaderKind::Compute,
         SourceLanguage::GLSL,
         "main",
@@ -608,8 +608,7 @@ fn build_graph<B: hal::Backend>(
             ),
     );
 
-    let graph = graph_builder.build(factory, families, &()).unwrap();
-    graph
+    graph_builder.build(factory, families, &()).unwrap()
 }
 
 fn main() {

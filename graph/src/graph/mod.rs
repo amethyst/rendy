@@ -464,7 +464,7 @@ where
             schedule,
             semaphores,
             inflight: self.frames_in_flight,
-            frames: Frames::new(),
+            frames: Frames::default(),
             fences: Vec::new(),
         })
     }

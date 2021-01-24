@@ -33,7 +33,7 @@ use rendy::{
 lazy_static::lazy_static! {
     static ref VERTEX: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.vert"),
         ShaderKind::Vertex,
         SourceLanguage::GLSL,
         "main",
@@ -41,7 +41,7 @@ lazy_static::lazy_static! {
 
     static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
         include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag").into(),
+        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/meshes/shader.frag"),
         ShaderKind::Fragment,
         SourceLanguage::GLSL,
         "main",
@@ -413,7 +413,7 @@ fn main() {
 
         let mut scene = Scene {
             camera: Camera {
-                proj: nalgebra::Perspective3::new(aspect as f32, 3.1415 / 4.0, 1.0, 200.0),
+                proj: nalgebra::Perspective3::new(aspect as f32, std::f32::consts::PI / 4.0, 1.0, 200.0),
                 view: nalgebra::Projective3::identity() * nalgebra::Translation3::new(0.0, 0.0, 10.0),
             },
             object_mesh: None,
@@ -491,9 +491,8 @@ fn main() {
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Poll;
             match event {
-                Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    _ => {}
+                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } =>  {
+                    *control_flow = ControlFlow::Exit;
                 },
                 Event::MainEventsCleared => {
                     factory.maintain(&mut families);

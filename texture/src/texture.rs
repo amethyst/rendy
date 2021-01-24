@@ -678,12 +678,7 @@ fn buf_add_padding(buffer: &[u8], dst_slice: &mut [u8], stride: usize, padding: 
         .chunks_exact(stride)
         .zip(dst_slice.chunks_exact_mut(stride + lad_len))
     {
-        // those loops gets unrolled in special-cased scenarios
-        for i in 0..stride {
-            dst_chunk[i] = chunk[i];
-        }
-        for i in 0..lad_len {
-            dst_chunk[stride + i] = padding[i];
-        }
+        dst_chunk[..stride].clone_from_slice(&chunk[..stride]);
+        dst_chunk[stride..(lad_len + stride)].clone_from_slice(&padding[..lad_len]);
     }
 }
