@@ -114,8 +114,8 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     /// Graphics pipelines
     fn pipeline(&self) -> Pipeline {
         Pipeline {
-            layout: Layout::default(),
-            vertices: Vec::new(),
+            layout: self.layout(),
+            vertices: self.vertices(),
             colors: self.colors(),
             depth_stencil: self.depth_stencil().unwrap_or_default(),
             rasterizer: self.rasterizer(),

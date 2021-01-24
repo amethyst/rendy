@@ -456,11 +456,13 @@ where
     }
 
     fn buffers(&self) -> Vec<(BufferId, BufferAccess)> {
-        self.buffers.iter().cloned().zip(Vec::new()).collect()
+        let desc_buffers = self.desc.buffers();
+        self.buffers.iter().cloned().zip(desc_buffers).collect()
     }
 
     fn images(&self) -> Vec<(ImageId, ImageAccess)> {
-        self.images.iter().cloned().zip(Vec::new()).collect()
+        let desc_images = self.desc.images();
+        self.images.iter().cloned().zip(desc_images).collect()
     }
 
     fn dependencies(&self) -> Vec<NodeId> {
