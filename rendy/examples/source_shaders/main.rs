@@ -204,7 +204,7 @@ where
     ) {
         let vbuf = self.vertex.as_ref().unwrap();
         unsafe {
-            encoder.bind_vertex_buffers(0, Some((vbuf.raw(), 0)));
+            encoder.bind_vertex_buffers(0, Some((&***vbuf, 0)));
             encoder.draw(0..3, 0..1);
         }
     }

@@ -409,8 +409,9 @@ where
             }
         }
 
-        let buffer = self.vertex_buffer.raw();
-        Ok(vertex.into_iter().map(move |offset| (buffer, offset)))
+        Ok(vertex
+            .into_iter()
+            .map(move |offset| (&**self.vertex_buffer, offset)))
     }
 
     /// Bind buffers to specified attribute locations.
@@ -426,7 +427,7 @@ where
         let vertex_iter = self.get_vertex_iter(formats)?;
         match self.index_buffer.as_ref() {
             Some(index_buffer) => unsafe {
-                encoder.bind_index_buffer(index_buffer.buffer.raw(), 0, index_buffer.index_type);
+                encoder.bind_index_buffer(&*index_buffer.buffer, 0, index_buffer.index_type);
                 encoder.bind_vertex_buffers(first_binding, vertex_iter);
             },
             None => unsafe {
@@ -449,11 +450,7 @@ where
         unsafe {
             match self.index_buffer.as_ref() {
                 Some(index_buffer) => {
-                    encoder.bind_index_buffer(
-                        index_buffer.buffer.raw(),
-                        0,
-                        index_buffer.index_type,
-                    );
+                    encoder.bind_index_buffer(&*index_buffer.buffer, 0, index_buffer.index_type);
                     encoder.bind_vertex_buffers(first_binding, vertex_iter);
                     encoder.draw_indexed(0..self.len, 0, instance_range);
                 }

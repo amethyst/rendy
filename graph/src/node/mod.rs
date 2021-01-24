@@ -516,10 +516,7 @@ pub fn gfx_acquire_barriers<'a, 'b, B: Backend>(
                 hal::memory::Barrier::Buffer {
                     states: acquire.states.clone(),
                     families: acquire.families.clone(),
-                    target: ctx
-                        .get_buffer(buffer.id)
-                        .expect("Buffer does not exist")
-                        .raw(),
+                    target: &***ctx.get_buffer(buffer.id).expect("Buffer does not exist"),
                     range: hal::buffer::SubRange {
                         offset: buffer.range.start,
                         size: Some(buffer.range.end - buffer.range.start),
@@ -570,10 +567,7 @@ pub fn gfx_release_barriers<'a, B: Backend>(
                 hal::memory::Barrier::Buffer {
                     states: release.states.clone(),
                     families: release.families.clone(),
-                    target: ctx
-                        .get_buffer(buffer.id)
-                        .expect("Buffer does not exist")
-                        .raw(),
+                    target: &***ctx.get_buffer(buffer.id).expect("Buffer does not exist"),
                     range: hal::buffer::SubRange {
                         offset: buffer.range.start,
                         size: Some(buffer.range.end - buffer.range.start),

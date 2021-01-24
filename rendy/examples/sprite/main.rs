@@ -283,7 +283,7 @@ where
                 std::iter::once(self.descriptor_set.deref().deref()),
                 std::iter::empty::<u32>(),
             );
-            encoder.bind_vertex_buffers(0, Some((self.vbuf.raw(), 0)));
+            encoder.bind_vertex_buffers(0, Some((&**self.vbuf, 0)));
             encoder.draw(0..6, 0..1);
         }
     }

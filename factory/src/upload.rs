@@ -195,8 +195,8 @@ where
         let next_upload = family_uploads.next_upload(device, next.queue.index)?;
         let mut encoder = next_upload.command_buffer.encoder();
         encoder.copy_buffer(
-            staging.raw(),
-            buffer.raw(),
+            &*staging,
+            &*buffer,
             Some(hal::command::BufferCopy {
                 src: 0,
                 dst: offset,
@@ -351,7 +351,7 @@ where
         let next_upload = family_uploads.next_upload(device, next.queue.index)?;
         let mut encoder = next_upload.command_buffer.encoder();
         encoder.copy_buffer_to_image(
-            staging.raw(),
+            &*staging,
             image.raw(),
             target_layout,
             Some(hal::command::BufferImageCopy {

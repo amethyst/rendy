@@ -276,7 +276,7 @@ where
                     binding: 0,
                     array_offset: 0,
                     descriptors: std::iter::once(hal::pso::Descriptor::Buffer(
-                        posvelbuff.raw(),
+                        &***posvelbuff,
                         hal::buffer::SubRange {
                             offset: 0,
                             size: Some(posvelbuff.size()),
@@ -325,9 +325,9 @@ where
                 std::iter::once(self.descriptor_set.deref().deref()),
                 std::iter::empty::<u32>(),
             );
-            encoder.bind_vertex_buffers(0, std::iter::once((self.vertices.raw(), 0)));
+            encoder.bind_vertex_buffers(0, std::iter::once((&**self.vertices, 0)));
             encoder.draw_indirect(
-                self.indirect.raw(),
+                &*self.indirect,
                 0,
                 DIVIDE,
                 std::mem::size_of::<DrawCommand>() as u32,
@@ -501,7 +501,7 @@ where
                     binding: 0,
                     array_offset: 0,
                     descriptors: std::iter::once(hal::pso::Descriptor::Buffer(
-                        posvelbuff.raw(),
+                        &***posvelbuff,
                         hal::buffer::SubRange {
                             offset: 0,
                             size: None,

@@ -223,7 +223,7 @@ where
                     binding: 0,
                     array_offset: 0,
                     descriptors: Some(hal::pso::Descriptor::Buffer(
-                        buffer.raw(),
+                        &**buffer,
                         hal::buffer::SubRange {
                             offset: uniform_offset(index, align),
                             size: Some(UNIFORM_SIZE),
@@ -344,10 +344,10 @@ where
 
             encoder.bind_vertex_buffers(
                 1,
-                std::iter::once((self.buffer.raw(), models_offset(index, self.align))),
+                std::iter::once((&**self.buffer, models_offset(index, self.align))),
             );
             encoder.draw_indexed_indirect(
-                self.buffer.raw(),
+                &*self.buffer,
                 indirect_offset(index, self.align),
                 1,
                 INDIRECT_SIZE as u32,

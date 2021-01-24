@@ -22,14 +22,18 @@ pub struct BufferInfo {
     pub usage: Usage,
 }
 
+use derive_more::{Deref, DerefMut};
+
 /// Generic buffer resource wrapper.
 ///
 /// # Parameters
 ///
 /// `B` - raw image type.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct Buffer<B: Backend> {
     device: DeviceId,
+    #[deref]
+    #[deref_mut]
     raw: B::Buffer,
     block: MemoryBlock<B>,
     info: BufferInfo,
@@ -91,16 +95,6 @@ where
         device.destroy_buffer(self.raw);
         heaps.free(device, self.block);
         self.relevant.dispose();
-    }
-
-    /// Get reference to raw buffer resource
-    pub fn raw(&self) -> &B::Buffer {
-        &self.raw
-    }
-
-    /// Get mutable reference to raw buffer resource
-    pub unsafe fn raw_mut(&mut self) -> &mut B::Buffer {
-        &mut self.raw
     }
 
     /// Get reference to memory block occupied by buffer.
