@@ -428,7 +428,7 @@ where
                         framebuffer_height = min(framebuffer_height, extent.height);
                         framebuffer_layers = min(
                             framebuffer_layers,
-                            node_image.range.layers.end - node_image.range.layers.start,
+                            node_image.range.layer_count.unwrap_or(1),
                         );
                         Ok(vec![unsafe {
                             factory
@@ -442,7 +442,8 @@ where
                                         // NOTE: Framebuffer must always be created with only one mip level. If image contains multiple levels,
                                         // only the first one is bound as an attachment.
                                         // TODO: Allow customizing this behaviour to choose which level to bind.
-                                        levels: 0 .. 1,
+                                        level_start: 0,
+                                        level_count: Some(1),
                                         ..node_image.range.clone()
                                     }
                                 )
@@ -501,8 +502,10 @@ where
                                     hal::format::Swizzle::NO,
                                     hal::image::SubresourceRange {
                                         aspects: image.format().surface_desc().aspects,
-                                        levels: 0 .. 1,
-                                        layers: 0 .. 1,
+                                        level_start:0,
+                                        level_count: Some(1),
+                                        layer_start:0,
+                                        layer_count: Some(1)
                                     },
                                 )
                                 .map_err(NodeBuildError::View)

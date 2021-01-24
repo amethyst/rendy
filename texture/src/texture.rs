@@ -322,8 +322,10 @@ impl<'a> TextureBuilder<'a> {
                         swizzle: double_swizzle(self.swizzle, transform_swizzle),
                         range: image::SubresourceRange {
                             aspects: info.format.surface_desc().aspects,
-                            levels: 0..info.levels,
-                            layers: 0..info.kind.num_layers(),
+                            level_start: 0,
+                            level_count: Some(info.levels),
+                            layer_start: 0,
+                            layer_count: Some(info.kind.num_layers()),
                         },
                     },
                 )
