@@ -31,8 +31,6 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct RenderPassSurface;
 
-type Attachment = Either<ImageId, RenderPassSurface>;
-
 use derivative::Derivative;
 
 /// Build for rendering sub-pass.
@@ -40,9 +38,9 @@ use derivative::Derivative;
 #[derivative(Default(bound = "", new = "true"))]
 pub struct SubpassBuilder<B: Backend, T: ?Sized> {
     groups: Vec<Box<dyn RenderGroupBuilder<B, T>>>,
-    inputs: Vec<Attachment>,
-    colors: Vec<Attachment>,
-    depth_stencil: Option<Attachment>,
+    inputs: Vec<Either<ImageId, RenderPassSurface>>,
+    colors: Vec<Either<ImageId, RenderPassSurface>>,
+    depth_stencil: Option<Either<ImageId, RenderPassSurface>>,
     dependencies: Vec<NodeId>,
 }
 
@@ -375,7 +373,7 @@ where
             .surface
             .map_or((None, None, None), |(s, e, c)| (Some(s), Some(e), c));
 
-        let mut attachments: Vec<Attachment> = self
+        let mut attachments: Vec<Either<ImageId, RenderPassSurface>> = self
             .subpasses
             .iter()
             .flat_map(|subpass| {
