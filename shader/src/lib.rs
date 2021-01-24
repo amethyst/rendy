@@ -16,7 +16,6 @@
 mod shaderc;
 
 #[cfg(feature = "spirv-reflection")]
-#[allow(dead_code)]
 mod reflect;
 
 use std::collections::HashMap;

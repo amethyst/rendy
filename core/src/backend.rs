@@ -116,8 +116,6 @@ impl EnabledBackend {
 
 impl std::fmt::Display for EnabledBackend {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #![allow(unreachable_code)]
-
         fmt.write_str(match *self {
             #[cfg(all(
                 feature = "dx12",

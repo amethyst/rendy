@@ -103,7 +103,6 @@ pub struct WindowedRendy<B: Backend> {
 }
 
 impl<B: Backend> WindowedRendy<B> {
-    #[allow(dead_code)]
     fn init_non_gl<T>(
         config: &Config<impl DevicesConfigure, impl HeapsConfigure, impl QueuesConfigure>,
         window_builder: Cow<WindowBuilder>,
