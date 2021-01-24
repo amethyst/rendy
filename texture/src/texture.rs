@@ -1,14 +1,16 @@
 //! Module for creating a `Texture` from an image
 use std::num::NonZeroU8;
 
-use rendy_core::hal::{
-    self,
-    format::{Component, Format, Swizzle},
-    image, Backend,
+use rendy_core::{
+    cast_cow, cast_slice,
+    hal::{
+        self,
+        format::{Component, Format, Swizzle},
+        image, Backend,
+    },
 };
 
 use crate::{
-    core::{cast_cow, cast_slice},
     factory::{Factory, ImageState, UploadError},
     memory::Data,
     pixel::AsPixel,
@@ -114,78 +116,45 @@ impl std::error::Error for BuildError {
     }
 }
 
+use derivative::Derivative;
+
 /// Generics-free texture builder.
-#[derive(Clone)]
+#[derive(Clone, Derivative)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derivative(Debug, Default)]
 /// Struct for staging data in preparation of building a `Texture`
 pub struct TextureBuilder<'a> {
-    kind: image::Kind,
-    view_kind: image::ViewKind,
-    format: Format,
-    data: std::borrow::Cow<'a, [u8]>,
-    data_width: u32,
-    data_height: u32,
-    sampler_info: hal::image::SamplerDesc,
-    swizzle: Swizzle,
-    mip_levels: MipLevels,
-    premultiplied: bool,
-}
+    #[derivative(Default(value = "image::Kind::D1(0, 0)"))]
+    pub kind: image::Kind,
 
-impl<'a> std::fmt::Debug for TextureBuilder<'a> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_struct("TextureBuilder")
-            .field("kind", &self.kind)
-            .field("view_kind", &self.view_kind)
-            .field("format", &self.format)
-            .field("data", &"<raw-data>")
-            .field("data_width", &self.data_width)
-            .field("data_height", &self.data_height)
-            .field("sampler_info", &self.sampler_info)
-            .field("swizzle", &self.swizzle)
-            .field("mip_levels", &self.mip_levels)
-            .field("premultiplied", &self.premultiplied)
-            .finish()
-    }
+    #[derivative(Default(value = "image::ViewKind::D1"))]
+    pub view_kind: image::ViewKind,
+
+    #[derivative(Default(value = "Format::Rgba8Unorm"))]
+    pub format: Format,
+
+    pub data: std::borrow::Cow<'a, [u8]>,
+
+    pub data_width: u32,
+
+    pub data_height: u32,
+
+    #[derivative(Default(value = "hal::image::SamplerDesc::new(
+        hal::image::Filter::Linear,
+        hal::image::WrapMode::Clamp,
+    )"))]
+    pub sampler_info: hal::image::SamplerDesc,
+
+    #[derivative(Default(value = "Swizzle::NO"))]
+    pub swizzle: Swizzle,
+
+    #[derivative(Default(value = "MipLevels::Levels(NonZeroU8::new(1).unwrap())"))]
+    pub mip_levels: MipLevels,
+
+    pub premultiplied: bool,
 }
 
 impl<'a> TextureBuilder<'a> {
-    /// New empty `TextureBuilder`
-    pub fn new() -> Self {
-        TextureBuilder {
-            kind: image::Kind::D1(0, 0),
-            view_kind: image::ViewKind::D1,
-            format: Format::Rgba8Unorm,
-            data: std::borrow::Cow::Borrowed(&[]),
-            data_width: 0,
-            data_height: 0,
-            sampler_info: hal::image::SamplerDesc::new(
-                hal::image::Filter::Linear,
-                hal::image::WrapMode::Clamp,
-            ),
-            swizzle: Swizzle::NO,
-            mip_levels: MipLevels::Levels(NonZeroU8::new(1).unwrap()),
-            premultiplied: false,
-        }
-    }
-
-    /// Set whether the image has premultiplied alpha
-    pub fn set_premultiplied_alpha(&mut self, premultiplied: bool) -> &mut Self {
-        self.premultiplied = premultiplied;
-        self
-    }
-
-    /// Set whether the image has premultiplied alpha
-    pub fn with_premultiplied_alpha(mut self, premultiplied: bool) -> Self {
-        self.set_premultiplied_alpha(premultiplied);
-        self
-    }
-
-    /// Set pixel data.
-    pub fn with_data<P: AsPixel>(mut self, data: impl Into<std::borrow::Cow<'a, [P]>>) -> Self {
-        self.set_data(data);
-        self
-    }
-
     /// Set pixel data.
     pub fn set_data<P: AsPixel>(
         &mut self,
@@ -193,111 +162,6 @@ impl<'a> TextureBuilder<'a> {
     ) -> &mut Self {
         self.data = cast_cow(data.into());
         self.format = P::FORMAT;
-        self
-    }
-
-    /// Set pixel data with manual format definition.
-    pub fn with_raw_data(
-        mut self,
-        data: impl Into<std::borrow::Cow<'a, [u8]>>,
-        format: Format,
-    ) -> Self {
-        self.set_raw_data(data, format);
-        self
-    }
-
-    /// Set pixel data with manual format definition.
-    pub fn set_raw_data(
-        &mut self,
-        data: impl Into<std::borrow::Cow<'a, [u8]>>,
-        format: Format,
-    ) -> &mut Self {
-        self.data = data.into();
-        self.format = format;
-        self
-    }
-
-    /// Set pixel data width.
-    pub fn with_data_width(mut self, data_width: u32) -> Self {
-        self.set_data_width(data_width);
-        self
-    }
-
-    /// Set pixel data width.
-    pub fn set_data_width(&mut self, data_width: u32) -> &mut Self {
-        self.data_width = data_width;
-        self
-    }
-
-    /// Set pixel data height.
-    pub fn with_data_height(mut self, data_height: u32) -> Self {
-        self.set_data_height(data_height);
-        self
-    }
-
-    /// Set pixel data height.
-    pub fn set_data_height(&mut self, data_height: u32) -> &mut Self {
-        self.data_height = data_height;
-        self
-    }
-
-    /// Set number of generated or raw mip levels
-    pub fn with_mip_levels(mut self, mip_levels: MipLevels) -> Self {
-        self.set_mip_levels(mip_levels);
-        self
-    }
-
-    /// Set number of generated or raw mip levels
-    pub fn set_mip_levels(&mut self, mip_levels: MipLevels) -> &mut Self {
-        self.mip_levels = mip_levels;
-        self
-    }
-
-    /// Set image extent.
-    pub fn with_kind(mut self, kind: image::Kind) -> Self {
-        self.set_kind(kind);
-        self
-    }
-
-    /// Set image kind.
-    pub fn set_kind(&mut self, kind: image::Kind) -> &mut Self {
-        self.kind = kind;
-        self
-    }
-
-    /// With image view kind.
-    pub fn with_view_kind(mut self, view_kind: image::ViewKind) -> Self {
-        self.set_view_kind(view_kind);
-        self
-    }
-
-    /// Set image view kind.
-    pub fn set_view_kind(&mut self, view_kind: image::ViewKind) -> &mut Self {
-        self.view_kind = view_kind;
-        self
-    }
-
-    /// With image sampler info.
-    pub fn with_sampler_info(mut self, sampler_info: hal::image::SamplerDesc) -> Self {
-        self.set_sampler_info(sampler_info);
-        self
-    }
-
-    /// Set image sampler info.
-    pub fn set_sampler_info(&mut self, sampler_info: hal::image::SamplerDesc) -> &mut Self {
-        self.sampler_info = sampler_info;
-        self
-    }
-
-    /// With swizzle.
-    pub fn with_swizzle(mut self, swizzle: Swizzle) -> Self {
-        self.set_swizzle(swizzle);
-        self
-    }
-
-    /// Set swizzle.
-    pub fn set_swizzle(&mut self, swizzle: Swizzle) -> &mut Self {
-        self.swizzle = swizzle;
         self
     }
 

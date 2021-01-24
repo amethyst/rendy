@@ -24,13 +24,18 @@ macro_rules! define_load {
             $($ty: $where),*,
             palette::$palette<$($ty),*>: Into<pixel::$pixel>,
         {
-            TextureBuilder::new()
-                .with_kind(hal::image::Kind::D2(1, 1, 1, 1))
-                .with_view_kind(hal::image::ViewKind::D2)
-                .with_data_width(1)
-                .with_data_height(1)
-                .with_data(vec![palette.into()])
-                .with_swizzle(define_load!(@swizzle $swizzle))
+            let mut builder = TextureBuilder {
+                kind: hal::image::Kind::D2(1, 1, 1, 1),
+                view_kind: hal::image::ViewKind::D2,
+                data_width: 1,
+                data_height: 1,
+                swizzle: define_load!(@swizzle $swizzle),
+                ..Default::default()
+            };
+
+            builder.set_data(vec![palette.into()]);
+
+            builder
         }
     )*};
 }

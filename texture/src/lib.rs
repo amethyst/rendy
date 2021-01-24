@@ -10,7 +10,6 @@
     unused_qualifications
 )]
 
-use rendy_core as core;
 use rendy_factory as factory;
 use rendy_memory as memory;
 use rendy_resource as resource;

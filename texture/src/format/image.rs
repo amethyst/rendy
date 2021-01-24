@@ -224,7 +224,7 @@ where
             let (w, h) = (metadata.width, metadata.height);
 
             let format = hal::format::Format::Rgb32Sfloat;
-            let vec = crate::core::cast_vec(decoder.read_image_hdr()?);
+            let vec = rendy_core::cast_vec(decoder.read_image_hdr()?);
             let swizzle = Swizzle::NO;
             (w, h, vec, format, swizzle)
         }
@@ -305,14 +305,17 @@ where
         MipLevels::Levels(NonZeroU8::new(1).unwrap())
     };
 
-    Ok(TextureBuilder::new()
-        .with_raw_data(vec, format)
-        .with_swizzle(swizzle)
-        .with_data_width(extent.width)
-        .with_data_height(extent.height)
-        .with_mip_levels(mips)
-        .with_kind(kind)
-        .with_premultiplied_alpha(config.premultiply_alpha)
-        .with_view_kind(config.kind.view_kind())
-        .with_sampler_info(config.sampler_info))
+    Ok(TextureBuilder {
+        swizzle,
+        data_width: extent.width,
+        data_height: extent.height,
+        mip_levels: mips,
+        kind,
+        premultiplied: config.premultiply_alpha,
+        view_kind: config.kind.view_kind(),
+        sampler_info: config.sampler_info,
+        format,
+        data: vec.into(),
+        ..Default::default()
+    })
 }
