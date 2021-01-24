@@ -85,7 +85,7 @@ where
         let block = heaps
             .allocate(
                 device,
-                reqs.type_mask as u32,
+                reqs.type_mask,
                 memory_usage,
                 reqs.size,
                 reqs.alignment,
@@ -226,11 +226,7 @@ where
                     info.view_kind,
                     info.format,
                     info.swizzle,
-                    SubresourceRange {
-                        aspects: info.range.aspects,
-                        layers: info.range.layers.clone(),
-                        levels: info.range.levels.clone(),
-                    },
+                    info.range.clone(),
                 )
                 .map_err(CreationError::Create)?
         };

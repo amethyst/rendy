@@ -9,7 +9,7 @@ use super::{
     CommandBuffer,
 };
 use crate::{
-    capability::{Capability, Compute, Graphics, Supports, Transfer},
+    capability::{Capability, Compute, Graphics, Supports},
     family::FamilyId,
 };
 
@@ -128,11 +128,10 @@ where
     /// device limit.
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindVertexBuffers.html
-    pub unsafe fn bind_vertex_buffers<'b>(
-        &mut self,
-        first_binding: u32,
-        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
-    ) where
+    pub unsafe fn bind_vertex_buffers<'b, I>(&mut self, first_binding: u32, buffers: I)
+    where
+        I: IntoIterator<Item = (&'b B::Buffer, u64)>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Graphics>,
     {
         hal::command::CommandBuffer::bind_vertex_buffers(
@@ -167,104 +166,6 @@ impl<'a, B> RenderPassEncoder<'a, B>
 where
     B: hal::Backend,
 {
-    /// Clear regions within bound framebuffer attachments
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdClearAttachments.html#vkCmdBeginRenderPass
-    pub unsafe fn clear_attachments(
-        &mut self,
-        clears: impl IntoIterator<Item = impl std::borrow::Borrow<hal::command::AttachmentClear>>,
-        rects: impl IntoIterator<Item = impl std::borrow::Borrow<hal::pso::ClearRect>>,
-    ) {
-        hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);
-    }
-
-    /// Draw.
-    ///
-    /// # Safety
-    ///
-    /// The range of `vertices` must not exceed the size of the currently bound vertex buffer,
-    /// and the range of `instances` must not exceed the size of the currently bound instance
-    /// buffer.
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDraw.html
-    pub unsafe fn draw(&mut self, vertices: std::ops::Range<u32>, instances: std::ops::Range<u32>) {
-        hal::command::CommandBuffer::draw(self.inner.raw, vertices, instances)
-    }
-
-    /// Draw indexed, with `base_vertex` specifying an offset that is treated as
-    /// vertex number 0.
-    ///
-    /// # Safety
-    ///
-    /// Same as `draw()`, plus the value of `base_vertex`.  So, `base_vertex + indices.end`
-    /// must not be larger than the currently bound vertex buffer.
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndexed.html
-    pub unsafe fn draw_indexed(
-        &mut self,
-        indices: std::ops::Range<u32>,
-        base_vertex: i32,
-        instances: std::ops::Range<u32>,
-    ) {
-        hal::command::CommandBuffer::draw_indexed(self.inner.raw, indices, base_vertex, instances)
-    }
-
-    /// Draw indirect.
-    /// Similar to [`draw`] except takes vertices and instance data from `buffer` at specified `offset`.
-    /// `buffer` must contain `draw_count` of [`DrawCommand`] starting from `offset` with `stride` bytes between each.
-    ///
-    /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw
-    /// [`DrawCommand`]: struct.DrawCommand.html
-    ///
-    /// # Safety
-    ///
-    /// Similar to `draw()`.
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndirect.html
-    pub unsafe fn draw_indirect(
-        &mut self,
-        buffer: &B::Buffer,
-        offset: u64,
-        draw_count: u32,
-        stride: u32,
-    ) {
-        hal::command::CommandBuffer::draw_indirect(
-            self.inner.raw,
-            buffer,
-            offset,
-            draw_count,
-            stride,
-        )
-    }
-
-    /// Draw indirect with indices.
-    /// Similar to [`draw_indexed`] except takes vertices, indices and instance data from `buffer` at specified `offset`.
-    /// `buffer` must contain `draw_count` of [`DrawIndexedCommand`] starting from `offset` with `stride` bytes between each.
-    ///
-    /// [`draw`]: trait.RenderPassInlineEncoder.html#tymethod.draw_indexed
-    /// [`DrawIndexedCommand`]: struct.DrawIndexedCommand.html
-    ///
-    /// # Safety
-    ///
-    /// Similar to `draw_indexed()`
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDrawIndexedIndirect.html
-    pub unsafe fn draw_indexed_indirect(
-        &mut self,
-        buffer: &B::Buffer,
-        offset: u64,
-        draw_count: u32,
-        stride: u32,
-    ) {
-        hal::command::CommandBuffer::draw_indexed_indirect(
-            self.inner.raw,
-            buffer,
-            offset,
-            draw_count,
-            stride,
-        )
-    }
-
     /// Reborrow encoder.
     pub fn reborrow(&mut self) -> RenderPassEncoder<'_, B> {
         RenderPassEncoder {
@@ -344,10 +245,12 @@ where
     B: hal::Backend,
 {
     /// Execute commands from secondary buffers.
-    pub fn execute_commands(
-        &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>,
-    ) {
+    pub fn execute_commands<I>(&mut self, submittables: I)
+    where
+        I: IntoIterator,
+        I::Item: Submittable<B, SecondaryLevel, RenderPassContinue>,
+        I::IntoIter: ExactSizeIterator,
+    {
         unsafe {
             hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
@@ -458,10 +361,12 @@ where
     }
 
     /// Execute commands from secondary buffers.
-    pub fn execute_commands(
-        &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>,
-    ) {
+    pub fn execute_commands<I>(&mut self, submittables: I)
+    where
+        I: IntoIterator,
+        I::Item: Submittable<B, SecondaryLevel>,
+        I::IntoIter: ExactSizeIterator,
+    {
         unsafe {
             hal::command::CommandBuffer::execute_commands(
                 self.inner.raw,
@@ -483,134 +388,6 @@ where
         self.level
     }
 
-    /// Copy buffer regions.
-    /// `src` and `dst` can be the same buffer or alias in memory.
-    /// But regions must not overlap.
-    /// Otherwise resulting values are undefined.
-    ///
-    /// # Safety
-    ///
-    /// The size of the copy region in any `regions` must not exceed the
-    /// length of the corresponding buffer.
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyBuffer.html
-    pub unsafe fn copy_buffer(
-        &mut self,
-        src: &B::Buffer,
-        dst: &B::Buffer,
-        regions: impl IntoIterator<Item = hal::command::BufferCopy>,
-    ) where
-        C: Supports<Transfer>,
-    {
-        hal::command::CommandBuffer::copy_buffer(self.inner.raw, src, dst, regions)
-    }
-
-    /// Copy buffer region to image subresource range.
-    ///
-    /// # Safety
-    ///
-    /// Same as `copy_buffer()`
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyBufferToImage.html
-    pub unsafe fn copy_buffer_to_image(
-        &mut self,
-        src: &B::Buffer,
-        dst: &B::Image,
-        dst_layout: hal::image::Layout,
-        regions: impl IntoIterator<Item = hal::command::BufferImageCopy>,
-    ) where
-        C: Supports<Transfer>,
-    {
-        hal::command::CommandBuffer::copy_buffer_to_image(
-            self.inner.raw,
-            src,
-            dst,
-            dst_layout,
-            regions,
-        )
-    }
-
-    /// Copy image regions.
-    ///
-    /// # Safety
-    ///
-    /// Same as `copy_buffer()`
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyImage.html
-    pub unsafe fn copy_image(
-        &mut self,
-        src: &B::Image,
-        src_layout: hal::image::Layout,
-        dst: &B::Image,
-        dst_layout: hal::image::Layout,
-        regions: impl IntoIterator<Item = hal::command::ImageCopy>,
-    ) where
-        C: Supports<Transfer>,
-    {
-        hal::command::CommandBuffer::copy_image(
-            self.inner.raw,
-            src,
-            src_layout,
-            dst,
-            dst_layout,
-            regions,
-        )
-    }
-
-    /// Copy image subresource range to buffer region.
-    ///
-    /// # Safety
-    ///
-    /// Same as `copy_buffer()`
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyImageToBuffer.html
-    pub unsafe fn copy_image_to_buffer(
-        &mut self,
-        src: &B::Image,
-        src_layout: hal::image::Layout,
-        dst: &B::Buffer,
-        regions: impl IntoIterator<Item = hal::command::BufferImageCopy>,
-    ) where
-        C: Supports<Transfer>,
-    {
-        hal::command::CommandBuffer::copy_image_to_buffer(
-            self.inner.raw,
-            src,
-            src_layout,
-            dst,
-            regions,
-        )
-    }
-
-    /// Blit image regions, potentially using specified filter when resize is necessary.
-    ///
-    /// # Safety
-    ///
-    /// Same as `copy_buffer()`
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBlitImage.html
-    pub unsafe fn blit_image(
-        &mut self,
-        src: &B::Image,
-        src_layout: hal::image::Layout,
-        dst: &B::Image,
-        dst_layout: hal::image::Layout,
-        filter: hal::image::Filter,
-        regions: impl IntoIterator<Item = hal::command::ImageBlit>,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::blit_image(
-            self.inner.raw,
-            src,
-            src_layout,
-            dst,
-            dst_layout,
-            filter,
-            regions,
-        )
-    }
-
     /// Dispatch compute.
     ///
     /// # Safety
@@ -621,23 +398,6 @@ where
         C: Supports<Compute>,
     {
         hal::command::CommandBuffer::dispatch(self.inner.raw, [x, y, z])
-    }
-
-    /// Dispatch indirect.
-    /// Similar to [`dispatch`] except takes vertices and indices from `buffer` at specified `offset`.
-    /// `buffer` must contain [`DispatchCommand`] at `offset`.
-    ///
-    /// [`dispatch`]: trait.Encoder.html#tymethod.dispatch
-    /// [`DispatchCommand`]: struct.DispatchCommand.html
-    ///
-    /// # Safety
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdDispatchIndirect.html
-    pub unsafe fn dispatch_indirect(&mut self, buffer: &B::Buffer, offset: u64)
-    where
-        C: Supports<Compute>,
-    {
-        hal::command::CommandBuffer::dispatch_indirect(self.inner.raw, buffer, offset)
     }
 }
 

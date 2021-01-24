@@ -15,7 +15,6 @@
 use rendy_core::{
     hal::{
         self,
-        device::Device as _,
         format::Format,
         window::{Extent2D, Surface as _, SurfaceCapabilities},
         Backend, Instance as _,

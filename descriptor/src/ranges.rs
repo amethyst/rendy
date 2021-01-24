@@ -276,3 +276,5 @@ impl<'a> Iterator for DescriptorRangesIter<'a> {
         }
     }
 }
+
+impl<'a> ExactSizeIterator for DescriptorRangesIter<'a> {}
