@@ -26,7 +26,7 @@ mod sync;
 pub use crate::{
     chain::{Chain, Link, LinkNode},
     collect::{collect, Chains, Unsynchronized},
-    node::{BufferState, ImageState, Node, State},
+    node::{Node, State},
     resource::{AccessFlags, Buffer, Image, Resource, UsageFlags},
     schedule::{Family, Queue, QueueId, Schedule, Submission, SubmissionId},
     sync::{sync, Barrier, Barriers, BufferBarriers, Guard, ImageBarriers, Signal, SyncData, Wait},

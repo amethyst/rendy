@@ -44,40 +44,6 @@ where
         self.links.last_mut().unwrap()
     }
 
-    // /// Get link by index.
-    // pub(crate) fn link(&self, index: usize) -> &Link<R> {
-    //     &self.links[index]
-    // }
-
-    // /// Get link by index.
-    // pub(crate) fn link_mut(&mut self, index: usize) -> &mut Link<R> {
-    //     &mut self.links[index]
-    // }
-
-    // /// Get link by index.
-    // pub(crate) fn next_link(&self, index: usize) -> &Link<R> {
-    //     let index = (index + 1) % self.links.len();
-    //     self.link(index)
-    // }
-
-    // /// Get link by index.
-    // pub(crate) fn next_link_mut(&mut self, index: usize) -> &mut Link<R> {
-    //     let index = (index + 1) % self.links.len();
-    //     self.link_mut(index)
-    // }
-
-    // /// Get link by index.
-    // pub(crate) fn prev_link(&self, index: usize) -> &Link<R> {
-    //     let index = (index + self.links.len() - 1) % self.links.len();
-    //     self.link(index)
-    // }
-
-    // /// Get link by index.
-    // pub(crate) fn prev_link_mut(&mut self, index: usize) -> &mut Link<R> {
-    //     let index = (index + self.links.len() - 1) % self.links.len();
-    //     self.link_mut(index)
-    // }
-
     /// Get total usage.
     pub fn usage(&self) -> R::Usage {
         self.links

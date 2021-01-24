@@ -593,7 +593,7 @@ where
             .map(|(id, access)| {
                 (
                     chain::Id(id.0),
-                    chain::BufferState {
+                    chain::State::<chain::Buffer> {
                         access: access.access,
                         stages: access.stages,
                         layout: (),
@@ -607,7 +607,7 @@ where
             .map(|(id, access)| {
                 (
                     chain::Id(id.0),
-                    chain::ImageState {
+                    chain::State::<chain::Image> {
                         access: access.access,
                         stages: access.stages,
                         layout: access.layout,
