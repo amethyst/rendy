@@ -16,7 +16,7 @@ use rendy_core::{
     hal::{
         self,
         format::Format,
-        window::{Extent2D, Surface as _, SurfaceCapabilities},
+        window::{Extent2D, PresentationSurface, Surface as _, SurfaceCapabilities},
         Backend, Instance as _,
     },
     Device, HasRawWindowHandle, Instance, InstanceId,
@@ -131,6 +131,11 @@ where
         &self.raw
     }
 
+    /// Get raw mutable `B::Surface` reference
+    pub fn raw_mut(&mut self) -> &mut B::Surface {
+        &mut self.raw
+    }
+
     /// Get current extent of the surface.
     pub unsafe fn extent(&self, physical_device: &B::PhysicalDevice) -> Option<Extent2D> {
         self.capabilities(physical_device).current_extent
@@ -232,9 +237,10 @@ unsafe fn create_swapchain<B: Backend>(
 
     let extent = capabilities.current_extent.unwrap_or(suggest_extent);
 
-    let (swapchain, images) = device
-        .create_swapchain(
-            &mut surface.raw,
+    surface
+        .raw_mut()
+        .configure_swapchain(
+            device,
             hal::window::SwapchainConfig {
                 present_mode,
                 format,
@@ -253,9 +259,12 @@ unsafe fn create_swapchain<B: Backend>(
                 .find(|&bit| capabilities.composite_alpha_modes.contains(bit))
                 .expect("No CompositeAlphaMode modes supported"),
             },
-            None,
         )
         .map_err(SwapchainError::Create)?;
+
+    // let (swapchain, images) = device
+    //     .create_swapchain(&mut surface.raw, None)
+    //     .map_err(SwapchainError::Create)?;
 
     let backbuffer = images
         .into_iter()
