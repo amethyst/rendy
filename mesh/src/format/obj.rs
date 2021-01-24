@@ -35,13 +35,11 @@ pub fn load_from_obj(
 ) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, ObjError> {
     let string = std::str::from_utf8(bytes).map_err(ObjError::Utf8)?;
     obj::parse(string)
-        .and_then(load_from_data)
+        .map(load_from_data)
         .map_err(ObjError::Parse)
 }
 
-fn load_from_data(
-    obj_set: obj::ObjSet,
-) -> Result<Vec<(MeshBuilder<'static>, Option<String>)>, wavefront_obj::ParseError> {
+fn load_from_data(obj_set: obj::ObjSet) -> Vec<(MeshBuilder<'static>, Option<String>)> {
     // Takes a list of objects that contain geometries that contain shapes that contain
     // vertex/texture/normal indices into the main list of vertices, and converts to
     // MeshBuilders with Position, Normal, TexCoord.
@@ -106,7 +104,7 @@ fn load_from_data(
             objects.push((builder, geometry.material_name.clone()))
         }
     }
-    Ok(objects)
+    objects
 }
 
 #[cfg(test)]
