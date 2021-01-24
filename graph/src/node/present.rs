@@ -1,6 +1,6 @@
 //! Defines present node.
 
-use rendy_core::{hal, hal::command::CommandBuffer as _};
+use rendy_core::hal;
 
 use crate::{
     command::{
@@ -128,8 +128,10 @@ fn create_per_image_data<B: hal::Backend>(
                 target: target_image.raw(),
                 range: hal::image::SubresourceRange {
                     aspects: hal::format::Aspects::COLOR,
-                    levels: 0..1,
-                    layers: 0..1,
+                    level_start: 0,
+                    level_count: Some(1),
+                    layer_start: 0,
+                    layer_count: Some(1),
                 },
             });
             unsafe {
@@ -153,8 +155,8 @@ fn create_per_image_data<B: hal::Backend>(
                             src_subresource: hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
-                                layers: input_image.range.layers.start
-                                    ..input_image.range.layers.start + 1,
+                                layers: input_image.range.layer_start
+                                    ..input_image.range.layer_start + 1,
                             },
                             src_bounds: hal::image::Offset::ZERO
                                 .into_bounds(&input_image_res.kind().extent()),
@@ -179,8 +181,8 @@ fn create_per_image_data<B: hal::Backend>(
                             src_subresource: hal::image::SubresourceLayers {
                                 aspects: input_image.range.aspects,
                                 level: 0,
-                                layers: input_image.range.layers.start
-                                    ..input_image.range.layers.start + 1,
+                                layers: input_image.range.layer_start
+                                    ..input_image.range.layer_start + 1,
                             },
                             src_offset: hal::image::Offset::ZERO,
                             dst_subresource: hal::image::SubresourceLayers {
@@ -213,8 +215,10 @@ fn create_per_image_data<B: hal::Backend>(
                     target: target_image.raw(),
                     range: hal::image::SubresourceRange {
                         aspects: hal::format::Aspects::COLOR,
-                        levels: 0..1,
-                        layers: 0..1,
+                        level_start: 0,
+                        level_count: Some(1),
+                        layer_start: 0,
+                        layer_count: Some(1),
                     },
                 });
 

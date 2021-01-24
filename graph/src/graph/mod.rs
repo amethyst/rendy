@@ -522,8 +522,10 @@ fn build_node<B: Backend, T: ?Sized>(
                 id,
                 range: hal::image::SubresourceRange {
                     aspects: image.format().surface_desc().aspects,
-                    levels: 0..image.levels(),
-                    layers: 0..image.layers(),
+                    level_start: 0,
+                    level_count: Some(image.levels()),
+                    layer_start: 0,
+                    layer_count: Some(image.layers()),
                 },
                 layout: chains.images[&chain_id].links()[link]
                     .submission_state(submission.id())
