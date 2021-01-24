@@ -14,7 +14,7 @@ use rendy::{
     command::{DrawIndexedCommand, QueueId, RenderPassEncoder},
     factory::{Config, Factory},
     graph::{render::*, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
-    hal::{self, adapter::PhysicalDevice as _, device::Device as _},
+    hal::{self, adapter::PhysicalDevice as _, command::CommandBuffer as _, device::Device as _},
     init::{
         winit::{
             dpi::Size as DpiSize,
@@ -324,7 +324,7 @@ where
                 layout,
                 0,
                 Some(&**self.sets[index]),
-                std::iter::empty(),
+                std::iter::empty::<&u32>(),
             );
 
             #[cfg(feature = "spirv-reflection")]

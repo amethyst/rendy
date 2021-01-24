@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use hal::{buffer, image, memory::Barrier, pso, Backend};
-use rendy_core::hal;
+use rendy_core::{hal, hal::command::CommandBuffer};
 
 use crate::{
     command::Encoder,

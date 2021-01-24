@@ -1,3 +1,4 @@
+use derive_more::{Deref, DerefMut};
 use rendy_core::hal;
 
 use super::{
@@ -68,8 +69,10 @@ pub struct DispatchCommand {
 }
 
 /// Encoder for recording commands inside or outside renderpass.
-#[derive(Debug)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct EncoderCommon<'a, B: hal::Backend, C> {
+    #[deref]
+    #[deref_mut]
     raw: &'a mut B::CommandBuffer,
     capability: C,
     family: FamilyId,
@@ -141,222 +144,6 @@ where
         )
     }
 
-    /// Bind graphics pipeline.
-    ///
-    /// Last bound vertex buffer is used in [`draw`], [`draw_indexed`], [`draw_indirect`] and [`draw_indexed_indirect`] commands.
-    ///
-    /// [`draw_indexed_indirect`]: ../struct.RenderPassEncoder.html#method.draw_indexed_indirect
-    /// [`draw_indirect`]: ../struct.RenderPassEncoder.html#method.draw_indirect
-    pub fn bind_graphics_pipeline(&mut self, pipeline: &B::GraphicsPipeline)
-    where
-        C: Supports<Graphics>,
-    {
-        unsafe {
-            hal::command::CommandBuffer::bind_graphics_pipeline(self.raw, pipeline);
-        }
-    }
-
-    /// Bind descriptor sets to graphics pipeline.
-    ///
-    /// # Safety
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindDescriptorSets.html
-    pub unsafe fn bind_graphics_descriptor_sets<'b>(
-        &mut self,
-        layout: &B::PipelineLayout,
-        first_set: u32,
-        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
-        offsets: impl IntoIterator<Item = u32>,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::bind_graphics_descriptor_sets(
-            self.raw,
-            layout,
-            first_set as _,
-            sets,
-            offsets,
-        );
-    }
-
-    /// Bind compute pipeline.
-    pub fn bind_compute_pipeline(&mut self, pipeline: &B::ComputePipeline)
-    where
-        C: Supports<Compute>,
-    {
-        unsafe {
-            hal::command::CommandBuffer::bind_compute_pipeline(self.raw, pipeline);
-        }
-    }
-
-    /// Bind descriptor sets to compute pipeline.
-    ///
-    /// # Safety
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindDescriptorSets.html
-    pub unsafe fn bind_compute_descriptor_sets<'b>(
-        &mut self,
-        layout: &B::PipelineLayout,
-        first_set: u32,
-        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
-        offsets: impl IntoIterator<Item = u32>,
-    ) where
-        C: Supports<Compute>,
-    {
-        hal::command::CommandBuffer::bind_compute_descriptor_sets(
-            self.raw,
-            layout,
-            first_set as usize,
-            sets,
-            offsets,
-        );
-    }
-
-    /// Insert pipeline barrier.
-    ///
-    /// # Safety
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdPipelineBarrier.html
-    pub unsafe fn pipeline_barrier<'b>(
-        &mut self,
-        stages: std::ops::Range<hal::pso::PipelineStage>,
-        dependencies: hal::memory::Dependencies,
-        barriers: impl IntoIterator<Item = hal::memory::Barrier<'b, B>>,
-    ) {
-        hal::command::CommandBuffer::pipeline_barrier(self.raw, stages, dependencies, barriers)
-    }
-
-    /// Push graphics constants.
-    ///
-    /// # Safety
-    ///
-    /// `offset` must be multiple of 4.
-    /// `constants.len() + offset`, must be less than or equal to the
-    /// `maxPushConstantsSize` device limit.
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdPushConstants.html
-    pub unsafe fn push_constants(
-        &mut self,
-        layout: &B::PipelineLayout,
-        stages: hal::pso::ShaderStageFlags,
-        offset: u32,
-        constants: &[u32],
-    ) {
-        hal::command::CommandBuffer::push_graphics_constants(
-            self.raw, layout, stages, offset, constants,
-        );
-    }
-
-    /// Set viewports
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetViewport.html
-    pub unsafe fn set_viewports<'b>(
-        &mut self,
-        first_viewport: u32,
-        viewports: impl IntoIterator<Item = &'b hal::pso::Viewport>,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_viewports(self.raw, first_viewport, viewports)
-    }
-
-    /// Set scissors
-    ///
-    /// # Safety
-    ///
-    /// `first_scissor + rects.count()` must be less than the
-    /// `maxViewports` device limit.
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetScissor.html
-    pub unsafe fn set_scissors<'b>(
-        &mut self,
-        first_scissor: u32,
-        rects: impl IntoIterator<Item = &'b hal::pso::Rect>,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_scissors(self.raw, first_scissor, rects)
-    }
-
-    /// Set the stencil reference dynamic state
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilReference.html
-    pub unsafe fn set_stencil_reference(
-        &mut self,
-        faces: hal::pso::Face,
-        value: hal::pso::StencilValue,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_stencil_reference(self.raw, faces, value);
-    }
-
-    /// Set the stencil compare mask dynamic state
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilCompareMask.html
-    pub unsafe fn set_stencil_read_mask(
-        &mut self,
-        faces: hal::pso::Face,
-        value: hal::pso::StencilValue,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_stencil_read_mask(self.raw, faces, value);
-    }
-
-    /// Set the stencil write mask dynamic state
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetStencilWriteMask.html
-    pub unsafe fn set_stencil_write_mask(
-        &mut self,
-        faces: hal::pso::Face,
-        value: hal::pso::StencilValue,
-    ) where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_stencil_write_mask(self.raw, faces, value);
-    }
-
-    /// Set the values of blend constants
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetBlendConstants.html
-    pub unsafe fn set_blend_constants(&mut self, color: hal::pso::ColorValue)
-    where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_blend_constants(self.raw, color);
-    }
-
-    /// Set the depth bounds test values
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetDepthBounds.html
-    pub unsafe fn set_depth_bounds(&mut self, bounds: std::ops::Range<f32>)
-    where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_depth_bounds(self.raw, bounds);
-    }
-
-    /// Set the dynamic line width state
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetLineWidth.html
-    pub unsafe fn set_line_width(&mut self, width: f32)
-    where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_line_width(self.raw, width);
-    }
-
-    /// Set the depth bias dynamic state
-    ///
-    /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetDepthBias.html
-    pub unsafe fn set_depth_bias(&mut self, depth_bias: hal::pso::DepthBias)
-    where
-        C: Supports<Graphics>,
-    {
-        hal::command::CommandBuffer::set_depth_bias(self.raw, depth_bias);
-    }
-
     /// Reborrow encoder.
     pub fn reborrow<K>(&mut self) -> EncoderCommon<'_, B, K>
     where
@@ -369,8 +156,6 @@ where
         }
     }
 }
-
-use derive_more::{Deref, DerefMut};
 
 /// Special encoder to record render-pass commands.
 #[derive(Debug, Deref, DerefMut)]

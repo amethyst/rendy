@@ -14,6 +14,7 @@ use rendy::{
         present::PresentNode, render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage,
     },
     hal::{self, device::Device as _},
+    hal::command::CommandBuffer,
     init::{
         winit::{
             dpi::Size as DpiSize,

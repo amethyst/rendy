@@ -1,6 +1,6 @@
 use hal::{device::Device as _, Backend};
-use rendy_core::hal;
 pub use rendy_core::types::{Layout, SetLayout};
+use rendy_core::{hal, hal::command::CommandBuffer};
 
 use super::{RenderGroup, RenderGroupDesc};
 use crate::{
@@ -370,7 +370,9 @@ where
         _subpass: hal::pass::Subpass<'_, B>,
         aux: &T,
     ) {
-        encoder.bind_graphics_pipeline(&self.graphics_pipeline);
+        unsafe {
+            encoder.bind_graphics_pipeline(&self.graphics_pipeline);
+        }
         self.pipeline
             .draw(&self.pipeline_layout, encoder, index, aux);
     }

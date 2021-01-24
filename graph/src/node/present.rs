@@ -1,6 +1,6 @@
 //! Defines present node.
 
-use rendy_core::hal;
+use rendy_core::{hal, hal::command::CommandBuffer as _};
 
 use crate::{
     command::{

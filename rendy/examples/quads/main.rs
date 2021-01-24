@@ -12,7 +12,7 @@ use rendy::{
         CommandBuffer, CommandPool, Compute, DrawCommand, ExecutableState, Families, Family,
         MultiShot, PendingState, QueueId, RenderPassEncoder, SimultaneousUse, Submit,
     },
-    core::hal::{self, device::Device as _},
+    core::hal::{self, command::CommandBuffer as _, device::Device as _},
     factory::{BufferState, Config, Factory},
     frame::Frames,
     graph::{
@@ -523,7 +523,9 @@ where
         let initial = command_pool.allocate_buffers(1).remove(0);
         let mut recording = initial.begin(MultiShot(SimultaneousUse), ());
         let mut encoder = recording.encoder();
-        encoder.bind_compute_pipeline(&pipeline);
+        unsafe {
+            encoder.bind_compute_pipeline(&pipeline);
+        }
         unsafe {
             encoder.bind_compute_descriptor_sets(
                 &pipeline_layout,

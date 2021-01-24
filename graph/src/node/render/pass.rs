@@ -3,7 +3,7 @@ use std::{cmp::min, collections::HashMap};
 use either::Either;
 use rendy_core::{
     hal,
-    hal::{device::Device as _, image::Layout, Backend},
+    hal::{command::CommandBuffer as _, device::Device as _, image::Layout, Backend},
     uses_pipeline_barriers,
 };
 
