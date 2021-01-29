@@ -781,7 +781,13 @@ where
             self.instance.id(),
             "Resource is not owned by specified instance"
         );
-        drop(surface);
+        unsafe {
+            surface.dispose(
+                self.instance
+                    .as_instance()
+                    .expect("Cannot destroy surface without instance"),
+            );
+        }
     }
 
     /// Create target out of rendering surface.
