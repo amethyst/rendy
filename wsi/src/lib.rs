@@ -217,6 +217,16 @@ where
             usage,
         })
     }
+
+    /// Dispose of Surface.
+    ///
+    /// # Safety
+    ///
+    /// Surface must be not in use.
+    pub unsafe fn dispose(self, instance: &Instance<B>) {
+        self.assert_instance_owner(instance);
+        instance.destroy_surface(self.raw);
+    }
 }
 
 unsafe fn create_swapchain<B: Backend>(
