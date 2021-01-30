@@ -293,11 +293,7 @@ where
         let whole_level =
             image_offset == rendy_core::hal::image::Offset::ZERO && image_extent == whole_extent;
 
-        let image_range = rendy_core::hal::image::SubresourceRange {
-            aspects: image_layers.aspects,
-            levels: image_layers.level..image_layers.level + 1,
-            layers: image_layers.layers.clone(),
-        };
+        let image_range = image_layers.clone().into();
 
         let (last_stage, mut last_access, last_layout) = match last {
             ImageStateOrLayout::State(last) => {

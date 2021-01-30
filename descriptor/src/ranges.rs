@@ -276,3 +276,15 @@ impl<'a> Iterator for DescriptorRangesIter<'a> {
         }
     }
 }
+
+impl<'a> ExactSizeIterator for DescriptorRangesIter<'a> {
+    fn len(&self) -> usize {
+        let (lower, upper) = self.size_hint();
+        // Note: This assertion is overly defensive, but it checks the invariant
+        // guaranteed by the trait. If this trait were rust-internal,
+        // we could use debug_assert!; assert_eq! will check all Rust user
+        // implementations too.
+        assert_eq!(upper, Some(lower));
+        lower
+    }
+}

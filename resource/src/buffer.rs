@@ -69,7 +69,7 @@ where
         let block = heaps
             .allocate(
                 device,
-                reqs.type_mask as u32,
+                reqs.type_mask,
                 memory_usage,
                 reqs.size,
                 reqs.alignment,

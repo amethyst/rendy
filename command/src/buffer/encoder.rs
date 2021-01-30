@@ -126,11 +126,10 @@ where
     /// device limit.
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindVertexBuffers.html
-    pub unsafe fn bind_vertex_buffers<'b>(
-        &mut self,
-        first_binding: u32,
-        buffers: impl IntoIterator<Item = (&'b B::Buffer, u64)>,
-    ) where
+    pub unsafe fn bind_vertex_buffers<'b, I>(&mut self, first_binding: u32, buffers: I)
+    where
+        I: IntoIterator<Item = (&'b B::Buffer, u64)>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -168,13 +167,17 @@ where
     /// # Safety
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindDescriptorSets.html
-    pub unsafe fn bind_graphics_descriptor_sets<'b>(
+    pub unsafe fn bind_graphics_descriptor_sets<'b, I, J>(
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
-        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
-        offsets: impl IntoIterator<Item = u32>,
+        sets: I,
+        offsets: J,
     ) where
+        I: IntoIterator<Item = &'b B::DescriptorSet>,
+        I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = u32>,
+        J::IntoIter: ExactSizeIterator,
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -205,13 +208,17 @@ where
     /// # Safety
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBindDescriptorSets.html
-    pub unsafe fn bind_compute_descriptor_sets<'b>(
+    pub unsafe fn bind_compute_descriptor_sets<'b, I, J>(
         &mut self,
         layout: &B::PipelineLayout,
         first_set: u32,
-        sets: impl IntoIterator<Item = &'b B::DescriptorSet>,
-        offsets: impl IntoIterator<Item = u32>,
+        sets: I,
+        offsets: J,
     ) where
+        I: IntoIterator<Item = &'b B::DescriptorSet>,
+        I::IntoIter: ExactSizeIterator,
+        J: IntoIterator<Item = u32>,
+        J::IntoIter: ExactSizeIterator,
         C: Supports<Compute>,
     {
         self.capability.assert();
@@ -268,11 +275,10 @@ where
     /// Set viewports
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetViewport.html
-    pub unsafe fn set_viewports<'b>(
-        &mut self,
-        first_viewport: u32,
-        viewports: impl IntoIterator<Item = &'b rendy_core::hal::pso::Viewport>,
-    ) where
+    pub unsafe fn set_viewports<'b, I>(&mut self, first_viewport: u32, viewports: I)
+    where
+        I: IntoIterator<Item = &'b rendy_core::hal::pso::Viewport>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -287,11 +293,10 @@ where
     /// `maxViewports` device limit.
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdSetScissor.html
-    pub unsafe fn set_scissors<'b>(
-        &mut self,
-        first_scissor: u32,
-        rects: impl IntoIterator<Item = &'b rendy_core::hal::pso::Rect>,
-    ) where
+    pub unsafe fn set_scissors<'b, I>(&mut self, first_scissor: u32, rects: I)
+    where
+        I: IntoIterator<Item = &'b rendy_core::hal::pso::Rect>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Graphics>,
     {
         self.capability.assert();
@@ -430,13 +435,15 @@ where
     /// Clear regions within bound framebuffer attachments
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdClearAttachments.html#vkCmdBeginRenderPass
-    pub unsafe fn clear_attachments(
-        &mut self,
-        clears: impl IntoIterator<
-            Item = impl std::borrow::Borrow<rendy_core::hal::command::AttachmentClear>,
-        >,
-        rects: impl IntoIterator<Item = impl std::borrow::Borrow<rendy_core::hal::pso::ClearRect>>,
-    ) {
+    pub unsafe fn clear_attachments<I, J>(&mut self, clears: I, rects: J)
+    where
+        I: IntoIterator,
+        I::Item: std::borrow::Borrow<rendy_core::hal::command::AttachmentClear>,
+        I::IntoIter: ExactSizeIterator,
+        J: IntoIterator,
+        J::Item: std::borrow::Borrow<rendy_core::hal::pso::ClearRect>,
+        J::IntoIter: ExactSizeIterator,
+    {
         rendy_core::hal::command::CommandBuffer::clear_attachments(self.inner.raw, clears, rects);
     }
 
@@ -631,10 +638,12 @@ where
     B: rendy_core::hal::Backend,
 {
     /// Execute commands from secondary buffers.
-    pub fn execute_commands(
-        &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel, RenderPassContinue>>,
-    ) {
+    pub fn execute_commands<I>(&mut self, submittables: I)
+    where
+        I: IntoIterator,
+        I::Item: Submittable<B, SecondaryLevel, RenderPassContinue>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let family = self.inner.family;
         unsafe {
             rendy_core::hal::command::CommandBuffer::execute_commands(
@@ -771,10 +780,12 @@ where
     }
 
     /// Execute commands from secondary buffers.
-    pub fn execute_commands(
-        &mut self,
-        submittables: impl IntoIterator<Item = impl Submittable<B, SecondaryLevel>>,
-    ) {
+    pub fn execute_commands<I>(&mut self, submittables: I)
+    where
+        I: IntoIterator,
+        I::Item: Submittable<B, SecondaryLevel>,
+        I::IntoIter: ExactSizeIterator,
+    {
         let family = self.inner.family;
         unsafe {
             rendy_core::hal::command::CommandBuffer::execute_commands(
@@ -811,12 +822,10 @@ where
     /// length of the corresponding buffer.
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyBuffer.html
-    pub unsafe fn copy_buffer(
-        &mut self,
-        src: &B::Buffer,
-        dst: &B::Buffer,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferCopy>,
-    ) where
+    pub unsafe fn copy_buffer<I>(&mut self, src: &B::Buffer, dst: &B::Buffer, regions: I)
+    where
+        I: IntoIterator<Item = rendy_core::hal::command::BufferCopy>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Transfer>,
     {
         self.capability.assert();
@@ -831,13 +840,15 @@ where
     /// Same as `copy_buffer()`
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyBufferToImage.html
-    pub unsafe fn copy_buffer_to_image(
+    pub unsafe fn copy_buffer_to_image<I>(
         &mut self,
         src: &B::Buffer,
         dst: &B::Image,
         dst_layout: rendy_core::hal::image::Layout,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        regions: I,
     ) where
+        I: IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Transfer>,
     {
         self.capability.assert();
@@ -858,14 +869,16 @@ where
     /// Same as `copy_buffer()`
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyImage.html
-    pub unsafe fn copy_image(
+    pub unsafe fn copy_image<I>(
         &mut self,
         src: &B::Image,
         src_layout: rendy_core::hal::image::Layout,
         dst: &B::Image,
         dst_layout: rendy_core::hal::image::Layout,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::ImageCopy>,
+        regions: I,
     ) where
+        I: IntoIterator<Item = rendy_core::hal::command::ImageCopy>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Transfer>,
     {
         self.capability.assert();
@@ -887,13 +900,15 @@ where
     /// Same as `copy_buffer()`
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdCopyImageToBuffer.html
-    pub unsafe fn copy_image_to_buffer(
+    pub unsafe fn copy_image_to_buffer<I>(
         &mut self,
         src: &B::Image,
         src_layout: rendy_core::hal::image::Layout,
         dst: &B::Buffer,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        regions: I,
     ) where
+        I: IntoIterator<Item = rendy_core::hal::command::BufferImageCopy>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Transfer>,
     {
         self.capability.assert();
@@ -914,15 +929,17 @@ where
     /// Same as `copy_buffer()`
     ///
     /// See: https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkCmdBlitImage.html
-    pub unsafe fn blit_image(
+    pub unsafe fn blit_image<I>(
         &mut self,
         src: &B::Image,
         src_layout: rendy_core::hal::image::Layout,
         dst: &B::Image,
         dst_layout: rendy_core::hal::image::Layout,
         filter: rendy_core::hal::image::Filter,
-        regions: impl IntoIterator<Item = rendy_core::hal::command::ImageBlit>,
+        regions: I,
     ) where
+        I: IntoIterator<Item = rendy_core::hal::command::ImageBlit>,
+        I::IntoIter: ExactSizeIterator,
         C: Supports<Graphics>,
     {
         self.capability.assert();

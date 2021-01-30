@@ -73,10 +73,10 @@ where
         memory_usage: impl MemoryUsage,
     ) -> Result<Self, ImageCreationError> {
         assert!(
-            info.levels <= info.kind.num_levels(),
+            info.levels <= info.kind.compute_num_levels(),
             "Number of mip leves ({}) cannot be greater than {} for given kind {:?}",
             info.levels,
-            info.kind.num_levels(),
+            info.kind.compute_num_levels(),
             info.kind,
         );
 
@@ -96,7 +96,7 @@ where
         let block = heaps
             .allocate(
                 device,
-                reqs.type_mask as u32,
+                reqs.type_mask,
                 memory_usage,
                 reqs.size,
                 reqs.alignment,
@@ -114,17 +114,6 @@ where
             info,
             relevant: Relevant,
         })
-    }
-
-    /// Create image handler for swapchain image.
-    pub unsafe fn create_from_swapchain(device: DeviceId, info: ImageInfo, raw: B::Image) -> Self {
-        Image {
-            device,
-            raw,
-            block: None,
-            info,
-            relevant: Relevant,
-        }
     }
 
     /// Destroy image resource.
@@ -249,8 +238,10 @@ where
                     info.swizzle,
                     SubresourceRange {
                         aspects: info.range.aspects,
-                        layers: info.range.layers.clone(),
-                        levels: info.range.levels.clone(),
+                        level_start: info.range.level_start,
+                        level_count: info.range.level_count,
+                        layer_start: info.range.layer_start,
+                        layer_count: info.range.layer_count,
                     },
                 )
                 .map_err(CreationError::Create)?

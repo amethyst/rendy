@@ -292,23 +292,10 @@ where
             h: framebuffer_height as i16,
         };
 
-        let shaders = match shader_set.raw() {
-            Err(e) => {
-                shader_set.dispose(factory);
-                log::warn!("Shader error {:?}", e);
-                return Err(rendy_core::hal::pso::CreationError::Other);
-            }
-            Ok(s) => s,
-        };
-
         let graphics_pipeline = unsafe {
             factory.device().create_graphics_pipelines(
                 Some(rendy_core::hal::pso::GraphicsPipelineDesc {
-                    shaders,
                     rasterizer: pipeline.rasterizer,
-                    vertex_buffers,
-                    attributes,
-                    input_assembler: pipeline.input_assembler_desc,
                     blender: rendy_core::hal::pso::BlendDesc {
                         logic_op: None,
                         targets: pipeline.colors.clone(),
@@ -328,6 +315,10 @@ where
                     subpass,
                     flags: rendy_core::hal::pso::PipelineCreationFlags::empty(),
                     parent: rendy_core::hal::pso::BasePipeline::None,
+
+                    // FIXME FIXME
+                    primitive_assembler: (),
+                    fragment: None,
                 }),
                 None,
             )
