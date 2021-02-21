@@ -13,7 +13,7 @@ members = [
     "shader",
     "wsi",
     "chain",
-    "graph",
+#    "graph",
     "core",
     "texture",
 ]

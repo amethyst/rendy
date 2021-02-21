@@ -15,7 +15,10 @@ use {
     rendy_core::hal::{
         device::Device as _,
         format::Format,
-        window::{Extent2D, Surface as _, SurfaceCapabilities},
+        window::{
+            Extent2D, Surface as _, SurfaceCapabilities, SwapchainConfig,
+            PresentationSurface, CreationError, Suboptimal, AcquireError,
+        },
         Backend, Instance as _,
     },
     rendy_core::{
@@ -24,48 +27,6 @@ use {
     rendy_resource::{Image, ImageInfo},
 };
 
-/// Error creating a new swapchain.
-#[derive(Debug)]
-pub enum SwapchainError {
-    /// Internal error in gfx-hal.
-    Create(rendy_core::hal::window::CreationError),
-    /// Present mode is not supported.
-    BadPresentMode(rendy_core::hal::window::PresentMode),
-    /// Image count is not supported.
-    BadImageCount(rendy_core::hal::window::SwapImageIndex),
-}
-
-impl std::fmt::Display for SwapchainError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SwapchainError::Create(err) => write!(
-                fmt,
-                "Failed to create swapchain because of a window creation error: {:?}",
-                err
-            ),
-            SwapchainError::BadPresentMode(present_mode) => write!(
-                fmt,
-                "Failed to create swapchain because requested present mode is not supported: {:?}",
-                present_mode
-            ),
-            SwapchainError::BadImageCount(image_count) => write!(
-                fmt,
-                "Failed to create swapchain because requested image count is not supported: {:?}",
-                image_count
-            ),
-        }
-    }
-}
-
-impl std::error::Error for SwapchainError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            SwapchainError::Create(err) => Some(err),
-            SwapchainError::BadPresentMode(_) => None,
-            SwapchainError::BadImageCount(_) => None,
-        }
-    }
-}
 /// Rendering target bound to window.
 pub struct Surface<B: Backend> {
     raw: B::Surface,
@@ -180,142 +141,35 @@ where
         self.raw.capabilities(physical_device)
     }
 
-    // /// Cast surface into render target.
-    // pub unsafe fn into_target(
-    //     mut self,
-    //     physical_device: &B::PhysicalDevice,
-    //     device: &Device<B>,
-    //     suggest_extent: Extent2D,
-    //     image_count: u32,
-    //     present_mode: rendy_core::hal::window::PresentMode,
-    //     usage: rendy_core::hal::image::Usage,
-    // ) -> Result<Target<B>, SwapchainError> {
-    //     assert_eq!(
-    //         device.id().instance,
-    //         self.instance,
-    //         "Resource is not owned by specified instance"
-    //     );
+    /// Set up the swapchain associated with the surface to have the given format.
+    pub unsafe fn configure_swapchain(
+        &mut self,
+        device: &B::Device,
+        config: SwapchainConfig,
+    ) -> Result<(), CreationError> {
+        self.raw.configure_swapchain(device, config)
+    }
 
-    //     let (swapchain, backbuffer, extent) = create_swapchain(
-    //         &mut self,
-    //         physical_device,
-    //         device,
-    //         suggest_extent,
-    //         image_count,
-    //         present_mode,
-    //         usage,
-    //     )?;
+    /// Remove the associated swapchain from this surface.
+    ///
+    /// This has to be done before the surface is dropped.
+    pub unsafe fn unconfigure_swapchain(
+        &mut self,
+        device: &B::Device,
+    ) {
+        self.raw.unconfigure_swapchain(device)
+    }
 
-    //     Ok(Target {
-    //         device: device.id(),
-    //         relevant: relevant::Relevant,
-    //         surface: self,
-    //         swapchain: Some(swapchain),
-    //         backbuffer: Some(backbuffer),
-    //         extent,
-    //         present_mode,
-    //         usage,
-    //     })
-    // }
+    /// Acquire a new swapchain image for rendering.
+    /// 
+    /// May fail according to one of the reasons indicated in AcquireError enum.
+    ///
+    /// ## Synchronization
+    /// The acquired image is available to render. No synchronization is required.
+    pub unsafe fn acquire_image(
+        &mut self,
+        timeout_ns: u64,
+    ) -> Result<(<B::Surface as PresentationSurface<B>>::SwapchainImage, Option<Suboptimal>), AcquireError> {
+        self.raw.acquire_image(timeout_ns)
+    }
 }
-
-// unsafe fn create_swapchain<B: Backend>(
-//     surface: &mut Surface<B>,
-//     physical_device: &B::PhysicalDevice,
-//     device: &Device<B>,
-//     suggest_extent: Extent2D,
-//     image_count: u32,
-//     present_mode: rendy_core::hal::window::PresentMode,
-//     usage: rendy_core::hal::image::Usage,
-// ) -> Result<(B::Swapchain, Vec<Image<B>>, Extent2D), SwapchainError> {
-//     let capabilities = surface.capabilities(physical_device);
-//     let format = surface.format(physical_device);
-// 
-//     if !capabilities.present_modes.contains(present_mode) {
-//         log::warn!(
-//             "Present mode is not supported. Supported: {:#?}, requested: {:#?}",
-//             capabilities.present_modes,
-//             present_mode,
-//         );
-//         return Err(SwapchainError::BadPresentMode(present_mode));
-//     }
-// 
-//     log::trace!(
-//         "Surface present modes: {:#?}. Pick {:#?}",
-//         capabilities.present_modes,
-//         present_mode
-//     );
-// 
-//     log::trace!("Surface chosen format {:#?}", format);
-// 
-//     if image_count < *capabilities.image_count.start()
-//         || image_count > *capabilities.image_count.end()
-//     {
-//         log::warn!(
-//             "Image count not supported. Supported: {:#?}, requested: {:#?}",
-//             capabilities.image_count,
-//             image_count
-//         );
-//         return Err(SwapchainError::BadImageCount(image_count));
-//     }
-// 
-//     log::trace!(
-//         "Surface capabilities: {:#?}. Pick {} images",
-//         capabilities.image_count,
-//         image_count
-//     );
-// 
-//     assert!(
-//         capabilities.usage.contains(usage),
-//         "Surface supports {:?}, but {:?} was requested",
-//         capabilities.usage,
-//         usage
-//     );
-// 
-//     let extent = capabilities.current_extent.unwrap_or(suggest_extent);
-// 
-//     let (swapchain, images) = device
-//         .create_swapchain(
-//             &mut surface.raw,
-//             rendy_core::hal::window::SwapchainConfig {
-//                 present_mode,
-//                 format,
-//                 extent,
-//                 image_count,
-//                 image_layers: 1,
-//                 image_usage: usage,
-//                 composite_alpha_mode: [
-//                     rendy_core::hal::window::CompositeAlphaMode::INHERIT,
-//                     rendy_core::hal::window::CompositeAlphaMode::OPAQUE,
-//                     rendy_core::hal::window::CompositeAlphaMode::PREMULTIPLIED,
-//                     rendy_core::hal::window::CompositeAlphaMode::POSTMULTIPLIED,
-//                 ]
-//                 .iter()
-//                 .cloned()
-//                 .find(|&bit| capabilities.composite_alpha_modes.contains(bit))
-//                 .expect("No CompositeAlphaMode modes supported"),
-//             },
-//             None,
-//         )
-//         .map_err(SwapchainError::Create)?;
-// 
-//     let backbuffer = images
-//         .into_iter()
-//         .map(|image| {
-//             Image::create_from_swapchain(
-//                 device.id(),
-//                 ImageInfo {
-//                     kind: rendy_core::hal::image::Kind::D2(extent.width, extent.height, 1, 1),
-//                     levels: 1,
-//                     format,
-//                     tiling: rendy_core::hal::image::Tiling::Optimal,
-//                     view_caps: rendy_core::hal::image::ViewCapabilities::empty(),
-//                     usage,
-//                 },
-//                 image,
-//             )
-//         })
-//         .collect();
-// 
-//     Ok((swapchain, backbuffer, extent))
-// }

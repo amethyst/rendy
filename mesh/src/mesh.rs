@@ -141,277 +141,277 @@ impl<'a> MeshBuilder<'a> {
     }
 
     /// Set indices buffer to the `MeshBuilder`
-    pub fn with_indices<I>(mut self, indices: I) -> Self
-    where
-        I: Into<Indices<'a>>,
-    {
-        self.set_indices(indices);
-        self
+        pub fn with_indices<I>(mut self, indices: I) -> Self
+        where
+            I: Into<Indices<'a>>,
+        {
+            self.set_indices(indices);
+            self
+        }
+
+        /// Set indices buffer to the `MeshBuilder`
+        pub fn set_indices<I>(&mut self, indices: I) -> &mut Self
+        where
+            I: Into<Indices<'a>>,
+        {
+            self.indices = match indices.into() {
+                Indices::None => None,
+                Indices::U16(i) => Some(RawIndices {
+                    indices: cast_cow(i),
+                    index_type: rendy_core::hal::IndexType::U16,
+                }),
+                Indices::U32(i) => Some(RawIndices {
+                    indices: cast_cow(i),
+                    index_type: rendy_core::hal::IndexType::U32,
+                }),
+            };
+            self
+        }
+
+        /// Add another vertices to the `MeshBuilder`
+        pub fn with_vertices<V, D>(mut self, vertices: D) -> Self
+        where
+            V: AsVertex + 'a,
+            D: Into<Cow<'a, [V]>>,
+        {
+            self.add_vertices(vertices);
+            self
+        }
+
+        /// Add another vertices to the `MeshBuilder`
+        pub fn add_vertices<V, D>(&mut self, vertices: D) -> &mut Self
+        where
+            V: AsVertex + 'a,
+            D: Into<Cow<'a, [V]>>,
+        {
+            self.vertices.push(RawVertices {
+                vertices: cast_cow(vertices.into()),
+                format: V::vertex(),
+            });
+            self
+        }
+
+        /// Sets the primitive type of the mesh.
+        ///
+        /// By default, meshes are constructed as triangle lists.
+        pub fn with_prim_type(mut self, prim: rendy_core::hal::pso::Primitive) -> Self {
+            self.prim = prim;
+            self
+        }
+
+        /// Sets the primitive type of the mesh.
+        ///
+        /// By default, meshes are constructed as triangle lists.
+        pub fn set_prim_type(&mut self, prim: rendy_core::hal::pso::Primitive) -> &mut Self {
+            self.prim = prim;
+            self
+        }
+
+        /// Builds and returns the new mesh.
+        ///
+        /// A mesh expects all vertex buffers to have the same number of elements.
+        /// If those are not equal, the length of smallest vertex buffer is selected,
+        /// effectively discaring extra data from larger buffers.
+        ///
+        /// Note that contents of index buffer is not validated.
+        pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, UploadError>
+        where
+            B: rendy_core::hal::Backend,
+        {
+            let align = factory.physical().limits().non_coherent_atom_size;
+            let mut len = self
+                .vertices
+                .iter()
+                .map(|v| v.vertices.len() as u32 / v.format.stride)
+                .min()
+                .unwrap_or(0);
+
+            let buffer_size = self
+                .vertices
+                .iter()
+                .map(|v| (v.format.stride * len) as usize)
+                .sum();
+
+            let aligned_size = align_by(align, buffer_size) as u64;
+
+            let mut staging = factory
+                .create_buffer(
+                    BufferInfo {
+                        size: aligned_size,
+                        usage: rendy_core::hal::buffer::Usage::TRANSFER_SRC,
+                    },
+                    Upload,
+                )
+                .map_err(UploadError::Create)?;
+
+            let mut buffer = factory
+                .create_buffer(
+                    BufferInfo {
+                        size: buffer_size as _,
+                        usage: rendy_core::hal::buffer::Usage::VERTEX
+                            | rendy_core::hal::buffer::Usage::TRANSFER_DST,
+                    },
+                    Data,
+                )
+                .map_err(UploadError::Create)?;
+
+            let mut mapped = staging
+                .map(factory, 0..aligned_size)
+                .map_err(UploadError::Map)?;
+            let mut writer =
+                unsafe { mapped.write(factory, 0..aligned_size) }.map_err(UploadError::Map)?;
+            let staging_slice = unsafe { writer.slice() };
+
+            let mut offset = 0usize;
+            let mut vertex_layouts: Vec<_> = self
+                .vertices
+                .iter()
+                .map(|RawVertices { vertices, format }| {
+                    let size = (format.stride * len) as usize;
+                    staging_slice[offset..offset + size].copy_from_slice(&vertices[0..size]);
+                    let this_offset = offset as u64;
+                    offset += size;
+                    VertexBufferLayout {
+                        offset: this_offset,
+                        format: format.clone(),
+                    }
+                })
+                .collect();
+
+            drop(writer);
+            drop(mapped);
+
+            vertex_layouts.sort_unstable_by(|a, b| a.format.cmp(&b.format));
+
+            let index_buffer = match self.indices {
+                None => None,
+                Some(RawIndices {
+                    ref indices,
+                    index_type,
+                }) => {
+                    len = (indices.len() / index_stride(index_type)) as u32;
+                    let mut buffer = factory
+                        .create_buffer(
+                            BufferInfo {
+                                size: indices.len() as _,
+                                usage: rendy_core::hal::buffer::Usage::INDEX
+                                    | rendy_core::hal::buffer::Usage::TRANSFER_DST,
+                            },
+                            Data,
+                        )
+                        .map_err(UploadError::Create)?;
+                    unsafe {
+                        // New buffer can't be touched by device yet.
+                        factory.upload_buffer(
+                            &mut buffer,
+                            0,
+                            &indices,
+                            None,
+                            BufferState::new(queue)
+                                .with_access(rendy_core::hal::buffer::Access::INDEX_BUFFER_READ)
+                                .with_stage(rendy_core::hal::pso::PipelineStage::VERTEX_INPUT),
+                        )?;
+                    }
+
+                    Some(IndexBuffer { buffer, index_type })
+                }
+            };
+
+            unsafe {
+                factory
+                    .upload_from_staging_buffer(
+                        &mut buffer,
+                        0,
+                        staging,
+                        None,
+                        BufferState::new(queue)
+                            .with_access(rendy_core::hal::buffer::Access::VERTEX_BUFFER_READ)
+                            .with_stage(rendy_core::hal::pso::PipelineStage::VERTEX_INPUT),
+                    )
+                    .map_err(UploadError::Upload)?;
+            }
+
+            Ok(Mesh {
+                vertex_layouts,
+                index_buffer,
+                vertex_buffer: buffer,
+                prim: self.prim,
+                len,
+            })
+        }
     }
 
-    /// Set indices buffer to the `MeshBuilder`
-    pub fn set_indices<I>(&mut self, indices: I) -> &mut Self
-    where
-        I: Into<Indices<'a>>,
-    {
-        self.indices = match indices.into() {
-            Indices::None => None,
-            Indices::U16(i) => Some(RawIndices {
-                indices: cast_cow(i),
-                index_type: rendy_core::hal::IndexType::U16,
-            }),
-            Indices::U32(i) => Some(RawIndices {
-                indices: cast_cow(i),
-                index_type: rendy_core::hal::IndexType::U32,
-            }),
-        };
-        self
+    fn align_by(align: usize, value: usize) -> usize {
+        ((value + align - 1) / align) * align
     }
 
-    /// Add another vertices to the `MeshBuilder`
-    pub fn with_vertices<V, D>(mut self, vertices: D) -> Self
-    where
-        V: AsVertex + 'a,
-        D: Into<Cow<'a, [V]>>,
-    {
-        self.add_vertices(vertices);
-        self
+    /// Single mesh is a collection of buffer ranges that provides available attributes.
+    /// Usually exactly one mesh is used per draw call.
+    #[derive(Debug)]
+    pub struct Mesh<B: rendy_core::hal::Backend> {
+        vertex_buffer: Escape<Buffer<B>>,
+        vertex_layouts: Vec<VertexBufferLayout>,
+        index_buffer: Option<IndexBuffer<B>>,
+        prim: rendy_core::hal::pso::Primitive,
+        len: u32,
     }
 
-    /// Add another vertices to the `MeshBuilder`
-    pub fn add_vertices<V, D>(&mut self, vertices: D) -> &mut Self
-    where
-        V: AsVertex + 'a,
-        D: Into<Cow<'a, [V]>>,
-    {
-        self.vertices.push(RawVertices {
-            vertices: cast_cow(vertices.into()),
-            format: V::vertex(),
-        });
-        self
-    }
-
-    /// Sets the primitive type of the mesh.
-    ///
-    /// By default, meshes are constructed as triangle lists.
-    pub fn with_prim_type(mut self, prim: rendy_core::hal::pso::Primitive) -> Self {
-        self.prim = prim;
-        self
-    }
-
-    /// Sets the primitive type of the mesh.
-    ///
-    /// By default, meshes are constructed as triangle lists.
-    pub fn set_prim_type(&mut self, prim: rendy_core::hal::pso::Primitive) -> &mut Self {
-        self.prim = prim;
-        self
-    }
-
-    /// Builds and returns the new mesh.
-    ///
-    /// A mesh expects all vertex buffers to have the same number of elements.
-    /// If those are not equal, the length of smallest vertex buffer is selected,
-    /// effectively discaring extra data from larger buffers.
-    ///
-    /// Note that contents of index buffer is not validated.
-    pub fn build<B>(&self, queue: QueueId, factory: &Factory<B>) -> Result<Mesh<B>, UploadError>
+    impl<B> Mesh<B>
     where
         B: rendy_core::hal::Backend,
     {
-        let align = factory.physical().limits().non_coherent_atom_size;
-        let mut len = self
-            .vertices
-            .iter()
-            .map(|v| v.vertices.len() as u32 / v.format.stride)
-            .min()
-            .unwrap_or(0);
-
-        let buffer_size = self
-            .vertices
-            .iter()
-            .map(|v| (v.format.stride * len) as usize)
-            .sum();
-
-        let aligned_size = align_by(align, buffer_size) as u64;
-
-        let mut staging = factory
-            .create_buffer(
-                BufferInfo {
-                    size: aligned_size,
-                    usage: rendy_core::hal::buffer::Usage::TRANSFER_SRC,
-                },
-                Upload,
-            )
-            .map_err(UploadError::Create)?;
-
-        let mut buffer = factory
-            .create_buffer(
-                BufferInfo {
-                    size: buffer_size as _,
-                    usage: rendy_core::hal::buffer::Usage::VERTEX
-                        | rendy_core::hal::buffer::Usage::TRANSFER_DST,
-                },
-                Data,
-            )
-            .map_err(UploadError::Create)?;
-
-        let mut mapped = staging
-            .map(factory, 0..aligned_size)
-            .map_err(UploadError::Map)?;
-        let mut writer =
-            unsafe { mapped.write(factory, 0..aligned_size) }.map_err(UploadError::Map)?;
-        let staging_slice = unsafe { writer.slice() };
-
-        let mut offset = 0usize;
-        let mut vertex_layouts: Vec<_> = self
-            .vertices
-            .iter()
-            .map(|RawVertices { vertices, format }| {
-                let size = (format.stride * len) as usize;
-                staging_slice[offset..offset + size].copy_from_slice(&vertices[0..size]);
-                let this_offset = offset as u64;
-                offset += size;
-                VertexBufferLayout {
-                    offset: this_offset,
-                    format: format.clone(),
-                }
-            })
-            .collect();
-
-        drop(writer);
-        drop(mapped);
-
-        vertex_layouts.sort_unstable_by(|a, b| a.format.cmp(&b.format));
-
-        let index_buffer = match self.indices {
-            None => None,
-            Some(RawIndices {
-                ref indices,
-                index_type,
-            }) => {
-                len = (indices.len() / index_stride(index_type)) as u32;
-                let mut buffer = factory
-                    .create_buffer(
-                        BufferInfo {
-                            size: indices.len() as _,
-                            usage: rendy_core::hal::buffer::Usage::INDEX
-                                | rendy_core::hal::buffer::Usage::TRANSFER_DST,
-                        },
-                        Data,
-                    )
-                    .map_err(UploadError::Create)?;
-                unsafe {
-                    // New buffer can't be touched by device yet.
-                    factory.upload_buffer(
-                        &mut buffer,
-                        0,
-                        &indices,
-                        None,
-                        BufferState::new(queue)
-                            .with_access(rendy_core::hal::buffer::Access::INDEX_BUFFER_READ)
-                            .with_stage(rendy_core::hal::pso::PipelineStage::VERTEX_INPUT),
-                    )?;
-                }
-
-                Some(IndexBuffer { buffer, index_type })
-            }
-        };
-
-        unsafe {
-            factory
-                .upload_from_staging_buffer(
-                    &mut buffer,
-                    0,
-                    staging,
-                    None,
-                    BufferState::new(queue)
-                        .with_access(rendy_core::hal::buffer::Access::VERTEX_BUFFER_READ)
-                        .with_stage(rendy_core::hal::pso::PipelineStage::VERTEX_INPUT),
-                )
-                .map_err(UploadError::Upload)?;
+        /// Build new mesh with `MeshBuilder`
+        pub fn builder<'a>() -> MeshBuilder<'a> {
+            MeshBuilder::new()
         }
 
-        Ok(Mesh {
-            vertex_layouts,
-            index_buffer,
-            vertex_buffer: buffer,
-            prim: self.prim,
-            len,
-        })
-    }
-}
-
-fn align_by(align: usize, value: usize) -> usize {
-    ((value + align - 1) / align) * align
-}
-
-/// Single mesh is a collection of buffer ranges that provides available attributes.
-/// Usually exactly one mesh is used per draw call.
-#[derive(Debug)]
-pub struct Mesh<B: rendy_core::hal::Backend> {
-    vertex_buffer: Escape<Buffer<B>>,
-    vertex_layouts: Vec<VertexBufferLayout>,
-    index_buffer: Option<IndexBuffer<B>>,
-    prim: rendy_core::hal::pso::Primitive,
-    len: u32,
-}
-
-impl<B> Mesh<B>
-where
-    B: rendy_core::hal::Backend,
-{
-    /// Build new mesh with `MeshBuilder`
-    pub fn builder<'a>() -> MeshBuilder<'a> {
-        MeshBuilder::new()
-    }
-
-    /// rendy_core::hal::pso::Primitive type of the `Mesh`
-    pub fn primitive(&self) -> rendy_core::hal::pso::Primitive {
-        self.prim
-    }
-
-    /// Returns the number of vertices that will be drawn
-    /// in the mesh.  For a mesh with no index buffer,
-    /// this is the same as the number of vertices, or for
-    /// a mesh with indices, this is the same as the number
-    /// of indices.
-    pub fn len(&self) -> u32 {
-        self.len
-    }
-
-    fn get_vertex_iter<'a>(
-        &'a self,
-        formats: &[VertexFormat],
-    ) -> Result<impl IntoIterator<Item = (&'a B::Buffer, u64)>, Incompatible> {
-        debug_assert!(is_slice_sorted(formats), "Formats: {:#?}", formats);
-        debug_assert!(is_slice_sorted_by_key(&self.vertex_layouts, |l| &l.format));
-
-        let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
-
-        let mut next = 0;
-        for format in formats {
-            if let Some(index) = find_compatible_buffer(&self.vertex_layouts[next..], format) {
-                next += index;
-                vertex.push(self.vertex_layouts[next].offset);
-            } else {
-                // Can't bind
-                return Err(Incompatible {
-                    not_found: format.clone(),
-                    in_formats: self
-                        .vertex_layouts
-                        .iter()
-                        .map(|l| l.format.clone())
-                        .collect(),
-                });
-            }
+        /// rendy_core::hal::pso::Primitive type of the `Mesh`
+        pub fn primitive(&self) -> rendy_core::hal::pso::Primitive {
+            self.prim
         }
 
-        let buffer = self.vertex_buffer.raw();
-        Ok(vertex.into_iter().map(move |offset| (buffer, offset)))
-    }
+        /// Returns the number of vertices that will be drawn
+        /// in the mesh.  For a mesh with no index buffer,
+        /// this is the same as the number of vertices, or for
+        /// a mesh with indices, this is the same as the number
+        /// of indices.
+        pub fn len(&self) -> u32 {
+            self.len
+        }
 
-    /// Bind buffers to specified attribute locations.
-    pub fn bind<C>(
+        fn get_vertex_iter<'a>(
+            &'a self,
+            formats: &[VertexFormat],
+        ) -> Result<impl Iterator<Item = (&'a B::Buffer, u64)> + ExactSizeIterator, Incompatible> {
+            debug_assert!(is_slice_sorted(formats), "Formats: {:#?}", formats);
+            debug_assert!(is_slice_sorted_by_key(&self.vertex_layouts, |l| &l.format));
+
+            let mut vertex = smallvec::SmallVec::<[_; 16]>::new();
+
+            let mut next = 0;
+            for format in formats {
+                if let Some(index) = find_compatible_buffer(&self.vertex_layouts[next..], format) {
+                    next += index;
+                    vertex.push(self.vertex_layouts[next].offset);
+                } else {
+                    // Can't bind
+                    return Err(Incompatible {
+                        not_found: format.clone(),
+                        in_formats: self
+                            .vertex_layouts
+                            .iter()
+                            .map(|l| l.format.clone())
+                            .collect(),
+                    });
+                }
+            }
+
+            let buffer = self.vertex_buffer.raw();
+            Ok(vertex.into_iter().map(move |offset| (buffer, offset)))
+        }
+
+        /// Bind buffers to specified attribute locations.
+        pub fn bind<C>(
         &self,
         first_binding: u32,
         formats: &[VertexFormat],

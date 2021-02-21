@@ -6,48 +6,54 @@ use crate::{
         PendingState, Queue, SimultaneousUse, Submission, Submit,
     },
     factory::Factory,
-    frame::Frames,
+    frame::{
+        cirque::{CirqueRef, CommandCirque},
+        Frames,
+    },
     graph::GraphContext,
     node::{
         gfx_acquire_barriers, gfx_release_barriers, BufferAccess, DynNode, ImageAccess, NodeBuffer,
         NodeBuildError, NodeBuilder, NodeImage,
     },
-    wsi::{Surface, Target},
+    wsi::Surface,
     BufferId, ImageId, NodeId,
 };
 
-#[derive(Debug)]
-struct ForImage<B: rendy_core::hal::Backend> {
-    acquire: B::Semaphore,
-    release: B::Semaphore,
-    submit: Submit<B, SimultaneousUse>,
-    buffer: CommandBuffer<
-        B,
-        rendy_core::hal::queue::QueueType,
-        PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
-    >,
-}
+use rendy_core::hal;
 
-impl<B: rendy_core::hal::Backend> ForImage<B> {
-    unsafe fn dispose(
-        self,
-        factory: &Factory<B>,
-        pool: &mut CommandPool<B, rendy_core::hal::queue::QueueType>,
-    ) {
-        drop(self.submit);
-        factory.destroy_semaphore(self.acquire);
-        factory.destroy_semaphore(self.release);
-        pool.free_buffers(Some(self.buffer.mark_complete()));
-    }
-}
+//#[derive(Debug)]
+//struct ForImage<B: rendy_core::hal::Backend> {
+//    acquire: B::Semaphore,
+//    release: B::Semaphore,
+//    submit: Submit<B, SimultaneousUse>,
+//    buffer: CommandBuffer<
+//        B,
+//        rendy_core::hal::queue::QueueType,
+//        PendingState<ExecutableState<MultiShot<SimultaneousUse>>>,
+//    >,
+//}
+//
+//impl<B: rendy_core::hal::Backend> ForImage<B> {
+//    unsafe fn dispose(
+//        self,
+//        factory: &Factory<B>,
+//        pool: &mut CommandPool<B, rendy_core::hal::queue::QueueType>,
+//    ) {
+//        drop(self.submit);
+//        factory.destroy_semaphore(self.acquire);
+//        factory.destroy_semaphore(self.release);
+//        pool.free_buffers(Some(self.buffer.mark_complete()));
+//    }
+//}
 
 /// Node that presents images to the surface.
 #[derive(Debug)]
 pub struct PresentNode<B: rendy_core::hal::Backend> {
-    per_image: Vec<ForImage<B>>,
-    free_acquire: B::Semaphore,
-    target: Target<B>,
-    pool: CommandPool<B, rendy_core::hal::queue::QueueType>,
+    //per_image: Vec<ForImage<B>>,
+    release_idx: usize,
+    release: Vec<B::Semaphore>,
+    pool: CommandPool<B, rendy_core::hal::queue::QueueType, IndividualReset>,
+    command_cirque: CommandCirque<B, rendy_core::hal::queue::QueueType>,
     input_image: NodeImage,
     blit_filter: rendy_core::hal::image::Filter,
 }
@@ -95,165 +101,164 @@ where
     }
 }
 
-fn create_per_image_data<B: rendy_core::hal::Backend>(
-    ctx: &GraphContext<B>,
-    input_image: &NodeImage,
-    pool: &mut CommandPool<B, rendy_core::hal::queue::QueueType>,
-    factory: &Factory<B>,
-    target: &Target<B>,
-    blit_filter: rendy_core::hal::image::Filter,
-) -> Vec<ForImage<B>> {
-    let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
-
-    let target_images = target.backbuffer();
-    let buffers = pool.allocate_buffers(target_images.len());
-    target_images
-        .iter()
-        .zip(buffers)
-        .map(|(target_image, buf_initial)| {
-            let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
-            let mut encoder = buf_recording.encoder();
-            let (mut stages, mut barriers) =
-                gfx_acquire_barriers(ctx, None, Some(input_image));
-            stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
-            stages.end |= rendy_core::hal::pso::PipelineStage::TRANSFER;
-            barriers.push(rendy_core::hal::memory::Barrier::Image {
-                states: (
-                    rendy_core::hal::image::Access::empty(),
-                    rendy_core::hal::image::Layout::Undefined,
-                )
-                    ..(
-                        rendy_core::hal::image::Access::TRANSFER_WRITE,
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
-                    ),
-                families: None,
-                target: target_image.raw(),
-                range: rendy_core::hal::image::SubresourceRange {
-                    aspects: rendy_core::hal::format::Aspects::COLOR,
-                    levels: 0..1,
-                    layers: 0..1,
-                },
-            });
-            log::trace!("Acquire {:?} : {:#?}", stages, barriers);
-            unsafe {
-                encoder.pipeline_barrier(
-                    stages,
-                    rendy_core::hal::memory::Dependencies::empty(),
-                    barriers,
-                );
-            }
-
-            let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
-            let formats_differ = target_image.format() != input_image_res.format();
-
-            if extents_differ || formats_differ
-            {
-                if formats_differ {
-                    log::debug!("Present node is blitting because target format {:?} doesnt match image format {:?}", target_image.format(), input_image_res.format());
-                }
-                if extents_differ {
-                    log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
-                }
-                unsafe {
-                    encoder.blit_image(
-                        input_image_res.raw(),
-                        input_image.layout,
-                        target_image.raw(),
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
-                        blit_filter,
-                        Some(rendy_core::hal::command::ImageBlit {
-                            src_subresource: rendy_core::hal::image::SubresourceLayers {
-                                aspects: input_image.range.aspects,
-                                level: 0,
-                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
-                            },
-                            src_bounds: rendy_core::hal::image::Offset::ZERO
-                                .into_bounds(&input_image_res.kind().extent()),
-                            dst_subresource: rendy_core::hal::image::SubresourceLayers {
-                                aspects: rendy_core::hal::format::Aspects::COLOR,
-                                level: 0,
-                                layers: 0..1,
-                            },
-                            dst_bounds: rendy_core::hal::image::Offset::ZERO
-                                .into_bounds(&target_image.kind().extent()),
-                        }),
-                    );
-                }
-            } else {
-                log::debug!("Present node is copying");
-                unsafe {
-                    encoder.copy_image(
-                        input_image_res.raw(),
-                        input_image.layout,
-                        target_image.raw(),
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
-                        Some(rendy_core::hal::command::ImageCopy {
-                            src_subresource: rendy_core::hal::image::SubresourceLayers {
-                                aspects: input_image.range.aspects,
-                                level: 0,
-                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
-                            },
-                            src_offset: rendy_core::hal::image::Offset::ZERO,
-                            dst_subresource: rendy_core::hal::image::SubresourceLayers {
-                                aspects: rendy_core::hal::format::Aspects::COLOR,
-                                level: 0,
-                                layers: 0..1,
-                            },
-                            dst_offset: rendy_core::hal::image::Offset::ZERO,
-                            extent: rendy_core::hal::image::Extent {
-                                width: target_image.kind().extent().width,
-                                height: target_image.kind().extent().height,
-                                depth: 1,
-                            },
-                        }),
-                    );
-                }
-            }
-
-            {
-                let (mut stages, mut barriers) =
-                    gfx_release_barriers(ctx, None, Some(input_image));
-                stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
-                stages.end |= rendy_core::hal::pso::PipelineStage::BOTTOM_OF_PIPE;
-                barriers.push(rendy_core::hal::memory::Barrier::Image {
-                    states: (
-                        rendy_core::hal::image::Access::TRANSFER_WRITE,
-                        rendy_core::hal::image::Layout::TransferDstOptimal,
-                    )
-                        ..(
-                            rendy_core::hal::image::Access::empty(),
-                            rendy_core::hal::image::Layout::Present,
-                        ),
-                    families: None,
-                    target: target_image.raw(),
-                    range: rendy_core::hal::image::SubresourceRange {
-                        aspects: rendy_core::hal::format::Aspects::COLOR,
-                        levels: 0..1,
-                        layers: 0..1,
-                    },
-                });
-
-                log::trace!("Release {:?} : {:#?}", stages, barriers);
-                unsafe {
-                    encoder.pipeline_barrier(
-                        stages,
-                        rendy_core::hal::memory::Dependencies::empty(),
-                        barriers,
-                    );
-                }
-            }
-
-            let (submit, buffer) = buf_recording.finish().submit();
-
-            ForImage {
-                submit,
-                buffer,
-                acquire: factory.create_semaphore().unwrap(),
-                release: factory.create_semaphore().unwrap(),
-            }
-        })
-        .collect()
-}
+//fn create_per_image_data<B: rendy_core::hal::Backend>(
+//    ctx: &GraphContext<B>,
+//    input_image: &NodeImage,
+//    pool: &mut CommandPool<B, rendy_core::hal::queue::QueueType>,
+//    factory: &Factory<B>,
+//    blit_filter: rendy_core::hal::image::Filter,
+//) -> Vec<ForImage<B>> {
+//    let input_image_res = ctx.get_image(input_image.id).expect("Image does not exist");
+//
+//    let target_images = target.backbuffer();
+//    let buffers = pool.allocate_buffers(target_images.len());
+//    target_images
+//        .iter()
+//        .zip(buffers)
+//        .map(|(target_image, buf_initial)| {
+//            let mut buf_recording = buf_initial.begin(MultiShot(SimultaneousUse), ());
+//            let mut encoder = buf_recording.encoder();
+//            let (mut stages, mut barriers) =
+//                gfx_acquire_barriers(ctx, None, Some(input_image));
+//            stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
+//            stages.end |= rendy_core::hal::pso::PipelineStage::TRANSFER;
+//            barriers.push(rendy_core::hal::memory::Barrier::Image {
+//                states: (
+//                    rendy_core::hal::image::Access::empty(),
+//                    rendy_core::hal::image::Layout::Undefined,
+//                )
+//                    ..(
+//                        rendy_core::hal::image::Access::TRANSFER_WRITE,
+//                        rendy_core::hal::image::Layout::TransferDstOptimal,
+//                    ),
+//                families: None,
+//                target: target_image.raw(),
+//                range: rendy_core::hal::image::SubresourceRange {
+//                    aspects: rendy_core::hal::format::Aspects::COLOR,
+//                    levels: 0..1,
+//                    layers: 0..1,
+//                },
+//            });
+//            log::trace!("Acquire {:?} : {:#?}", stages, barriers);
+//            unsafe {
+//                encoder.pipeline_barrier(
+//                    stages,
+//                    rendy_core::hal::memory::Dependencies::empty(),
+//                    barriers,
+//                );
+//            }
+//
+//            let extents_differ = target_image.kind().extent() != input_image_res.kind().extent();
+//            let formats_differ = target_image.format() != input_image_res.format();
+//
+//            if extents_differ || formats_differ
+//            {
+//                if formats_differ {
+//                    log::debug!("Present node is blitting because target format {:?} doesnt match image format {:?}", target_image.format(), input_image_res.format());
+//                }
+//                if extents_differ {
+//                    log::debug!("Present node is blitting because target extent {:?} doesnt match image extent {:?}", target_image.kind().extent(), input_image_res.kind().extent());
+//                }
+//                unsafe {
+//                    encoder.blit_image(
+//                        input_image_res.raw(),
+//                        input_image.layout,
+//                        target_image.raw(),
+//                        rendy_core::hal::image::Layout::TransferDstOptimal,
+//                        blit_filter,
+//                        Some(rendy_core::hal::command::ImageBlit {
+//                            src_subresource: rendy_core::hal::image::SubresourceLayers {
+//                                aspects: input_image.range.aspects,
+//                                level: 0,
+//                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+//                            },
+//                            src_bounds: rendy_core::hal::image::Offset::ZERO
+//                                .into_bounds(&input_image_res.kind().extent()),
+//                            dst_subresource: rendy_core::hal::image::SubresourceLayers {
+//                                aspects: rendy_core::hal::format::Aspects::COLOR,
+//                                level: 0,
+//                                layers: 0..1,
+//                            },
+//                            dst_bounds: rendy_core::hal::image::Offset::ZERO
+//                                .into_bounds(&target_image.kind().extent()),
+//                        }),
+//                    );
+//                }
+//            } else {
+//                log::debug!("Present node is copying");
+//                unsafe {
+//                    encoder.copy_image(
+//                        input_image_res.raw(),
+//                        input_image.layout,
+//                        target_image.raw(),
+//                        rendy_core::hal::image::Layout::TransferDstOptimal,
+//                        Some(rendy_core::hal::command::ImageCopy {
+//                            src_subresource: rendy_core::hal::image::SubresourceLayers {
+//                                aspects: input_image.range.aspects,
+//                                level: 0,
+//                                layers: input_image.range.layers.start..input_image.range.layers.start + 1,
+//                            },
+//                            src_offset: rendy_core::hal::image::Offset::ZERO,
+//                            dst_subresource: rendy_core::hal::image::SubresourceLayers {
+//                                aspects: rendy_core::hal::format::Aspects::COLOR,
+//                                level: 0,
+//                                layers: 0..1,
+//                            },
+//                            dst_offset: rendy_core::hal::image::Offset::ZERO,
+//                            extent: rendy_core::hal::image::Extent {
+//                                width: target_image.kind().extent().width,
+//                                height: target_image.kind().extent().height,
+//                                depth: 1,
+//                            },
+//                        }),
+//                    );
+//                }
+//            }
+//
+//            {
+//                let (mut stages, mut barriers) =
+//                    gfx_release_barriers(ctx, None, Some(input_image));
+//                stages.start |= rendy_core::hal::pso::PipelineStage::TRANSFER;
+//                stages.end |= rendy_core::hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+//                barriers.push(rendy_core::hal::memory::Barrier::Image {
+//                    states: (
+//                        rendy_core::hal::image::Access::TRANSFER_WRITE,
+//                        rendy_core::hal::image::Layout::TransferDstOptimal,
+//                    )
+//                        ..(
+//                            rendy_core::hal::image::Access::empty(),
+//                            rendy_core::hal::image::Layout::Present,
+//                        ),
+//                    families: None,
+//                    target: target_image.raw(),
+//                    range: rendy_core::hal::image::SubresourceRange {
+//                        aspects: rendy_core::hal::format::Aspects::COLOR,
+//                        levels: 0..1,
+//                        layers: 0..1,
+//                    },
+//                });
+//
+//                log::trace!("Release {:?} : {:#?}", stages, barriers);
+//                unsafe {
+//                    encoder.pipeline_barrier(
+//                        stages,
+//                        rendy_core::hal::memory::Dependencies::empty(),
+//                        barriers,
+//                    );
+//                }
+//            }
+//
+//            let (submit, buffer) = buf_recording.finish().submit();
+//
+//            ForImage {
+//                submit,
+//                buffer,
+//                acquire: factory.create_semaphore().unwrap(),
+//                release: factory.create_semaphore().unwrap(),
+//            }
+//        })
+//        .collect()
+//}
 
 /// Presentation node description.
 #[derive(Debug)]
@@ -404,12 +409,19 @@ where
         assert_eq!(images.len(), 1);
 
         let input_image = images.into_iter().next().unwrap();
-        let extent = ctx
-            .get_image(input_image.id)
-            .expect("Context must contain node's image")
-            .kind()
-            .extent()
-            .into();
+
+        let extent;
+        let format;
+        let layers;
+        {
+            let img = ctx
+                .get_image(input_image.id)
+                .expect("Context must contain node's image");
+
+            extent = img.kind().extent().into();
+            format = img.format();
+            layers = img.layers();
+        }
 
         if !factory.surface_support(family.id(), &self.surface) {
             log::warn!(
@@ -420,34 +432,50 @@ where
             return Err(NodeBuildError::QueueFamily(family.id()));
         }
 
-        let target = factory
-            .create_target(
-                self.surface,
+        self.surface.configure_swapchain(
+            factory.device(),
+            hal::window::SwapchainConfig {
+                present_mode: self.present_mode,
+                composite_alpha_mode: hal::window::CompositeAlphaMode::OPAQUE,
+                format: format,
                 extent,
-                self.image_count,
-                self.present_mode,
-                rendy_core::hal::image::Usage::TRANSFER_DST,
-            )
-            .map_err(NodeBuildError::Swapchain)?;
+                image_count: self.image_count,
+                image_layers: layers,
+                image_usage: hal::image::Usage::TRANSFER_DST,
+            },
+        ).map_err(NodeBuildError::Swapchain)?;
+
+        //let target = factory
+        //    .create_target(
+        //        self.surface,
+        //        extent,
+        //        self.image_count,
+        //        self.present_mode,
+        //        rendy_core::hal::image::Usage::TRANSFER_DST,
+        //    )
+        //    .map_err(NodeBuildError::Swapchain)?;
 
         let mut pool = factory
             .create_command_pool(family)
             .map_err(NodeBuildError::OutOfMemory)?;
 
-        let per_image = create_per_image_data(
-            ctx,
-            &input_image,
-            &mut pool,
-            factory,
-            &target,
-            self.blit_filter,
-        );
+        let command_cirque = CommandCirque::new();
+
+        //let per_image = create_per_image_data(
+        //    ctx,
+        //    &input_image,
+        //    &mut pool,
+        //    factory,
+        //    &target,
+        //    self.blit_filter,
+        //);
 
         Ok(Box::new(PresentNode {
-            free_acquire: factory.create_semaphore().unwrap(),
+            release_idx: 0,
+            release: (0..self.image_count).map(|_| factory.create_semaphore().unwrap()).collect(),
             pool,
-            target,
-            per_image,
+            command_cirque,
+            //per_image,
             input_image,
             blit_filter: self.blit_filter,
         }))
@@ -465,51 +493,68 @@ where
         factory: &Factory<B>,
         queue: &mut Queue<B>,
         _aux: &T,
-        _frames: &Frames<B>,
+        frames: &Frames<B>,
         waits: &[(&'a B::Semaphore, rendy_core::hal::pso::PipelineStage)],
         signals: &[&'a B::Semaphore],
         mut fence: Option<&mut Fence<B>>,
     ) {
-        loop {
-            match self.target.next_image(&self.free_acquire) {
-                Ok(next) => {
-                    log::trace!("Present: {:#?}", next);
-                    let for_image = &mut self.per_image[next[0] as usize];
-                    core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
-
-                    queue.submit(
-                        Some(
-                            Submission::new()
-                                .submits(Some(&for_image.submit))
-                                .wait(waits.iter().cloned().chain(Some((
-                                    &for_image.acquire,
-                                    rendy_core::hal::pso::PipelineStage::TRANSFER,
-                                ))))
-                                .signal(signals.iter().cloned().chain(Some(&for_image.release))),
-                        ),
-                        fence.take(),
-                    );
-
-                    match next.present(queue.raw(), Some(&for_image.release)) {
-                        Ok(_) => break,
-                        Err(e) => {
-                            log::debug!(
-                                "Swapchain present error after next_image is acquired: {:?}",
-                                e
-                            );
-                            // recreate swapchain on next frame.
-                            break;
-                        }
-                    }
-                }
-                Err(rendy_core::hal::window::AcquireError::OutOfDate) => {
-                    // recreate swapchain and try again.
-                }
+        let swapchain_image = loop {
+            match self.surface.acquire_image(!0) {
+                Ok((swapchain_image, _suboptimal) => {
+                    break swapchain_image;
+                },
+                Err(hal::window::AcquireError::OutOfDate) => {
+                    // recreate swapchain and try again
+                },
                 e => {
                     e.unwrap();
-                    break;
-                }
+                    unreachable!();
+                },
             }
+
+            //match self.target.next_image(&self.free_acquire) {
+            //    Ok(next) => {
+            //        log::trace!("Present: {:#?}", next);
+            //        let for_image = &mut self.per_image[next[0] as usize];
+            //        core::mem::swap(&mut for_image.acquire, &mut self.free_acquire);
+
+            //        queue.submit(
+            //            Some(
+            //                Submission::new()
+            //                    .submits(Some(&for_image.submit))
+            //                    .wait(waits.iter().cloned().chain(Some((
+            //                        &for_image.acquire,
+            //                        rendy_core::hal::pso::PipelineStage::TRANSFER,
+            //                    ))))
+            //                    .signal(signals.iter().cloned().chain(Some(&for_image.release))),
+            //            ),
+            //            fence.take(),
+            //        );
+
+            //        match next.present(queue.raw(), Some(&for_image.release)) {
+            //            Ok(_) => break,
+            //            Err(e) => {
+            //                log::debug!(
+            //                    "Swapchain present error after next_image is acquired: {:?}",
+            //                    e
+            //                );
+            //                // recreate swapchain on next frame.
+            //                break;
+            //            }
+            //        }
+            //    }
+            //    Err(rendy_core::hal::window::AcquireError::OutOfDate) => {
+            //        // recreate swapchain and try again.
+            //    }
+            //    e => {
+            //        e.unwrap();
+            //        break;
+            //    }
+            //}
+
+
+
+
             // Recreate swapchain when OutOfDate
             // The code has to execute after match due to mutable aliasing issues.
 
@@ -531,15 +576,30 @@ where
                 data.dispose(factory, &mut self.pool);
             }
 
-            self.per_image = create_per_image_data(
-                ctx,
-                &self.input_image,
-                &mut self.pool,
-                factory,
-                &self.target,
-                self.blit_filter,
-            );
+            //self.per_image = create_per_image_data(
+            //    ctx,
+            //    &self.input_image,
+            //    &mut self.pool,
+            //    factory,
+            //    &self.target,
+            //    self.blit_filter,
+            //);
+        };
+
+        self.release_idx += 1;
+        if self.release_idx >= self.release.len() {
+            self.release_idx = 0;
         }
+
+        let submit = self.command_cirque.encode(frames, &self.command_pool, |mut cbuf| {
+            let index = cbuf.index();
+
+            if let Some(next) = &next {
+
+            }
+
+        });
+
     }
 
     unsafe fn dispose(mut self: Box<Self>, factory: &mut Factory<B>, _aux: &T) {
