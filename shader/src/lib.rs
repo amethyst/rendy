@@ -27,6 +27,8 @@ pub use self::reflect::{ReflectError, ReflectTypeError, RetrievalKind, SpirvRefl
 use rendy_core::hal::{pso::ShaderStageFlags, Backend};
 use std::collections::HashMap;
 
+use gfx_auxil::read_spirv;
+
 /// Error type returned by this module.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ShaderError {}
@@ -99,7 +101,7 @@ mod serde_spirv {
     {
         // Via the serde::Deserialize impl for &[u8].
         let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
-        rendy_core::hal::pso::read_spirv(std::io::Cursor::new(bytes))
+        read_spirv(std::io::Cursor::new(bytes))
             .map_err(serde::de::Error::custom)
     }
 }
