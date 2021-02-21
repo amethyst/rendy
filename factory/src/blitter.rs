@@ -24,11 +24,7 @@ pub struct Blitter<B: rendy_core::hal::Backend> {
 fn subresource_to_range(
     sub: &rendy_core::hal::image::SubresourceLayers,
 ) -> rendy_core::hal::image::SubresourceRange {
-    rendy_core::hal::image::SubresourceRange {
-        aspects: sub.aspects,
-        levels: sub.level..sub.level + 1,
-        layers: sub.layers.clone(),
-    }
+    sub.clone().into()
 }
 
 /// A region to be blitted including the source and destination images and states,

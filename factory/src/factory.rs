@@ -10,7 +10,7 @@ use {
         memory::{self, Heaps, MemoryUsage, TotalMemoryUtilization, Write},
         resource::*,
         upload::{BufferState, ImageState, ImageStateOrLayout, Uploader},
-        wsi::{Surface, SwapchainError, Target},
+        wsi::Surface,
     },
     rendy_core::{
         hal::{
@@ -22,7 +22,7 @@ use {
             },
             format, image,
             pso::DescriptorSetLayoutBinding,
-            window::{Extent2D, InitError, Surface as GfxSurface},
+            window::{InitError, Surface as GfxSurface},
             Backend, Features, Instance as _, Limits,
         },
         HasRawWindowHandle,
@@ -782,45 +782,6 @@ where
             "Resource is not owned by specified instance"
         );
         drop(surface);
-    }
-
-    /// Create target out of rendering surface.
-    ///
-    /// The compatibility of the surface with the queue family which will present to
-    /// this target must have *already* been checked using `Factory::surface_support`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `surface` was not created by this `Factory`.
-    pub fn create_target(
-        &self,
-        surface: Surface<B>,
-        extent: Extent2D,
-        image_count: u32,
-        present_mode: rendy_core::hal::window::PresentMode,
-        usage: image::Usage,
-    ) -> Result<Target<B>, SwapchainError> {
-        profile_scope!("create_target");
-
-        unsafe {
-            surface.into_target(
-                &self.adapter.physical_device,
-                &self.device,
-                extent,
-                image_count,
-                present_mode,
-                usage,
-            )
-        }
-    }
-
-    /// Destroy target returning underlying surface back to the caller.
-    ///
-    /// # Safety
-    ///
-    /// Target images must not be used by pending commands or referenced anywhere.
-    pub unsafe fn destroy_target(&self, target: Target<B>) -> Surface<B> {
-        target.dispose(&self.device)
     }
 
     /// Get raw device.
