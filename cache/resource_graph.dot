@@ -1,0 +1,19 @@
+digraph {
+Image -> ImageView
+Buffer -> BufferView
+Sampler -> DescriptorSetLayout
+DescriptorSetLayout -> PipelineLayout
+ShaderModule -> GraphicsPipeline
+PipelineLayout -> GraphicsPipeline
+RenderPass -> GraphicsPipeline
+RenderPass -> Framebuffer
+ImageView -> Framebuffer
+
+DescriptorPool -> DescriptorSet
+DescriptorSetLayout -> DescriptorSet
+
+Sampler -> DescriptorSet
+ImageView -> DescriptorSet
+Buffer -> DescriptorSet
+BufferView -> DescriptorSet
+}

@@ -30,6 +30,7 @@ rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi" }
 rendy-shader = { version = "0.5.1", path = "../shader" }
+rendy-scheduler = { path = "../scheduler" }
 
 either = "1.6.1"
 bitflags = "1.2.1"
