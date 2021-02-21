@@ -304,7 +304,7 @@ impl ShaderSetBuilder {
 
         if self.vertex.is_none() && self.compute.is_none() {
             let msg = "A vertex or compute shader must be provided".to_string();
-            return Err(rendy_core::hal::device::ShaderError::InterfaceMismatch(msg));
+            return Err(rendy_core::hal::device::ShaderError::CompilationFailed(msg));
         }
         type ShaderTy = (
             Vec<u32>,

@@ -105,8 +105,7 @@ where
     ) {
         let buffers = buffers
             .into_iter()
-            .map(|buffer| buffer.into_raw())
-            .collect::<Vec<_>>();
+            .map(|buffer| buffer.into_raw());
 
         self.raw.free(buffers);
     }

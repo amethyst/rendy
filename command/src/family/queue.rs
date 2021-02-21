@@ -58,35 +58,31 @@ where
                 impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
             >,
         >,
-        fence: Option<&mut Fence<B>>,
+        mut fence: Option<&mut Fence<B>>,
     ) {
         assert!(fence.as_ref().map_or(true, |f| f.is_unsignaled()));
 
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
-                rendy_core::hal::queue::Submission {
-                    command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
-                    wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
-                    signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
-                },
-                fence.as_ref().map(|f| f.raw()),
+                std::iter::empty::<&'a B::CommandBuffer>(),
+                std::iter::empty::<(&'a B::Semaphore, _)>(),
+                std::iter::empty::<&'a B::Semaphore>(),
+                fence.as_mut().map(|f| f.raw_mut()),
             );
         } else {
             let family = self.id.family;
             while let Some(submission) = submissions.next() {
                 self.raw.submit(
-                    rendy_core::hal::queue::Submission {
-                        command_buffers: submission.submits.into_iter().map(|submit| {
-                            assert_eq!(submit.family(), family);
-                            submit.raw()
-                        }),
-                        wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
-                        signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
-                    },
+                    submission.submits.into_iter().map(|submit| {
+                        assert_eq!(submit.family(), family);
+                        submit.raw()
+                    }),
+                    submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
+                    submission.signals.into_iter().map(|s| s.borrow()),
                     submissions
                         .peek()
-                        .map_or(fence.as_ref().map(|f| f.raw()), |_| None),
+                        .map_or(fence.as_mut().map(|f| f.raw_mut()), |_| None),
                 );
             }
         }
@@ -118,30 +114,27 @@ where
                 impl IntoIterator<Item = &'a (impl std::borrow::Borrow<B::Semaphore> + 'a)>,
             >,
         >,
-        fence: Option<&B::Fence>,
+        mut fence: Option<&mut B::Fence>,
     ) {
         let mut submissions = submissions.into_iter().peekable();
         if submissions.peek().is_none() && fence.is_some() {
             self.raw.submit(
-                rendy_core::hal::queue::Submission {
-                    command_buffers: std::iter::empty::<&'a B::CommandBuffer>(),
-                    wait_semaphores: std::iter::empty::<(&'a B::Semaphore, _)>(),
-                    signal_semaphores: std::iter::empty::<&'a B::Semaphore>(),
-                },
+                std::iter::empty::<&'a B::CommandBuffer>(),
+                std::iter::empty::<(&'a B::Semaphore, _)>(),
+                std::iter::empty::<&'a B::Semaphore>(),
                 fence,
             );
         } else {
             let family = self.id.family;
             while let Some(submission) = submissions.next() {
+                let fence = fence.as_mut().map(|f| &mut **f);
                 self.raw.submit(
-                    rendy_core::hal::queue::Submission {
-                        command_buffers: submission.submits.into_iter().map(|submit| {
-                            assert_eq!(submit.family(), family);
-                            submit.raw()
-                        }),
-                        wait_semaphores: submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
-                        signal_semaphores: submission.signals.into_iter().map(|s| s.borrow()),
-                    },
+                    submission.submits.into_iter().map(|submit| {
+                        assert_eq!(submit.family(), family);
+                        submit.raw()
+                    }),
+                    submission.waits.into_iter().map(|w| (w.0.borrow(), w.1)),
+                    submission.signals.into_iter().map(|s| s.borrow()),
                     submissions.peek().map_or(fence, |_| None),
                 );
             }
@@ -149,7 +142,7 @@ where
     }
 
     /// Wait for queue to finish all pending commands.
-    pub fn wait_idle(&self) -> Result<(), rendy_core::hal::device::OutOfMemory> {
+    pub fn wait_idle(&mut self) -> Result<(), rendy_core::hal::device::OutOfMemory> {
         self.raw.wait_idle()
     }
 }

@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, ops::Range, ptr::NonNull};
+use std::{
+    collections::VecDeque, 
+    ops::Range, 
+    ptr::NonNull,
+};
 
 use {
     crate::{
@@ -222,11 +226,14 @@ where
             unsafe {
                 match Arc::try_unwrap(line.memory) {
                     Ok(memory) => {
-                        // trace!("Unmap memory: {:#?}", line.memory);
-                        device.unmap_memory(memory.raw());
+                        let size = memory.size();
+                        let mut raw_mem = memory.into_raw();
 
-                        freed += memory.size();
-                        device.free_memory(memory.into_raw());
+                        // trace!("Unmap memory: {:#?}", line.memory);
+                        device.unmap_memory(&mut raw_mem);
+
+                        freed += size;
+                        device.free_memory(raw_mem);
                     }
                     Err(_) => log::error!("Allocated `Line` was freed, but memory is still shared and never will be destroyed"),
                 }
@@ -295,10 +302,10 @@ where
         }
 
         let (memory, ptr) = unsafe {
-            let raw = device.allocate_memory(self.memory_type, self.linear_size)?;
+            let mut raw = device.allocate_memory(self.memory_type, self.linear_size)?;
 
             let ptr = match device.map_memory(
-                &raw,
+                &mut raw,
                 gfx_hal::memory::Segment {
                     offset: 0,
                     size: Some(self.linear_size),

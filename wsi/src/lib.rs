@@ -17,8 +17,10 @@ use {
         format::Format,
         window::{
             Extent2D, Surface as _, SurfaceCapabilities, SwapchainConfig,
-            PresentationSurface, CreationError, Suboptimal, AcquireError,
+            PresentationSurface, Suboptimal, AcquireError, SwapchainError,
+            PresentError,
         },
+        queue::CommandQueue,
         Backend, Instance as _,
     },
     rendy_core::{
@@ -146,7 +148,7 @@ where
         &mut self,
         device: &B::Device,
         config: SwapchainConfig,
-    ) -> Result<(), CreationError> {
+    ) -> Result<(), SwapchainError> {
         self.raw.configure_swapchain(device, config)
     }
 
@@ -171,5 +173,18 @@ where
         timeout_ns: u64,
     ) -> Result<(<B::Surface as PresentationSurface<B>>::SwapchainImage, Option<Suboptimal>), AcquireError> {
         self.raw.acquire_image(timeout_ns)
+    }
+
+    pub unsafe fn present(
+        &mut self,
+        queue: &mut impl CommandQueue<B>,
+        image: <B::Surface as PresentationSurface<B>>::SwapchainImage,
+        wait_semaphore: Option<&mut B::Semaphore>,
+    ) -> Result<Option<Suboptimal>, PresentError> {
+        queue.present(
+            &mut self.raw,
+            image,
+            wait_semaphore,
+        )
     }
 }

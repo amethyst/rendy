@@ -29,6 +29,10 @@ where
     pub fn raw(&self) -> &B::Memory {
         &self.raw
     }
+    /// Get raw mutable memory.
+    pub fn raw_mut(&mut self) -> &mut B::Memory {
+        &mut self.raw
+    }
 
     /// Unwrap raw memory.
     pub fn into_raw(self) -> B::Memory {

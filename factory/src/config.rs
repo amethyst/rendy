@@ -126,7 +126,7 @@ pub unsafe trait HeapsConfigure {
     type Types: IntoIterator<Item = (rendy_core::hal::memory::Properties, u32, HeapsConfig)>;
 
     /// Iterator over heaps.
-    type Heaps: IntoIterator<Item = u64>;
+    type Heaps: IntoIterator<Item = rendy_core::hal::adapter::MemoryHeap>;
 
     /// Configure.
     fn configure(
@@ -149,7 +149,7 @@ pub struct BasicHeapsConfigure;
 
 unsafe impl HeapsConfigure for BasicHeapsConfigure {
     type Types = Vec<(rendy_core::hal::memory::Properties, u32, HeapsConfig)>;
-    type Heaps = Vec<u64>;
+    type Heaps = Vec<rendy_core::hal::adapter::MemoryHeap>;
 
     fn configure(
         &self,
@@ -169,20 +169,20 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
                         .contains(rendy_core::hal::memory::Properties::CPU_VISIBLE)
                     {
                         Some(LinearConfig {
-                            linear_size: min(_128mb, properties.memory_heaps[mt.heap_index] / 16),
+                            linear_size: min(_128mb, properties.memory_heaps[mt.heap_index].size / 16),
                         })
                     } else {
                         None
                     },
                     dynamic: Some(DynamicConfig {
                         block_size_granularity: 256.min(
-                            (properties.memory_heaps[mt.heap_index] / 4096).next_power_of_two(),
+                            (properties.memory_heaps[mt.heap_index].size / 4096).next_power_of_two(),
                         ),
                         min_device_allocation: _1mb
-                            .min(properties.memory_heaps[mt.heap_index] / 1048)
+                            .min(properties.memory_heaps[mt.heap_index].size / 1048)
                             .next_power_of_two(),
                         max_chunk_size: _32mb.min(
-                            (properties.memory_heaps[mt.heap_index] / 128).next_power_of_two(),
+                            (properties.memory_heaps[mt.heap_index].size / 128).next_power_of_two(),
                         ),
                     }),
                 };
@@ -204,12 +204,12 @@ unsafe impl HeapsConfigure for BasicHeapsConfigure {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SavedHeapsConfig {
     types: Vec<(rendy_core::hal::memory::Properties, u32, HeapsConfig)>,
-    heaps: Vec<u64>,
+    heaps: Vec<rendy_core::hal::adapter::MemoryHeap>,
 }
 
 unsafe impl HeapsConfigure for SavedHeapsConfig {
     type Types = Vec<(rendy_core::hal::memory::Properties, u32, HeapsConfig)>;
-    type Heaps = Vec<u64>;
+    type Heaps = Vec<rendy_core::hal::adapter::MemoryHeap>;
 
     fn configure(
         &self,

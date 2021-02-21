@@ -189,7 +189,7 @@ where
             );
             let raw = device.create_descriptor_pool(
                 size as usize,
-                &pool_ranges,
+                pool_ranges.iter(),
                 DescriptorPoolCreateFlags::empty(),
             )?;
             let allocate = size.min(count);

@@ -17,7 +17,7 @@ use {
             adapter::{Adapter, Gpu, PhysicalDevice},
             buffer,
             device::{
-                AllocationError, CreationError, Device as _, MapError, OomOrDeviceLost,
+                AllocationError, CreationError, Device as _, MapError,
                 OutOfMemory, WaitFor,
             },
             format, image,
@@ -821,36 +821,11 @@ where
     }
 
     /// Wait for the fence become signeled.
-    ///
-    /// # Safety
-    ///
-    /// Fences must be created by this `Factory`.
-    pub fn reset_fences<'a>(
-        &self,
-        fences: impl IntoIterator<Item = &'a mut (impl BorrowMut<Fence<B>> + 'a)>,
-    ) -> Result<(), OutOfMemory> {
-        let fences = fences
-            .into_iter()
-            .map(|f| {
-                let f = f.borrow_mut();
-                f.assert_device_owner(&self.device);
-                assert!(f.is_signaled());
-                f
-            })
-            .collect::<SmallVec<[_; 32]>>();
-        unsafe {
-            self.device.reset_fences(fences.iter().map(|f| f.raw()))?;
-            fences.into_iter().for_each(|f| f.mark_reset());
-        }
-        Ok(())
-    }
-
-    /// Wait for the fence become signeled.
     pub fn wait_for_fence(
         &self,
         fence: &mut Fence<B>,
         timeout_ns: u64,
-    ) -> Result<bool, OomOrDeviceLost> {
+    ) -> Result<bool, rendy_core::hal::device::WaitError> {
         profile_scope!("wait_for_fence");
 
         fence.assert_device_owner(&self.device);
@@ -874,7 +849,7 @@ where
         fences: impl IntoIterator<Item = &'a mut (impl BorrowMut<Fence<B>> + 'a)>,
         wait_for: WaitFor,
         timeout_ns: u64,
-    ) -> Result<bool, OomOrDeviceLost> {
+    ) -> Result<bool, rendy_core::hal::device::WaitError> {
         profile_scope!("wait_for_fences");
 
         let fences = fences
@@ -1244,7 +1219,7 @@ where
     let heaps = unsafe {
         Heaps::new(
             types,
-            heaps,
+            heaps.iter().map(|h| h.size),
             adapter.physical_device.limits().non_coherent_atom_size as u64,
         )
     };

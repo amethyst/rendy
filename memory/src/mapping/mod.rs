@@ -187,7 +187,7 @@ where
                     offset: aligned_sub_range.start,
                     size: Some(aligned_sub_range.end - aligned_sub_range.start),
                 },
-            )))?;
+            )).iter().cloned())?;
         }
 
         let slice = mapped_slice::<T>(ptr, size);
@@ -243,7 +243,7 @@ where
                             offset: aligned_sub_range.start,
                             size: Some(aligned_sub_range.end - aligned_sub_range.start),
                         },
-                    )))
+                    )).iter().cloned())
                     .expect("Should flush successfully");
             })
         } else {

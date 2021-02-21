@@ -274,7 +274,7 @@ where
         // Allocate from device.
         let (memory, mapping) = unsafe {
             // Valid memory type specified.
-            let raw = device.allocate_memory(self.memory_type, chunk_size)?;
+            let mut raw = device.allocate_memory(self.memory_type, chunk_size)?;
 
             let mapping = if self
                 .memory_properties
@@ -282,7 +282,7 @@ where
             {
                 log::trace!("Map new memory object");
                 match device.map_memory(
-                    &raw,
+                    &mut raw,
                     gfx_hal::memory::Segment {
                         offset: 0,
                         size: Some(chunk_size),
@@ -486,15 +486,21 @@ where
         match chunk.flavor {
             ChunkFlavor::Dedicated(boxed, _) => {
                 let size = boxed.size();
+
+                let needs_unmap = self
+                    .memory_properties
+                    .contains(gfx_hal::memory::Properties::CPU_VISIBLE);
+
+                if needs_unmap {
+                    log::trace!("Unmap memory: {:#?}", boxed);
+                }
+
+                let mut raw_boxed = boxed.into_raw();
                 unsafe {
-                    if self
-                        .memory_properties
-                        .contains(gfx_hal::memory::Properties::CPU_VISIBLE)
-                    {
-                        log::trace!("Unmap memory: {:#?}", boxed);
-                        device.unmap_memory(boxed.raw());
+                    if needs_unmap {
+                        device.unmap_memory(&mut raw_boxed);
                     }
-                    device.free_memory(boxed.into_raw());
+                    device.free_memory(raw_boxed);
                 }
                 size
             }

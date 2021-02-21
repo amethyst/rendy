@@ -202,7 +202,7 @@ where
                 src: 0,
                 dst: offset,
                 size: staging.size(),
-            }),
+            }).iter().cloned(),
         );
 
         next_upload.staging_buffers.push(staging);
@@ -357,7 +357,7 @@ where
                 image_layers,
                 image_offset,
                 image_extent,
-            }),
+            }).iter().cloned(),
         );
 
         next_upload.staging_buffers.push(staging);
@@ -458,7 +458,7 @@ where
 
             family.queue_mut(queue).submit_raw_fence(
                 Some(Submission::new().submits(once(barriers_submit).chain(once(submit)))),
-                Some(&next.fence),
+                Some(&mut next.fence),
             );
 
             self.pending.push_back(PendingUploads {
@@ -511,7 +511,7 @@ where
     /// `device` must be the same that was used with other methods of this instance.
     ///
     unsafe fn cleanup(&mut self, device: &Device<B>) {
-        while let Some(pending) = self.pending.pop_front() {
+        while let Some(mut pending) = self.pending.pop_front() {
             match device.get_fence_status(&pending.fence) {
                 Ok(false) => {
                     self.pending.push_front(pending);
@@ -522,7 +522,7 @@ where
                 }
                 Ok(true) => {
                     device
-                        .reset_fence(&pending.fence)
+                        .reset_fence(&mut pending.fence)
                         .expect("Can always reset signalled fence");
                     self.fences.push(pending.fence);
                     self.command_buffers.push([

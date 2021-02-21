@@ -351,7 +351,7 @@ pub unsafe fn blit_image<B, C, L>(
 
             reg.into()
         })
-        .collect::<SmallVec<[_; 1]>>();
+        .collect::<SmallVec<[_; 4]>>();
 
     // TODO: synchronize whatever possible on flush.
     // Currently all barriers are inlined due to dependencies between blits.
@@ -365,7 +365,7 @@ pub unsafe fn blit_image<B, C, L>(
         dst_image.raw(),
         rendy_core::hal::image::Layout::TransferDstOptimal,
         filter,
-        regions,
+        regions.iter().cloned(),
     );
 
     read_barriers.encode_after(encoder);
@@ -393,7 +393,7 @@ where
     B: rendy_core::hal::Backend,
 {
     unsafe fn flush(&mut self, family: &mut Family<B>) {
-        for (queue, next) in self
+        for (queue, mut next) in self
             .next
             .drain(..)
             .enumerate()
@@ -404,7 +404,7 @@ where
 
             family.queue_mut(queue).submit_raw_fence(
                 Some(Submission::new().submits(once(submit))),
-                Some(&next.fence),
+                Some(&mut next.fence),
             );
 
             self.pending.push_back(GraphicsOps {
@@ -456,7 +456,7 @@ where
     /// `device` must be the same that was used with other methods of this instance.
     ///
     unsafe fn cleanup(&mut self, device: &Device<B>) {
-        while let Some(pending) = self.pending.pop_front() {
+        while let Some(mut pending) = self.pending.pop_front() {
             match device.get_fence_status(&pending.fence) {
                 Ok(false) => {
                     self.pending.push_front(pending);
@@ -467,7 +467,7 @@ where
                 }
                 Ok(true) => {
                     device
-                        .reset_fence(&pending.fence)
+                        .reset_fence(&mut pending.fence)
                         .expect("Can always reset signalled fence");
                     self.initial.push(GraphicsOps {
                         command_buffer: pending.command_buffer.mark_complete().reset(),

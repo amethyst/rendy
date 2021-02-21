@@ -97,7 +97,7 @@ where
         self.assert_device_owner(device);
         match self.state {
             FenceState::Signaled => {
-                unsafe { device.reset_fence(&self.raw) }?;
+                unsafe { device.reset_fence(&mut self.raw) }?;
                 self.state = FenceState::Unsignaled;
                 Ok(())
             }
@@ -138,7 +138,7 @@ where
         &mut self,
         device: &Device<B>,
         timeout_ns: u64,
-    ) -> Result<Option<FenceEpoch>, rendy_core::hal::device::OomOrDeviceLost> {
+    ) -> Result<Option<FenceEpoch>, rendy_core::hal::device::WaitError> {
         self.assert_device_owner(device);
 
         match self.state {
@@ -180,6 +180,12 @@ where
     /// Use `mark_*` functions to reflect stage changes.
     pub fn raw(&self) -> &B::Fence {
         &self.raw
+    }
+
+    /// Get mutable raw fence reference.
+    /// Use `mark_*` functions to reflect stage changes.
+    pub fn raw_mut(&mut self) -> &mut B::Fence {
+        &mut self.raw
     }
 
     /// Get submission epoch.

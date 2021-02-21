@@ -97,7 +97,7 @@ where
             } else {
                 self.unmap(device);
                 let ptr = device.map_memory(
-                    self.memory.raw(),
+                    self.memory.raw_mut(),
                     gfx_hal::memory::Segment {
                         offset: mapping_range.start,
                         size: Some(mapping_range.end - mapping_range.start),
@@ -116,7 +116,7 @@ where
         if self.mapping.take().is_some() {
             unsafe {
                 // trace!("Unmap memory: {:#?}", self.memory);
-                device.unmap_memory(self.memory.raw());
+                device.unmap_memory(self.memory.raw_mut());
             }
         }
     }

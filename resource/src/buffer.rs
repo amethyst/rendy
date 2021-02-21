@@ -1,6 +1,10 @@
 //! Buffer usage, creation-info and wrappers.
 
-pub use rendy_core::hal::buffer::*;
+use rendy_core::hal;
+pub use hal::buffer::*;
+use hal::{
+    device::Device as _, Backend,
+};
 
 use {
     crate::{
@@ -9,7 +13,6 @@ use {
         CreationError,
     },
     relevant::Relevant,
-    rendy_core::hal::{device::Device as _, Backend},
 };
 
 /// Buffer info.

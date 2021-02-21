@@ -44,7 +44,7 @@ where
         info: DescriptorSetInfo,
     ) -> Result<Self, rendy_core::hal::device::OutOfMemory> {
         let raw = device
-            .create_descriptor_set_layout(&info.bindings, std::iter::empty::<B::Sampler>())?;
+            .create_descriptor_set_layout(info.bindings.iter().cloned(), std::iter::empty::<&B::Sampler>())?;
 
         Ok(DescriptorSetLayout {
             device: device.id(),
