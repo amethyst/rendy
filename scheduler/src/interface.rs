@@ -17,7 +17,7 @@ use cranelift_entity::entity_impl;
 
 use rendy_core::hal;
 
-pub use crate::{BufferId, ImageId};
+pub use crate::{BufferId, ImageId, SchedulerTypes};
 
 use crate::{
     //Parameter, DynamicParameter,
@@ -73,7 +73,9 @@ entity_impl!(SemaphoreId, "semaphore");
 pub struct VirtualId(pub(crate) u32);
 entity_impl!(VirtualId, "virtual");
 
+#[derive(Debug)]
 pub enum EntityConstructionError {}
+#[derive(Debug)]
 pub enum NodeConstructionError {}
 
 //pub struct UnsetParameterError {
@@ -102,7 +104,7 @@ impl Into<Root> for BufferId {
     }
 }
 
-pub trait PassEntityCtx: EntityCtx {
+pub trait PassEntityCtx<T: SchedulerTypes>: EntityCtx<T> {
 
     /// Declare usage of a color attachment in render pass node.
     ///
@@ -154,7 +156,7 @@ pub trait PassEntityCtx: EntityCtx {
 
 }
 
-pub trait EntityCtx: GraphCtx {
+pub trait EntityCtx<T: SchedulerTypes>: GraphCtx<T> {
 
     /// Gets the id for the Entity being constructed.
     fn id(&self) -> EntityId;
@@ -225,7 +227,7 @@ pub trait EntityCtx: GraphCtx {
 
 }
 
-pub trait GraphCtx: Sized {
+pub trait GraphCtx<T: SchedulerTypes>: Sized {
     //fn get_parameter<P: Any>(&self, id: Parameter<P>) -> Result<&P, UnsetParameterError>;
     //fn put_parameter<P: Any>(&mut self, id: Parameter<P>, param: P);
 
@@ -257,8 +259,8 @@ pub trait GraphCtx: Sized {
     fn provide_image(
         &mut self,
         image_info: ImageInfo,
-        //image: Handle<Image<B>>,
-        //acquire: Option<B::Semaphore>,
+        image: impl Into<T::Image>,
+        acquire: Option<T::Semaphore>,
         provided_image_usage: Option<ProvidedImageUsage>,
     ) -> ImageId;
 
@@ -304,8 +306,8 @@ pub trait GraphCtx: Sized {
     fn provide_buffer(
         &mut self,
         buffer_info: BufferInfo,
-        //buffer: Handle<Buffer<B>>,
-        //acquire: Option<B::Semaphore>,
+        image: impl Into<T::Buffer>,
+        acquire: Option<T::Semaphore>,
         provided_buffer_usage: Option<ProvidedBufferUsage>,
     ) -> BufferId;
 

@@ -23,6 +23,12 @@ pub mod builder;
 
 //mod minigraph;
 
+pub trait SchedulerTypes {
+    type Semaphore;
+    type Image;
+    type Buffer;
+}
+
 pub struct EntityId;
 
 enum IterEither<A, B> {

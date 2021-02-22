@@ -6,6 +6,7 @@ use crate::scheduler::{
 };
 use crate::factory::Factory;
 use crate::core::hal::Backend;
+use crate::core::hal::window::PresentationSurface;
 use super::parameter::{ParameterInput, IdGenerator, ParameterStore, Parameter, DynamicParameter};
 
 mod context;
@@ -71,6 +72,18 @@ impl<B: Backend, T: Node<B>> NodeDyn<B> for T {
     }
 }
 
+pub struct GfxSchedulerTypes<B: Backend>(PhantomData<B>);
+impl<B: Backend> crate::scheduler::SchedulerTypes for GfxSchedulerTypes<B> {
+    type Image = GraphImage<B>;
+    type Buffer = B::Buffer;
+    type Semaphore = B::Semaphore;
+}
+
+pub enum GraphImage<B: Backend> {
+    Image(B::Image),
+    SwapchainImage(<B::Surface as PresentationSurface<B>>::SwapchainImage),
+}
+
 pub struct GraphBuilder<B: Backend> {
     phantom: PhantomData<B>,
 
@@ -78,7 +91,7 @@ pub struct GraphBuilder<B: Backend> {
     nodes: Vec<Box<dyn NodeDyn<B>>>,
 
     store: ParameterStore,
-    inner: ProceduralBuilder,
+    inner: ProceduralBuilder<GfxSchedulerTypes<B>>,
 }
 
 impl<B: Backend> GraphBuilder<B> {

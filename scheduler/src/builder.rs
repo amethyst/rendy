@@ -16,6 +16,7 @@ use cranelift_entity_set::{EntitySetPool, EntitySet};
 use crate::{
     ImageId, BufferId,
     IterEither,
+    SchedulerTypes,
     interface::{
         GraphCtx, EntityCtx, PassEntityCtx,
         EntityId, SemaphoreId, FenceId, VirtualId,
@@ -64,18 +65,18 @@ impl Into<BufferId> for ResourceId {
 pub(crate) struct RequiredRenderPassId(pub(crate) u32);
 entity_impl!(RequiredRenderPassId, "required_render_pass");
 
-pub(crate) enum ImageKind {
+pub(crate) enum ImageKind<T: SchedulerTypes> {
     Owned {
         info: ImageInfo,
     },
     Provided {
         info: ImageInfo,
-        //image: Handle<Image<B>>,
-        //acquire: Option<B::Semaphore>,
+        image: T::Image,
+        acquire: Option<T::Semaphore>,
         provided_image_usage: Option<ProvidedImageUsage>,
     },
 }
-impl ImageKind {
+impl<T: SchedulerTypes> ImageKind<T> {
 
     pub(crate) fn info(&self) -> &ImageInfo {
         match self {
@@ -98,11 +99,11 @@ pub(crate) struct ImageUse {
     pub(crate) by: EntityId,
 }
 
-pub(crate) struct ImageData {
-    pub(crate) kind: ImageKind,
+pub(crate) struct ImageData<T: SchedulerTypes> {
+    pub(crate) kind: ImageKind<T>,
     pub(crate) uses: Vec<ImageUse>,
 }
-impl ImageData {
+impl<T: SchedulerTypes> ImageData<T> {
     fn last_use(&self) -> Option<EntityId> {
         self.uses.last().map(|u| u.by)
     }
@@ -111,11 +112,11 @@ impl ImageData {
     }
 }
 
-pub(crate) struct BufferData {
-    pub(crate) kind: BufferKind,
+pub(crate) struct BufferData<T: SchedulerTypes> {
+    pub(crate) kind: BufferKind<T>,
     pub(crate) uses: Vec<BufferUse>,
 }
-impl BufferData {
+impl<T: SchedulerTypes> BufferData<T> {
     fn last_use(&self) -> Option<EntityId> {
         self.uses.last().map(|u| u.by)
     }
@@ -124,18 +125,18 @@ impl BufferData {
     }
 }
 
-pub(crate) enum BufferKind {
+pub(crate) enum BufferKind<T: SchedulerTypes> {
     Owned {
         info: BufferInfo
     },
     Provided {
         info: BufferInfo,
-        //buffer: Handle<Buffer<B>>,
-        //acquire: Option<B::Semaphore>,
+        buffer: T::Buffer,
+        acquire: Option<T::Semaphore>,
         provided_buffer_usage: Option<ProvidedBufferUsage>,
     },
 }
-impl BufferKind {
+impl<T: SchedulerTypes> BufferKind<T> {
 
     pub(crate) fn info(&self) -> &BufferInfo {
         match self {
@@ -240,12 +241,12 @@ pub(crate) struct VirtualData {
 //    }
 //}
 
-pub(crate) enum ResourceKind {
+pub(crate) enum ResourceKind<T: SchedulerTypes> {
     Alias(ResourceId),
-    Image(ImageData),
-    Buffer(BufferData),
+    Image(ImageData<T>),
+    Buffer(BufferData<T>),
 }
-impl ResourceKind {
+impl<T: SchedulerTypes> ResourceKind<T> {
 
     pub fn is_alias(&self) -> Option<ResourceId> {
         match self {
@@ -268,38 +269,38 @@ impl ResourceKind {
         }
     }
 
-    pub fn image(&self) -> &ImageData {
+    pub fn image(&self) -> &ImageData<T> {
         match self {
             ResourceKind::Image(img) => img,
             _ => panic!(),
         }
     }
-    pub fn image_mut(&mut self) -> &mut ImageData {
+    pub fn image_mut(&mut self) -> &mut ImageData<T> {
         match self {
             ResourceKind::Image(img) => img,
             _ => panic!(),
         }
     }
-    pub fn unwrap_image(self) -> ImageData {
+    pub fn unwrap_image(self) -> ImageData<T> {
         match self {
             ResourceKind::Image(img) => img,
             _ => panic!(),
         }
     }
 
-    pub fn buffer(&self) -> &BufferData {
+    pub fn buffer(&self) -> &BufferData<T> {
         match self {
             ResourceKind::Buffer(buf) => buf,
             _ => panic!(),
         }
     }
-    pub fn buffer_mut(&mut self) -> &mut BufferData {
+    pub fn buffer_mut(&mut self) -> &mut BufferData<T> {
         match self {
             ResourceKind::Buffer(buf) => buf,
             _ => panic!(),
         }
     }
-    pub fn unwrap_buffer(self) -> BufferData {
+    pub fn unwrap_buffer(self) -> BufferData<T> {
         match self {
             ResourceKind::Buffer(buf) => buf,
             _ => panic!(),
@@ -315,19 +316,19 @@ impl ResourceKind {
     }
 
 }
-impl From<ImageData> for ResourceKind {
-    fn from(d: ImageData) -> Self {
+impl<T: SchedulerTypes> From<ImageData<T>> for ResourceKind<T> {
+    fn from(d: ImageData<T>) -> Self {
         ResourceKind::Image(d)
     }
 }
-impl From<BufferData> for ResourceKind {
-    fn from(d: BufferData) -> Self {
+impl<T: SchedulerTypes> From<BufferData<T>> for ResourceKind<T> {
+    fn from(d: BufferData<T>) -> Self {
         ResourceKind::Buffer(d)
     }
 }
 
-pub struct ProceduralBuilder {
-    pub(crate) resources: PrimaryMap<ResourceId, ResourceKind>,
+pub struct ProceduralBuilder<T: SchedulerTypes> {
+    pub(crate) resources: PrimaryMap<ResourceId, ResourceKind<T>>,
     //pub(crate) virtuals: PrimaryMap<VirtualId, VirtualData>,
 
     pub(crate) entities: PrimaryMap<EntityId, Entity>,
@@ -346,7 +347,7 @@ pub struct ProceduralBuilder {
     pub(crate) curr_entity: Option<Entity>,
 }
 
-impl ProceduralBuilder {
+impl<T: SchedulerTypes> ProceduralBuilder<T> {
 
     pub fn new() -> Self {
         Self {
@@ -570,7 +571,7 @@ impl ProceduralBuilder {
 
 }
 
-impl GraphCtx for ProceduralBuilder {
+impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
 
     fn mark_root<R: Into<Root>>(&mut self, root: R) {
         self.roots.insert(root.into());
@@ -595,15 +596,15 @@ impl GraphCtx for ProceduralBuilder {
     fn provide_image(
         &mut self,
         info: ImageInfo,
-        //image: Handle<Image<B>>,
-        //acquire: Option<B::Semaphore>,
+        image: impl Into<T::Image>,
+        acquire: Option<T::Semaphore>,
         provided_image_usage: Option<ProvidedImageUsage>,
     ) -> ImageId {
         self.resources.push(ResourceKind::Image(ImageData {
             kind: ImageKind::Provided {
                 info,
-                //image,
-                //acquire,
+                image: image.into(),
+                acquire,
                 provided_image_usage,
             },
             uses: Vec::new(),
@@ -639,15 +640,15 @@ impl GraphCtx for ProceduralBuilder {
     fn provide_buffer(
         &mut self,
         info: BufferInfo,
-        //buffer: Handle<Buffer<B>>,
-        //acquire: Option<B::Semaphore>,
+        buffer: impl Into<T::Buffer>,
+        acquire: Option<T::Semaphore>,
         provided_buffer_usage: Option<ProvidedBufferUsage>,
     ) -> BufferId {
         self.resources.push(ResourceKind::Buffer(BufferData {
             kind: BufferKind::Provided {
                 info,
-                //buffer,
-                //acquire,
+                buffer: buffer.into(),
+                acquire,
                 provided_buffer_usage,
             },
             uses: Vec::new(),
@@ -730,7 +731,7 @@ impl GraphCtx for ProceduralBuilder {
 
 }
 
-impl EntityCtx for ProceduralBuilder {
+impl<T: SchedulerTypes> EntityCtx<T> for ProceduralBuilder<T> {
 
     fn id(&self) -> EntityId {
         self.entities.next_key()
@@ -777,7 +778,7 @@ impl EntityCtx for ProceduralBuilder {
 
 }
 
-impl PassEntityCtx for ProceduralBuilder {
+impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
 
     fn use_color(&mut self, index: usize, image_id: ImageId, read_access: bool) -> Result<(), EntityConstructionError> {
         let entity_id = self.id();

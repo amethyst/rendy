@@ -1,9 +1,11 @@
 use std::marker::PhantomData;
+use std::any::Any;
 
 use rendy_core::hal;
 
-use crate::new::exec::ExecCtx;
+use crate::exec::ExecCtx;
 use crate::factory::Factory;
+use crate::command::Queue;
 use crate::scheduler::{
     builder::ProceduralBuilder,
     interface::{
@@ -21,6 +23,8 @@ use crate::scheduler::{
         ProvidedImageUsage, ProvidedBufferUsage,
     },
 };
+
+use super::{GfxSchedulerTypes, GraphImage};
 
 macro_rules! forward_entity_ctx_functions {
     ($field_name:ident) => {
@@ -65,11 +69,11 @@ macro_rules! forward_graph_ctx_functions {
         fn provide_image(
             &mut self,
             image_info: ImageInfo,
-            //image: Handle<Image<B>>,
-            //acquire: Option<SyncPoint>,
+            image: impl Into<GraphImage<B>>,
+            acquire: Option<B::Semaphore>,
             provided_image_usage: Option<ProvidedImageUsage>,
         ) -> ImageId {
-            self.$field_name.provide_image(image_info, /*image, acquire,*/ provided_image_usage)
+            self.$field_name.provide_image(image_info, image, acquire, provided_image_usage)
         }
         fn move_image(&mut self, from: ImageId, to: ImageId) {
             self.$field_name.move_image(from, to);
@@ -80,11 +84,11 @@ macro_rules! forward_graph_ctx_functions {
         fn provide_buffer(
             &mut self,
             buffer_info: BufferInfo,
-            //buffer: Handle<Buffer<B>>,
-            //acquire: Option<SyncPoint>,
+            buffer: impl Into<B::Buffer>,
+            acquire: Option<B::Semaphore>,
             provided_buffer_usage: Option<ProvidedBufferUsage>,
         ) -> BufferId {
-            self.$field_name.provide_buffer(buffer_info, /*buffer, acquire,*/ provided_buffer_usage)
+            self.$field_name.provide_buffer(buffer_info, buffer, acquire, provided_buffer_usage)
         }
         fn move_buffer(&mut self, from: BufferId, to: BufferId) {
             self.$field_name.move_buffer(from, to)
@@ -118,7 +122,7 @@ macro_rules! forward_graph_ctx_functions {
 
 pub struct GraphConstructCtx<'a, B: hal::Backend> {
     phantom: PhantomData<B>,
-    inner: &'a mut ProceduralBuilder,
+    inner: &'a mut ProceduralBuilder<GfxSchedulerTypes<B>>,
 }
 impl<'a, B: hal::Backend> GraphConstructCtx<'a, B> {
     pub fn pass<'b>(&'b mut self) -> PassConstructCtx<'b, B> {
@@ -138,13 +142,13 @@ impl<'a, B: hal::Backend> GraphConstructCtx<'a, B> {
         }
     }
 }
-impl<'a, B: hal::Backend> GraphCtx for GraphConstructCtx<'a, B> {
+impl<'a, B: hal::Backend> GraphCtx<GfxSchedulerTypes<B>> for GraphConstructCtx<'a, B> {
     forward_graph_ctx_functions!(inner);
 }
 
 pub struct PassConstructCtx<'a, B: hal::Backend> {
     phantom: PhantomData<B>,
-    inner: &'a mut ProceduralBuilder,
+    inner: &'a mut ProceduralBuilder<GfxSchedulerTypes<B>>,
     relevant: relevant::Relevant,
 }
 impl<'a, B: hal::Backend> PassConstructCtx<'a, B> {
@@ -153,13 +157,13 @@ impl<'a, B: hal::Backend> PassConstructCtx<'a, B> {
         self.relevant.dispose();
     }
 }
-impl<'a, B: hal::Backend> GraphCtx for PassConstructCtx<'a, B> {
+impl<'a, B: hal::Backend> GraphCtx<GfxSchedulerTypes<B>> for PassConstructCtx<'a, B> {
     forward_graph_ctx_functions!(inner);
 }
-impl<'a, B: hal::Backend> EntityCtx for PassConstructCtx<'a, B> {
+impl<'a, B: hal::Backend> EntityCtx<GfxSchedulerTypes<B>> for PassConstructCtx<'a, B> {
     forward_entity_ctx_functions!(inner);
 }
-impl<'a, B: hal::Backend> PassEntityCtx for PassConstructCtx<'a, B> {
+impl<'a, B: hal::Backend> PassEntityCtx<GfxSchedulerTypes<B>> for PassConstructCtx<'a, B> {
     fn use_color(
         &mut self,
         index: usize,
@@ -186,21 +190,21 @@ impl<'a, B: hal::Backend> PassEntityCtx for PassConstructCtx<'a, B> {
 
 pub struct StandaloneConstructCtx<'a, B: hal::Backend> {
     phantom: PhantomData<B>,
-    inner: &'a mut ProceduralBuilder,
+    inner: &'a mut ProceduralBuilder<GfxSchedulerTypes<B>>,
     relevant: relevant::Relevant,
 }
 impl<'a, B: hal::Backend> StandaloneConstructCtx<'a, B> {
     pub fn commit<F>(self, _exec: F)
     where
-        F: FnOnce(&mut Factory<B>, &mut ExecCtx<B>),
+        F: FnOnce(&mut dyn Any, &mut Factory<B>, &mut ExecCtx<B>, &mut Queue<B>),
     {
         self.inner.commit();
         self.relevant.dispose();
     }
 }
-impl<'a, B: hal::Backend> GraphCtx for StandaloneConstructCtx<'a, B> {
+impl<'a, B: hal::Backend> GraphCtx<GfxSchedulerTypes<B>> for StandaloneConstructCtx<'a, B> {
     forward_graph_ctx_functions!(inner);
 }
-impl<'a, B: hal::Backend> EntityCtx for StandaloneConstructCtx<'a, B> {
+impl<'a, B: hal::Backend> EntityCtx<GfxSchedulerTypes<B>> for StandaloneConstructCtx<'a, B> {
     forward_entity_ctx_functions!(inner);
 }

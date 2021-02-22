@@ -1,68 +1,82 @@
-use crate::new::builder::GraphConstructCtx;
+use crate::builder::{GraphConstructCtx, GraphImage};
 use crate::factory::Factory;
 use crate::scheduler::{
     ImageId,
     interface::{GraphCtx, EntityCtx},
     resources::{ImageMode, ImageInfo, ProvidedImageUsage, ImageUsage},
 };
-use crate::wsi::{Surface, Target};
+use crate::wsi::Surface;
 use super::super::parameter::{Parameter, ParameterStore};
 use super::super::builder::Node;
 
-use rendy_core::hal::window::{PresentMode, Extent2D};
 use rendy_core::hal;
+use hal::image::FramebufferAttachment;
+use hal::window::{PresentMode, Extent2D, SwapchainConfig};
+use hal::format::{Format, ChannelType};
 
 pub struct Present<B: hal::Backend> {
     image: Parameter<ImageId>,
-    image_count: u32,
-    present_mode: PresentMode,
-    extent: Extent2D,
 
-    target: Option<Target<B>>,
+    swapchain_config: SwapchainConfig,
+    framebuffer_attachment: FramebufferAttachment,
 
-    free_acquire: B::Semaphore,
-    acquire: Vec<B::Semaphore>,
-    release: Vec<B::Semaphore>,
+    surface: Surface<B>,
+}
+
+pub fn make_swapchain_config<B: hal::Backend>(
+    factory: &Factory<B>,
+    surface: &Surface<B>,
+    extent: Extent2D
+) -> (SwapchainConfig, FramebufferAttachment) {
+    let caps = factory.get_surface_capabilities(&surface);
+    let formats = factory.get_surface_formats(&surface);
+
+    //let image_count = 3
+    //    .min(*caps.image_count.end())
+    //    .max(*caps.image_count.start());
+
+    //let present_mode = match () {
+    //    _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
+    //    _ if caps.present_modes.contains(PresentMode::MAILBOX) => PresentMode::MAILBOX,
+    //    _ if caps.present_modes.contains(PresentMode::RELAXED) => PresentMode::RELAXED,
+    //    _ if caps.present_modes.contains(PresentMode::IMMEDIATE) => PresentMode::IMMEDIATE,
+    //    _ => panic!("No known present modes found"),
+    //};
+
+    let format = formats.map_or(Format::Rgba8Srgb, |formats| {
+        formats
+            .iter()
+            .find(|format| format.base_format().1 == ChannelType::Srgb)
+            .map(|format| *format)
+            .unwrap_or(formats[0])
+    });
+
+    let swapchain_config = rendy_core::hal::window::SwapchainConfig::from_caps(&caps, format, extent);
+    let framebuffer_attachment = swapchain_config.framebuffer_attachment();
+
+    (swapchain_config, framebuffer_attachment)
 }
 
 impl<B: hal::Backend> Present<B> {
 
-    pub fn new(factory: &Factory<B>, surface: Surface<B>, image: Parameter<ImageId>, extent: Extent2D) -> Self {
-        let caps = factory.get_surface_capabilities(&surface);
+    pub fn new(factory: &Factory<B>, mut surface: Surface<B>, image: Parameter<ImageId>, extent: Extent2D) -> Self {
+        let (swapchain_config, framebuffer_attachment) = make_swapchain_config(
+            factory, &surface, extent);
 
-        let image_count = 3
-            .min(*caps.image_count.end())
-            .max(*caps.image_count.start());
-
-        let present_mode = match () {
-            _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
-            _ if caps.present_modes.contains(PresentMode::MAILBOX) => PresentMode::MAILBOX,
-            _ if caps.present_modes.contains(PresentMode::RELAXED) => PresentMode::RELAXED,
-            _ if caps.present_modes.contains(PresentMode::IMMEDIATE) => PresentMode::IMMEDIATE,
-            _ => panic!("No known present modes found"),
-        };
-
-        let target = factory
-            .create_target(
-                surface,
-                extent,
-                image_count,
-                present_mode,
-                rendy_core::hal::image::Usage::TRANSFER_DST,
-            )
-            .unwrap();
+        unsafe {
+            surface.configure_swapchain(
+                factory.device(),
+                swapchain_config.clone(),
+            ).unwrap();
+        }
 
         Self {
             image,
-            image_count,
-            present_mode,
-            extent,
 
-            target: Some(target),
+            swapchain_config,
+            framebuffer_attachment,
 
-            free_acquire: factory.create_semaphore().unwrap(),
-            acquire: (0..image_count).map(|_| factory.create_semaphore().unwrap()).collect(),
-            release: (0..image_count).map(|_| factory.create_semaphore().unwrap()).collect(),
+            surface,
         }
     }
 
@@ -79,54 +93,57 @@ impl<B: hal::Backend> Node<B> for Present<B> {
     ) -> Result<(), ()> {
         let in_image_id = *store.get(self.image).unwrap();
 
-        let target = self.target.as_mut().unwrap();
-
-        let img_kind = target.backbuffer()[0].kind();
-        let img_levels = target.backbuffer()[0].levels();
-        let img_format = target.backbuffer()[0].format();
-
-        let next = loop {
-            match unsafe { target.next_image(&self.free_acquire) } {
-                Ok(next) => {
-                    break next;
-
-
-                    //break;
-                },
-                Err(rendy_core::hal::window::AcquireError::OutOfDate) => {
-                    // recreate swapchain and try again.
-                },
-                e => {
-                    e.unwrap();
+        let sc_image = loop {
+            match unsafe { self.surface.acquire_image(!0) } {
+                Ok((sc_image, _suboptimal)) => break sc_image,
+                // Swapchain is out of date, we need to recreate and retry.
+                Err(hal::window::AcquireError::OutOfDate(_)) => (),
+                err => {
+                    err.unwrap();
                     unreachable!();
                 },
             }
 
-            // Recreate swapchain when OutOfDate
-            // The code has to execute after match due to mutable aliasing issues.
+            let (swapchain_config, framebuffer_attachment) = make_swapchain_config(
+                factory, &self.surface, self.swapchain_config.extent);
+            self.swapchain_config = swapchain_config;
+            self.framebuffer_attachment = framebuffer_attachment;
 
-            // TODO: use retired swapchains once available in hal and remove that wait
-            factory.wait_idle().unwrap();
+            // Is this still relevant? We might be able to remove the wait.
+            {
+                // Recreate swapchain when OutOfDate
+                // The code has to execute after match due to mutable aliasing issues.
+
+                // TODO: use retired swapchains once available in hal and remove that wait
+                factory.wait_idle().unwrap();
+            }
 
             unsafe {
-                target
-                    .recreate(factory.physical(), factory.device(), self.extent)
-                    .expect("Failed recreating swapchain");
+                self.surface.unconfigure_swapchain(factory.device());
+
+                self.surface.configure_swapchain(
+                    factory.device(),
+                    self.swapchain_config.clone(),
+                ).unwrap();
             }
         };
 
-        let idx = next[0];
-        core::mem::swap(&mut self.acquire[idx as usize], &mut self.free_acquire);
-
         let target_image_id = ctx.provide_image(
             ImageInfo {
-                kind: Some(img_kind),
-                levels: img_levels,
-                format: img_format,
+                kind: Some(hal::image::Kind::D2(
+                    self.swapchain_config.extent.width,
+                    self.swapchain_config.extent.height,
+                    self.swapchain_config.image_layers,
+                    1,
+                )),
+                levels: 0,
+                format: self.framebuffer_attachment.format,
                 mode: ImageMode::DontCare {
                     transient: false,
                 },
             },
+            GraphImage::SwapchainImage(sc_image),
+            None,
             Some(ProvidedImageUsage {
                 layout: hal::image::Layout::Undefined,
                 last_access: hal::image::Access::empty(),
@@ -146,22 +163,33 @@ impl<B: hal::Backend> Node<B> for Present<B> {
         // Tell the render graph to signal our release semaphore on the sync
         // point generated above. This semaphore is then used in the present
         // call.
+        let semaphore_id = ctx.sync_point_to_semaphore(sync_point);
         // ctx.sync_point_signal_semaphore(&self.release[idx as usize]);
 
         // We call present within a standalone graph entity.
         let mut present = ctx.standalone();
 
-        // This call is required to mark the image as a dependency of the graph
-        // entity that does the presenting, but the returned token is never
-        // actually used. This is because `present` is called with the swapchain
-        // and the image index, not the image object itself.
-        let _image_token = present.use_image(target_image_id, ImageUsage {
+        let image_token = present.use_image(target_image_id, ImageUsage {
             layout: hal::image::Layout::Present,
             stages: hal::pso::PipelineStage::BOTTOM_OF_PIPE,
             access: hal::image::Access::empty(),
-        });
+        }).unwrap();
 
-        present.commit(|factory, exec_ctx| {
+        present.commit(|node, _factory, exec_ctx, queue| {
+            let node = node.downcast_mut::<Present<B>>().unwrap();
+
+            let mut render_semaphore = exec_ctx.fetch_semaphore(semaphore_id);
+            let image = exec_ctx.fetch_swapchain_image(image_token);
+
+            unsafe {
+                node.surface.present(
+                    queue.raw(),
+                    image,
+                    Some(&mut render_semaphore),
+                ).unwrap();
+            }
+
+            exec_ctx.return_semaphore(render_semaphore);
         });
 
         Ok(())

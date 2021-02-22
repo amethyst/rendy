@@ -32,6 +32,8 @@ rendy-wsi = { version = "0.5.1", path = "../wsi" }
 rendy-shader = { version = "0.5.1", path = "../shader" }
 rendy-scheduler = { path = "../scheduler" }
 
+rendy-mesh = { version = "0.5.1", path = "../mesh" }
+
 either = "1.6.1"
 bitflags = "1.2.1"
 log = "0.4.11"
