@@ -29,10 +29,12 @@ rendy-memory = { version = "0.5.2", path = "../memory" }
 rendy-resource = { version = "0.5.1", path = "../resource" }
 rendy-core = { version = "0.5.1", path = "../core" }
 rendy-wsi = { version = "0.5.1", path = "../wsi" }
-rendy-shader = { version = "0.5.1", path = "../shader" }
+rendy-shader = { version = "0.5.1", path = "../shader", features = ["shader-compiler"] }
 rendy-scheduler = { path = "../scheduler" }
 
 rendy-mesh = { version = "0.5.1", path = "../mesh" }
+
+spirv-reflect = "0.2.3"
 
 either = "1.6.1"
 bitflags = "1.2.1"
@@ -41,3 +43,8 @@ relevant = { version = "0.4.2", features = ["log"] }
 serde = { version = "1.0.118", optional = true, features = ["derive"] }
 smallvec = "1.5.1"
 thread_profiler = "0.3.0"
+
+cranelift-entity = "0.58"
+bumpalo = { version = "3.6.1", features = ["allocator_api"] }
+
+lazy_static = "1.4.0"

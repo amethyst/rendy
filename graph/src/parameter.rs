@@ -17,11 +17,13 @@ impl IdGenerator {
 
 #[derive(Default)]
 pub struct ParameterStore {
+    current_id: usize,
     params: BTreeMap<DynamicParameter, Box<dyn Any>>,
 }
 impl ParameterStore {
     pub fn new() -> Self {
         Self {
+            current_id: 0,
             params: BTreeMap::new(),
         }
     }
@@ -32,6 +34,13 @@ impl ParameterStore {
 
     pub fn get<T: Any + 'static>(&self, param: Parameter<T>) -> Option<&T> {
         self.params.get(&param.into()).map(|b| b.downcast_ref::<T>().unwrap())
+    }
+
+    pub fn insert<T: Any + 'static>(&mut self, value: T) -> Parameter<T> {
+        self.current_id += 1;
+        let param = Parameter(self.current_id, PhantomData);
+        self.put(param, value);
+        param
     }
 
     pub fn put<T: Any + 'static>(&mut self, param: Parameter<T>, value: T) -> bool {

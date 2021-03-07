@@ -7,8 +7,9 @@ use crate::scheduler::{
     resources::ImageInfo,
     interface::GraphCtx,
 };
-use super::super::parameter::{Parameter, ParameterStore};
-use super::super::builder::{Node, GraphConstructCtx};
+use crate::parameter::{Parameter, ParameterStore};
+use crate::Node;
+use crate::graph::GraphConstructCtx;
 
 use rendy_core::hal;
 
@@ -27,12 +28,13 @@ impl<B: hal::Backend> Image<B> {
 }
 
 impl<B: hal::Backend> Node<B> for Image<B> {
-    type Result = Parameter<ImageId>;
+    type Argument = ();
+    type Result = ImageId;
     fn construct(
         &mut self,
-        factory: &mut Factory<B>,
+        factory: &Factory<B>,
         ctx: &mut GraphConstructCtx<B>,
-        _store: &ParameterStore,
+        _arg: (),
     ) -> Result<ImageId, ()> {
         let image = ctx.create_image(self.info);
         Ok(image)

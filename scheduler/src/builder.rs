@@ -10,7 +10,7 @@ use std::convert::TryInto;
 
 use rendy_core::hal;
 
-use cranelift_entity::{PrimaryMap, SecondaryMap, EntityRef, entity_impl};
+use cranelift_entity::{PrimaryMap, SecondaryMap, EntityRef, entity_impl, EntityList, ListPool};
 use cranelift_entity_set::{EntitySetPool, EntitySet};
 
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
         EntityConstructionError, NodeConstructionError,
     },
     scheduler::{
-        SchedulerInput, RenderPassSpan,
+        self as sched, SchedulerInput, RenderPassSpan,
     },
     resources::{
         ImageInfo, BufferInfo,
@@ -36,28 +36,30 @@ use crate::{
     sync::{SyncPoint, HasSyncPoint, SyncPointRef},
 };
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct ResourceId(pub(crate) u32);
-entity_impl!(ResourceId, "resource");
+use crate::scheduler::input::ResourceId;
+
+//#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//pub(crate) struct ResourceId(pub(crate) u32);
+//entity_impl!(ResourceId, "resource");
 
 impl From<ImageId> for ResourceId {
     fn from(id: ImageId) -> ResourceId {
-        ResourceId(id.0.try_into().unwrap())
+        ResourceId::new(id.index())
     }
 }
 impl Into<ImageId> for ResourceId {
     fn into(self) -> ImageId {
-        ImageId(self.0.try_into().unwrap())
+        ImageId::new(self.index())
     }
 }
 impl From<BufferId> for ResourceId {
     fn from(id: BufferId) -> ResourceId {
-        ResourceId(id.0.try_into().unwrap())
+        ResourceId::new(id.index())
     }
 }
 impl Into<BufferId> for ResourceId {
     fn into(self) -> BufferId {
-        BufferId(self.0.try_into().unwrap())
+        BufferId::new(self.index())
     }
 }
 
@@ -88,8 +90,9 @@ impl<T: SchedulerTypes> ImageKind<T> {
 }
 
 pub(crate) enum ImageUsageKind {
-    InputAttachment,
-    Attachment,
+    InputAttachment(usize),
+    DepthAttachment,
+    Attachment(usize),
     Use,
 }
 
@@ -169,7 +172,7 @@ impl BuildKind {
         assert!(self == BuildKind::Pass);
     }
     fn standalone(self) {
-        assert!(self == BuildKind::Pass);
+        assert!(self == BuildKind::Standalone);
     }
 }
 
@@ -185,13 +188,15 @@ pub(crate) enum EntityKind {
     Standalone,
 }
 
-pub(crate) struct Entity {
+pub(crate) struct Entity<T: SchedulerTypes> {
     pub(crate) kind: EntityKind,
 
     pub(crate) images: Vec<ImageToken>,
     pub(crate) buffers: Vec<BufferToken>,
 
     pub(crate) attachments: Option<Attachments>,
+
+    pub(crate) node_data: Option<T::NodeValue>,
 }
 
 pub(crate) struct Attachments {
@@ -200,11 +205,6 @@ pub(crate) struct Attachments {
     pub(crate) input: Vec<ImageToken>,
 }
 
-pub(crate) enum SyncPointKind {
-    And(Vec<SyncPoint>),
-    Image(ImageToken),
-    Buffer(BufferToken),
-}
 
 pub(crate) struct VirtualData {
     uses: Vec<(EntityId, VirtualUsage)>,
@@ -240,6 +240,11 @@ pub(crate) struct VirtualData {
 //        }
 //    }
 //}
+
+pub(crate) struct Resource<T: SchedulerTypes> {
+    kind: ResourceKind<T>,
+    processed_uses: EntityList<sched::ResourceUseId>,
+}
 
 pub(crate) enum ResourceKind<T: SchedulerTypes> {
     Alias(ResourceId),
@@ -328,23 +333,24 @@ impl<T: SchedulerTypes> From<BufferData<T>> for ResourceKind<T> {
 }
 
 pub struct ProceduralBuilder<T: SchedulerTypes> {
-    pub(crate) resources: PrimaryMap<ResourceId, ResourceKind<T>>,
+    resources: PrimaryMap<ResourceId, Resource<T>>,
     //pub(crate) virtuals: PrimaryMap<VirtualId, VirtualData>,
 
-    pub(crate) entities: PrimaryMap<EntityId, Entity>,
+    entities: PrimaryMap<EntityId, Entity<T>>,
 
-    pub(crate) sync_points: PrimaryMap<SyncPoint, SyncPointKind>,
-    pub(crate) exported_semaphores: PrimaryMap<SemaphoreId, SyncPoint>,
-    pub(crate) exported_fences: PrimaryMap<FenceId, SyncPoint>,
-    pub(crate) roots: BTreeSet<Root>,
+    resource_uses: PrimaryMap<sched::ResourceUseId, sched::ResourceUseData>,
+    resource_use_list_pool: ListPool<sched::ResourceUseId>,
 
-    pub(crate) render_pass_spans: Vec<(EntityId, EntityId)>,
+    sync_points: PrimaryMap<SyncPoint, sched::SyncPointKind>,
+    exported_semaphores: PrimaryMap<SemaphoreId, SyncPoint>,
+    exported_fences: PrimaryMap<FenceId, SyncPoint>,
+    roots: BTreeSet<Root>,
 
-    pub(crate) entity_set_pool: EntitySetPool<EntityId>,
+    render_pass_spans: BTreeSet<RenderPassSpan>,
 
     // Currently being built
-    pub(crate) build_status: BuildKind,
-    pub(crate) curr_entity: Option<Entity>,
+    build_status: BuildKind,
+    curr_entity: Option<Entity<T>>,
 }
 
 impl<T: SchedulerTypes> ProceduralBuilder<T> {
@@ -361,14 +367,15 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
             /// resources.
             entities: PrimaryMap::new(),
 
+            resource_uses: PrimaryMap::new(),
+            resource_use_list_pool: ListPool::new(),
+
             sync_points: PrimaryMap::new(),
             exported_fences: PrimaryMap::new(),
             exported_semaphores: PrimaryMap::new(),
             roots: BTreeSet::new(),
 
-            render_pass_spans: Vec::new(),
-
-            entity_set_pool: EntitySetPool::new(),
+            render_pass_spans: BTreeSet::new(),
 
             build_status: BuildKind::None,
             curr_entity: None,
@@ -388,6 +395,7 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
                 color: Vec::new(),
                 input: Vec::new(),
             }),
+            node_data: None,
         });
     }
 
@@ -400,16 +408,22 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
             images: Vec::new(),
             buffers: Vec::new(),
             attachments: None,
+            node_data: None,
         });
     }
 
     /// Commits the entity being built
-    pub fn commit(&mut self) {
+    pub fn commit(&mut self, data: T::NodeValue) {
         self.build_status.entity();
         self.build_status = BuildKind::None;
 
-        let entity = self.curr_entity.take().unwrap();
+        let mut entity = self.curr_entity.take().unwrap();
+        entity.node_data = Some(data);
         self.entities.push(entity);
+    }
+
+    pub fn remove_data(&mut self, entity: EntityId) -> Option<T::NodeValue> {
+        self.entities[entity].node_data.take()
     }
 
     /// Marks that the given entities are required to be scheduled into the same
@@ -421,19 +435,19 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
     ///
     /// Order does not matter, they will be scheduled in dependency order.
     pub fn mark_render_pass(&mut self, a: EntityId, b: EntityId) {
-        self.render_pass_spans.push((a, b));
+        self.render_pass_spans.insert(RenderPassSpan::new(a, b));
     }
 
     fn image_is_transient(&mut self, image: ImageId) -> bool {
-        self.resources[image.into()].image().kind.info().mode.is_transient()
+        self.resources[image.into()].kind.image().kind.info().mode.is_transient()
     }
 
     fn handle_image_add_dep(&mut self, image: ImageId) {
         let entity = self.id();
-        let num_uses = self.resources[image.into()].image().uses.len();
+        let num_uses = self.resources[image.into()].kind.image().uses.len();
 
         if num_uses > 0 {
-            let last_use = self.resources[image.into()].image().last_use().unwrap();
+            let last_use = self.resources[image.into()].kind.image().last_use().unwrap();
 
             // If the resource is transient, we need to add it to the render pass.
             if self.image_is_transient(image) {
@@ -444,12 +458,142 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
 
     }
 
-    // TODO: Temporary
-    pub fn make_scheduler_input(&self) -> SchedulerInput<(), ()> {
-        use crate::scheduler::input::{
-            Entity, EntityData, EntityKind as EntityKindI, ResourceData,
-            ResourceUseData, UseKind,
-        };
+    // // TODO: Temporary
+    // pub fn make_scheduler_input(&self) -> SchedulerInputStruct<(), ()> {
+    //     use crate::scheduler::input::{
+    //         EntityId, EntityData, EntityKind as EntityKindI, ResourceData,
+    //         ResourceUseData, UseKind,
+    //     };
+
+    //     fn propagate<I: Copy + Eq + Ord>(map: &mut BTreeMap<I, I>) {
+    //         let keys: Vec<_> = map.keys().cloned().collect();
+    //         loop {
+    //             let mut changed = false;
+
+    //             for key in keys.iter() {
+    //                 let to_1 = map[&key];
+    //                 if let Some(to_2) = map.get(&to_1).cloned() {
+    //                     map.insert(*key, to_2);
+    //                     changed = true;
+    //                 }
+    //             }
+
+    //             if !changed { break; }
+    //         }
+    //     }
+
+    //     fn resolve_aliases<I: EntityRef + Ord, T, F>(
+    //         vec: &PrimaryMap<I, T>, resolved: &mut BTreeMap<I, I>, fun: F)
+    //     where
+    //         F: Fn(&T) -> Option<I>,
+    //     {
+    //         debug_assert!(resolved.len() == 0);
+
+    //         for (id, item) in vec.iter() {
+    //             if let Some(alias) = fun(item) {
+    //                 resolved.insert(id, alias);
+    //             }
+    //         }
+
+    //         propagate(resolved);
+    //     }
+
+    //     let mut resolved = BTreeMap::new();
+    //     resolve_aliases(&self.resources, &mut resolved, |data| {
+    //         if let ResourceKind::Alias(to) = &data.kind {
+    //             Some(*to)
+    //         } else {
+    //             None
+    //         }
+    //     });
+
+    //     let mut input = SchedulerInputStruct::<(), ()>::new();
+
+    //     for (o_idx, entity) in self.entities.iter() {
+    //         let idx = input.entity.push(EntityData {
+    //             kind: match entity.kind {
+    //                 EntityKind::Pass => EntityKindI::Pass,
+    //                 EntityKind::Transfer => EntityKindI::Transfer,
+    //                 EntityKind::Standalone => EntityKindI::Standalone,
+    //             },
+    //             //uses: EntitySet::new(),
+    //             uses_l: EntityList::new(),
+    //             aux: (),
+    //         });
+    //         assert!(o_idx.index() == idx.index());
+    //     }
+
+    //     for (o_idx, resource) in self.resources.iter() {
+    //         let idx = input.resource.push(ResourceData {
+    //             //uses: EntitySet::new(),
+    //             uses_l: EntityList::new(),
+    //             aux: (),
+    //         });
+    //         assert!(o_idx.index() == idx.index());
+
+    //         match &resource.kind {
+    //             ResourceKind::Alias(_) => (),
+    //             ResourceKind::Image(data) => {
+    //                 debug_assert!(data.uses.windows(2).all(|w| w[0].by.index() <= w[1].by.index()));
+
+    //                 for use_data in data.uses.iter() {
+    //                     let by = EntityId::new(use_data.by.index());
+    //                     let (use_kind, is_write) = match use_data.kind {
+    //                         ImageUsageKind::InputAttachment(_) => {
+    //                             assert!(!use_data.usage.is_write());
+    //                             (UseKind::Attachment, false)
+    //                         },
+    //                         ImageUsageKind::DepthAttachment => {
+    //                             (UseKind::Attachment, true)
+    //                         },
+    //                         ImageUsageKind::Attachment(_) => {
+    //                             (UseKind::Attachment, true)
+    //                         },
+    //                         ImageUsageKind::Use => {
+    //                             (UseKind::Use, use_data.usage.is_write())
+    //                         },
+    //                     };
+
+    //                     let resource_use = input.resource_use.push(ResourceUseData {
+    //                         entity: by,
+    //                         resource: idx,
+    //                         use_kind,
+    //                         is_write,
+    //                     });
+    //                     let resource = input.resource[idx].uses_l.push(
+    //                         resource_use, &mut input.resource_use_list_pool);
+    //                 }
+    //             },
+    //             ResourceKind::Buffer(data) => {
+    //                 debug_assert!(data.uses.windows(2).all(|w| w[0].by.index() <= w[1].by.index()));
+
+    //                 for use_data in data.uses.iter() {
+    //                     let by = EntityId::new(use_data.by.index());
+    //                     let resource_use = input.resource_use.push(ResourceUseData {
+    //                         entity: by,
+    //                         resource: idx,
+    //                         use_kind: UseKind::Use,
+    //                         is_write: use_data.usage.is_write(),
+    //                     });
+    //                     let resource = input.resource[idx].uses_l.push(
+    //                         resource_use, &mut input.resource_use_list_pool);
+    //                 }
+    //             },
+    //         }
+    //     }
+
+    //     for span in self.render_pass_spans.iter() {
+    //         input.render_pass_spans.insert(*span);
+    //     }
+
+    //     input
+    // }
+
+    pub fn postprocess(&mut self) {
+        use crate::scheduler::{ResourceUseData, UseKind};
+
+        self.resource_uses.clear();
+        self.resource_use_list_pool.clear();
 
         fn propagate<I: Copy + Eq + Ord>(map: &mut BTreeMap<I, I>) {
             let keys: Vec<_> = map.keys().cloned().collect();
@@ -486,46 +630,41 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
 
         let mut resolved = BTreeMap::new();
         resolve_aliases(&self.resources, &mut resolved, |data| {
-            if let ResourceKind::Alias(to) = data {
+            if let ResourceKind::Alias(to) = &data.kind {
                 Some(*to)
             } else {
                 None
             }
         });
 
-        let mut input = SchedulerInput::<(), ()>::new();
+        // TODO we need to make sure aliases get propagated properly
 
-        for (o_idx, entity) in self.entities.iter() {
-            let idx = input.entity.push(EntityData {
-                kind: match entity.kind {
-                    EntityKind::Pass => EntityKindI::Pass,
-                    EntityKind::Transfer => EntityKindI::Transfer,
-                    EntityKind::Standalone => EntityKindI::Standalone,
-                },
-                uses: EntitySet::new(),
-                aux: (),
-            });
-            assert!(o_idx.index() == idx.index());
-        }
+        for (res_id, resource) in self.resources.iter_mut() {
+            //let idx = input.resource.push(ResourceData {
+            //    //uses: EntitySet::new(),
+            //    uses_l: EntityList::new(),
+            //    aux: (),
+            //});
+            //assert!(o_idx.index() == idx.index());
 
-        for (o_idx, resource) in self.resources.iter() {
-            let idx = input.resource.push(ResourceData {
-                uses: EntitySet::new(),
-                aux: (),
-            });
-            assert!(o_idx.index() == idx.index());
+            resource.processed_uses = EntityList::new();
 
-            match resource {
+            match &resource.kind {
                 ResourceKind::Alias(_) => (),
                 ResourceKind::Image(data) => {
+                    debug_assert!(data.uses.windows(2).all(|w| w[0].by.index() <= w[1].by.index()));
+
                     for use_data in data.uses.iter() {
-                        let by = Entity::new(use_data.by.index());
+                        let entity_id = EntityId::new(use_data.by.index());
                         let (use_kind, is_write) = match use_data.kind {
-                            ImageUsageKind::InputAttachment => {
+                            ImageUsageKind::InputAttachment(_) => {
                                 assert!(!use_data.usage.is_write());
                                 (UseKind::Attachment, false)
                             },
-                            ImageUsageKind::Attachment => {
+                            ImageUsageKind::DepthAttachment => {
+                                (UseKind::Attachment, true)
+                            },
+                            ImageUsageKind::Attachment(_) => {
                                 (UseKind::Attachment, true)
                             },
                             ImageUsageKind::Use => {
@@ -533,42 +672,89 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
                             },
                         };
 
-                        let resource_use = input.resource_use.push(ResourceUseData {
-                            entity: by,
-                            resource: idx,
+                        let resource_use = self.resource_uses.push(ResourceUseData {
+                            entity: entity_id,
+                            resource: res_id,
                             use_kind,
                             is_write,
+                            stages: hal::pso::PipelineStage::BOTTOM_OF_PIPE | hal::pso::PipelineStage::TOP_OF_PIPE,
+                            specific_use_data: sched::SpecificResourceUseData::Image {
+                                state: (use_data.usage.access, use_data.usage.layout),
+                            },
                         });
-                        let resource = input.resource[idx].uses.insert(
-                            resource_use, &mut input.resource_use_set_pool);
+                        resource.processed_uses.push(
+                            resource_use, &mut self.resource_use_list_pool);
                     }
                 },
                 ResourceKind::Buffer(data) => {
+                    debug_assert!(data.uses.windows(2).all(|w| w[0].by.index() <= w[1].by.index()));
+
                     for use_data in data.uses.iter() {
-                        let by = Entity::new(use_data.by.index());
-                        let resource_use = input.resource_use.push(ResourceUseData {
-                            entity: by,
-                            resource: idx,
+                        let entity_id = EntityId::new(use_data.by.index());
+                        let resource_use = self.resource_uses.push(ResourceUseData {
+                            entity: entity_id,
+                            resource: res_id,
                             use_kind: UseKind::Use,
                             is_write: use_data.usage.is_write(),
+                            stages: hal::pso::PipelineStage::BOTTOM_OF_PIPE | hal::pso::PipelineStage::TOP_OF_PIPE,
+                            specific_use_data: sched::SpecificResourceUseData::Buffer {
+                                state: use_data.usage.access,
+                            },
                         });
-                        let resource = input.resource[idx].uses.insert(
-                            resource_use, &mut input.resource_use_set_pool);
+                        resource.processed_uses.push(
+                            resource_use, &mut self.resource_use_list_pool);
                     }
                 },
             }
         }
-
-        for (a, b) in self.render_pass_spans.iter() {
-            let a_n = Entity::new(a.index());
-            let b_n = Entity::new(b.index());
-
-            input.render_pass_spans.insert(RenderPassSpan::new(a_n, b_n));
-        }
-
-        input
     }
 
+}
+
+impl<T: SchedulerTypes> SchedulerInput for ProceduralBuilder<T> {
+    fn num_entities(&self) -> usize {
+        self.entities.len()
+    }
+    fn num_resources(&self) -> usize {
+        self.resources.len()
+    }
+    fn get_uses(&self, resource_id: sched::ResourceId) -> &[sched::ResourceUseId] {
+        let resource = &self.resources[resource_id];
+        resource.processed_uses.as_slice(&self.resource_use_list_pool)
+    }
+    fn resource_use_data(&self, resource_use: sched::ResourceUseId) -> sched::ResourceUseData {
+        self.resource_uses[resource_use]
+    }
+    fn get_render_pass_spans(&self, out: &mut Vec<sched::RenderPassSpan>) {
+        out.clear();
+        out.extend(self.render_pass_spans.iter().cloned());
+    }
+    fn entity_kind(&self, entity_id: sched::EntityId) -> sched::EntityKind {
+        let entity = &self.entities[entity_id];
+        match entity.kind {
+            EntityKind::Pass => sched::EntityKind::Pass,
+            EntityKind::Transfer => sched::EntityKind::Transfer,
+            EntityKind::Standalone => sched::EntityKind::Standalone,
+        }
+    }
+    fn has_aquire_semaphore(&self, resource: ResourceId) -> Option<()> {
+        todo!()
+    }
+    fn num_semaphores(&self) -> usize {
+        self.exported_semaphores.len()
+    }
+    fn get_semaphore(&self, semaphore: SemaphoreId) -> SyncPoint {
+        self.exported_semaphores[semaphore]
+    }
+    fn num_fences(&self) -> usize {
+        self.exported_fences.len()
+    }
+    fn get_fence(&self, fence: FenceId) -> SyncPoint {
+        self.exported_fences[fence]
+    }
+    fn get_sync_point(&self, sync_point: SyncPoint) -> sched::SyncPointKind {
+        self.sync_points[sync_point]
+    }
 }
 
 impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
@@ -585,12 +771,15 @@ impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
     }
 
     fn create_image(&mut self, info: ImageInfo) -> ImageId {
-        self.resources.push(ResourceKind::Image(ImageData {
-            kind: ImageKind::Owned {
-                info,
-            },
-            uses: Vec::new(),
-        })).into()
+        self.resources.push(Resource {
+            kind: ResourceKind::Image(ImageData {
+                kind: ImageKind::Owned {
+                    info,
+                },
+                uses: Vec::new(),
+            }),
+            processed_uses: EntityList::new(),
+        }).into()
     }
 
     fn provide_image(
@@ -600,41 +789,47 @@ impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
         acquire: Option<T::Semaphore>,
         provided_image_usage: Option<ProvidedImageUsage>,
     ) -> ImageId {
-        self.resources.push(ResourceKind::Image(ImageData {
-            kind: ImageKind::Provided {
-                info,
-                image: image.into(),
-                acquire,
-                provided_image_usage,
-            },
-            uses: Vec::new(),
-        })).into()
+        self.resources.push(Resource {
+            kind: ResourceKind::Image(ImageData {
+                kind: ImageKind::Provided {
+                    info,
+                    image: image.into(),
+                    acquire,
+                    provided_image_usage,
+                },
+                uses: Vec::new(),
+            }),
+            processed_uses: EntityList::new(),
+        }).into()
     }
 
     fn move_image(&mut self, from: ImageId, to: ImageId) {
-        assert!(self.resources[from.into()].is_alias().is_none());
-        assert!(self.resources[to.into()].is_alias().is_none());
-        assert!(self.resources[to.into()].image().uses.len() == 0);
+        assert!(self.resources[from.into()].kind.is_alias().is_none());
+        assert!(self.resources[to.into()].kind.is_alias().is_none());
+        assert!(self.resources[to.into()].kind.image().uses.len() == 0);
 
         // TODO validate kind
 
         let mut from_data = ResourceKind::Alias(to.into());
-        std::mem::swap(&mut from_data, &mut self.resources[from.into()]);
+        std::mem::swap(&mut from_data, &mut self.resources[from.into()].kind);
         let mut from_inner = from_data.unwrap_image();
 
-        let to_inner = self.resources[to.into()].image_mut();
+        let to_inner = self.resources[to.into()].kind.image_mut();
 
         to_inner.kind = from_inner.kind;
         to_inner.uses = from_inner.uses;
     }
 
     fn create_buffer(&mut self, info: BufferInfo) -> BufferId {
-        self.resources.push(ResourceKind::Buffer(BufferData {
-            kind: BufferKind::Owned {
-                info,
-            },
-            uses: Vec::new(),
-        })).into()
+        self.resources.push(Resource {
+            kind: ResourceKind::Buffer(BufferData {
+                kind: BufferKind::Owned {
+                    info,
+                },
+                uses: Vec::new(),
+            }),
+            processed_uses: EntityList::new(),
+        }).into()
     }
 
     fn provide_buffer(
@@ -644,29 +839,34 @@ impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
         acquire: Option<T::Semaphore>,
         provided_buffer_usage: Option<ProvidedBufferUsage>,
     ) -> BufferId {
-        self.resources.push(ResourceKind::Buffer(BufferData {
-            kind: BufferKind::Provided {
-                info,
-                buffer: buffer.into(),
-                acquire,
-                provided_buffer_usage,
-            },
-            uses: Vec::new(),
-        })).into()
+        self.resources.push(
+            Resource {
+                kind: ResourceKind::Buffer(BufferData {
+                    kind: BufferKind::Provided {
+                        info,
+                        buffer: buffer.into(),
+                        acquire,
+                        provided_buffer_usage,
+                    },
+                    uses: Vec::new(),
+                }),
+                processed_uses: EntityList::new(),
+            }
+        ).into()
     }
 
     fn move_buffer(&mut self, from: BufferId, to: BufferId) {
-        assert!(self.resources[from.into()].is_alias().is_none());
-        assert!(self.resources[to.into()].is_alias().is_none());
-        assert!(self.resources[to.into()].buffer().uses.len() == 0);
+        assert!(self.resources[from.into()].kind.is_alias().is_none());
+        assert!(self.resources[to.into()].kind.is_alias().is_none());
+        assert!(self.resources[to.into()].kind.buffer().uses.len() == 0);
 
         // TODO validate kind
 
         let mut from_data = ResourceKind::Alias(to.into());
-        std::mem::swap(&mut from_data, &mut self.resources[from.into()]);
+        std::mem::swap(&mut from_data, &mut self.resources[from.into()].kind);
         let mut from_inner = from_data.unwrap_buffer();
 
-        let to_inner = self.resources[to.into()].buffer_mut();
+        let to_inner = self.resources[to.into()].kind.buffer_mut();
 
         to_inner.kind = from_inner.kind;
         to_inner.uses = from_inner.uses;
@@ -685,18 +885,18 @@ impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
         match spk {
             SyncPointRef::SyncPoint(sp) => sp,
             SyncPointRef::Image(image) => {
-                let tok = ImageToken(
-                    image,
-                    (self.resources[image.into()].image().uses.len() - 1).try_into().unwrap(),
-                );
-                self.sync_points.push(SyncPointKind::Image(tok))
+                //let tok = ImageToken(
+                //    image,
+                //    self.resources[image.into()].kind.image().uses.len().try_into().unwrap(),
+                //);
+                self.sync_points.push(sched::SyncPointKind::Resource(image.into()))
             },
             SyncPointRef::Buffer(buffer) => {
-                let tok = BufferToken(
-                    buffer,
-                    (self.resources[buffer.into()].buffer().uses.len() - 1).try_into().unwrap(),
-                );
-                self.sync_points.push(SyncPointKind::Buffer(tok))
+                //let tok = BufferToken(
+                //    buffer,
+                //    self.resources[buffer.into()].kind.buffer().uses.len().try_into().unwrap(),
+                //);
+                self.sync_points.push(sched::SyncPointKind::Resource(buffer.into()))
             },
         }
     }
@@ -709,7 +909,7 @@ impl<T: SchedulerTypes> GraphCtx<T> for ProceduralBuilder<T> {
         let a_sp = self.sync_point_get(a);
         let b_sp = self.sync_point_get(b);
 
-        self.sync_points.push(SyncPointKind::And(vec![a_sp, b_sp]))
+        self.sync_points.push(sched::SyncPointKind::And(a_sp, b_sp))
     }
 
     fn sync_point_to_semaphore<A: HasSyncPoint>(&mut self, dep: A) -> SemaphoreId {
@@ -747,7 +947,7 @@ impl<T: SchedulerTypes> EntityCtx<T> for ProceduralBuilder<T> {
         let entity_id = self.id();
         self.handle_image_add_dep(id);
 
-        let image = self.resources[id.into()].image_mut();
+        let image = self.resources[id.into()].kind.image_mut();
 
         assert!(image.last_use() != Some(entity_id));
 
@@ -763,7 +963,7 @@ impl<T: SchedulerTypes> EntityCtx<T> for ProceduralBuilder<T> {
 
     fn use_buffer(&mut self, id: BufferId, usage: BufferUsage) -> Result<BufferToken, EntityConstructionError> {
         let entity_id = self.id();
-        let buffer = self.resources[id.into()].buffer_mut();
+        let buffer = self.resources[id.into()].kind.buffer_mut();
 
         assert!(buffer.last_use() != Some(entity_id));
 
@@ -784,7 +984,7 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
         let entity_id = self.id();
         self.handle_image_add_dep(image_id);
 
-        let image = self.resources[image_id.into()].image_mut();
+        let image = self.resources[image_id.into()].kind.image_mut();
 
         assert!(image.last_use() != Some(entity_id));
 
@@ -807,7 +1007,7 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
 
         image.uses.push(ImageUse {
             usage,
-            kind: ImageUsageKind::Attachment,
+            kind: ImageUsageKind::Attachment(index),
             by: entity_id,
         });
 
@@ -821,7 +1021,7 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
         let entity_id = self.id();
         self.handle_image_add_dep(image_id);
 
-        let image = self.resources[image_id.into()].image_mut();
+        let image = self.resources[image_id.into()].kind.image_mut();
 
         assert!(image.last_use() != Some(entity_id));
 
@@ -844,7 +1044,7 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
 
         image.uses.push(ImageUse {
             usage,
-            kind: ImageUsageKind::Attachment,
+            kind: ImageUsageKind::DepthAttachment,
             by: entity_id,
         });
 
@@ -861,7 +1061,7 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
         let entity_id = self.id();
         self.handle_image_add_dep(image_id);
 
-        let image = self.resources[image_id.into()].image_mut();
+        let image = self.resources[image_id.into()].kind.image_mut();
 
         assert!(image.last_use() != Some(entity_id));
 
@@ -873,7 +1073,7 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
                 stages: hal::pso::PipelineStage::FRAGMENT_SHADER,
                 access: hal::image::Access::INPUT_ATTACHMENT_READ,
             },
-            kind: ImageUsageKind::InputAttachment,
+            kind: ImageUsageKind::InputAttachment(index),
             by: entity_id,
         });
 

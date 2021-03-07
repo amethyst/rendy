@@ -17,7 +17,7 @@ use cranelift_entity::entity_impl;
 
 use rendy_core::hal;
 
-pub use crate::{BufferId, ImageId, SchedulerTypes};
+pub use crate::SchedulerTypes;
 
 use crate::{
     //Parameter, DynamicParameter,
@@ -27,7 +27,6 @@ use crate::{
         ProvidedImageUsage, ProvidedBufferUsage,
     },
     sync::{SyncPoint, HasSyncPoint},
-    builder::ResourceId,
 };
 
 pub trait PersistentKind {}
@@ -60,6 +59,16 @@ impl BufferToken {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntityId(pub(crate) u32);
 entity_impl!(EntityId, "entity");
+
+/// Id of the buffer in graph.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BufferId(u32);
+entity_impl!(BufferId, "buffer");
+
+/// Id of the image (or target) in graph.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ImageId(u32);
+entity_impl!(ImageId, "image");
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FenceId(pub(crate) u32);
@@ -332,8 +341,7 @@ pub trait GraphCtx<T: SchedulerTypes>: Sized {
     /// graph validation error.
     fn dispose_persistence_token<K: PersistentKind>(&mut self, token: PersistenceToken<K>);
 
-    /// Gets the concrete sync point for the resource at this point in the
-    /// graph construction.
+    /// Get a sync point where the graph is finished with the given resource.
     fn sync_point_get<A: HasSyncPoint>(&mut self, a: A) -> SyncPoint;
 
     /// Does not create or insert any dependencies, but creates a new SyncPoint

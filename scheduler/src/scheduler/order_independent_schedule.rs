@@ -7,11 +7,11 @@ use bumpalo::{
 
 use log::trace;
 
-use super::{NaturalScheduleMatrix, Entity, Resource, ScheduleAux, Direction};
+use super::{NaturalScheduleMatrix, EntityId, ResourceId, ScheduleAux, Direction};
 
 #[derive(Debug, Clone)]
 pub(crate) struct ResourceUse {
-    pub(crate) entity: Entity,
+    pub(crate) entity: EntityId,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +54,7 @@ impl<'bump> ResourceUsesKind<'bump> {
 #[derive(Debug, Clone)]
 pub(crate) struct ResourceUses<'bump> {
     pub(crate) kind: ResourceUsesKind<'bump>,
-    pub(crate) first_entity: Entity,
+    pub(crate) first_entity: EntityId,
 }
 
 #[derive(Debug, Clone)]
@@ -62,14 +62,18 @@ pub(crate) struct ResourceData<'bump> {
     pub(crate) uses: Vec<'bump, ResourceUses<'bump>>,
 }
 
+/// Represents the schedule for all resources in a way where all reads are
+/// merged.
+/// This data structure will not change due to scheduling, as the only ordering
+/// it represents is that imposed by R<>W, W<>R and W<>W hazards.
 #[derive(Clone)]
 pub(crate) struct OrderIndependentSchedule<'bump> {
-    pub(crate) resources: SecondaryMap<Resource, ResourceData<'bump>>,
+    pub(crate) resources: SecondaryMap<ResourceId, ResourceData<'bump>>,
 }
 
 impl<'bump> OrderIndependentSchedule<'bump> {
 
-    pub(crate) fn new(schedule: &NaturalScheduleMatrix<Entity, Resource, ScheduleAux>, bump: &'bump Bump) -> Self {
+    pub(crate) fn new(schedule: &NaturalScheduleMatrix<EntityId, ResourceId, ScheduleAux>, bump: &'bump Bump) -> Self {
         let mut resources = SecondaryMap::with_default(ResourceData {
             uses: Vec::new_in(bump),
         });

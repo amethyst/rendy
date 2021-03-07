@@ -1,4 +1,6 @@
-use crate::builder::{GraphConstructCtx, GraphImage};
+use crate::Node;
+use crate::graph::{GraphConstructCtx, GraphImage};
+use crate::parameter::{Parameter, ParameterStore};
 use crate::factory::Factory;
 use crate::scheduler::{
     ImageId,
@@ -6,21 +8,19 @@ use crate::scheduler::{
     resources::{ImageMode, ImageInfo, ProvidedImageUsage, ImageUsage},
 };
 use crate::wsi::Surface;
-use super::super::parameter::{Parameter, ParameterStore};
-use super::super::builder::Node;
 
 use rendy_core::hal;
 use hal::image::FramebufferAttachment;
 use hal::window::{PresentMode, Extent2D, SwapchainConfig};
 use hal::format::{Format, ChannelType};
 
-pub struct Present<B: hal::Backend> {
-    image: Parameter<ImageId>,
+use crate::GraphBorrowable;
 
+pub struct Present<B: hal::Backend> {
     swapchain_config: SwapchainConfig,
     framebuffer_attachment: FramebufferAttachment,
 
-    surface: Surface<B>,
+    surface: GraphBorrowable<Surface<B>>,
 }
 
 pub fn make_swapchain_config<B: hal::Backend>(
@@ -59,7 +59,7 @@ pub fn make_swapchain_config<B: hal::Backend>(
 
 impl<B: hal::Backend> Present<B> {
 
-    pub fn new(factory: &Factory<B>, mut surface: Surface<B>, image: Parameter<ImageId>, extent: Extent2D) -> Self {
+    pub fn new(factory: &Factory<B>, mut surface: Surface<B>, extent: Extent2D) -> Self {
         let (swapchain_config, framebuffer_attachment) = make_swapchain_config(
             factory, &surface, extent);
 
@@ -71,30 +71,30 @@ impl<B: hal::Backend> Present<B> {
         }
 
         Self {
-            image,
-
             swapchain_config,
             framebuffer_attachment,
 
-            surface,
+            surface: GraphBorrowable::new(surface),
         }
     }
 
 }
 
 impl<B: hal::Backend> Node<B> for Present<B> {
+    type Argument = ImageId;
     type Result = ();
 
     fn construct(
         &mut self,
-        factory: &mut Factory<B>,
+        factory: &Factory<B>,
         ctx: &mut GraphConstructCtx<B>,
-        store: &ParameterStore,
+        in_image_id: ImageId,
     ) -> Result<(), ()> {
-        let in_image_id = *store.get(self.image).unwrap();
 
         let sc_image = loop {
-            match unsafe { self.surface.acquire_image(!0) } {
+            let surface = self.surface.borrow_mut();
+
+            match unsafe { surface.acquire_image(!0) } {
                 Ok((sc_image, _suboptimal)) => break sc_image,
                 // Swapchain is out of date, we need to recreate and retry.
                 Err(hal::window::AcquireError::OutOfDate(_)) => (),
@@ -105,7 +105,7 @@ impl<B: hal::Backend> Node<B> for Present<B> {
             }
 
             let (swapchain_config, framebuffer_attachment) = make_swapchain_config(
-                factory, &self.surface, self.swapchain_config.extent);
+                factory, surface, self.swapchain_config.extent);
             self.swapchain_config = swapchain_config;
             self.framebuffer_attachment = framebuffer_attachment;
 
@@ -119,9 +119,9 @@ impl<B: hal::Backend> Node<B> for Present<B> {
             }
 
             unsafe {
-                self.surface.unconfigure_swapchain(factory.device());
+                surface.unconfigure_swapchain(factory.device());
 
-                self.surface.configure_swapchain(
+                surface.configure_swapchain(
                     factory.device(),
                     self.swapchain_config.clone(),
                 ).unwrap();
@@ -157,39 +157,9 @@ impl<B: hal::Backend> Node<B> for Present<B> {
         // image. If the images are incompatible, this will panic.
         ctx.move_image(in_image_id, target_image_id);
 
-        // Get a sync point that represents the state of the swapchain image
-        // after we are done rendering to it.
-        let sync_point = ctx.sync_point_get(target_image_id);
-        // Tell the render graph to signal our release semaphore on the sync
-        // point generated above. This semaphore is then used in the present
-        // call.
-        let semaphore_id = ctx.sync_point_to_semaphore(sync_point);
-        // ctx.sync_point_signal_semaphore(&self.release[idx as usize]);
-
-        // We call present within a standalone graph entity.
-        let mut present = ctx.standalone();
-
-        let image_token = present.use_image(target_image_id, ImageUsage {
-            layout: hal::image::Layout::Present,
-            stages: hal::pso::PipelineStage::BOTTOM_OF_PIPE,
-            access: hal::image::Access::empty(),
-        }).unwrap();
-
-        present.commit(|node, _factory, exec_ctx, queue| {
-            let node = node.downcast_mut::<Present<B>>().unwrap();
-
-            let mut render_semaphore = exec_ctx.fetch_semaphore(semaphore_id);
-            let image = exec_ctx.fetch_swapchain_image(image_token);
-
-            unsafe {
-                node.surface.present(
-                    queue.raw(),
-                    image,
-                    Some(&mut render_semaphore),
-                ).unwrap();
-            }
-
-            exec_ctx.return_semaphore(render_semaphore);
+        // Perform a present.
+        ctx.present(self.surface.take_borrow(), target_image_id, |node, result| {
+            todo!()
         });
 
         Ok(())

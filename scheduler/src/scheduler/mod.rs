@@ -34,9 +34,11 @@ use order_independent_schedule::OrderIndependentSchedule;
 
 pub mod input;
 pub use input::{
-    Entity, Resource, UseKind, EntityKind, SchedulerInput, RenderPassSpan,
-    EntityData, ResourceData,
+    UseKind, EntityKind, SchedulerInput, RenderPassSpan, ResourceUseData,
+    SpecificResourceUseData, SyncPointKind,
 };
+
+pub use input::{EntityId, ResourceId, ResourceUseId};
 
 //fn propagate<I: Copy + Eq + Ord>(map: &mut BTreeMap<I, I>) {
 //    let keys: Vec<_> = map.keys().cloned().collect();
@@ -70,7 +72,7 @@ pub use input::{
 //}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct RenderPass(u32);
+pub struct RenderPass(u32);
 entity_impl!(RenderPass);
 
 /// One scheduling strategy might not be optimal for everything, this provides
@@ -91,30 +93,31 @@ pub enum SubpassStrategy {
     /// schedulable in the same pass, and do that.
     Annotated,
 
-    /// This will do everything `Annotated` does, bug will also try to combine
+    /// This will do everything `Annotated` does, but will also try to combine
     /// things on its own.
     Aggressive,
 }
 
 #[derive(Debug)]
-pub(crate) enum ScheduleEntry {
-    General(Entity),
-    PassEntity(Entity, RenderPass),
+pub enum ScheduleEntry {
+    General(EntityId),
+    PassEntity(EntityId, RenderPass),
 }
 
 struct RenderPassData {
-    entities: EntityList<Entity>,
-    members: EntitySet<Entity>,
+    entities: EntityList<EntityId>,
+    members: EntitySet<EntityId>,
 
-    attachments: EntitySet<Resource>,
-    uses: EntitySet<Resource>,
-    writes: EntitySet<Resource>,
+    attachments: EntitySet<ResourceId>,
+    uses: EntitySet<ResourceId>,
+    writes: EntitySet<ResourceId>,
 
-    for_cum: EntitySet<Entity>,
-    rev_cum: EntitySet<Entity>,
+    for_cum: EntitySet<EntityId>,
+    rev_cum: EntitySet<EntityId>,
 }
 
 #[derive(Debug, Copy, Clone)]
+#[repr(u8)]
 pub(crate) enum UsageKind {
     Attachment,
     InputAttachment,
@@ -144,6 +147,7 @@ impl UsageKind {
 pub(crate) struct ScheduleAux {
     usage_num: u16,
     usage_kind: UsageKind,
+    use_id: ResourceUseId,
 }
 
 /// Scheduler, takes a `ProceduralBuilder` containing the built render graph and
@@ -151,7 +155,7 @@ pub(crate) struct ScheduleAux {
 ///
 pub struct Scheduler {
     //resource_aliases: BTreeMap<Resource, Resource>,
-    resource_schedule: NaturalScheduleMatrix<Entity, Resource, ScheduleAux>,
+    resource_schedule: NaturalScheduleMatrix<EntityId, ResourceId, ScheduleAux>,
 
     // For every entity in the graph, this contains the set of other entities
     // that are strictly required to be scheduled before or after respectively,
@@ -160,22 +164,25 @@ pub struct Scheduler {
     // Crucually, these don't contain "false" dependencies, read dependencies on
     // read uses. This makes querying for entities that need to be scheduled
     // between two others a simple set intersection.
-    for_cum_deps: SecondaryMap<Entity, EntitySet<Entity>>,
-    rev_cum_deps: SecondaryMap<Entity, EntitySet<Entity>>,
+    for_cum_deps: SecondaryMap<EntityId, EntitySet<EntityId>>,
+    rev_cum_deps: SecondaryMap<EntityId, EntitySet<EntityId>>,
 
     // Stage 1: Render pass grouping
     active_passes: BTreeSet<RenderPass>,
     passes: PrimaryMap<RenderPass, RenderPassData>,
-    passes_back: SecondaryMap<Entity, Option<RenderPass>>,
+    passes_back: SecondaryMap<EntityId, Option<RenderPass>>,
 
     // Stage 3
-    pub(crate) scheduled_order: Vec<ScheduleEntry>,
+    pub scheduled_order: Vec<ScheduleEntry>,
     schedule_traversal: Vec<usize>,
 
+    // Sync
+    pub sync_strategy: generate_sync::SyncStrategy,
+
     // Pools
-    entity_list_pool: ListPool<Entity>,
-    entity_set_pool: EntitySetPool<Entity>,
-    resource_set_pool: EntitySetPool<Resource>,
+    entity_list_pool: ListPool<EntityId>,
+    entity_set_pool: EntitySetPool<EntityId>,
+    resource_set_pool: EntitySetPool<ResourceId>,
 
     bump: Option<Bump>,
 
@@ -198,6 +205,8 @@ impl Scheduler {
             scheduled_order: Vec::new(),
             schedule_traversal: Vec::new(),
 
+            sync_strategy: generate_sync::SyncStrategy::default(),
+
             entity_list_pool: ListPool::new(),
             entity_set_pool: EntitySetPool::new(),
             resource_set_pool: EntitySetPool::new(),
@@ -206,7 +215,7 @@ impl Scheduler {
         }
     }
 
-    pub fn plan(&mut self/*, strategy: &SchedulerStrategy*/, builder: &input::SchedulerInput<(), ()>) {
+    pub fn plan<I: SchedulerInput>(&mut self/*, strategy: &SchedulerStrategy*/, input: &I) {
         trace!("==== Scheduler plan start");
         let bump = self.bump.take().unwrap();
 
@@ -222,7 +231,7 @@ impl Scheduler {
             // structure used to enable efficient walking up and down the dependency
             // chains of resources.
             trace!("==== == populate_base_schedule");
-            self.populate_base_schedule(builder);
+            self.populate_base_schedule(input);
 
             let unorder_schedule = OrderIndependentSchedule::new(&self.resource_schedule, &bump);
 
@@ -232,7 +241,7 @@ impl Scheduler {
 
             // ==== Step 1: Identify render passes
             trace!("==== == identify_render_passes");
-            self.identify_render_passes(builder);
+            self.identify_render_passes(input);
 
             // ==== Step 2: Allocate queues
             // TODO: Right now everything is scheduled on one single queue.
@@ -291,7 +300,7 @@ impl Scheduler {
             // 5. Sort the nodes by the average between the start and end timeline
             // point. This is your scheduling order.
             trace!("==== == generate_naive_order");
-            self.generate_order_naive(builder);
+            self.generate_order_naive(input);
 
             trace!("Scheduled order: {:?}", self.scheduled_order);
 
@@ -299,7 +308,7 @@ impl Scheduler {
             // At this point we should have a good ordering we want to generate
             // synchronization for.
             trace!("==== == generate_synchronization");
-            self.generate_sync(builder, &unorder_schedule, &bump);
+            self.generate_sync(input, &unorder_schedule, &bump);
 
         }
 
@@ -307,20 +316,25 @@ impl Scheduler {
         trace!("==== Scheduler plan end");
     }
 
-    fn populate_base_schedule(&mut self, builder: &input::SchedulerInput<(), ()>) {
+    fn populate_base_schedule<I: SchedulerInput>(&mut self, input: &I) {
         self.resource_schedule.clear();
         self.resource_schedule.set_dims(
-            builder.entity.len(),
-            builder.resource.len(),
+            input.num_entities(),
+            input.num_resources(),
         );
+
         self.resource_schedule.populate(|res_id| {
-            let res = &builder.resource[res_id];
+            let res_uses = input.get_uses(res_id);
+           
+            //let res = &builder.resource[res_id];
             Some(
-                res.uses
-                   .iter(&builder.resource_use_set_pool)
+                //res.uses
+                //   .iter(&builder.resource_use_set_pool)
+                res_uses
+                    .iter()
                    .enumerate()
                    .map(|(idx, res_use)| {
-                       let use_data = &builder.resource_use[res_use];
+                       let use_data = input.resource_use_data(*res_use);
                        let usage_kind = match (use_data.is_write, use_data.use_kind) {
                            (true, UseKind::Use) => UsageKind::Descriptor,
                            (false, UseKind::Use) => UsageKind::ReadDescriptor,
@@ -332,6 +346,7 @@ impl Scheduler {
                            ScheduleAux {
                                usage_num: idx.try_into().unwrap(),
                                usage_kind,
+                               use_id: *res_use,
                            },
                        )
                    })
@@ -383,9 +398,9 @@ impl Scheduler {
         // This is different than the last use, as that will include reads.
         // The fact that our cumulative dependency sets don't contain reads is what makes
         // them useful for quickly checking validity of merges/reorders.
-        let mut prev_write: SecondaryMap<Resource, Option<Entity>> = SecondaryMap::with_default(None);
+        let mut prev_write: SecondaryMap<ResourceId, Option<EntityId>> = SecondaryMap::with_default(None);
 
-        let mut do_pass = |cum: &mut SecondaryMap<Entity, EntitySet<Entity>>, dir: Direction| {
+        let mut do_pass = |cum: &mut SecondaryMap<EntityId, EntitySet<EntityId>>, dir: Direction| {
             for ent in resource_schedule.entities(dir) {
                 println!("{}", ent);
 
@@ -450,18 +465,18 @@ impl Scheduler {
     /// A simple and naive greedy scheduling strategy.
     /// This will simply pick the first schedulable entity at each iteration
     /// until all entities are scheduled.
-    fn generate_order_naive(&mut self, builder: &input::SchedulerInput<(), ()>) {
+    fn generate_order_naive<I: SchedulerInput>(&mut self, input: &I) {
 
         fn try_schedule_entity(
-            entity: Entity,
-            scheduled_mask: &mut EntitySet<Entity>,
-            overdue: &mut EntitySet<Entity>,
+            entity: EntityId,
+            scheduled_mask: &mut EntitySet<EntityId>,
+            overdue: &mut EntitySet<EntityId>,
             scheduled_order: &mut Vec<ScheduleEntry>,
-            rev_cum_deps: &SecondaryMap<Entity, EntitySet<Entity>>,
+            rev_cum_deps: &SecondaryMap<EntityId, EntitySet<EntityId>>,
             passes: &PrimaryMap<RenderPass, RenderPassData>,
-            passes_back: &SecondaryMap<Entity, Option<RenderPass>>,
-            entity_set_pool: &mut EntitySetPool<Entity>,
-            entity_list_pool: &ListPool<Entity>,
+            passes_back: &SecondaryMap<EntityId, Option<RenderPass>>,
+            entity_set_pool: &mut EntitySetPool<EntityId>,
+            entity_list_pool: &ListPool<EntityId>,
         ) -> bool
         {
             if let Some(pass_id) = passes_back[entity] {

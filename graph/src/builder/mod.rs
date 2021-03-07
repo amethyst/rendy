@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+
 use crate::scheduler::{
     builder::ProceduralBuilder,
     interface::GraphCtx,
@@ -7,13 +8,15 @@ use crate::scheduler::{
 use crate::factory::Factory;
 use crate::core::hal::Backend;
 use crate::core::hal::window::PresentationSurface;
-use super::parameter::{ParameterInput, IdGenerator, ParameterStore, Parameter, DynamicParameter};
 
-mod context;
-pub use self::context::{GraphConstructCtx, PassConstructCtx, StandaloneConstructCtx};
+use crate::parameter::{ParameterInput, IdGenerator, ParameterStore, Parameter, DynamicParameter};
+use crate::graph::{GraphConstructCtx, PassConstructCtx, StandaloneConstructCtx};
 
 pub trait Node<B: Backend>: 'static {
-    type Result: ParameterInput;
+    type Argument;
+    type Result;
+    //type Result: ParameterInput;
+
     fn construct(
         &mut self,
         factory: &mut Factory<B>,
@@ -43,7 +46,7 @@ where
     }
 }
 
-trait NodeDyn<B: Backend> {
+pub(crate) trait NodeDyn<B: Backend> {
     fn construct(
         &mut self,
         factory: &mut Factory<B>,
@@ -77,6 +80,7 @@ impl<B: Backend> crate::scheduler::SchedulerTypes for GfxSchedulerTypes<B> {
     type Image = GraphImage<B>;
     type Buffer = B::Buffer;
     type Semaphore = B::Semaphore;
+    type NodeValue = ();
 }
 
 pub enum GraphImage<B: Backend> {

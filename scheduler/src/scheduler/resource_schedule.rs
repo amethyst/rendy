@@ -13,9 +13,11 @@ use rendy_core::hal;
 use super::super::{
     interface::EntityId,
     builder::{
-        ProceduralBuilder, ResourceId, ResourceKind,
+        ProceduralBuilder, ResourceKind,
     },
 };
+
+use super::input::ResourceId;
 
 /// State machine for walking through resource uses on a index basis. This makes
 /// it possible for us to do a single pass over each resource to update
@@ -160,7 +162,7 @@ struct RawRow(usize);
 struct RawCol(usize);
 impl From<ResourceId> for RawCol {
     fn from(f: ResourceId) -> Self {
-        RawCol(f.0.try_into().unwrap())
+        RawCol(f.index())
     }
 }
 
@@ -307,9 +309,9 @@ where
     /// from first to last.
     ///
     /// Panics if an entity which is not in the lookup map is encountered.
-    pub(crate) fn populate<F, I>(&mut self, query: F)
+    pub(crate) fn populate<F, I>(&mut self, mut query: F)
     where
-        F: Fn(C::Input) -> Option<I>,
+        F: FnMut(C::Input) -> Option<I>,
         I: Iterator<Item = (R::Input, A)>,
     {
 

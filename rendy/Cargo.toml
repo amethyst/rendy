@@ -25,7 +25,7 @@ command = ["rendy-command"]
 descriptor = ["rendy-descriptor"]
 factory = ["rendy-factory", "command", "descriptor", "resource", "wsi"]
 frame = ["rendy-frame", "factory"]
-#graph = ["rendy-graph", "frame"]
+graph = ["rendy-graph", "frame"]
 init = ["rendy-init", "factory"]
 init-winit = ["rendy-init/winit"]
 memory = ["rendy-memory"]
@@ -50,7 +50,7 @@ base = [
     "descriptor",
     "factory",
     "frame",
-#    "graph",
+    "graph",
     "init",
     "memory",
     "mesh",
@@ -88,7 +88,7 @@ rendy-command = { version = "0.5.1", path = "../command", optional = true }
 rendy-descriptor = { version = "0.5.1", path = "../descriptor", optional = true }
 rendy-factory = { version = "0.5.1", path = "../factory", optional = true }
 rendy-frame = { version = "0.5.1", path = "../frame", optional = true }
-#rendy-graph = { version = "0.5.1", path = "../graph", optional = true }
+rendy-graph = { version = "0.5.1", path = "../graph", optional = true }
 rendy-init = { version = "0.5.1", path = "../init", optional = true }
 rendy-memory = { version = "0.5.2", path = "../memory", optional = true }
 rendy-mesh = { version = "0.5.1", path = "../mesh", optional = true }

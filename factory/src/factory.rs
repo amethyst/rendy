@@ -1242,7 +1242,7 @@ where
             .map_err(rendy_core::hal::device::CreationError::OutOfMemory)?,
         families_indices: families.indices().into(),
         epochs,
-        device,
+        device: device,
         adapter,
         instance: InstanceOrId::Id(instance.id()),
     };

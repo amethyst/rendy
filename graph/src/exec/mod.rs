@@ -7,7 +7,7 @@ use crate::scheduler::{
 };
 
 pub struct ExecCtx<B: hal::Backend> {
-    phantom: PhantomData<B>,
+    pub(crate) phantom: PhantomData<B>,
 }
 
 impl<B: hal::Backend> ExecCtx<B> {
@@ -24,6 +24,17 @@ impl<B: hal::Backend> ExecCtx<B> {
         todo!()
     }
 
+    /// Fetches a provided image back from the graph.
+    ///
+    /// This can only be called if:
+    /// * `ImageId` is a provided image of the regular image type
+    /// * The current entity is the last use of `ImageId`
+    ///
+    /// If any of these are not true, it will panic.
+    pub fn fetch_image(&mut self, image_token: ImageToken) -> Image<B> {
+        todo!()
+    }
+
     /// Fetches a provided swapchain image back from the graph.
     ///
     /// This can only be called if:
@@ -35,7 +46,10 @@ impl<B: hal::Backend> ExecCtx<B> {
         todo!()
     }
 
-    pub fn fetch_semaphore(&mut self, semaphore_id: SemaphoreId) -> B::Semaphore {
+    /// Fetches a semaphore by its construction id.
+    ///
+    /// This will return None if no synchronization is required.
+    pub fn fetch_semaphore(&mut self, semaphore_id: SemaphoreId) -> Option<B::Semaphore> {
         todo!()
     }
 }

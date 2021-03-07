@@ -3,29 +3,29 @@ use std::collections::BTreeSet;
 use cranelift_entity::{PrimaryMap, SecondaryMap, EntityList, entity_impl};
 use cranelift_entity_set::{EntitySetPool, EntitySet};
 
-use super::{Scheduler, Direction, EntityKind, Entity, Resource, RenderPassData, SchedulerInput, hal};
+use super::{Scheduler, Direction, EntityKind, EntityId, ResourceId, RenderPassData, SchedulerInput, hal};
 
 impl Scheduler {
 
-    pub(super) fn identify_render_passes(&mut self, builder: &SchedulerInput<(), ()>) {
+    pub(super) fn identify_render_passes<I: SchedulerInput>(&mut self, input: &I) {
 
         // Temporary pool for data within the computation
-        let mut set_pool: EntitySetPool<Entity> = EntitySetPool::new();
+        let mut set_pool: EntitySetPool<EntityId> = EntitySetPool::new();
 
         #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
         struct RenderPassT(u32);
         entity_impl!(RenderPassT);
 
         struct RenderPassTData {
-            entities: EntitySet<Entity>,
-            for_cum: EntitySet<Entity>,
-            rev_cum: EntitySet<Entity>,
+            entities: EntitySet<EntityId>,
+            for_cum: EntitySet<EntityId>,
+            rev_cum: EntitySet<EntityId>,
         }
 
         // Temporary data
         let mut active_passes: BTreeSet<RenderPassT> = BTreeSet::new();
         let mut passes: PrimaryMap<RenderPassT, RenderPassTData> = PrimaryMap::new();
-        let mut passes_back: SecondaryMap<Entity, Option<RenderPassT>> = SecondaryMap::with_default(None);
+        let mut passes_back: SecondaryMap<EntityId, Option<RenderPassT>> = SecondaryMap::with_default(None);
 
         // Temporary buffers
         let mut span_set = BTreeSet::new();
@@ -33,7 +33,10 @@ impl Scheduler {
 
         // TODO TODO FIXME: We need to combine cumulative dependencies!!
 
-        for span in builder.render_pass_spans.iter() {
+        let mut render_pass_spans = Vec::new();
+        input.get_render_pass_spans(&mut render_pass_spans);
+
+        for span in render_pass_spans.iter() {
             span_set.clear();
 
             let from = span.from();
@@ -129,7 +132,7 @@ impl Scheduler {
                     }
                 }
                 // TODO emit graph warning and bail
-                assert!(builder.entity[*entity].kind == EntityKind::Pass);
+                assert!(input.entity_kind(*entity) == EntityKind::Pass);
             }
 
             // Create new pass set and replace entities
@@ -216,9 +219,56 @@ impl Scheduler {
             self.active_passes.insert(n_pass);
         }
 
-        // Allocate every relevant entity that is not in a pass already in its
-        // own one?
-        // TODO TODO FIXME
+        for entry in self.scheduled_order.iter_mut() {
+            let entity_id = match entry {
+                super::ScheduleEntry::General(entity) => *entity,
+                _ => unreachable!(),
+            };
+
+            if let Some(pass) = self.passes_back[entity_id] {
+                *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
+            } else if input.entity_kind(entity_id) == EntityKind::Pass {
+                // Allocate in its own standalone pass.
+
+                let mut attachments = EntitySet::new();
+                let mut uses = EntitySet::new();
+                let mut writes = EntitySet::new();
+
+                for (resource, aux) in self.resource_schedule.usages_by(entity_id) {
+                    if aux.usage_kind.is_attachment() {
+                        attachments.insert(resource, &mut self.resource_set_pool);
+                    } else {
+                        uses.insert(resource, &mut self.resource_set_pool);
+                    }
+                    if aux.usage_kind.is_write() {
+                        writes.insert(resource, &mut self.resource_set_pool);
+                    }
+                }
+
+                let pass = self.passes.push(RenderPassData {
+                    entities: {
+                        let mut list = EntityList::new();
+                        list.push(entity_id, &mut self.entity_list_pool);
+                        list
+                    },
+                    members: {
+                        let mut set = EntitySet::new();
+                        set.insert(entity_id, &mut self.entity_set_pool);
+                        set
+                    },
+
+                    attachments,
+                    uses,
+                    writes,
+
+                    for_cum: self.for_cum_deps[entity_id].clone(),
+                    rev_cum: self.rev_cum_deps[entity_id].clone(),
+                });
+
+                self.passes_back[entity_id] = Some(pass);
+                *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
+            }
+        }
 
     }
 

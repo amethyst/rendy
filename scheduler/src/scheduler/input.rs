@@ -4,37 +4,43 @@
 //! and have synchronization.
 
 use std::collections::BTreeSet;
-use cranelift_entity::{PrimaryMap, entity_impl};
-use cranelift_entity_set::{EntitySetPool, EntitySet};
+use cranelift_entity::{PrimaryMap, entity_impl, ListPool, EntityList};
+use cranelift_entity_set::{EntitySetPool, EntitySet, EntitySetIter};
+
+use rendy_core::hal;
+
+pub use crate::interface::EntityId;
+use crate::sync::SyncPoint;
+use crate::interface::{SemaphoreId, FenceId};
 
 /// Identifies a single entity uniquely in the scheduler.
-#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub struct Entity(u32);
-entity_impl!(Entity, "entity");
+//#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
+//pub struct EntityId(u32);
+//entity_impl!(EntityId, "entity");
 
 /// Identifies a single resource uniquely in the scheduler.
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub struct Resource(u32);
-entity_impl!(Resource, "resource");
+pub struct ResourceId(u32);
+entity_impl!(ResourceId, "resource");
 
 /// Identifies a relationship between an entity and a resource.
 /// Only one may exist for every combination of Entity and Resource.
 #[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
-pub struct ResourceUse(u32);
-entity_impl!(ResourceUse, "resource_use");
+pub struct ResourceUseId(u32);
+entity_impl!(ResourceUseId, "resource_use");
 
 /// Marks the resource as required to be scheduled on the GPU.
 #[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum Root {
-    Entity(Entity),
-    Resource(Resource),
+    Entity(EntityId),
+    Resource(ResourceId),
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, Ord, PartialEq, Eq)]
-pub struct RenderPassSpan(Entity, Entity);
+pub struct RenderPassSpan(EntityId, EntityId);
 impl RenderPassSpan {
 
-    pub fn new(one: Entity, two: Entity) -> Self {
+    pub fn new(one: EntityId, two: EntityId) -> Self {
         if one.0 < two.0 {
             RenderPassSpan(one, two)
         } else {
@@ -42,17 +48,17 @@ impl RenderPassSpan {
         }
     }
 
-    pub fn from(&self) -> Entity {
+    pub fn from(&self) -> EntityId {
         self.0
     }
 
-    pub fn to(&self) -> Entity {
+    pub fn to(&self) -> EntityId {
         self.1
     }
 
 }
-impl From<(Entity, Entity)> for RenderPassSpan {
-    fn from(other: (Entity, Entity)) -> Self {
+impl From<(EntityId, EntityId)> for RenderPassSpan {
+    fn from(other: (EntityId, EntityId)) -> Self {
         Self::new(other.0, other.1)
     }
 }
@@ -64,34 +70,34 @@ impl From<(Entity, Entity)> for RenderPassSpan {
 /// 2. There must only be one relationship between each entity and resource.
 /// 3. Dependency ordering outside of the natural entity ordering is
 ///    unrepresentable, and therefore can't exist.
-pub struct SchedulerInput<E, R> {
-    pub entity: PrimaryMap<Entity, EntityData<E>>,
-    pub resource: PrimaryMap<Resource, ResourceData<R>>,
+pub trait SchedulerInput {
+    /// Entries are primitive schedulable pieces of work on the GPU.
+    fn num_entities(&self) -> usize;
+    /// Resources are pieces of data on the GPU (typically images and buffers),
+    /// that the entities to be scheduled interact with.
+    fn num_resources(&self) -> usize;
+    /// Given a resource id, returns the usage indices for the resource.
+    /// The uses MUST occur in the same order as entity ids, that is, entity ids
+    /// start low and monotonically increase.
+    fn get_uses(&self, resource: ResourceId) -> &[ResourceUseId];
+    /// Given a resource use id, returns metadata for that resource use.
+    fn resource_use_data(&self, resource_use: ResourceUseId) -> ResourceUseData;
+    /// Fetches the set of entity pairs the scheduler should put in the same
+    /// render pass.
+    fn get_render_pass_spans(&self, out: &mut Vec<RenderPassSpan>);
+    /// An entity can be either a pass, transfer operation, or a standalone
+    /// entity.
+    fn entity_kind(&self, entity: EntityId) -> EntityKind;
 
-    pub resource_use: PrimaryMap<ResourceUse, ResourceUseData>,
+    // Sync
+    fn num_semaphores(&self) -> usize;
+    fn get_semaphore(&self, semaphore: SemaphoreId) -> SyncPoint;
+    fn has_aquire_semaphore(&self, resource: ResourceId) -> Option<()>;
 
-    pub render_pass_spans: BTreeSet<RenderPassSpan>,
-    pub roots: BTreeSet<Root>,
+    fn num_fences(&self) -> usize;
+    fn get_fence(&self, semaphore: FenceId) -> SyncPoint;
 
-    pub resource_use_set_pool: EntitySetPool<ResourceUse>,
-}
-
-impl<E, R> SchedulerInput<E, R> {
-
-    pub fn new() -> Self {
-        SchedulerInput {
-            entity: PrimaryMap::new(),
-            resource: PrimaryMap::new(),
-
-            resource_use: PrimaryMap::new(),
-
-            render_pass_spans: BTreeSet::new(),
-            roots: BTreeSet::new(),
-
-            resource_use_set_pool: EntitySetPool::new(),
-        }
-    }
-
+    fn get_sync_point(&self, sync_point: SyncPoint) -> SyncPointKind;
 }
 
 /// Defines how the entity should be scheduled.
@@ -107,19 +113,6 @@ pub enum EntityKind {
     Standalone,
 }
 
-pub struct EntityData<E> {
-    pub kind: EntityKind,
-    pub uses: EntitySet<ResourceUse>,
-
-    pub aux: E,
-}
-
-pub struct ResourceData<R> {
-    pub uses: EntitySet<ResourceUse>,
-
-    pub aux: R,
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum UseKind {
     /// Any generic usage.
@@ -128,9 +121,10 @@ pub enum UseKind {
     Attachment,
 }
 
+#[derive(Copy, Clone)]
 pub struct ResourceUseData {
-    pub entity: Entity,
-    pub resource: Resource,
+    pub entity: EntityId,
+    pub resource: ResourceId,
 
     /// If the entity writes to the resource.
     /// If this is false, the scheduler may perform reorders.
@@ -140,5 +134,24 @@ pub struct ResourceUseData {
     /// This can either be `Use` for any generic usage, or `Attachment` for
     /// usage as a framebuffer attachment.
     pub use_kind: UseKind,
+
+    pub stages: hal::pso::PipelineStage,
+
+    pub specific_use_data: SpecificResourceUseData,
 }
 
+#[derive(Copy, Clone)]
+pub enum SpecificResourceUseData {
+    Buffer {
+        state: hal::buffer::State,
+    },
+    Image {
+        state: hal::image::State,
+    },
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum SyncPointKind {
+    And(SyncPoint, SyncPoint),
+    Resource(ResourceId),
+}

@@ -3,30 +3,19 @@ use std::collections::{BTreeSet, BTreeMap};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-/// Id of the buffer in graph.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BufferId(usize);
-
-/// Id of the image (or target) in graph.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ImageId(usize);
-
-//mod macros;
-
 pub mod interface;
-//mod static_graph;
+pub use interface::{ImageId, BufferId};
 pub mod resources;
 pub mod sync;
-// -- mod graph;
 mod scheduler;
+pub use scheduler::{Scheduler, ScheduleEntry};
 pub mod builder;
-
-//mod minigraph;
 
 pub trait SchedulerTypes {
     type Semaphore;
     type Image;
     type Buffer;
+    type NodeValue;
 }
 
 pub struct EntityId;
