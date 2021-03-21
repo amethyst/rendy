@@ -43,8 +43,11 @@ relevant = { version = "0.4.2", features = ["log"] }
 serde = { version = "1.0.118", optional = true, features = ["derive"] }
 smallvec = "1.5.1"
 thread_profiler = "0.3.0"
+ordered-float = "2.1.1"
 
 cranelift-entity = "0.58"
 bumpalo = { version = "3.6.1", features = ["allocator_api"] }
 
 lazy_static = "1.4.0"
+
+dashmap = "4.0.2"

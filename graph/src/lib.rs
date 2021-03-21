@@ -22,8 +22,7 @@ use rendy_memory as memory;
 use rendy_resource as resource;
 use rendy_wsi as wsi;
 use rendy_scheduler as scheduler;
-
-mod shader;
+use rendy_shader as shader;
 
 mod graph_borrowable;
 pub use graph_borrowable::{GraphBorrow, GraphBorrowable, DynGraphBorrow};
@@ -34,7 +33,7 @@ mod parameter;
 
 pub mod node;
 
-mod engine;
+//mod engine;
 
 mod command2;
 

@@ -17,6 +17,7 @@ serde-1 = ["serde", "rendy-core/serde-1"]
 
 [dependencies]
 smallvec = "1.5.1"
+lazy_static = "1.4.0"
 log = "0.4.11"
 rendy-factory = { version = "0.5.1", path = "../factory" }
 rendy-core = { version = "0.5.1", path = "../core" }

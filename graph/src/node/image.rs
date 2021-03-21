@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use crate::factory::Factory;
 use crate::scheduler::{
     ImageId,
-    builder::ProceduralBuilder,
     resources::ImageInfo,
     interface::GraphCtx,
 };

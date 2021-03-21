@@ -10,14 +10,16 @@ use hal::window::PresentationSurface;
 use cranelift_entity::{PrimaryMap, SecondaryMap, entity_impl};
 
 use crate::scheduler::{
-    Scheduler, ScheduleEntry,
-    builder::{ProceduralBuilder},
+    Scheduler, ScheduleEntry, RenderPass,
+    procedural::ProceduralBuilder,
     interface::{GraphCtx, EntityId, SemaphoreId, ImageId},
 };
 use crate::factory::Factory;
 use crate::command::RenderPassEncoder;
 use crate::exec::ExecCtx;
 use crate::command::Queue;
+use crate::shader::{ShaderSourceSet, SpecConstantSet, ShaderId, PipelineLayoutDescr};
+use crate::command2::{Cache, ShaderSetKey, RenderPassId};
 
 use crate::parameter::{ParameterStore, Parameter};
 
@@ -52,7 +54,7 @@ pub enum Callback<B: hal::Backend, A: Allocator> {
     None,
     //Standalone(Box<dyn FnOnce(&mut dyn Any, &mut Factory<B>, &mut RenderPassEncoder<B>), A>),
     Standalone(GraphGenerationNodeId, Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>, &mut Queue<B>) + 'static, A>),
-    Pass(GraphGenerationNodeId, Box<(), A>),
+    Pass(GraphGenerationNodeId, Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>) + 'static, A>),
 }
 impl<B: hal::Backend, A: Allocator> Default for Callback<B, A> {
     fn default() -> Self {
@@ -84,6 +86,8 @@ pub struct Graph<'a, B: hal::Backend> {
 
     presents: BTreeMap<SemaphoreId, (GraphBorrow<rendy_wsi::Surface<B>>, ImageId, Box<dyn FnOnce(&mut dyn Any, Result<Option<hal::window::Suboptimal>, hal::window::PresentError>)>)>,
 
+    cache: Arc<Cache<B>>,
+
     /// A bump allocator for the current Graph generation.
     /// At the end of a generation, this will be cleared,
     /// meaning we NEED to make sure everything allocated in here
@@ -102,8 +106,13 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
             procedural: ProceduralBuilder::new(),
             nodes: PrimaryMap::new(),
             presents: BTreeMap::new(),
+            cache: Arc::new(Cache::new(factory)),
             generation_alloc: Bump::new(),
         }
+    }
+
+    pub fn cache(&self) -> &Arc<Cache<B>> {
+        &self.cache
     }
 
     pub fn construct_node<N: Node<B>>(&mut self, node: &mut GraphBorrowable<N>, argument: N::Argument) -> N::Result {
@@ -129,6 +138,13 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         self.procedural.commit(Callback::Standalone(node, Box::new(exec)));
     }
 
+    fn commit_pass<F>(&mut self, node: GraphGenerationNodeId, exec: F)
+    where
+        F: FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>) + 'static,
+    {
+        self.procedural.commit(Callback::Pass(node, Box::new(exec)));
+    }
+
     fn add_present<F>(&mut self, surface: GraphBorrow<rendy_wsi::Surface<B>>, image: ImageId, result_handler: F)
     where
         F: FnOnce(&mut dyn Any, Result<Option<hal::window::Suboptimal>, hal::window::PresentError>) + 'static,
@@ -136,6 +152,16 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         let sync_point = self.procedural.sync_point_get(image);
         let semaphore_id = self.procedural.sync_point_to_semaphore(sync_point);
         self.presents.insert(semaphore_id, (surface, image, Box::new(result_handler)));
+    }
+
+    pub fn make_shader_set(&mut self, source: ShaderSourceSet, spec_constants: SpecConstantSet) -> ShaderId {
+        let key = Arc::new(ShaderSetKey {
+            source,
+            spec_constants,
+        });
+
+        let reflection = key.source.reflect().unwrap();
+        self.cache.make_shader_set(self.factory, key, reflection)
     }
 
     pub fn schedule(&mut self, pool: &mut B::CommandPool, queue: &mut Queue<B>) {
@@ -161,20 +187,64 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
 
             let mut exec_ctx = crate::exec::ExecCtx {
                 phantom: PhantomData,
+
+                factory: self.factory,
+                cache: self.cache.clone(),
+
+                active_subpass: None,
+
+                command_buffer,
             };
 
-            match schedule_entry {
-                ScheduleEntry::General(entity_id) => {
-                    let callback_enum = self.procedural.remove_data(*entity_id).unwrap();
-                    if let Callback::Standalone(node_id, callback) = callback_enum {
-                        callback(&mut *self.nodes[node_id], &*self.factory, &mut exec_ctx, queue);
-                    } else {
-                        panic!()
-                    }
+            let entity_id = schedule_entry.entity_id();
+            let callback_enum = self.procedural.remove_data(entity_id).unwrap();
+            match (schedule_entry, callback_enum) {
+                (ScheduleEntry::General(_entity_id), Callback::Standalone(node_id, callback)) => {
+                    callback(&mut *self.nodes[node_id], &*self.factory, &mut exec_ctx, queue);
                 },
-                ScheduleEntry::PassEntity(entity_id, render_pass) => todo!(),
+                (ScheduleEntry::PassEntity(_entity_id, render_pass), Callback::Pass(node_id, callback)) => {
+                    self.make_render_pass(&scheduler, *render_pass);
+
+                    callback(&mut *self.nodes[node_id], &*self.factory, &mut exec_ctx);
+                }
+                _ => unreachable!()
             }
         }
+    }
+
+    pub fn make_render_pass(&self, scheduler: &Scheduler, render_pass: RenderPass) -> RenderPassId {
+        use crate::scheduler::input::ResourceId;
+
+        let pass_data = &scheduler.passes[render_pass];
+
+        let mut refs: BTreeMap<ResourceId, u32> = BTreeMap::new();
+        let mut attachments = Vec::new();
+        for (idx, res) in pass_data.attachments.iter(&scheduler.resource_set_pool).enumerate() {
+            let resource = &self.procedural.resources[res];
+            let kind = resource.kind.image().kind().info();
+
+            let attachment = hal::pass::Attachment {
+                format: Some(kind.format),
+                samples: 1, // TODO
+                ops: hal::pass::AttachmentOps::PRESERVE, // TODO
+                stencil_ops: hal::pass::AttachmentOps::PRESERVE, // TODO
+                layouts: hal::image::Layout::General..hal::image::Layout::General, // TODO
+            };
+
+            attachments.push(attachment);
+            refs.insert(res, idx as u32);
+        }
+
+        let subpasses: Vec<_> = pass_data
+            .entities
+            .as_slice(&scheduler.entity_list_pool)
+            .iter()
+            .map(|entity| {
+
+            })
+            .collect();
+       
+        todo!()
     }
 
     fn reset_generation(&mut self) {

@@ -25,11 +25,10 @@ use log::trace;
 use super::{
     OrderIndependentSchedule, Scheduler, EntityId, ResourceId,
     ScheduleEntry, SchedulerInput, RenderPass,
-    SpecificResourceUseData, SyncPointKind,
 };
 use crate::{
     resources::{ImageInfo, BufferInfo},
-    builder::{ResourceKind, ImageKind, BufferKind},
+    input::{SpecificResourceUseData, SyncPointKind},
     interface::{FenceId, SemaphoreId},
     sync::SyncPoint,
 };

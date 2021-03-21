@@ -3,13 +3,31 @@ use std::collections::{BTreeSet, BTreeMap};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
+/// Contains types and traits for declaring a schedule.
 pub mod interface;
 pub use interface::{ImageId, BufferId};
+
+/// Contains types and traits for the interface between the schedule builder and
+/// the scheduler implementation itself.
+pub mod input;
+
+/// Implementation of a simple procedural builder.
+///
+/// Implements the interface from the `interface` module for declaring the
+/// schedule, implements the interface from the `input` module for providing
+/// that declared schedule to the scheduler inplementation itself.
+pub mod procedural;
+
+/// Data structures for declaring information related to resources.
 pub mod resources;
-pub mod sync;
+
+/// The implementation of the scheduler algorithm itself.
+///
+/// Consumes input through the interface defined in the `input` module.
 mod scheduler;
-pub use scheduler::{Scheduler, ScheduleEntry};
-pub mod builder;
+pub use scheduler::{Scheduler, ScheduleEntry, RenderPassData, RenderPass};
+
+pub mod sync;
 
 pub trait SchedulerTypes {
     type Semaphore;

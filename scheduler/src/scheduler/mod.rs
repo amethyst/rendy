@@ -32,13 +32,10 @@ mod generate_sync;
 mod order_independent_schedule;
 use order_independent_schedule::OrderIndependentSchedule;
 
-pub mod input;
-pub use input::{
-    UseKind, EntityKind, SchedulerInput, RenderPassSpan, ResourceUseData,
-    SpecificResourceUseData, SyncPointKind,
+use crate::input::{
+    SchedulerInput, EntityId, ResourceId,
+    UseKind, ResourceUseId,
 };
-
-pub use input::{EntityId, ResourceId, ResourceUseId};
 
 //fn propagate<I: Copy + Eq + Ord>(map: &mut BTreeMap<I, I>) {
 //    let keys: Vec<_> = map.keys().cloned().collect();
@@ -103,14 +100,22 @@ pub enum ScheduleEntry {
     General(EntityId),
     PassEntity(EntityId, RenderPass),
 }
+impl ScheduleEntry {
+    pub fn entity_id(&self) -> EntityId {
+        match self {
+            ScheduleEntry::General(entity_id) => *entity_id,
+            ScheduleEntry::PassEntity(entity_id, _render_pass) => *entity_id,
+        }
+    }
+}
 
-struct RenderPassData {
-    entities: EntityList<EntityId>,
-    members: EntitySet<EntityId>,
+pub struct RenderPassData {
+    pub entities: EntityList<EntityId>,
+    pub members: EntitySet<EntityId>,
 
-    attachments: EntitySet<ResourceId>,
-    uses: EntitySet<ResourceId>,
-    writes: EntitySet<ResourceId>,
+    pub attachments: EntitySet<ResourceId>,
+    pub uses: EntitySet<ResourceId>,
+    pub writes: EntitySet<ResourceId>,
 
     for_cum: EntitySet<EntityId>,
     rev_cum: EntitySet<EntityId>,
@@ -169,7 +174,7 @@ pub struct Scheduler {
 
     // Stage 1: Render pass grouping
     active_passes: BTreeSet<RenderPass>,
-    passes: PrimaryMap<RenderPass, RenderPassData>,
+    pub passes: PrimaryMap<RenderPass, RenderPassData>,
     passes_back: SecondaryMap<EntityId, Option<RenderPass>>,
 
     // Stage 3
@@ -180,9 +185,9 @@ pub struct Scheduler {
     pub sync_strategy: generate_sync::SyncStrategy,
 
     // Pools
-    entity_list_pool: ListPool<EntityId>,
-    entity_set_pool: EntitySetPool<EntityId>,
-    resource_set_pool: EntitySetPool<ResourceId>,
+    pub entity_list_pool: ListPool<EntityId>,
+    pub entity_set_pool: EntitySetPool<EntityId>,
+    pub resource_set_pool: EntitySetPool<ResourceId>,
 
     bump: Option<Bump>,
 
@@ -301,6 +306,8 @@ impl Scheduler {
             // point. This is your scheduling order.
             trace!("==== == generate_naive_order");
             self.generate_order_naive(input);
+
+            self.promote_leftover_to_render_passes(input);
 
             trace!("Scheduled order: {:?}", self.scheduled_order);
 

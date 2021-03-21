@@ -1,16 +1,40 @@
 use std::marker::PhantomData;
+use std::sync::Arc;
+use std::ops::Range;
+
+use crate::factory::Factory;
 
 use crate::core::hal;
 use crate::resource::Image;
-use crate::scheduler::{
-    interface::{ImageToken, SemaphoreId},
-};
+use crate::scheduler::interface::{ImageToken, SemaphoreId};
+use crate::shader::ShaderId;
 
-pub struct ExecCtx<B: hal::Backend> {
-    pub(crate) phantom: PhantomData<B>,
+use crate::command2::{RenderPassId, HashableGraphicsPipelineDescr, HashablePrimitiveAssemblerDescr, CacheGraphicsPipelineTypes, Cache};
+
+use hal::command::CommandBuffer;
+
+mod graphics_pipeline;
+pub use graphics_pipeline::{GraphicsPipelineBuilder, PrimitiveAssemblerKind};
+
+#[derive(Debug, Clone)]
+pub(crate) struct SubpassData {
+    render_pass: RenderPassId,
+    subpass_idx: u8,
+    viewport: hal::pso::Viewport,
 }
 
-impl<B: hal::Backend> ExecCtx<B> {
+pub struct ExecCtx<'a, B: hal::Backend> {
+    pub(crate) phantom: PhantomData<B>,
+
+    pub(crate) factory: &'a Factory<B>,
+    pub(crate) cache: Arc<Cache<B>>,
+
+    pub(crate) active_subpass: Option<SubpassData>,
+
+    pub(crate) command_buffer: B::CommandBuffer,
+}
+
+impl<'a, B: hal::Backend> ExecCtx<'a, B> {
 
     /// Return the given semaphore to the render graphs internal pool.
     ///
@@ -52,4 +76,70 @@ impl<B: hal::Backend> ExecCtx<B> {
     pub fn fetch_semaphore(&mut self, semaphore_id: SemaphoreId) -> Option<B::Semaphore> {
         todo!()
     }
+
+    pub fn bind_graphics_pipeline(&mut self, shader_set: ShaderId, descr: GraphicsPipelineBuilder) {
+        let subpass = self.active_subpass.clone().unwrap();
+
+        let key: HashableGraphicsPipelineDescr<CacheGraphicsPipelineTypes> = HashableGraphicsPipelineDescr {
+            label: descr.label,
+
+            program: shader_set,
+            subpass: (subpass.render_pass, subpass.subpass_idx),
+
+            primitive_assembler: match descr.primitive_assembler_kind {
+                PrimitiveAssemblerKind::Vertex => HashablePrimitiveAssemblerDescr::Vertex {
+                    input_assembler: descr.input_assembler,
+                    tesselation: descr.tesselation,
+                    geometry: descr.geometry,
+                },
+                PrimitiveAssemblerKind::Mesh => HashablePrimitiveAssemblerDescr::Mesh {
+                    task: descr.task,
+                },
+            },
+            rasterizer: descr.rasterizer,
+            fragment: descr.fragment,
+            blender: descr.blender,
+            depth_stencil: descr.depth_stencil,
+            multisampling: descr.multisampling,
+            //baked_states: {
+            //    let bs = descr.baked_states;
+            //    hal::pso::BakedStates {
+            //        viewport: match bs.viewport {
+            //            MaybeInfer::None => None,
+            //            MaybeInfer::Infer => Some(subpass.viewport),
+            //            MaybeInfer::Some(viewport) => Some(viewport),
+            //        },
+            //        scissor: match bs.scissor {
+            //            MaybeInfer::None => None,
+            //            MaybeInfer::Infer => Some(subpass.viewport.rect),
+            //            MaybeInfer::Some(rect) => Some(rect),
+            //        },
+            //        blend_color: bs.blend_color,
+            //        depth_bounds: bs.depth_bounds,
+            //    }
+            //},
+        };
+
+        let graphics_pipeline_id = self.cache.make_graphics_pipeline(self.factory, key);
+
+        unsafe {
+            self.command_buffer.bind_graphics_pipeline(&self.cache.get_graphics_pipeline(graphics_pipeline_id));
+        }
+    }
+
+    pub fn bind_vertex_buffers<'b, T>(&mut self, first_index: u32, buffers: T)
+    where
+        T: Iterator<Item = (&'b B::Buffer, hal::buffer::SubRange)>,
+    {
+        unsafe {
+            self.command_buffer.bind_vertex_buffers(first_index, buffers)
+        }
+    }
+
+    pub fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>) {
+        unsafe {
+            self.command_buffer.draw(vertices, instances)
+        }
+    }
+
 }

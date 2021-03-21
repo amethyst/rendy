@@ -10,14 +10,8 @@ use cranelift_entity_set::BoundEntitySet;
 
 use rendy_core::hal;
 
-use super::super::{
-    interface::EntityId,
-    builder::{
-        ProceduralBuilder, ResourceKind,
-    },
-};
-
-use super::input::ResourceId;
+use crate::interface::EntityId;
+use crate::input::ResourceId;
 
 /// State machine for walking through resource uses on a index basis. This makes
 /// it possible for us to do a single pass over each resource to update

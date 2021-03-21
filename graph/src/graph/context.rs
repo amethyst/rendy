@@ -7,7 +7,7 @@ use crate::exec::ExecCtx;
 use crate::factory::Factory;
 use crate::command::{Queue, RenderPassEncoder};
 use crate::scheduler::{
-    builder::ProceduralBuilder,
+    procedural::ProceduralBuilder,
     interface::{
         EntityConstructionError,
         GraphCtx, EntityCtx, PassEntityCtx,
@@ -67,9 +67,11 @@ pub struct PassConstructCtx<'a, 'b, B: hal::Backend> {
     relevant: relevant::Relevant,
 }
 impl<'a, 'b, B: hal::Backend> PassConstructCtx<'a, 'b, B> {
-    pub fn commit<F: FnOnce(&mut dyn Any, &Arc<B::Device>, &mut ExecCtx<B>, &mut RenderPassEncoder<B>)>(self, _exec: F) {
-        todo!();
-        //self.inner.commit(());
+    pub fn commit<F>(self, exec: F)
+    where
+        F: FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>) + 'static,
+    {
+        self.inner.commit_pass(self.node_id, exec);
         self.relevant.dispose();
     }
 }

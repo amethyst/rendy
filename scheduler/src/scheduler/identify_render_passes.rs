@@ -3,7 +3,8 @@ use std::collections::BTreeSet;
 use cranelift_entity::{PrimaryMap, SecondaryMap, EntityList, entity_impl};
 use cranelift_entity_set::{EntitySetPool, EntitySet};
 
-use super::{Scheduler, Direction, EntityKind, EntityId, ResourceId, RenderPassData, SchedulerInput, hal};
+use super::{Scheduler, Direction, EntityId, ResourceId, RenderPassData, SchedulerInput, hal};
+use crate::input::EntityKind;
 
 impl Scheduler {
 
@@ -219,6 +220,9 @@ impl Scheduler {
             self.active_passes.insert(n_pass);
         }
 
+    }
+
+    pub(super) fn promote_leftover_to_render_passes<I: SchedulerInput>(&mut self, input: &I) {
         for entry in self.scheduled_order.iter_mut() {
             let entity_id = match entry {
                 super::ScheduleEntry::General(entity) => *entity,
@@ -269,7 +273,6 @@ impl Scheduler {
                 *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
             }
         }
-
     }
 
 }

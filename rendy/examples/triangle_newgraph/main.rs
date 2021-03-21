@@ -27,38 +27,38 @@ use rendy::{
     graph::graph::Graph,
 };
 
-#[cfg(feature = "spirv-reflection")]
-use rendy::shader::SpirvReflection;
-
-#[cfg(not(feature = "spirv-reflection"))]
+//#[cfg(feature = "spirv-reflection")]
+//use rendy::shader::SpirvReflection;
+//
+//#[cfg(not(feature = "spirv-reflection"))]
 use rendy::mesh::AsVertex;
-
-lazy_static::lazy_static! {
-    static ref VERTEX: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.vert"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
-        ShaderKind::Vertex,
-        SourceLanguage::GLSL,
-        "main",
-    ).precompile().unwrap();
-
-    static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
-        include_str!("shader.frag"),
-        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
-        ShaderKind::Fragment,
-        SourceLanguage::GLSL,
-        "main",
-    ).precompile().unwrap();
-
-    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
-        .with_vertex(&*VERTEX).unwrap()
-        .with_fragment(&*FRAGMENT).unwrap();
-}
-
-#[cfg(feature = "spirv-reflection")]
-lazy_static::lazy_static! {
-    static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
-}
+//
+//lazy_static::lazy_static! {
+//    static ref VERTEX: SpirvShader = SourceShaderInfo::new(
+//        include_str!("shader.vert"),
+//        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.vert").into(),
+//        ShaderKind::Vertex,
+//        SourceLanguage::GLSL,
+//        "main",
+//    ).precompile().unwrap();
+//
+//    static ref FRAGMENT: SpirvShader = SourceShaderInfo::new(
+//        include_str!("shader.frag"),
+//        concat!(env!("CARGO_MANIFEST_DIR"), "/examples/triangle/shader.frag").into(),
+//        ShaderKind::Fragment,
+//        SourceLanguage::GLSL,
+//        "main",
+//    ).precompile().unwrap();
+//
+//    static ref SHADERS: rendy::shader::ShaderSetBuilder = rendy::shader::ShaderSetBuilder::default()
+//        .with_vertex(&*VERTEX).unwrap()
+//        .with_fragment(&*FRAGMENT).unwrap();
+//}
+//
+//#[cfg(feature = "spirv-reflection")]
+//lazy_static::lazy_static! {
+//    static ref SHADER_REFLECTION: SpirvReflection = SHADERS.reflect().unwrap();
+//}
 
 fn run2<B: Backend>(
     event_loop: EventLoop<()>,
@@ -124,37 +124,37 @@ fn run2<B: Backend>(
     //    ).unwrap();
     //}
 
-    let render_pass = unsafe {
-        factory.device().create_render_pass(
-            [
-                Attachment {
-                    format: Some(format),
-                    samples: 1,
-                    ops: AttachmentOps {
-                        load: AttachmentLoadOp::Clear,
-                        store: AttachmentStoreOp::Store,
-                    },
-                    stencil_ops: AttachmentOps {
-                        load: AttachmentLoadOp::DontCare,
-                        store: AttachmentStoreOp::DontCare,
-                    },
-                    layouts: Layout::Undefined..Layout::Present,
-                },
-            ].iter().cloned(),
-            [
-                SubpassDesc {
-                    colors: &[
-                        (0, Layout::ColorAttachmentOptimal),
-                    ],
-                    depth_stencil: None,
-                    inputs: &[],
-                    resolves: &[],
-                    preserves: &[],
-                },
-            ].iter().cloned(),
-            None.iter().cloned(),
-            ).unwrap()
-    };
+    //let render_pass = unsafe {
+    //    factory.device().create_render_pass(
+    //        [
+    //            Attachment {
+    //                format: Some(format),
+    //                samples: 1,
+    //                ops: AttachmentOps {
+    //                    load: AttachmentLoadOp::Clear,
+    //                    store: AttachmentStoreOp::Store,
+    //                },
+    //                stencil_ops: AttachmentOps {
+    //                    load: AttachmentLoadOp::DontCare,
+    //                    store: AttachmentStoreOp::DontCare,
+    //                },
+    //                layouts: Layout::Undefined..Layout::Present,
+    //            },
+    //        ].iter().cloned(),
+    //        [
+    //            SubpassDesc {
+    //                colors: &[
+    //                    (0, Layout::ColorAttachmentOptimal),
+    //                ],
+    //                depth_stencil: None,
+    //                inputs: &[],
+    //                resolves: &[],
+    //                preserves: &[],
+    //            },
+    //        ].iter().cloned(),
+    //        None.iter().cloned(),
+    //        ).unwrap()
+    //};
 
     //let fb = unsafe {
     //    factory
@@ -171,21 +171,21 @@ fn run2<B: Backend>(
     //    .unwrap()
     //};
 
-    let pipeline_layout = unsafe {
-        factory.device().create_pipeline_layout(
-            None.iter().cloned(),
-            None.iter().cloned(),
-            ).unwrap()
-    };
+    //let pipeline_layout = unsafe {
+    //    factory.device().create_pipeline_layout(
+    //        None.iter().cloned(),
+    //        None.iter().cloned(),
+    //        ).unwrap()
+    //};
 
-    let mut shader_set = SHADERS
-        .build(&factory, Default::default())
-        .unwrap();
+    //let mut shader_set = SHADERS
+    //    .build(&factory, Default::default())
+    //    .unwrap();
 
-    #[cfg(feature = "spirv-reflection")]
-    let vbuf_size = SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 3;
+    //#[cfg(feature = "spirv-reflection")]
+    //let vbuf_size = SHADER_REFLECTION.attributes_range(..).unwrap().stride as u64 * 3;
 
-    #[cfg(not(feature = "spirv-reflection"))]
+    // TODO use reflection
     let vbuf_size = PosColor::vertex().stride as u64 * 3;
 
     let mut vbuf = factory
@@ -222,13 +222,13 @@ fn run2<B: Backend>(
             .unwrap();
     }
 
-    #[cfg(feature = "spirv-reflection")]
-    let (vert_elements, vert_stride, vert_rate) = SHADER_REFLECTION
-        .attributes_range(..)
-        .unwrap()
-        .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex);
+    //#[cfg(feature = "spirv-reflection")]
+    //let (vert_elements, vert_stride, vert_rate) = SHADER_REFLECTION
+    //    .attributes_range(..)
+    //    .unwrap()
+    //    .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex);
 
-    #[cfg(not(feature = "spirv-reflection"))]
+    //#[cfg(not(feature = "spirv-reflection"))]
     let (vert_elements, vert_stride, vert_rate) = 
         PosColor::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex);
 
@@ -239,73 +239,73 @@ fn run2<B: Backend>(
         h: surface_extent.height as i16,
     };
 
-    let graphics_pipeline = unsafe {
-        factory.device().create_graphics_pipeline(
-            &GraphicsPipelineDesc {
-                label: None,
+    //let graphics_pipeline = unsafe {
+    //    factory.device().create_graphics_pipeline(
+    //        &GraphicsPipelineDesc {
+    //            label: None,
 
-                primitive_assembler: rendy::core::hal::pso::PrimitiveAssemblerDesc::Vertex {
-                    buffers: &[
-                        VertexBufferDesc { 
-                            binding: 0, 
-                            stride: vert_stride,
-                            rate: vert_rate,
-                        },
-                    ],
-                    attributes: &vert_elements.iter().enumerate().map(|(idx, elem)| {
-                        AttributeDesc {
-                            location: idx as u32,
-                            binding: 0,
-                            element: *elem,
-                        }
-                    }).collect::<Vec<_>>(),
-                    input_assembler: rendy::core::hal::pso::InputAssemblerDesc {
-                        primitive: rendy::core::hal::pso::Primitive::TriangleList,
-                        with_adjacency: false,
-                        restart_index: None,
-                    },
-                    vertex: shader_set.raw_vertex().unwrap().unwrap(),
-                    tessellation: None,
-                    geometry: shader_set.raw_geometry().unwrap(),
-                },
-                rasterizer: rendy::core::hal::pso::Rasterizer::FILL,
-                fragment: shader_set.raw_fragment().unwrap(),
+    //            primitive_assembler: rendy::core::hal::pso::PrimitiveAssemblerDesc::Vertex {
+    //                buffers: &[
+    //                    VertexBufferDesc {
+    //                        binding: 0,
+    //                        stride: vert_stride,
+    //                        rate: vert_rate,
+    //                    },
+    //                ],
+    //                attributes: &vert_elements.iter().enumerate().map(|(idx, elem)| {
+    //                    AttributeDesc {
+    //                        location: idx as u32,
+    //                        binding: 0,
+    //                        element: *elem,
+    //                    }
+    //                }).collect::<Vec<_>>(),
+    //                input_assembler: rendy::core::hal::pso::InputAssemblerDesc {
+    //                    primitive: rendy::core::hal::pso::Primitive::TriangleList,
+    //                    with_adjacency: false,
+    //                    restart_index: None,
+    //                },
+    //                vertex: shader_set.raw_vertex().unwrap().unwrap(),
+    //                tessellation: None,
+    //                geometry: shader_set.raw_geometry().unwrap(),
+    //            },
+    //            rasterizer: rendy::core::hal::pso::Rasterizer::FILL,
+    //            fragment: shader_set.raw_fragment().unwrap(),
 
-                blender: rendy::core::hal::pso::BlendDesc {
-                    logic_op: None,
-                    targets: vec![
-                        rendy::core::hal::pso::ColorBlendDesc {
-                            mask: rendy::core::hal::pso::ColorMask::ALL,
-                            blend: None,
-                        },
-                    ],
-                },
-                depth_stencil: rendy::core::hal::pso::DepthStencilDesc {
-                    depth: None,
-                    depth_bounds: false,
-                    stencil: None,
-                },
-                multisampling: None,
-                baked_states: rendy_core::hal::pso::BakedStates {
-                    viewport: Some(rendy_core::hal::pso::Viewport {
-                        rect,
-                        depth: (0.0.into())..(1.0.into()),
-                    }),
-                    scissor: Some(rect),
-                    blend_color: None,
-                    depth_bounds: None,
-                },
-                layout: &pipeline_layout,
-                subpass: rendy_core::hal::pass::Subpass {
-                    index: 0,
-                    main_pass: &render_pass,
-                },
-                flags: rendy::core::hal::pso::PipelineCreationFlags::empty(),
-                parent: rendy::core::hal::pso::BasePipeline::None,
-            },
-            None,
-            ).unwrap()
-    };
+    //            blender: rendy::core::hal::pso::BlendDesc {
+    //                logic_op: None,
+    //                targets: vec![
+    //                    rendy::core::hal::pso::ColorBlendDesc {
+    //                        mask: rendy::core::hal::pso::ColorMask::ALL,
+    //                        blend: None,
+    //                    },
+    //                ],
+    //            },
+    //            depth_stencil: rendy::core::hal::pso::DepthStencilDesc {
+    //                depth: None,
+    //                depth_bounds: false,
+    //                stencil: None,
+    //            },
+    //            multisampling: None,
+    //            baked_states: rendy_core::hal::pso::BakedStates {
+    //                viewport: Some(rendy_core::hal::pso::Viewport {
+    //                    rect,
+    //                    depth: (0.0.into())..(1.0.into()),
+    //                }),
+    //                scissor: Some(rect),
+    //                blend_color: None,
+    //                depth_bounds: None,
+    //            },
+    //            layout: &pipeline_layout,
+    //            subpass: rendy_core::hal::pass::Subpass {
+    //                index: 0,
+    //                main_pass: &render_pass,
+    //            },
+    //            flags: rendy::core::hal::pso::PipelineCreationFlags::empty(),
+    //            parent: rendy::core::hal::pso::BasePipeline::None,
+    //        },
+    //        None,
+    //        ).unwrap()
+    //};
 
     let clears = vec![
         hal::command::ClearValue {
@@ -336,12 +336,12 @@ fn run2<B: Backend>(
 
         let mut graph = Graph::<B>::new(&factory);
 
-        let image = graph.create_image(ImageInfo {
-            kind: None,
-            levels: 1,
-            format: Format::Bgr8Unorm,
-            mode: ImageMode::DontCare { transient: false },
-        });
+        //let image = graph.create_image(ImageInfo {
+        //    kind: None,
+        //    levels: 1,
+        //    format: Format::Bgr8Unorm,
+        //    mode: ImageMode::DontCare { transient: false },
+        //});
 
         let mut com_pool = unsafe {
             factory.device().create_command_pool(
@@ -350,8 +350,14 @@ fn run2<B: Backend>(
             ).unwrap()
         };
 
+        let mut draw_triangle = GraphBorrowable::new(
+            rendy::graph::node::DrawTriangle::new(&factory, graph.cache()),
+        );
+        let image = graph.construct_node(&mut draw_triangle, ());
+
         let mut present = GraphBorrowable::new(
-            rendy::graph::node::Present::new(&factory, surface, surface_extent));
+            rendy::graph::node::Present::new(&factory, surface, surface_extent)
+        );
         graph.construct_node(&mut present, image);
 
         let family = families.family_mut(family_id);
