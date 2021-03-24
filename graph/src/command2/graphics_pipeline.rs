@@ -13,7 +13,7 @@ pub trait HashableGraphicsPipelineTypes: Debug {
 pub enum HashablePrimitiveAssemblerDescr {
     Vertex {
         input_assembler: pso::InputAssemblerDesc,
-        tesselation: bool,
+        tessellation: bool,
         geometry: bool,
     },
     Mesh {
@@ -25,7 +25,7 @@ impl Hash for HashablePrimitiveAssemblerDescr {
         match self {
             HashablePrimitiveAssemblerDescr::Vertex {
                 input_assembler,
-                tesselation,
+                tessellation,
                 geometry,
             } => {
                 state.write_u8(0);
@@ -35,7 +35,7 @@ impl Hash for HashablePrimitiveAssemblerDescr {
                     input_assembler.with_adjacency.hash(state);
                     input_assembler.restart_index.hash(state);
                 }
-                tesselation.hash(state);
+                tessellation.hash(state);
                 geometry.hash(state);
             },
             HashablePrimitiveAssemblerDescr::Mesh { task } => {

@@ -82,6 +82,7 @@ pub trait SchedulerInput {
     fn get_uses(&self, resource: ResourceId) -> &[ResourceUseId];
     /// Given a resource use id, returns metadata for that resource use.
     fn resource_use_data(&self, resource_use: ResourceUseId) -> ResourceUseData;
+    fn resource_data(&self, resource: ResourceId) -> ResourceData;
     /// Fetches the set of entity pairs the scheduler should put in the same
     /// render pass.
     fn get_render_pass_spans(&self, out: &mut Vec<RenderPassSpan>);
@@ -98,6 +99,14 @@ pub trait SchedulerInput {
     fn get_fence(&self, semaphore: FenceId) -> SyncPoint;
 
     fn get_sync_point(&self, sync_point: SyncPoint) -> SyncPointKind;
+}
+
+pub struct ResourceData {
+    /// How to handle the resource on first use.
+    pub load_op: hal::pass::AttachmentLoadOp,
+    /// Whether the image is used after the graph is done with it.
+    /// If this is false, the store op of the last use may be don't care.
+    pub used_after: bool,
 }
 
 /// Defines how the entity should be scheduled.
@@ -118,7 +127,7 @@ pub enum UseKind {
     /// Any generic usage.
     Use,
     /// Usage as a framebuffer attachment.
-    Attachment,
+    Attachment(hal::image::Layout),
 }
 
 #[derive(Copy, Clone)]
@@ -148,6 +157,14 @@ pub enum SpecificResourceUseData {
     Image {
         state: hal::image::State,
     },
+}
+impl SpecificResourceUseData {
+    pub fn image_state(&self) -> hal::image::State {
+        match self {
+            SpecificResourceUseData::Image { state } => *state,
+            _ => panic!(),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 use std::mem::MaybeUninit;
 use std::hash::{Hash, Hasher};
 use std::ops::{Index, Deref};
 
-use dashmap::{DashMap, mapref::one::Ref};
+use dashmap::{DashMap, mapref::{one::Ref, entry::Entry}};
 
 use rendy_core::hal;
 use hal::device::Device as _;
@@ -13,6 +13,9 @@ pub use graphics_pipeline::{HashableGraphicsPipelineDescr, HashableGraphicsPipel
 
 use crate::factory::Factory;
 use crate::shader::{ShaderSourceSet, SpecConstantSet, ShaderId, ShaderSet, PipelineLayoutDescr, SpirvReflection};
+
+const RENDER_PASS_ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
+const GRAPHICS_PIPELINE_ID_COUNTER: AtomicUsize = AtomicUsize::new(1);
 
 //#[derive(Debug)]
 //pub struct PipelineCache<B: hal::Backend> {
@@ -51,18 +54,18 @@ pub struct ShaderSetKey {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SubpassDescKey {
-    colors: Vec<hal::pass::AttachmentRef>,
-    depth_stencil: Option<hal::pass::AttachmentRef>,
-    inputs: Vec<hal::pass::AttachmentRef>,
-    resolves: Vec<hal::pass::AttachmentRef>,
-    preserves: Vec<hal::pass::AttachmentRef>,
+    pub colors: Vec<hal::pass::AttachmentRef>,
+    pub depth_stencil: Option<hal::pass::AttachmentRef>,
+    pub inputs: Vec<hal::pass::AttachmentRef>,
+    pub resolves: Vec<hal::pass::AttachmentRef>,
+    pub preserves: Vec<hal::pass::AttachmentId>,
 }
 
 #[derive(Debug, Clone)]
 pub struct RenderPassKey {
-    attachments: Vec<hal::pass::Attachment>,
-    subpasses: Vec<SubpassDescKey>,
-    dependencies: Vec<hal::pass::SubpassDependency>,
+    pub attachments: Vec<hal::pass::Attachment>,
+    pub subpasses: Vec<SubpassDescKey>,
+    pub dependencies: Vec<hal::pass::SubpassDependency>,
 }
 impl PartialEq for RenderPassKey {
     fn eq(&self, rhs: &Self) -> bool {
@@ -143,8 +146,8 @@ impl<B: hal::Backend> Cache<B> {
         let entity = self.shader_set_keys.entry(key.clone());
 
         match entity {
-            dashmap::mapref::entry::Entry::Occupied(occupied) => *occupied.get(),
-            dashmap::mapref::entry::Entry::Vacant(vacant) => {
+            Entry::Occupied(occupied) => *occupied.get(),
+            Entry::Vacant(vacant) => {
                 let built = key.source.build(factory, pipeline_layout, key.spec_constants.clone()).unwrap();
                 let shader_id = built.shader_id();
 
@@ -156,12 +159,140 @@ impl<B: hal::Backend> Cache<B> {
         }
     }
 
+    pub fn make_render_pass(
+        &self,
+        factory: &Factory<B>,
+        key: Arc<RenderPassKey>,
+    ) -> RenderPassId {
+        let entity = self.render_pass_keys.entry(key.clone());
+
+        match entity {
+            Entry::Occupied(occupied) => *occupied.get(),
+            Entry::Vacant(vacant) => {
+                let render_pass = unsafe {
+                    factory.device().create_render_pass(
+                        key.attachments.iter().cloned(),
+                        key.subpasses.iter().map(|subpass| {
+                            hal::pass::SubpassDesc {
+                                colors: &subpass.colors,
+                                depth_stencil: subpass.depth_stencil.as_ref(),
+                                inputs: &subpass.inputs,
+                                resolves: &subpass.resolves,
+                                preserves: &subpass.preserves,
+                            }
+                        }),
+                        key.dependencies.iter().cloned(),
+                    ).unwrap()
+                };
+
+                let render_pass_id = RenderPassId(RENDER_PASS_ID_COUNTER.fetch_add(1, Ordering::Relaxed));
+
+                self.render_passes.insert(render_pass_id, render_pass);
+                vacant.insert(render_pass_id);
+
+                render_pass_id
+            },
+        }
+    }
+
     pub fn make_graphics_pipeline(
         &self,
         factory: &Factory<B>,
-        key: HashableGraphicsPipelineDescr<CacheGraphicsPipelineTypes>
+        key: Arc<HashableGraphicsPipelineDescr<CacheGraphicsPipelineTypes>>
     ) -> GraphicsPipelineId {
-        todo!()
+        let entity = self.graphics_pipeline_keys.entry(key.clone());
+
+        match entity {
+            Entry::Occupied(occupied) => *occupied.get(),
+            Entry::Vacant(vacant) => {
+                let shader_set_val = self.shader_sets.get(&key.program).unwrap();
+                let shader_set = &shader_set_val.0;
+                let reflection = &shader_set_val.1;
+
+                let (render_pass_id, subpass_idx) = key.subpass;
+                let render_pass = self.render_passes.get(&render_pass_id).unwrap();
+
+                let (vert_elements, vert_stride, vert_rate) = reflection
+                    .attributes_range(..)
+                    .unwrap()
+                    .gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex);
+
+                let buffers = [
+                    hal::pso::VertexBufferDesc {
+                        binding: 0,
+                        stride: vert_stride,
+                        rate: vert_rate,
+                    }
+                ];
+
+                let attributes = vert_elements.iter().enumerate().map(|(idx, elem)| {
+                    hal::pso::AttributeDesc {
+                        location: idx as u32,
+                        binding: 0,
+                        element: *elem,
+                    }
+                }).collect::<Vec<_>>();
+
+                let primitive_assembler = match &key.primitive_assembler {
+                    HashablePrimitiveAssemblerDescr::Vertex { input_assembler, tessellation, geometry } => {
+                        hal::pso::PrimitiveAssemblerDesc::Vertex {
+                            // TODO multiple buffers
+                            buffers: &buffers,
+                            attributes: &attributes,
+                            input_assembler: input_assembler.clone(),
+                            vertex: shader_set.raw_vertex().unwrap().unwrap(),
+                            tessellation: if *tessellation {
+                                Some((
+                                    shader_set.raw_hull().unwrap().unwrap(),
+                                    shader_set.raw_domain().unwrap().unwrap(),
+                                ))
+                            } else {
+                                None
+                            },
+                            geometry: if *geometry {
+                                Some(shader_set.raw_geometry().unwrap().unwrap())
+                            } else {
+                                None
+                            },
+                        }
+                    },
+                    HashablePrimitiveAssemblerDescr::Mesh { .. } => todo!(),
+                };
+
+                let desc = hal::pso::GraphicsPipelineDesc {
+                    label: key.label.as_ref().map(|v| &**v),
+                    primitive_assembler,
+                    rasterizer: key.rasterizer,
+                    fragment: if key.fragment {
+                        Some(shader_set.raw_fragment().unwrap().unwrap())
+                    } else {
+                        None
+                    },
+                    blender: key.blender.clone(),
+                    depth_stencil: key.depth_stencil,
+                    multisampling: key.multisampling.clone(),
+                    baked_states: hal::pso::BakedStates::default(),
+                    layout: shader_set.pipeline_layout().raw(),
+                    subpass: hal::pass::Subpass {
+                        index: subpass_idx,
+                        main_pass: &*render_pass,
+                    },
+                    flags: hal::pso::PipelineCreationFlags::empty(),
+                    parent: hal::pso::BasePipeline::None,
+                };
+
+                let graphics_pipeline = unsafe {
+                    factory.create_graphics_pipeline(&desc, Some(&self.pipeline_cache)).unwrap()
+                };
+
+                let graphics_pipeline_id = GraphicsPipelineId(GRAPHICS_PIPELINE_ID_COUNTER.fetch_add(1, Ordering::Relaxed));
+
+                self.graphics_pipelines.insert(graphics_pipeline_id, graphics_pipeline);
+                vacant.insert(graphics_pipeline_id);
+
+                graphics_pipeline_id
+            }
+        }
     }
 
     pub fn get_graphics_pipeline(&self, id: GraphicsPipelineId) -> GraphicsPipelineRef<B> {

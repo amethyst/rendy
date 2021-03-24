@@ -18,9 +18,8 @@ pub use graphics_pipeline::{GraphicsPipelineBuilder, PrimitiveAssemblerKind};
 
 #[derive(Debug, Clone)]
 pub(crate) struct SubpassData {
-    render_pass: RenderPassId,
-    subpass_idx: u8,
-    viewport: hal::pso::Viewport,
+    pub(crate) render_pass: RenderPassId,
+    pub(crate) subpass_idx: u8,
 }
 
 pub struct ExecCtx<'a, B: hal::Backend> {
@@ -89,7 +88,7 @@ impl<'a, B: hal::Backend> ExecCtx<'a, B> {
             primitive_assembler: match descr.primitive_assembler_kind {
                 PrimitiveAssemblerKind::Vertex => HashablePrimitiveAssemblerDescr::Vertex {
                     input_assembler: descr.input_assembler,
-                    tesselation: descr.tesselation,
+                    tessellation: descr.tessellation,
                     geometry: descr.geometry,
                 },
                 PrimitiveAssemblerKind::Mesh => HashablePrimitiveAssemblerDescr::Mesh {
@@ -120,7 +119,9 @@ impl<'a, B: hal::Backend> ExecCtx<'a, B> {
             //},
         };
 
-        let graphics_pipeline_id = self.cache.make_graphics_pipeline(self.factory, key);
+        let key_arc = Arc::new(key);
+
+        let graphics_pipeline_id = self.cache.make_graphics_pipeline(self.factory, key_arc);
 
         unsafe {
             self.command_buffer.bind_graphics_pipeline(&self.cache.get_graphics_pipeline(graphics_pipeline_id));

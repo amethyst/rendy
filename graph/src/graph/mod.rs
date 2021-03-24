@@ -3,11 +3,14 @@ use std::alloc::Allocator;
 use std::sync::Arc;
 use std::any::Any;
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 
 use rendy_core::hal;
 use hal::window::PresentationSurface;
 
 use cranelift_entity::{PrimaryMap, SecondaryMap, entity_impl};
+
+use crate::SliceBuf;
 
 use crate::scheduler::{
     Scheduler, ScheduleEntry, RenderPass,
@@ -16,10 +19,10 @@ use crate::scheduler::{
 };
 use crate::factory::Factory;
 use crate::command::RenderPassEncoder;
-use crate::exec::ExecCtx;
+use crate::exec::{ExecCtx, SubpassData};
 use crate::command::Queue;
 use crate::shader::{ShaderSourceSet, SpecConstantSet, ShaderId, PipelineLayoutDescr};
-use crate::command2::{Cache, ShaderSetKey, RenderPassId};
+use crate::command2::{Cache, ShaderSetKey, RenderPassId, RenderPassKey, SubpassDescKey};
 
 use crate::parameter::{ParameterStore, Parameter};
 
@@ -174,6 +177,8 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         let mut scheduler = Scheduler::new();
         scheduler.plan(&self.procedural);
 
+        let mut cached_render_pass: Option<(RenderPass, RenderPassId)> = None;
+
         for (schedule_idx, schedule_entry) in scheduler.scheduled_order.iter().enumerate() {
             let mut command_buffer = unsafe { pool.allocate_one(hal::command::Level::Primary) };
             unsafe {
@@ -202,8 +207,17 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 (ScheduleEntry::General(_entity_id), Callback::Standalone(node_id, callback)) => {
                     callback(&mut *self.nodes[node_id], &*self.factory, &mut exec_ctx, queue);
                 },
-                (ScheduleEntry::PassEntity(_entity_id, render_pass), Callback::Pass(node_id, callback)) => {
-                    self.make_render_pass(&scheduler, *render_pass);
+                (ScheduleEntry::PassEntity(_entity_id, render_pass, subpass_idx), Callback::Pass(node_id, callback)) => {
+                    if cached_render_pass.map(|(rp, _rpid)| rp != *render_pass).unwrap_or(true)  {
+                        let render_pass_id = self.make_render_pass(&scheduler, *render_pass);
+                        cached_render_pass = Some((*render_pass, render_pass_id));
+                    }
+
+                    let render_pass_id = cached_render_pass.unwrap().1;
+                    exec_ctx.active_subpass = Some(SubpassData {
+                        render_pass: render_pass_id,
+                        subpass_idx: (*subpass_idx).try_into().unwrap(),
+                    });
 
                     callback(&mut *self.nodes[node_id], &*self.factory, &mut exec_ctx);
                 }
@@ -213,38 +227,111 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
     }
 
     pub fn make_render_pass(&self, scheduler: &Scheduler, render_pass: RenderPass) -> RenderPassId {
-        use crate::scheduler::input::ResourceId;
+        use crate::scheduler::{
+            input::{ResourceId, SchedulerInput},
+            resources::ImageMode,
+        };
 
         let pass_data = &scheduler.passes[render_pass];
 
         let mut refs: BTreeMap<ResourceId, u32> = BTreeMap::new();
         let mut attachments = Vec::new();
-        for (idx, res) in pass_data.attachments.iter(&scheduler.resource_set_pool).enumerate() {
-            let resource = &self.procedural.resources[res];
+        let mut attachment_map = BTreeMap::new();
+        for (idx, res) in pass_data.attachment_data.iter().enumerate() {
+            let resource = &self.procedural.resources[res.resource];
             let kind = resource.kind.image().kind().info();
+
+            attachment_map.insert(res.resource, (idx, false));
 
             let attachment = hal::pass::Attachment {
                 format: Some(kind.format),
                 samples: 1, // TODO
-                ops: hal::pass::AttachmentOps::PRESERVE, // TODO
-                stencil_ops: hal::pass::AttachmentOps::PRESERVE, // TODO
-                layouts: hal::image::Layout::General..hal::image::Layout::General, // TODO
+                layouts: res.layouts.clone(),
+                // TODO distinguish depth vs stencil for depth stencil buffer
+                ops: res.ops,
+                stencil_ops: res.stencil_ops,
             };
 
             attachments.push(attachment);
-            refs.insert(res, idx as u32);
+            refs.insert(res.resource, idx as u32);
         }
+
+        scheduler.debug_print_schedule_matrix();
 
         let subpasses: Vec<_> = pass_data
             .entities
             .as_slice(&scheduler.entity_list_pool)
             .iter()
             .map(|entity| {
+                let attachments = &self.procedural.get_attachments(*entity).unwrap();
 
+                let mut desc_key = SubpassDescKey {
+                    colors: Vec::new(),
+                    depth_stencil: None,
+                    inputs: Vec::new(),
+                    resolves: Vec::new(),
+                    preserves: Vec::new(),
+                };
+
+                if let Some(image_id) = attachments.depth {
+                    let usage_kind = scheduler.usage_kind(*entity, image_id.into()).unwrap().attachment_layout().unwrap();
+
+                    let (idx, prev_used) = attachment_map.get_mut(&image_id.into()).unwrap();
+                    assert!(!*prev_used);
+                    *prev_used = true;
+
+                    desc_key.depth_stencil = Some((*idx, usage_kind));
+                }
+
+                for image_id in attachments.color.iter().cloned() {
+                    let usage_kind = scheduler.usage_kind(*entity, image_id.into()).unwrap().attachment_layout().unwrap();
+
+                    let (idx, prev_used) = attachment_map.get_mut(&image_id.into()).unwrap();
+                    assert!(!*prev_used);
+                    *prev_used = true;
+
+                    desc_key.colors.push((*idx, usage_kind));
+                }
+
+                for image_id in attachments.input.iter().cloned() {
+                    let usage_kind = scheduler.usage_kind(*entity, image_id.into()).unwrap().attachment_layout().unwrap();
+
+                    let (idx, prev_used) = attachment_map.get_mut(&image_id.into()).unwrap();
+                    assert!(!*prev_used);
+                    *prev_used = true;
+
+                    desc_key.inputs.push((*idx, usage_kind));
+                }
+
+                desc_key.preserves.extend(
+                    attachment_map
+                        .values()
+                        .filter_map(|(idx, prev_used)| {
+                            if !prev_used {
+                                Some(*idx)
+                            } else {
+                                None
+                            }
+                        })
+                );
+
+                for (_idx, prev_used) in attachment_map.values_mut() {
+                    *prev_used = false;
+                }
+
+                desc_key
             })
             .collect();
-       
-        todo!()
+
+        let mut dependencies = Vec::new();
+
+        let key = Arc::new(RenderPassKey {
+            attachments,
+            subpasses,
+            dependencies,
+        });
+
+        self.cache.make_render_pass(self.factory, key)
     }
 
     fn reset_generation(&mut self) {

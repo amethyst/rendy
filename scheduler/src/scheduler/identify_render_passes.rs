@@ -3,7 +3,10 @@ use std::collections::BTreeSet;
 use cranelift_entity::{PrimaryMap, SecondaryMap, EntityList, entity_impl};
 use cranelift_entity_set::{EntitySetPool, EntitySet};
 
-use super::{Scheduler, Direction, EntityId, ResourceId, RenderPassData, SchedulerInput, hal};
+use super::{
+    Scheduler, Direction, EntityId, ResourceId, RenderPassData,
+    RenderPassAttachmentData, SchedulerInput, hal,
+};
 use crate::input::EntityKind;
 
 impl Scheduler {
@@ -156,6 +159,32 @@ impl Scheduler {
 
         }
 
+        // Find and allocate any standalone pass entities in their own render
+        // pass.
+        for entity in self.resource_schedule.entities(Direction::Forward) {
+            // If the entity is already allocated in a pass, continue.
+            if passes_back[entity].is_some() {
+                continue;
+            }
+
+            let new_pass = passes.next_key();
+            let mut new_set = EntitySet::new();
+            passes_back[entity] = Some(new_pass);
+            new_set.insert(entity, &mut set_pool);
+
+            let mut for_cum = self.for_cum_deps[entity].clone();
+            let mut rev_cum = self.rev_cum_deps[entity].clone();
+
+            let new_pass_k = passes.push(RenderPassTData {
+                entities: new_set,
+                for_cum,
+                rev_cum,
+            });
+            debug_assert!(new_pass_k == new_pass);
+
+            active_passes.insert(new_pass);
+        }
+
         // Generate real pass order and make the pass description
         span_set.clear();
         for pass in active_passes.iter() {
@@ -163,8 +192,8 @@ impl Scheduler {
 
             let mut entities = EntityList::new();
             let mut attachments = EntitySet::new();
-            let mut uses = EntitySet::new();
-            let mut writes = EntitySet::new();
+            //let mut uses = EntitySet::new();
+            //let mut writes = EntitySet::new();
 
             let mut for_cum_merge = EntitySet::new();
             let mut rev_cum_merge = EntitySet::new();
@@ -189,18 +218,68 @@ impl Scheduler {
                 for (resource, aux) in self.resource_schedule.usages_by(entity) {
                     if aux.usage_kind.is_attachment() {
                         attachments.insert(resource, &mut self.resource_set_pool);
-                    } else {
-                        uses.insert(resource, &mut self.resource_set_pool);
                     }
-                    if aux.usage_kind.is_write() {
-                        writes.insert(resource, &mut self.resource_set_pool);
-                    }
+                    //} else {
+                    //    uses.insert(resource, &mut self.resource_set_pool);
+                    //}
+                    //if aux.usage_kind.is_write() {
+                    //    writes.insert(resource, &mut self.resource_set_pool);
+                    //}
                 }
 
                 // Update cumulative sets
                 for_cum_merge.union_into(&self.for_cum_deps[entity], &mut self.entity_set_pool);
                 rev_cum_merge.union_into(&self.rev_cum_deps[entity], &mut self.entity_set_pool);
             }
+
+            let first_entity = entities.first(&self.entity_list_pool).unwrap();
+            let last_entity = *entities.as_slice(&self.entity_list_pool).last().unwrap();
+
+            let attachment_data: Vec<_> = attachments
+                .iter(&self.resource_set_pool)
+                .map(|res| {
+                    let resource_data = input.resource_data(res);
+
+                    let (first_usage_entity, first_usage_aux) = self.resource_schedule.usages_between(
+                        first_entity, last_entity, Direction::Forward, res).next().unwrap();
+                    let (last_usage_entity, last_usage_aux) = self.resource_schedule.usages_between(
+                        first_entity, last_entity, Direction::Reverse, res).next().unwrap();
+
+                    let first_use_data = input.resource_use_data(first_usage_aux.use_id);
+                    let last_use_data = input.resource_use_data(last_usage_aux.use_id);
+
+                    let first_state = first_use_data.specific_use_data.image_state();
+                    let last_state = first_use_data.specific_use_data.image_state();
+
+                    let load_op = if first_usage_aux.usage_num == 0 {
+                        resource_data.load_op
+                    } else {
+                        hal::pass::AttachmentLoadOp::Load
+                    };
+
+                    let store_op = if last_usage_aux.last_use {
+                        if resource_data.used_after {
+                            hal::pass::AttachmentStoreOp::Store
+                        } else {
+                            hal::pass::AttachmentStoreOp::DontCare
+                        }
+                    } else {
+                        hal::pass::AttachmentStoreOp::Store
+                    };
+
+                    let ops = hal::pass::AttachmentOps {
+                        load: load_op,
+                        store: store_op,
+                    };
+
+                    RenderPassAttachmentData {
+                        resource: res,
+                        layouts: first_state.1..last_state.1,
+                        ops,
+                        stencil_ops: ops,
+                    }
+                })
+                .collect();
 
             // TODO possibly add start and end cumulative dependency sets to
             // render pass data struct?
@@ -211,8 +290,9 @@ impl Scheduler {
                 members: passes[*pass].entities.make_copy_other(&set_pool, &mut self.entity_set_pool),
 
                 attachments,
-                uses,
-                writes,
+                attachment_data,
+                //uses,
+                //writes,
 
                 for_cum: for_cum_merge,
                 rev_cum: rev_cum_merge,
@@ -222,57 +302,58 @@ impl Scheduler {
 
     }
 
-    pub(super) fn promote_leftover_to_render_passes<I: SchedulerInput>(&mut self, input: &I) {
-        for entry in self.scheduled_order.iter_mut() {
-            let entity_id = match entry {
-                super::ScheduleEntry::General(entity) => *entity,
-                _ => unreachable!(),
-            };
+    //pub(super) fn promote_leftover_to_render_passes<I: SchedulerInput>(&mut self, input: &I) {
+    //    for entry in self.scheduled_order.iter_mut() {
+    //        let entity_id = match entry {
+    //            super::ScheduleEntry::General(entity) => *entity,
+    //            _ => unreachable!(),
+    //        };
 
-            if let Some(pass) = self.passes_back[entity_id] {
-                *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
-            } else if input.entity_kind(entity_id) == EntityKind::Pass {
-                // Allocate in its own standalone pass.
+    //        if let Some(pass) = self.passes_back[entity_id] {
+    //            *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
+    //        } else if input.entity_kind(entity_id) == EntityKind::Pass {
+    //            // Allocate in its own standalone pass.
 
-                let mut attachments = EntitySet::new();
-                let mut uses = EntitySet::new();
-                let mut writes = EntitySet::new();
+    //            let mut attachments = EntitySet::new();
+    //            //let mut uses = EntitySet::new();
+    //            //let mut writes = EntitySet::new();
 
-                for (resource, aux) in self.resource_schedule.usages_by(entity_id) {
-                    if aux.usage_kind.is_attachment() {
-                        attachments.insert(resource, &mut self.resource_set_pool);
-                    } else {
-                        uses.insert(resource, &mut self.resource_set_pool);
-                    }
-                    if aux.usage_kind.is_write() {
-                        writes.insert(resource, &mut self.resource_set_pool);
-                    }
-                }
+    //            for (resource, aux) in self.resource_schedule.usages_by(entity_id) {
+    //                if aux.usage_kind.is_attachment() {
+    //                    attachments.insert(resource, &mut self.resource_set_pool);
+    //                }
+    //                //} else {
+    //                //    uses.insert(resource, &mut self.resource_set_pool);
+    //                //}
+    //                //if aux.usage_kind.is_write() {
+    //                //    writes.insert(resource, &mut self.resource_set_pool);
+    //                //}
+    //            }
 
-                let pass = self.passes.push(RenderPassData {
-                    entities: {
-                        let mut list = EntityList::new();
-                        list.push(entity_id, &mut self.entity_list_pool);
-                        list
-                    },
-                    members: {
-                        let mut set = EntitySet::new();
-                        set.insert(entity_id, &mut self.entity_set_pool);
-                        set
-                    },
+    //            let pass = self.passes.push(RenderPassData {
+    //                entities: {
+    //                    let mut list = EntityList::new();
+    //                    list.push(entity_id, &mut self.entity_list_pool);
+    //                    list
+    //                },
+    //                members: {
+    //                    let mut set = EntitySet::new();
+    //                    set.insert(entity_id, &mut self.entity_set_pool);
+    //                    set
+    //                },
 
-                    attachments,
-                    uses,
-                    writes,
+    //                attachments,
+    //                //uses,
+    //                //writes,
 
-                    for_cum: self.for_cum_deps[entity_id].clone(),
-                    rev_cum: self.rev_cum_deps[entity_id].clone(),
-                });
+    //                for_cum: self.for_cum_deps[entity_id].clone(),
+    //                rev_cum: self.rev_cum_deps[entity_id].clone(),
+    //            });
 
-                self.passes_back[entity_id] = Some(pass);
-                *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
-            }
-        }
-    }
+    //            self.passes_back[entity_id] = Some(pass);
+    //            *entry = super::ScheduleEntry::PassEntity(entity_id, pass);
+    //        }
+    //    }
+    //}
 
 }

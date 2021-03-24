@@ -26,6 +26,8 @@ use rendy_shader as shader;
 
 mod graph_borrowable;
 pub use graph_borrowable::{GraphBorrow, GraphBorrowable, DynGraphBorrow};
+mod slice_buf;
+pub use slice_buf::SliceBuf;
 
 //mod builder;
 mod exec;

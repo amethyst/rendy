@@ -252,6 +252,10 @@ impl<B: Backend> ShaderSet<B> {
         self.get_raw(ShaderStage::Task)
     }
 
+    pub fn pipeline_layout(&self) -> &PipelineLayout<B> {
+        &self.pipeline_layout
+    }
+
     /// Must be called to perform a drop of the Backend ShaderModule object otherwise the shader will never be destroyed in memory.
     pub fn dispose(&mut self, factory: &rendy_factory::Factory<B>) {
         for (_, shader) in self.shaders.iter_mut() {
@@ -336,6 +340,11 @@ impl PipelineLayoutDescr {
 pub struct PipelineLayout<B: Backend> {
     set_layouts: Vec<B::DescriptorSetLayout>,
     pipeline_layout: B::PipelineLayout,
+}
+impl<B: Backend> PipelineLayout<B> {
+    pub fn raw(&self) -> &B::PipelineLayout {
+        &self.pipeline_layout
+    }
 }
 
 /// Struct which contains the source for a set of shaders for a pipeline.

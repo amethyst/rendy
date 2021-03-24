@@ -10,7 +10,7 @@
 use std::ops::Range;
 use std::collections::BTreeMap;
 
-use cranelift_entity::{SecondaryMap, entity_impl, EntityList, EntityRef};
+use cranelift_entity::{PrimaryMap, SecondaryMap, ListPool, entity_impl, EntityList, EntityRef};
 use cranelift_entity_set::EntitySet;
 
 use rendy_core::hal;
@@ -33,173 +33,154 @@ use crate::{
     sync::SyncPoint,
 };
 
-//#[derive(Clone)]
-//enum ResourceInfo {
-//    None,
-//    Image(ImageInfo),
-//    Buffer(BufferInfo),
-//}
-//impl Default for ResourceInfo {
-//    fn default() -> Self {
-//        ResourceInfo::None
-//    }
-//}
+#[derive(Debug, Clone)]
+pub struct LocalAbstr {
+    pub resource: ResourceId,
+    pub entities: Range<Option<EntityId>>,
+    /// The indices in the scheduled order this sync is between.
+    pub sync_indices: Range<usize>,
+}
+impl LocalAbstr {
 
-mod new_sync {
-    use cranelift_entity::{PrimaryMap, SecondaryMap, ListPool, EntityList, entity_impl};
-    use super::{hal, Range, ResourceId, EntityId, SemaphoreId, FenceId};
-
-    #[derive(Debug, Clone)]
-    pub struct LocalAbstr {
-        pub resource: ResourceId,
-        pub entities: Range<Option<EntityId>>,
-        /// The indices in the scheduled order this sync is between.
-        pub sync_indices: Range<usize>,
-    }
-    impl LocalAbstr {
-
-        pub fn beyond_start(&self) -> bool {
-            self.entities.start.is_none()
-        }
-
-        pub fn beyond_end(&self) -> bool {
-            self.entities.end.is_none()
-        }
-
-        pub fn is_split(&self) -> bool {
-            self.sync_indices.start != self.sync_indices.end
-        }
-
-        pub fn starts_at(&self, slot_idx: usize) -> bool {
-            self.sync_indices.start == slot_idx
-        }
-
+    pub fn beyond_start(&self) -> bool {
+        self.entities.start.is_none()
     }
 
-    #[derive(Debug, Clone)]
-    pub enum BarrierKind {
-        Execution,
-        Buffer {
-            states: Range<hal::buffer::State>,
-            target: ResourceId,
-            range: hal::buffer::SubRange,
-            families: Option<Range<hal::queue::family::QueueFamilyId>>,
-        },
-        Image {
-            states: Range<hal::image::State>,
-            target: ResourceId,
-            range: hal::image::SubresourceRange,
-            families: Option<Range<hal::queue::family::QueueFamilyId>>,
-        },
+    pub fn beyond_end(&self) -> bool {
+        self.entities.end.is_none()
     }
 
-    #[derive(Debug, Copy, Clone)]
-    pub enum BarrierOp {
-        /// A full, normal barrier.
-        Barrier,
-
-        /// First half of split barrier, set event.
-        SetEvent,
-        /// Second half of split barrier, wait event.
-        WaitEvent,
+    pub fn is_split(&self) -> bool {
+        self.sync_indices.start != self.sync_indices.end
     }
 
-    #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-    pub struct BarrierId(u32);
-    entity_impl!(BarrierId);
-
-    #[derive(Debug, Clone)]
-    pub struct BarrierData {
-        /// Unique ID per barrier in generated sync.
-        /// For normal barriers, this is unique.
-        /// For splut barriers, this is the same for set and wait.
-        pub id: BarrierId,
-
-        /// The two entities this barrier applies between.
-        pub entities: Range<Option<EntityId>>,
-        /// Which mask of pipeline stages the dependency is between.
-        pub stages: Range<hal::pso::PipelineStage>,
-
-        /// What resource the barrier applies to.
-        pub kind: BarrierKind,
-        /// What kind of barrier this is.
-        /// It can either be a full barrier, or one element of a split
-        /// barrier.
-        pub op: BarrierOp,
-    }
-
-    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-    pub struct LocalAbstrId(u32);
-    entity_impl!(LocalAbstrId);
-
-    pub enum ExternalWait {
-        Semaphore {
-
-        },
-    } 
-
-    #[derive(Debug, Copy, Clone)]
-    pub enum ExternalSignal {
-        Semaphore(SemaphoreId),
-        Fence(FenceId),
-    }
-
-    pub struct SyncSlot {
-        pub local_abstr: EntityList<LocalAbstrId>,
-        /// The range in the `barriers` array of `SyncStrategy` represented by
-        /// this sync slot.
-        pub barrier_range: Option<Range<usize>>,
-
-        pub external_waits: Vec<ExternalWait>,
-        pub external_signal: Vec<ExternalSignal>,
-    }
-
-    pub struct SyncStrategy {
-        /// Vector with N+1 entries, where N is the number of entities in the
-        /// graph.
-        ///
-        /// The slots are interspersed between the entities, as follows:
-        /// <sync slot #0> <entity #0> <sync slot #1> <entity #1> <sync slot #2>
-        pub slots: Vec<SyncSlot>,
-        pub entity_to_slot_map: SecondaryMap<EntityId, Option<usize>>,
-
-        pub last_usages: SecondaryMap<ResourceId, Option<EntityId>>,
-
-        pub local_abstrs: PrimaryMap<LocalAbstrId, LocalAbstr>,
-        pub local_abstr_pool: ListPool<LocalAbstrId>,
-
-        pub barriers: Vec<BarrierData>,
-        pub barrier_ids: PrimaryMap<BarrierId, ()>,
-    }
-
-    impl Default for SyncStrategy {
-        fn default() -> Self {
-            SyncStrategy {
-                slots: Vec::new(),
-                entity_to_slot_map: SecondaryMap::new(),
-                last_usages: SecondaryMap::new(),
-                local_abstrs: PrimaryMap::new(),
-                local_abstr_pool: ListPool::new(),
-                barriers: Vec::new(),
-                barrier_ids: PrimaryMap::new(),
-            }
-        }
-    }
-
-    impl SyncStrategy {
-        pub fn clear(&mut self) {
-            self.slots.clear();
-            self.entity_to_slot_map.clear();
-            self.last_usages.clear();
-            self.local_abstrs.clear();
-            self.local_abstr_pool.clear();
-            self.barriers.clear();
-            self.barrier_ids.clear();
-        }
+    pub fn starts_at(&self, slot_idx: usize) -> bool {
+        self.sync_indices.start == slot_idx
     }
 
 }
-pub use new_sync::*;
+
+#[derive(Debug, Clone)]
+pub enum BarrierKind {
+    Execution,
+    Buffer {
+        states: Range<hal::buffer::State>,
+        target: ResourceId,
+        range: hal::buffer::SubRange,
+        families: Option<Range<hal::queue::family::QueueFamilyId>>,
+    },
+    Image {
+        states: Range<hal::image::State>,
+        target: ResourceId,
+        range: hal::image::SubresourceRange,
+        families: Option<Range<hal::queue::family::QueueFamilyId>>,
+    },
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum BarrierOp {
+    /// A full, normal barrier.
+    Barrier,
+
+    /// First half of split barrier, set event.
+    SetEvent,
+    /// Second half of split barrier, wait event.
+    WaitEvent,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct BarrierId(u32);
+entity_impl!(BarrierId);
+
+#[derive(Debug, Clone)]
+pub struct BarrierData {
+    /// Unique ID per barrier in generated sync.
+    /// For normal barriers, this is unique.
+    /// For splut barriers, this is the same for set and wait.
+    pub id: BarrierId,
+
+    /// The two entities this barrier applies between.
+    pub entities: Range<Option<EntityId>>,
+    /// Which mask of pipeline stages the dependency is between.
+    pub stages: Range<hal::pso::PipelineStage>,
+
+    /// What resource the barrier applies to.
+    pub kind: BarrierKind,
+    /// What kind of barrier this is.
+    /// It can either be a full barrier, or one element of a split
+    /// barrier.
+    pub op: BarrierOp,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LocalAbstrId(u32);
+entity_impl!(LocalAbstrId);
+
+pub enum ExternalWait {
+    Semaphore {
+
+    },
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ExternalSignal {
+    Semaphore(SemaphoreId),
+    Fence(FenceId),
+}
+
+pub struct SyncSlot {
+    pub local_abstr: EntityList<LocalAbstrId>,
+    /// The range in the `barriers` array of `SyncStrategy` represented by
+    /// this sync slot.
+    pub barrier_range: Option<Range<usize>>,
+
+    pub external_waits: Vec<ExternalWait>,
+    pub external_signal: Vec<ExternalSignal>,
+}
+
+pub struct SyncStrategy {
+    /// Vector with N+1 entries, where N is the number of entities in the
+    /// graph.
+    ///
+    /// The slots are interspersed between the entities, as follows:
+    /// <sync slot #0> <entity #0> <sync slot #1> <entity #1> <sync slot #2>
+    pub slots: Vec<SyncSlot>,
+    pub entity_to_slot_map: SecondaryMap<EntityId, Option<usize>>,
+
+    pub last_usages: SecondaryMap<ResourceId, Option<EntityId>>,
+
+    pub local_abstrs: PrimaryMap<LocalAbstrId, LocalAbstr>,
+    pub local_abstr_pool: ListPool<LocalAbstrId>,
+
+    pub barriers: Vec<BarrierData>,
+    pub barrier_ids: PrimaryMap<BarrierId, ()>,
+}
+
+impl Default for SyncStrategy {
+    fn default() -> Self {
+        SyncStrategy {
+            slots: Vec::new(),
+            entity_to_slot_map: SecondaryMap::new(),
+            last_usages: SecondaryMap::new(),
+            local_abstrs: PrimaryMap::new(),
+            local_abstr_pool: ListPool::new(),
+            barriers: Vec::new(),
+            barrier_ids: PrimaryMap::new(),
+        }
+    }
+}
+
+impl SyncStrategy {
+    pub fn clear(&mut self) {
+        self.slots.clear();
+        self.entity_to_slot_map.clear();
+        self.last_usages.clear();
+        self.local_abstrs.clear();
+        self.local_abstr_pool.clear();
+        self.barriers.clear();
+        self.barrier_ids.clear();
+    }
+}
 
 impl Scheduler {
 
@@ -429,7 +410,7 @@ impl Scheduler {
                 ScheduleEntry::General(ent) => {
                     entity = ent;
                 },
-                ScheduleEntry::PassEntity(ent, pass) => {
+                ScheduleEntry::PassEntity(ent, pass, _subpass_idx) => {
                     let _pass = &self.passes[pass];
                     entity = ent;
                 },

@@ -145,6 +145,13 @@ impl<A> ResourceUseState<A> {
         }
     }
 
+    pub fn try_aux(&self) -> Option<&A> {
+        match self {
+            ResourceUseState::Current { aux, .. } => Some(aux),
+            _ => None,
+        }
+    }
+
 }
 
 /// Row number in matrix
@@ -507,6 +514,10 @@ where
         *self.idx(entity, resource).aux()
     }
 
+    pub fn try_aux(&self, entity: R::Input, resource: C::Input) -> Option<A> {
+        self.idx(entity, resource).try_aux().cloned()
+    }
+
     /// Iterates all usages of a resource between two entities (inclusive).
     pub(crate) fn usages_between<'a>(&'a self, from: R::Input, to: R::Input, dir: Direction, resource: C::Input) -> impl Iterator<Item = (R::Input, A)> + 'a {
         let from_i = self.row_to_raw(from);
@@ -546,7 +557,7 @@ where
     pub(crate) fn entities_between<'a>(&'a self, from: R::Input, to: R::Input, dir: Direction) -> impl Iterator<Item = R::Input> + 'a {
         let from_i = self.row_to_raw(from);
         let to_i = self.row_to_raw(to);
-        assert!(dir.cmp(&from_i.0, &to_i.0) == Ordering::Less);
+        assert!(dir.cmp(&from_i.0, &to_i.0) != Ordering::Greater);
 
         let rev = from_i.0 > to_i.0;
 

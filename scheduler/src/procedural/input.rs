@@ -7,7 +7,8 @@ use cranelift_entity::{EntityRef, PrimaryMap, EntityList};
 use crate::{
     SchedulerTypes,
     input,
-    interface::{EntityId, SemaphoreId, FenceId},
+    interface::{EntityId, SemaphoreId, FenceId, ImageId},
+    resources::ImageMode,
 };
 use super::{
     ProceduralBuilder, ResourceKind, ImageUsageKind, EntityKind,
@@ -83,16 +84,17 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
 
                     for use_data in data.uses.iter() {
                         let entity_id = EntityId::new(use_data.by.index());
+                        let layout = use_data.usage.layout;
                         let (use_kind, is_write) = match use_data.kind {
                             ImageUsageKind::InputAttachment(_) => {
                                 assert!(!use_data.usage.is_write());
-                                (UseKind::Attachment, false)
+                                (UseKind::Attachment(layout), false)
                             },
                             ImageUsageKind::DepthAttachment => {
-                                (UseKind::Attachment, true)
+                                (UseKind::Attachment(layout), true)
                             },
                             ImageUsageKind::Attachment(_) => {
-                                (UseKind::Attachment, true)
+                                (UseKind::Attachment(layout), true)
                             },
                             ImageUsageKind::Use => {
                                 (UseKind::Use, use_data.usage.is_write())
@@ -134,6 +136,27 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
                 },
             }
         }
+
+        for (entity_id, entity_data) in self.entities.iter_mut() {
+            if let Some(attachments) = &mut entity_data.attachments {
+                let map_img = |img: ImageId| -> ImageId {
+                    resolved
+                        .get(&img.into())
+                        .map(|v| (*v).into())
+                        .unwrap_or(img)
+                };
+
+                if let Some(depth) = &mut attachments.depth {
+                    *depth = map_img(*depth);
+                }
+                for color in attachments.color.iter_mut() {
+                    *color = map_img(*color);
+                }
+                for input in attachments.input.iter_mut() {
+                    *input = map_img(*input);
+                }
+            }
+        }
     }
 
 }
@@ -151,6 +174,21 @@ impl<T: SchedulerTypes> input::SchedulerInput for ProceduralBuilder<T> {
     }
     fn resource_use_data(&self, resource_use: input::ResourceUseId) -> input::ResourceUseData {
         self.resource_uses[resource_use]
+    }
+    fn resource_data(&self, resource_id: input::ResourceId) -> input::ResourceData {
+        let resource = &self.resources[resource_id];
+        let image_info = resource.kind.image().kind().info();
+
+        let load_op = match image_info.mode {
+            ImageMode::Retain { .. } => todo!(),
+            ImageMode::DontCare { .. } => hal::pass::AttachmentLoadOp::DontCare,
+            ImageMode::Clear { .. } => hal::pass::AttachmentLoadOp::Clear,
+        };
+
+        input::ResourceData {
+            load_op,
+            used_after: true,
+        }
     }
     fn get_render_pass_spans(&self, out: &mut Vec<input::RenderPassSpan>) {
         out.clear();

@@ -33,7 +33,7 @@ pub struct GraphicsPipelineBuilder {
     // Primitive assembler
     pub primitive_assembler_kind: PrimitiveAssemblerKind,
     pub input_assembler: pso::InputAssemblerDesc,
-    pub tesselation: bool,
+    pub tessellation: bool,
     pub geometry: bool,
     pub task: bool,
 
@@ -62,7 +62,7 @@ impl Default for GraphicsPipelineBuilder {
                 with_adjacency: false,
                 restart_index: None,
             },
-            tesselation: false,
+            tessellation: false,
             geometry: false,
             task: false,
 
@@ -105,7 +105,7 @@ impl GraphicsPipelineBuilder {
     /// ## Shaders
     /// This requires a vertex shader to be present.
     ///
-    /// Tesselation shaders (hull, domain) and/or a geometry shader may
+    /// Tessellation shaders (hull, domain) and/or a geometry shader may
     /// optionally also be present.
     pub fn with_vertex_assembler(mut self) -> Self {
         self.primitive_assembler_kind = PrimitiveAssemblerKind::Vertex;
@@ -141,12 +141,12 @@ impl GraphicsPipelineBuilder {
         self
     }
 
-    /// For the vertex assembler mode, tesselation may be enabled.
+    /// For the vertex assembler mode, tessellation may be enabled.
     ///
-    /// If tesselation is enabled, hull and domain shaders are required to be
+    /// If tessellation is enabled, hull and domain shaders are required to be
     /// present in the input shader set.
-    pub fn with_assembler_tesselation(mut self, enable: bool) -> Self {
-        self.tesselation = enable;
+    pub fn with_assembler_tessellation(mut self, enable: bool) -> Self {
+        self.tessellation = enable;
         self
     }
 

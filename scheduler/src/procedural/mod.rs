@@ -195,18 +195,18 @@ pub(crate) enum EntityKind {
 pub(crate) struct Entity<T: SchedulerTypes> {
     pub(crate) kind: EntityKind,
 
-    pub(crate) images: Vec<ImageToken>,
-    pub(crate) buffers: Vec<BufferToken>,
+    //pub(crate) images: Vec<ImageToken>,
+    //pub(crate) buffers: Vec<BufferToken>,
 
     pub(crate) attachments: Option<Attachments>,
 
     pub(crate) node_data: Option<T::NodeValue>,
 }
 
-pub(crate) struct Attachments {
-    pub(crate) depth: Option<ImageToken>,
-    pub(crate) color: Vec<ImageToken>,
-    pub(crate) input: Vec<ImageToken>,
+pub struct Attachments {
+    pub depth: Option<ImageId>,
+    pub color: Vec<ImageId>,
+    pub input: Vec<ImageId>,
 }
 
 
@@ -248,6 +248,11 @@ pub(crate) struct VirtualData {
 pub struct Resource<T: SchedulerTypes> {
     pub kind: ResourceKind<T>,
     processed_uses: EntityList<ResourceUseId>,
+}
+impl<T: SchedulerTypes> Resource<T> {
+    pub fn uses<'a>(&'a self, proc: &'a ProceduralBuilder<T>) -> &'a [ResourceUseId] {
+        self.processed_uses.as_slice(&proc.resource_use_list_pool)
+    }
 }
 
 pub enum ResourceKind<T: SchedulerTypes> {
@@ -359,6 +364,14 @@ pub struct ProceduralBuilder<T: SchedulerTypes> {
 
 impl<T: SchedulerTypes> ProceduralBuilder<T> {
 
+    pub fn get_attachments(&self, entity_id: EntityId) -> Option<&Attachments> {
+        self.entities[entity_id].attachments.as_ref()
+    }
+
+}
+
+impl<T: SchedulerTypes> ProceduralBuilder<T> {
+
     pub fn new() -> Self {
         Self {
             resources: PrimaryMap::new(),
@@ -392,8 +405,8 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
         self.build_status = BuildKind::Pass;
         self.curr_entity = Some(Entity {
             kind: EntityKind::Pass,
-            images: Vec::new(),
-            buffers: Vec::new(),
+            //images: Vec::new(),
+            //buffers: Vec::new(),
             attachments: Some(Attachments {
                 depth: None,
                 color: Vec::new(),
@@ -409,8 +422,8 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
         self.build_status = BuildKind::Standalone;
         self.curr_entity = Some(Entity {
             kind: EntityKind::Standalone,
-            images: Vec::new(),
-            buffers: Vec::new(),
+            //images: Vec::new(),
+            //buffers: Vec::new(),
             attachments: None,
             node_data: None,
         });
@@ -664,7 +677,7 @@ impl<T: SchedulerTypes> EntityCtx<T> for ProceduralBuilder<T> {
             kind: ImageUsageKind::Use,
             by: entity_id,
         });
-        self.curr_entity.as_mut().unwrap().images.push(tok_id);
+        //self.curr_entity.as_mut().unwrap().images.push(tok_id);
         Ok(tok_id)
     }
 
@@ -679,7 +692,7 @@ impl<T: SchedulerTypes> EntityCtx<T> for ProceduralBuilder<T> {
             usage,
             by: entity_id,
         });
-        self.curr_entity.as_mut().unwrap().buffers.push(tok_id);
+        //self.curr_entity.as_mut().unwrap().buffers.push(tok_id);
         Ok(tok_id)
     }
 
@@ -718,8 +731,8 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
             by: entity_id,
         });
 
-        self.curr_entity.as_mut().unwrap().images.push(tok_id);
-        self.curr_entity.as_mut().unwrap().attachments.as_mut().unwrap().color.push(tok_id);
+        //self.curr_entity.as_mut().unwrap().images.push(tok_id);
+        self.curr_entity.as_mut().unwrap().attachments.as_mut().unwrap().color.push(tok_id.0);
 
         Ok(())
     }
@@ -755,9 +768,9 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
             by: entity_id,
         });
 
-        self.curr_entity.as_mut().unwrap().images.push(tok_id);
+        //self.curr_entity.as_mut().unwrap().images.push(tok_id);
 
-        let mut ntid = Some(tok_id);
+        let mut ntid = Some(tok_id.0);
         std::mem::swap(&mut self.curr_entity.as_mut().unwrap().attachments.as_mut().unwrap().depth, &mut ntid);
         assert!(ntid.is_none());
 
@@ -784,8 +797,8 @@ impl<T: SchedulerTypes> PassEntityCtx<T> for ProceduralBuilder<T> {
             by: entity_id,
         });
 
-        self.curr_entity.as_mut().unwrap().images.push(tok_id);
-        self.curr_entity.as_mut().unwrap().attachments.as_mut().unwrap().input.push(tok_id);
+        //self.curr_entity.as_mut().unwrap().images.push(tok_id);
+        self.curr_entity.as_mut().unwrap().attachments.as_mut().unwrap().input.push(tok_id.0);
 
         Ok(())
     }

@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryInto;
+use std::ops::Range;
 
-use log::{trace};
+use log::trace;
 
 use cranelift_entity::{PrimaryMap, SecondaryMap, ListPool, EntityList, EntityRef, entity_impl};
 use cranelift_entity_set::{EntitySet, EntitySetPool};
@@ -98,15 +99,22 @@ pub enum SubpassStrategy {
 #[derive(Debug)]
 pub enum ScheduleEntry {
     General(EntityId),
-    PassEntity(EntityId, RenderPass),
+    PassEntity(EntityId, RenderPass, usize),
 }
 impl ScheduleEntry {
     pub fn entity_id(&self) -> EntityId {
         match self {
             ScheduleEntry::General(entity_id) => *entity_id,
-            ScheduleEntry::PassEntity(entity_id, _render_pass) => *entity_id,
+            ScheduleEntry::PassEntity(entity_id, _render_pass, _subpass_idx) => *entity_id,
         }
     }
+}
+
+pub struct RenderPassAttachmentData {
+    pub resource: ResourceId,
+    pub layouts: Range<hal::image::Layout>,
+    pub ops: hal::pass::AttachmentOps,
+    pub stencil_ops: hal::pass::AttachmentOps,
 }
 
 pub struct RenderPassData {
@@ -114,8 +122,9 @@ pub struct RenderPassData {
     pub members: EntitySet<EntityId>,
 
     pub attachments: EntitySet<ResourceId>,
-    pub uses: EntitySet<ResourceId>,
-    pub writes: EntitySet<ResourceId>,
+    pub attachment_data: Vec<RenderPassAttachmentData>,
+    //pub uses: EntitySet<ResourceId>,
+    //pub writes: EntitySet<ResourceId>,
 
     for_cum: EntitySet<EntityId>,
     rev_cum: EntitySet<EntityId>,
@@ -123,27 +132,35 @@ pub struct RenderPassData {
 
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
-pub(crate) enum UsageKind {
-    Attachment,
-    InputAttachment,
+pub enum UsageKind {
+    Attachment(hal::image::Layout),
+    InputAttachment(hal::image::Layout),
     Descriptor,
     ReadDescriptor,
 }
 impl UsageKind {
     fn is_attachment(&self) -> bool {
         match self {
-            UsageKind::Attachment => true,
-            UsageKind::InputAttachment => true,
+            UsageKind::Attachment(_) => true,
+            UsageKind::InputAttachment(_) => true,
             UsageKind::Descriptor => false,
             UsageKind::ReadDescriptor => false,
         }
     }
     fn is_write(&self) -> bool {
         match self {
-            UsageKind::Attachment => true,
-            UsageKind::InputAttachment => false,
+            UsageKind::Attachment(_) => true,
+            UsageKind::InputAttachment(_) => false,
             UsageKind::Descriptor => true,
             UsageKind::ReadDescriptor => false,
+        }
+    }
+    pub fn attachment_layout(&self) -> Option<hal::image::Layout> {
+        match self {
+            UsageKind::Attachment(attachment) => Some(*attachment),
+            UsageKind::InputAttachment(attachment) => Some(*attachment),
+            UsageKind::Descriptor => None,
+            UsageKind::ReadDescriptor => None,
         }
     }
 }
@@ -151,6 +168,7 @@ impl UsageKind {
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ScheduleAux {
     usage_num: u16,
+    last_use: bool,
     usage_kind: UsageKind,
     use_id: ResourceUseId,
 }
@@ -160,7 +178,7 @@ pub(crate) struct ScheduleAux {
 ///
 pub struct Scheduler {
     //resource_aliases: BTreeMap<Resource, Resource>,
-    resource_schedule: NaturalScheduleMatrix<EntityId, ResourceId, ScheduleAux>,
+     resource_schedule: NaturalScheduleMatrix<EntityId, ResourceId, ScheduleAux>,
 
     // For every entity in the graph, this contains the set of other entities
     // that are strictly required to be scheduled before or after respectively,
@@ -190,7 +208,6 @@ pub struct Scheduler {
     pub resource_set_pool: EntitySetPool<ResourceId>,
 
     bump: Option<Bump>,
-
 }
 
 impl Scheduler {
@@ -218,6 +235,14 @@ impl Scheduler {
 
             bump: Some(Bump::new()),
         }
+    }
+
+    pub fn usage_kind(&self, entity: EntityId, resource: ResourceId) -> Option<UsageKind> {
+        self.resource_schedule.try_aux(entity, resource).map(|v| v.usage_kind)
+    }
+
+    pub fn debug_print_schedule_matrix(&self) {
+        println!("{:?}", self.resource_schedule);
     }
 
     pub fn plan<I: SchedulerInput>(&mut self/*, strategy: &SchedulerStrategy*/, input: &I) {
@@ -307,7 +332,7 @@ impl Scheduler {
             trace!("==== == generate_naive_order");
             self.generate_order_naive(input);
 
-            self.promote_leftover_to_render_passes(input);
+            //self.promote_leftover_to_render_passes(input);
 
             trace!("Scheduled order: {:?}", self.scheduled_order);
 
@@ -340,18 +365,19 @@ impl Scheduler {
                 res_uses
                     .iter()
                    .enumerate()
-                   .map(|(idx, res_use)| {
+                   .map(move |(idx, res_use)| {
                        let use_data = input.resource_use_data(*res_use);
                        let usage_kind = match (use_data.is_write, use_data.use_kind) {
                            (true, UseKind::Use) => UsageKind::Descriptor,
                            (false, UseKind::Use) => UsageKind::ReadDescriptor,
-                           (true, UseKind::Attachment) => UsageKind::Attachment,
-                           (false, UseKind::Attachment) => UsageKind::InputAttachment,
+                           (true, UseKind::Attachment(layout)) => UsageKind::Attachment(layout),
+                           (false, UseKind::Attachment(layout)) => UsageKind::InputAttachment(layout),
                        };
                        (
                            use_data.entity,
                            ScheduleAux {
                                usage_num: idx.try_into().unwrap(),
+                               last_use: idx == res_uses.len() - 1,
                                usage_kind,
                                use_id: *res_use,
                            },
@@ -498,8 +524,8 @@ impl Scheduler {
                 }
 
 
-                for entity in pass.entities.as_slice(&entity_list_pool) {
-                    scheduled_order.push(ScheduleEntry::PassEntity(*entity, pass_id));
+                for (pass_idx, entity) in pass.entities.as_slice(&entity_list_pool).iter().enumerate() {
+                    scheduled_order.push(ScheduleEntry::PassEntity(*entity, pass_id, pass_idx));
 
                     scheduled_mask.insert(*entity, entity_set_pool);
                     overdue.remove(*entity, entity_set_pool);

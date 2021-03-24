@@ -12,7 +12,10 @@ impl<T, A: Allocator + Clone> Drop for GraphBorrowable<T, A> {
     fn drop(&mut self) {
         {
             let meta = unsafe { &*self.meta };
-            assert!(!meta.borrowed_by_graph);
+            assert!(
+                !meta.borrowed_by_graph,
+                "cannot drop GraphBorrowable while a borrow is active!"
+            );
         }
 
         unsafe {
