@@ -175,9 +175,9 @@ impl<T: SchedulerTypes> input::SchedulerInput for ProceduralBuilder<T> {
     fn resource_use_data(&self, resource_use: input::ResourceUseId) -> input::ResourceUseData {
         self.resource_uses[resource_use]
     }
-    fn resource_data(&self, resource_id: input::ResourceId) -> input::ResourceData {
+    fn image_data(&self, resource_id: input::ResourceId) -> input::ImageData {
         let resource = &self.resources[resource_id];
-        let image_info = resource.kind.image().kind().info();
+        let image_info = resource.kind.image_ref().unwrap().info;
 
         let load_op = match image_info.mode {
             ImageMode::Retain { .. } => todo!(),
@@ -185,9 +185,10 @@ impl<T: SchedulerTypes> input::SchedulerInput for ProceduralBuilder<T> {
             ImageMode::Clear { .. } => hal::pass::AttachmentLoadOp::Clear,
         };
 
-        input::ResourceData {
+        input::ImageData {
             load_op,
             used_after: true,
+            kind: image_info.kind,
         }
     }
     fn get_render_pass_spans(&self, out: &mut Vec<input::RenderPassSpan>) {

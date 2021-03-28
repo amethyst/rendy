@@ -28,7 +28,10 @@ use resource_schedule::{NaturalScheduleMatrix, Direction, NaturalIndexMapping};
 
 mod identify_render_passes;
 
+mod infer_parameters;
+
 mod generate_sync;
+pub use generate_sync::ExternalSignal;
 
 mod order_independent_schedule;
 use order_independent_schedule::OrderIndependentSchedule;
@@ -120,6 +123,8 @@ pub struct RenderPassAttachmentData {
 pub struct RenderPassData {
     pub entities: EntityList<EntityId>,
     pub members: EntitySet<EntityId>,
+
+    pub extent: Option<hal::image::Extent>,
 
     pub attachments: EntitySet<ResourceId>,
     pub attachment_data: Vec<RenderPassAttachmentData>,
@@ -245,6 +250,10 @@ impl Scheduler {
         println!("{:?}", self.resource_schedule);
     }
 
+    pub fn iter_live_resources<'a>(&'a self) -> impl Iterator<Item = ResourceId> + 'a {
+        self.resource_schedule.live_resources()
+    }
+
     pub fn plan<I: SchedulerInput>(&mut self/*, strategy: &SchedulerStrategy*/, input: &I) {
         trace!("==== Scheduler plan start");
         let bump = self.bump.take().unwrap();
@@ -272,6 +281,10 @@ impl Scheduler {
             // ==== Step 1: Identify render passes
             trace!("==== == identify_render_passes");
             self.identify_render_passes(input);
+
+            // Once we know about render passes, we can infer parameters for the
+            // graph. This includes image parameters, render pass extents.
+            self.infer_parameters(input);
 
             // ==== Step 2: Allocate queues
             // TODO: Right now everything is scheduled on one single queue.

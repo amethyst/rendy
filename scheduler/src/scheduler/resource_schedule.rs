@@ -152,6 +152,15 @@ impl<A> ResourceUseState<A> {
         }
     }
 
+    pub fn has_any(&self) -> bool {
+        match self {
+            ResourceUseState::Alias => false,
+            ResourceUseState::Current { .. } => true,
+            ResourceUseState::Between { prev, next } =>
+                prev.is_some() || next.is_some(),
+        }
+    }
+
 }
 
 /// Row number in matrix
@@ -578,6 +587,25 @@ where
     /// Iterates all resources
     pub(crate) fn resources<'a>(&'a self) -> impl Iterator<Item = C::Input> + DoubleEndedIterator + 'a {
         (0..self.col_size).map(move |n| self.col.from_raw(n))
+    }
+
+    pub(crate) fn live_resources<'a>(&'a self) -> impl Iterator<Item = C::Input> + DoubleEndedIterator + 'a {
+        // We want this to work even when there are no rows,
+        // truncate to zero when there are no rows.
+        let trunc_col_size = if self.row_size == 0 {
+            0
+        } else {
+            self.col_size
+        };
+
+        (0..trunc_col_size)
+            .filter_map(move |r| {
+                if self.ridx(RawRow(0), RawCol(r)).has_any() {
+                    Some(self.col.from_raw(r))
+                } else {
+                    None
+                }
+            })
     }
 
     pub (crate) fn iter_in_order_btreeset<'a>(&'a self, items: &'a BTreeSet<R::Input>) -> impl Iterator<Item = R::Input> + 'a

@@ -17,7 +17,7 @@ use cranelift_entity::entity_impl;
 
 use rendy_core::hal;
 
-pub use crate::SchedulerTypes;
+pub use crate::{SchedulerTypes, input::ResourceId};
 
 use crate::{
     //Parameter, DynamicParameter,
@@ -243,6 +243,10 @@ pub trait GraphCtx<T: SchedulerTypes>: Sized {
     /// Marks the given entity or resource as a root, indicating to the graph
     /// that it and its dependencies are required to be scheduled for running.
     fn mark_root<R: Into<Root>>(&mut self, root: R);
+
+    /// Marks the given resource as dead after this point.
+    /// This means that it may not be used again.
+    fn mark_dead(&mut self, resource: impl Into<ResourceId>);
 
     /// Creates a new virtual resource
     fn create_virtual(&mut self) -> VirtualId;

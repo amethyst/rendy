@@ -257,16 +257,24 @@ impl Scheduler {
         input: &I,
     ) {
         let num_semaphores = input.num_semaphores();
-        for semaphore_n in (0..num_semaphores) {
+        for semaphore_n in 0..num_semaphores {
             let semaphore_id = SemaphoreId::new(semaphore_n);
             let root_sync_point = input.get_semaphore(semaphore_id);
 
             fn foo<I: SchedulerInput>(sync_point: SyncPoint, input: &I, sync: &mut SyncStrategy) -> usize {
                 let kind = input.get_sync_point(sync_point);
                 match kind {
-                    SyncPointKind::Resource(resource) => {
-                        let entity = sync.last_usages[resource].unwrap();
+                    SyncPointKind::Resource(resource, use_idx) => {
+                        // The point in the schedule is specified by a resource use idx.
+                        // Get the ResourceUseId of that index.
+                        let use_id = input.get_uses(resource)[use_idx];
+
+                        // Get the entity referenced by that ResourceUseId
+                        let entity = input.resource_use_data(use_id).entity;
+
+                        // The entity has a slot in the sync list.
                         let slot_idx = sync.entity_to_slot_map[entity].unwrap() + 1;
+
                         slot_idx
                     },
                     SyncPointKind::And(s1, s2) => {
@@ -305,7 +313,7 @@ impl Scheduler {
                             let start_aux = self.resource_schedule.aux(start, abstr.resource);
                             let start_use = input.resource_use_data(start_aux.use_id);
 
-                            let end_aux = self.resource_schedule.aux(start, abstr.resource);
+                            let end_aux = self.resource_schedule.aux(end, abstr.resource);
                             let end_use = input.resource_use_data(end_aux.use_id);
 
                             let kind = match (&start_use.specific_use_data, &end_use.specific_use_data) {
@@ -353,7 +361,11 @@ impl Scheduler {
 
                             barrier_map.insert((abstr.resource, abstr.sync_indices.end), data);
                         },
-                        Range { start: None, end: Some(end) } => {},
+                        Range { start: None, end: Some(end) } => {
+                            let end_aux = self.resource_schedule.aux(end, abstr.resource);
+                            let end_use = input.resource_use_data(end_aux.use_id);
+
+                        },
                         Range { start: Some(start), end: None } => {},
                         Range { start: None, end: None } => unreachable!(),
                     }

@@ -295,12 +295,28 @@ impl<B: hal::Backend> Cache<B> {
         }
     }
 
+    pub fn get_render_pass(&self, id: RenderPassId) -> RenderPassRef<B> {
+        RenderPassRef {
+            reference: self.render_passes.get(&id).unwrap(),
+        }
+    }
+
     pub fn get_graphics_pipeline(&self, id: GraphicsPipelineId) -> GraphicsPipelineRef<B> {
         GraphicsPipelineRef {
             reference: self.graphics_pipelines.get(&id).unwrap(),
         }
     }
 
+}
+
+pub struct RenderPassRef<'a, B: hal::Backend> {
+    reference: Ref<'a, RenderPassId, B::RenderPass>,
+}
+impl<'a, B: hal::Backend> Deref for RenderPassRef<'a, B> {
+    type Target = B::RenderPass;
+    fn deref(&self) -> &B::RenderPass {
+        &*self.reference
+    }
 }
 
 pub struct GraphicsPipelineRef<'a, B: hal::Backend> {

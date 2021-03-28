@@ -136,7 +136,7 @@ impl<B: hal::Backend> Node<B> for Present<B> {
                     self.swapchain_config.image_layers,
                     1,
                 )),
-                levels: 0,
+                levels: 1,
                 format: self.framebuffer_attachment.format,
                 mode: ImageMode::DontCare {
                     transient: false,
@@ -159,7 +159,7 @@ impl<B: hal::Backend> Node<B> for Present<B> {
 
         // Perform a present.
         ctx.present(self.surface.take_borrow(), target_image_id, |node, result| {
-            todo!()
+            println!("TODO handle present result {:?}", result);
         });
 
         Ok(())

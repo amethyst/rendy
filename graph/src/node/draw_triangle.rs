@@ -110,7 +110,7 @@ impl<B: hal::Backend> Node<B> for DrawTriangle<B> {
         let image = ctx.create_image(ImageInfo {
             kind: None,
             levels: 1,
-            format: hal::format::Format::Bgr8Srgb,
+            format: hal::format::Format::Bgra8Srgb,
             mode: ImageMode::Clear {
                 transient: false,
                 clear: hal::command::ClearValue::default(),

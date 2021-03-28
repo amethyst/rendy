@@ -167,6 +167,11 @@ impl Scheduler {
                 continue;
             }
 
+            // If the entity is not a subpass, continue.
+            if input.entity_kind(entity) != EntityKind::Pass {
+                continue;
+            }
+
             let new_pass = passes.next_key();
             let mut new_set = EntitySet::new();
             passes_back[entity] = Some(new_pass);
@@ -238,7 +243,7 @@ impl Scheduler {
             let attachment_data: Vec<_> = attachments
                 .iter(&self.resource_set_pool)
                 .map(|res| {
-                    let resource_data = input.resource_data(res);
+                    let resource_data = input.image_data(res);
 
                     let (first_usage_entity, first_usage_aux) = self.resource_schedule.usages_between(
                         first_entity, last_entity, Direction::Forward, res).next().unwrap();
@@ -288,6 +293,8 @@ impl Scheduler {
             self.passes.push(RenderPassData {
                 entities,
                 members: passes[*pass].entities.make_copy_other(&set_pool, &mut self.entity_set_pool),
+
+                extent: None,
 
                 attachments,
                 attachment_data,

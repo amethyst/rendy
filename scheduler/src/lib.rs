@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 
 /// Contains types and traits for declaring a schedule.
 pub mod interface;
-pub use interface::{ImageId, BufferId};
+pub use interface::{ImageId, BufferId, EntityId};
 
 /// Contains types and traits for the interface between the schedule builder and
 /// the scheduler implementation itself.
@@ -25,9 +25,11 @@ pub mod resources;
 ///
 /// Consumes input through the interface defined in the `input` module.
 mod scheduler;
-pub use scheduler::{Scheduler, ScheduleEntry, RenderPassData, RenderPass};
+pub use scheduler::{Scheduler, ScheduleEntry, RenderPassData, RenderPass, ExternalSignal};
 
 pub mod sync;
+
+pub mod schedule_iterator;
 
 pub trait SchedulerTypes {
     type Semaphore;
@@ -35,8 +37,6 @@ pub trait SchedulerTypes {
     type Buffer;
     type NodeValue;
 }
-
-pub struct EntityId;
 
 enum IterEither<A, B> {
     A(A),

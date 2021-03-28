@@ -16,6 +16,7 @@ use crate::scheduler::{
         VirtualUsage,
         ProvidedImageUsage, ProvidedBufferUsage,
     },
+    input::ResourceId,
 };
 
 macro_rules! forward_entity_ctx_functions {
@@ -54,6 +55,10 @@ macro_rules! forward_graph_ctx_functions {
             self.$($field_name).+.mark_root(root)
         }
         #[inline(always)]
+        fn mark_dead(&mut self, resource: impl Into<ResourceId>) {
+            self.$($field_name).+.mark_dead(resource)
+        }
+        #[inline(always)]
         fn create_virtual(&mut self) -> VirtualId {
             self.$($field_name).+.create_virtual()
         }
@@ -68,6 +73,7 @@ macro_rules! forward_graph_ctx_functions {
             image: impl Into<GraphImage<B>>,
             acquire: Option<B::Semaphore>,
             provided_image_usage: Option<ProvidedImageUsage>,
+
         ) -> ImageId {
             self.$($field_name).+.provide_image(image_info, image, acquire, provided_image_usage)
         }

@@ -57,7 +57,7 @@ impl<'a, 'b, B: hal::Backend> GraphConstructCtx<'a, 'b, B> {
     where
         F: FnOnce(&mut dyn Any, Result<Option<hal::window::Suboptimal>, hal::window::PresentError>) + 'static,
     {
-        self.inner.add_present(surface, image, result_handler)
+        self.inner.add_present(surface, self.node_id, image, result_handler)
     }
 }
 

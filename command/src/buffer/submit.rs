@@ -63,6 +63,27 @@ pub unsafe trait Submittable<B: rendy_core::hal::Backend, L = PrimaryLevel, P = 
     unsafe fn raw<'a>(self) -> &'a B::CommandBuffer;
 }
 
+/// Wrapper that enables you to unsafely submit a raw `B::CommandBuffer`.
+#[derive(Debug)]
+pub struct RawSubmittable<'a, B: rendy_core::hal::Backend>(FamilyId, &'a B::CommandBuffer);
+impl<'a, B: rendy_core::hal::Backend> RawSubmittable<'a, B> {
+    /// Creates a new raw submittable.
+    ///
+    /// The caller is required to make sure the guarantees provided by the `Submittable` trait is enforced.
+    pub unsafe fn new(family: FamilyId, command_buffer: &'a B::CommandBuffer) -> Self {
+        RawSubmittable(family, command_buffer)
+    }
+}
+unsafe impl<'a, B: rendy_core::hal::Backend> Submittable<B> for RawSubmittable<'a, B> {
+    fn family(&self) -> FamilyId {
+        self.0
+    }
+    unsafe fn raw<'b>(self) -> &'b B::CommandBuffer {
+        let ptr: *const B::CommandBuffer = self.1;
+        &*ptr
+    }
+}
+
 unsafe impl<B, S, L, P> Submittable<B, L, P> for Submit<B, S, L, P>
 where
     B: rendy_core::hal::Backend,
