@@ -201,48 +201,10 @@ fn run2<B: Backend>(
     println!("families: {:?}", families);
 
     let family_id = families.with_capability::<Graphics>().unwrap();
-    let queue_idx: usize = 0;
-    println!("selected family: {:?}", family_id);
-
     assert!(factory.surface_support(family_id, &surface));
-
-    let caps = factory.get_surface_capabilities(&surface);
-    let formats = factory.get_surface_formats(&surface);
-
-    let present_mode = match () {
-        _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
-        _ if caps.present_modes.contains(PresentMode::MAILBOX) => PresentMode::MAILBOX,
-        _ if caps.present_modes.contains(PresentMode::RELAXED) => PresentMode::RELAXED,
-        _ if caps.present_modes.contains(PresentMode::IMMEDIATE) => PresentMode::IMMEDIATE,
-        _ => panic!("No known present modes found"),
-    };
-
-    let img_count_caps = caps.image_count.clone();
-    let image_count = 3.min(*img_count_caps.end()).max(*img_count_caps.start());
-
-    let format = formats.map_or(Format::Rgba8Srgb, |formats| {
-        formats
-            .iter()
-            .find(|format| format.base_format().1 == ChannelType::Srgb)
-            .map(|format| *format)
-            .unwrap_or(formats[0])
-    });
 
     let (vert_elements, vert_stride, vert_rate) =
         PosColor::vertex().gfx_vertex_input_desc(hal::pso::VertexInputRate::Vertex);
-
-    let rect = rendy_core::hal::pso::Rect {
-        x: 0,
-        y: 0,
-        w: surface_extent.width as i16,
-        h: surface_extent.height as i16,
-    };
-
-    let clears = vec![hal::command::ClearValue {
-        color: hal::command::ClearColor {
-            float32: [1.0, 1.0, 1.0, 1.0],
-        },
-    }];
 
     let mut frames = rendy_graph::Frames::new(family_id.into());
     let mut graph = Graph::<B>::new(&factory);
