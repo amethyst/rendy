@@ -73,6 +73,17 @@ impl<T: SchedulerTypes> ImageSource<T> {
             _ => false,
         }
     }
+    pub fn initial_usage(&self) -> (hal::image::Access, hal::image::Layout) {
+        let res = match self {
+            ImageSource::Provided { provided_image_usage: Some(usage), .. } =>
+                Some((usage.last_access, usage.layout)),
+            _ => None,
+        };
+        res.unwrap_or((
+            hal::image::Access::empty(),
+            hal::image::Layout::Undefined,
+        ))
+    }
 }
 
 pub(crate) enum ImageUsageKind {
@@ -326,5 +337,19 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
             build_status: BuildKind::None,
             curr_entity: None,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.resources.clear();
+        self.entities.clear();
+        self.resource_uses.clear();
+        self.resource_use_list_pool.clear();
+        self.sync_points.clear();
+        self.exported_fences.clear();
+        self.exported_semaphores.clear();
+        self.roots.clear();
+        self.render_pass_spans.clear();
+        self.build_status = BuildKind::None;
+        self.curr_entity = None;
     }
 }

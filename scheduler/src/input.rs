@@ -82,7 +82,7 @@ pub trait SchedulerInput {
     fn get_uses(&self, resource: ResourceId) -> &[ResourceUseId];
     /// Given a resource use id, returns metadata for that resource use.
     fn resource_use_data(&self, resource_use: ResourceUseId) -> ResourceUseData;
-    fn image_data(&self, resource: ResourceId) -> ImageData;
+    fn resource_data(&self, resource: ResourceId) -> ResourceData;
     /// Fetches the set of entity pairs the scheduler should put in the same
     /// render pass.
     fn get_render_pass_spans(&self, out: &mut Vec<RenderPassSpan>);
@@ -108,6 +108,23 @@ pub struct ImageData {
     /// If this is false, the store op of the last use may be don't care.
     pub used_after: bool,
     pub kind: Option<hal::image::Kind>,
+    pub format: hal::format::Format,
+    pub usage: (hal::image::Access, hal::image::Layout),
+}
+
+pub struct BufferData {}
+
+pub enum ResourceData {
+    Image(ImageData),
+    Buffer(BufferData),
+}
+impl ResourceData {
+    pub fn image(self) -> ImageData {
+        match self {
+            ResourceData::Image(image) => image,
+            _ => panic!(),
+        }
+    }
 }
 
 /// Defines how the entity should be scheduled.

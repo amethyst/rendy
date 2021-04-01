@@ -243,7 +243,7 @@ impl Scheduler {
             let attachment_data: Vec<_> = attachments
                 .iter(&self.resource_set_pool)
                 .map(|res| {
-                    let resource_data = input.image_data(res);
+                    let resource_data = input.resource_data(res).image();
 
                     let (first_usage_entity, first_usage_aux) = self.resource_schedule.usages_between(
                         first_entity, last_entity, Direction::Forward, res).next().unwrap();

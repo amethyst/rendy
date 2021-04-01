@@ -28,10 +28,26 @@ use super::{
 };
 use crate::{
     resources::{ImageInfo, BufferInfo},
-    input::{SpecificResourceUseData, SyncPointKind},
+    input::{SpecificResourceUseData, SyncPointKind, ResourceData},
     interface::{FenceId, SemaphoreId},
     sync::SyncPoint,
 };
+
+fn full_subresource_range(format: hal::format::Format) -> hal::image::SubresourceRange {
+    hal::image::SubresourceRange {
+        aspects: format.surface_desc().aspects,
+        level_start: 0,
+        level_count: None,
+        layer_start: 0,
+        layer_count: None,
+    }
+}
+
+fn clamp_accesses(stages: &Range<hal::pso::PipelineStage>, states: Range<hal::image::State>) -> Range<hal::image::State> {
+    let start_access = crate::spec::filter_image_access_for_pipeline_stages(stages.start, states.start.0);
+    let end_access = crate::spec::filter_image_access_for_pipeline_stages(stages.end, states.end.0);
+    (start_access, states.start.1)..(end_access, states.end.1)
+}
 
 #[derive(Debug, Clone)]
 pub struct LocalAbstr {
@@ -302,6 +318,7 @@ impl Scheduler {
 
             for abstr_id in abstr_ids.iter() {
                 let abstr = &self.sync_strategy.local_abstrs[*abstr_id];
+                let resource_data = input.resource_data(abstr.resource);
 
                 if abstr.starts_at(slot_idx) {
                     // If the abstr sync starts at the current slot, we need to
@@ -315,6 +332,8 @@ impl Scheduler {
 
                             let end_aux = self.resource_schedule.aux(end, abstr.resource);
                             let end_use = input.resource_use_data(end_aux.use_id);
+
+                            let stages = start_use.stages..end_use.stages;
 
                             let kind = match (&start_use.specific_use_data, &end_use.specific_use_data) {
                                 (
@@ -332,10 +351,13 @@ impl Scheduler {
                                     SpecificResourceUseData::Image { state: start_state },
                                     SpecificResourceUseData::Image { state: end_state }
                                 ) => {
+                                    let image_data = resource_data.image();
+                                    let states = clamp_accesses(&stages, (*start_state)..(*end_state));
+
                                     BarrierKind::Image {
-                                        states: (*start_state)..(*end_state),
+                                        states,
                                         target: abstr.resource,
-                                        range: hal::image::SubresourceRange::default(),
+                                        range: full_subresource_range(image_data.format),
                                         families: None,
                                     }
                                 },
@@ -352,7 +374,7 @@ impl Scheduler {
                             let data = BarrierData {
                                 id: self.sync_strategy.barrier_ids.push(()),
                                 entities: abstr.entities.clone(),
-                                stages: start_use.stages..end_use.stages,
+                                stages,
                                 kind,
                                 op,
                             };
@@ -365,6 +387,43 @@ impl Scheduler {
                             let end_aux = self.resource_schedule.aux(end, abstr.resource);
                             let end_use = input.resource_use_data(end_aux.use_id);
 
+                            let start_stage = hal::pso::PipelineStage::BOTTOM_OF_PIPE;
+                            let end_stage = end_use.stages;
+                            let stages = start_stage..end_stage;
+
+                            let kind = match (resource_data, &end_use.specific_use_data) {
+                                (
+                                    ResourceData::Buffer(buffer),
+                                    SpecificResourceUseData::Buffer { state: end_state }
+                                ) => {
+                                    panic!()
+                                },
+                                (
+                                    ResourceData::Image(image_data),
+                                    SpecificResourceUseData::Image { state: end_state }
+                                ) => {
+                                    let states = clamp_accesses(&stages, image_data.usage..(*end_state));
+                                    BarrierKind::Image {
+                                        states,
+                                        target: abstr.resource,
+                                        range: full_subresource_range(image_data.format),
+                                        families: None,
+                                    }
+                                },
+                                _ => unreachable!(),
+                            };
+
+                            let data = BarrierData {
+                                id: self.sync_strategy.barrier_ids.push(()),
+                                entities: abstr.entities.clone(),
+                                stages,
+                                kind,
+                                op: BarrierOp::Barrier,
+                            };
+
+                            self.sync_strategy.barriers.push(data.clone());
+
+                            barrier_map.insert((abstr.resource, abstr.sync_indices.end), data);
                         },
                         Range { start: Some(start), end: None } => {},
                         Range { start: None, end: None } => unreachable!(),

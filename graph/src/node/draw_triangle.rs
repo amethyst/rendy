@@ -126,11 +126,24 @@ impl<B: hal::Backend> Node<B> for DrawTriangle<B> {
         pass.commit(move |node, factory, exec_ctx| {
             exec_ctx.bind_graphics_pipeline(
                 shader_id,
-                GraphicsPipelineBuilder::default(),
+                GraphicsPipelineBuilder::default()
+                    .add_blend_desc(hal::pso::ColorMask::all(), None),
             );
 
             let vbuf_raw = vbuf.raw();
             exec_ctx.bind_vertex_buffers(0, std::iter::once((vbuf_raw, hal::buffer::SubRange::WHOLE)));
+
+            let rect = hal::pso::Rect {
+                x: 0,
+                y: 0,
+                w: 500,
+                h: 500,
+            };
+            exec_ctx.set_viewports(0, std::iter::once(hal::pso::Viewport {
+                rect,
+                depth: 0.0..1.0,
+            }));
+            exec_ctx.set_scissors(0, std::iter::once(rect));
 
             exec_ctx.draw(0..3, 0..1);
         });

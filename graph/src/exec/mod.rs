@@ -143,4 +143,24 @@ impl<'a, B: hal::Backend> ExecCtx<'a, B> {
         }
     }
 
+    // TODO validation
+    pub fn set_viewports<I>(&mut self, first_viewport: u32, viewports: I)
+    where
+        I: Iterator<Item = hal::pso::Viewport>,
+    {
+        unsafe {
+            self.command_buffer.set_viewports(first_viewport, viewports);
+        }
+    }
+
+    // TODO validation
+    pub fn set_scissors<I>(&mut self, first_scissor: u32, rects: I)
+    where
+        I: Iterator<Item = hal::pso::Rect>,
+    {
+        unsafe {
+            self.command_buffer.set_scissors(first_scissor, rects);
+        }
+    }
+
 }

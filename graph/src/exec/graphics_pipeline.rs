@@ -161,6 +161,14 @@ impl GraphicsPipelineBuilder {
         self
     }
 
+    pub fn add_blend_desc(mut self, mask: hal::pso::ColorMask, blend: Option<hal::pso::BlendState>) -> Self {
+        self.blender.targets.push(hal::pso::ColorBlendDesc {
+            mask,
+            blend,
+        });
+        self
+    }
+
 }
 
 impl GraphicsPipelineBuilder {

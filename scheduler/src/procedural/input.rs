@@ -175,20 +175,31 @@ impl<T: SchedulerTypes> input::SchedulerInput for ProceduralBuilder<T> {
     fn resource_use_data(&self, resource_use: input::ResourceUseId) -> input::ResourceUseData {
         self.resource_uses[resource_use]
     }
-    fn image_data(&self, resource_id: input::ResourceId) -> input::ImageData {
+    fn resource_data(&self, resource_id: input::ResourceId) -> input::ResourceData {
         let resource = &self.resources[resource_id];
-        let image_info = resource.kind.image_ref().unwrap().info;
+        match &resource.kind {
+            ResourceKind::Image(image) => {
+                let info = image.info;
 
-        let load_op = match image_info.mode {
-            ImageMode::Retain { .. } => todo!(),
-            ImageMode::DontCare { .. } => hal::pass::AttachmentLoadOp::DontCare,
-            ImageMode::Clear { .. } => hal::pass::AttachmentLoadOp::Clear,
-        };
+                let load_op = match info.mode {
+                    ImageMode::Retain { .. } => todo!(),
+                    ImageMode::DontCare { .. } => hal::pass::AttachmentLoadOp::DontCare,
+                    ImageMode::Clear { .. } => hal::pass::AttachmentLoadOp::Clear,
+                };
 
-        input::ImageData {
-            load_op,
-            used_after: true,
-            kind: image_info.kind,
+                let data = input::ImageData {
+                    load_op,
+                    used_after: true,
+                    kind: info.kind,
+                    format: info.format,
+                    usage: image.source.initial_usage(),
+                };
+                input::ResourceData::Image(data)
+            },
+            ResourceKind::Buffer(buffer) => {
+                todo!()
+            },
+            _ => unreachable!(),
         }
     }
     fn get_render_pass_spans(&self, out: &mut Vec<input::RenderPassSpan>) {

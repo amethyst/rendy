@@ -112,10 +112,16 @@ impl<T> Drop for GraphBorrow<T> {
 
 impl<T: 'static> GraphBorrow<T> {
     pub fn into_any(self) -> DynGraphBorrow {
-        DynGraphBorrow {
+        let ret = DynGraphBorrow {
             meta: self.meta,
             inner: self.inner,
-        }
+        };
+
+        // We do not want to run the destructor since that would
+        // return the borrow.
+        std::mem::forget(self);
+
+        ret
     }
 }
 
@@ -156,4 +162,22 @@ impl DerefMut for DynGraphBorrow {
 
 struct Meta {
     borrowed_by_graph: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn graph_borrowable() {
+        let mut a = GraphBorrowable::new(1);
+
+        {
+            let mut ab = a.take_borrow();
+            *ab = 2;
+        }
+
+        *a.borrow_mut() = 3;
+    }
+
 }

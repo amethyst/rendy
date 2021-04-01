@@ -13,11 +13,11 @@
 //    unused_qualifications
 //)]
 
-use rendy_chain as chain;
+//use rendy_chain as chain;
 use rendy_command as command;
 use rendy_core as core;
 use rendy_factory as factory;
-use rendy_frame as frame;
+//use rendy_frame as frame;
 use rendy_memory as memory;
 use rendy_resource as resource;
 use rendy_wsi as wsi;
@@ -31,6 +31,8 @@ pub use slice_buf::SliceBuf;
 
 //mod builder;
 mod exec;
+pub use exec::GraphicsPipelineBuilder;
+
 mod parameter;
 
 pub mod node;
@@ -38,15 +40,19 @@ pub mod node;
 //mod engine;
 
 mod command2;
+pub use command2::{Cache, ShaderSetKey};
 
 pub mod graph;
-pub use graph::Node;
+pub use graph::{Node, GraphConstructCtx};
+
+mod frame;
+pub use frame::{Frame, Frames};
 
 use rendy_core::hal;
 
 pub use scheduler::{
     interface::{
-        GraphCtx, PassEntityCtx, EntityCtx,
+        GraphCtx, PassEntityCtx, EntityCtx, ImageId, BufferId,
     },
     resources::{
         ImageInfo, ImageMode,
@@ -55,3 +61,4 @@ pub use scheduler::{
 pub use hal::{
     format::Format,
 };
+pub use rendy_shader::ShaderId;

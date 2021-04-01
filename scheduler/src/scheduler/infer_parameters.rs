@@ -11,7 +11,7 @@ impl Scheduler {
             let mut extent = None;
             for attachment_data in pass.attachment_data.iter() {
                 let resource_id = attachment_data.resource;
-                let image_data = input.image_data(resource_id);
+                let image_data = input.resource_data(resource_id).image();
                 if let Some(kind) = image_data.kind {
                     let new_extent = kind.extent();
                     if let Some(extent) = extent {

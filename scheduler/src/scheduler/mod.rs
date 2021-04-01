@@ -31,7 +31,7 @@ mod identify_render_passes;
 mod infer_parameters;
 
 mod generate_sync;
-pub use generate_sync::ExternalSignal;
+pub use generate_sync::{ExternalSignal, BarrierOp, BarrierKind};
 
 mod order_independent_schedule;
 use order_independent_schedule::OrderIndependentSchedule;
@@ -240,6 +240,25 @@ impl Scheduler {
 
             bump: Some(Bump::new()),
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.resource_schedule.clear();
+        self.for_cum_deps.clear();
+        self.rev_cum_deps.clear();
+        self.active_passes.clear();
+        self.passes.clear();
+        self.passes_back.clear();
+        self.scheduled_order.clear();
+        self.schedule_traversal.clear();
+        self.sync_strategy.clear();
+        self.entity_list_pool.clear();
+
+        // TODO clear instead
+        self.entity_set_pool = EntitySetPool::new();
+        self.resource_set_pool = EntitySetPool::new();
+
+        self.bump.as_mut().unwrap().reset();
     }
 
     pub fn usage_kind(&self, entity: EntityId, resource: ResourceId) -> Option<UsageKind> {

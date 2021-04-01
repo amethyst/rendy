@@ -69,6 +69,10 @@ impl ScheduleIterator {
         Some(current)
     }
 
+    pub fn idx(&self) -> usize {
+        self.schedule_idx - 1
+    }
+
     pub fn next_idx(&self) -> usize {
         self.schedule_idx
     }

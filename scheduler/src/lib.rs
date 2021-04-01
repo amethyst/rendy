@@ -1,11 +1,11 @@
 use std::any::{Any, TypeId};
-use std::collections::{BTreeSet, BTreeMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 /// Contains types and traits for declaring a schedule.
 pub mod interface;
-pub use interface::{ImageId, BufferId, EntityId};
+pub use interface::{BufferId, EntityId, ImageId};
 
 /// Contains types and traits for the interface between the schedule builder and
 /// the scheduler implementation itself.
@@ -25,11 +25,15 @@ pub mod resources;
 ///
 /// Consumes input through the interface defined in the `input` module.
 mod scheduler;
-pub use scheduler::{Scheduler, ScheduleEntry, RenderPassData, RenderPass, ExternalSignal};
+pub use scheduler::{
+    BarrierKind, BarrierOp, ExternalSignal, RenderPass, RenderPassData, ScheduleEntry, Scheduler,
+};
 
 pub mod sync;
 
 pub mod schedule_iterator;
+
+mod spec;
 
 pub trait SchedulerTypes {
     type Semaphore;
@@ -56,9 +60,9 @@ impl<A: Iterator<Item = T>, B: Iterator<Item = T>, T> Iterator for IterEither<A,
 mod tests {
     use crate::{
         builder::ProceduralBuilder,
-        scheduler::Scheduler,
-        interface::{GraphCtx, EntityCtx, PassEntityCtx},
+        interface::{EntityCtx, GraphCtx, PassEntityCtx},
         resources::{ImageInfo, ImageMode},
+        scheduler::Scheduler,
     };
 
     use rendy_core::hal;
@@ -137,7 +141,5 @@ mod tests {
         println!("Scheduled order: {:?}", scheduler.scheduled_order);
 
         panic!("yay!");
-
     }
-
 }

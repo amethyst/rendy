@@ -1,39 +1,40 @@
-use std::marker::PhantomData;
 use std::alloc::Allocator;
-use std::sync::Arc;
 use std::any::Any;
-use std::collections::BTreeMap;
-use std::convert::TryInto;
 use std::borrow::Borrow;
+use std::collections::{BTreeMap, HashMap};
+use std::convert::TryInto;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
-use rendy_core::hal;
-use hal::window::PresentationSurface;
 use hal::command::CommandBuffer as _;
 use hal::device::Device as _;
 use hal::queue::CommandQueue as _;
+use hal::window::PresentationSurface;
+use rendy_core::hal;
 
-use cranelift_entity::{PrimaryMap, SecondaryMap, entity_impl};
+use cranelift_entity::{entity_impl, PrimaryMap, SecondaryMap};
 
 use crate::SliceBuf;
 
-use crate::scheduler::{
-    Scheduler, ScheduleEntry, RenderPass, ExternalSignal,
-    input::ResourceId,
-    procedural::{ProceduralBuilder, ResourceKind, ImageSource},
-    interface::{GraphCtx, EntityId, SemaphoreId, ImageId, EntityCtx},
-    resources::ImageUsage,
-    schedule_iterator::{ScheduleIterator, Current},
-};
-use crate::factory::Factory;
+use crate::Frames;
 use crate::command::RenderPassEncoder;
+use crate::command::{CommandBuffer, Queue};
+use crate::command2::{Cache, RenderPassId, RenderPassKey, ShaderSetKey, SubpassDescKey};
 use crate::exec::{ExecCtx, SubpassData};
-use crate::command::{Queue, CommandBuffer};
-use crate::shader::{ShaderSourceSet, SpecConstantSet, ShaderId, PipelineLayoutDescr};
-use crate::command2::{Cache, ShaderSetKey, RenderPassId, RenderPassKey, SubpassDescKey};
+use crate::factory::Factory;
+use crate::scheduler::{
+    input::ResourceId,
+    interface::{EntityCtx, EntityId, GraphCtx, ImageId, SemaphoreId},
+    procedural::{ImageSource, ProceduralBuilder, ResourceKind},
+    resources::ImageUsage,
+    schedule_iterator::{Current, ScheduleIterator},
+    ExternalSignal, RenderPass, ScheduleEntry, Scheduler, BarrierOp, BarrierKind,
+};
+use crate::shader::{PipelineLayoutDescr, ShaderId, ShaderSourceSet, SpecConstantSet};
 
-use crate::parameter::{ParameterStore, Parameter};
+use crate::parameter::{Parameter, ParameterStore};
 
-use crate::graph_borrowable::{GraphBorrowable, GraphBorrow, DynGraphBorrow};
+use crate::graph_borrowable::{DynGraphBorrow, GraphBorrow, GraphBorrowable};
 
 mod macros;
 
@@ -59,12 +60,21 @@ pub enum GraphImage<B: hal::Backend> {
     Image(B::Image),
     SwapchainImage(<B::Surface as PresentationSurface<B>>::SwapchainImage),
 }
+impl<B: hal::Backend> GraphImage<B> {
+    fn image(&self) -> &B::Image {
+        match self {
+            GraphImage::Image(image) => image,
+            GraphImage::SwapchainImage(swapchain_image) => swapchain_image.borrow(),
+        }
+    }
+}
 
 pub enum Callback<B: hal::Backend, A: Allocator> {
     None,
     Standalone {
         node: GraphGenerationNodeId,
-        callback: Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>, &mut Queue<B>) + 'static, A>,
+        callback:
+            Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>, &mut Queue<B>) + 'static, A>,
     },
     Pass {
         node: GraphGenerationNodeId,
@@ -74,7 +84,12 @@ pub enum Callback<B: hal::Backend, A: Allocator> {
         node: GraphGenerationNodeId,
         surface: GraphBorrow<rendy_wsi::Surface<B>>,
         image: ImageId,
-        result_callback: Box<dyn FnOnce(&mut dyn Any, Result<Option<hal::window::Suboptimal>, hal::window::PresentError>)>,
+        result_callback: Box<
+            dyn FnOnce(
+                &mut dyn Any,
+                Result<Option<hal::window::Suboptimal>, hal::window::PresentError>,
+            ),
+        >,
         semaphore: SemaphoreId,
     },
 }
@@ -84,13 +99,23 @@ impl<B: hal::Backend, A: Allocator> Default for Callback<B, A> {
     }
 }
 impl<B: hal::Backend, A: Allocator> Callback<B, A> {
-    fn standalone(self) -> (GraphGenerationNodeId, Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>, &mut Queue<B>) + 'static, A>) {
+    fn standalone(
+        self,
+    ) -> (
+        GraphGenerationNodeId,
+        Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>, &mut Queue<B>) + 'static, A>,
+    ) {
         match self {
             Callback::Standalone { node, callback } => (node, callback),
             _ => unreachable!(),
         }
     }
-    fn pass(self) -> (GraphGenerationNodeId, Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>) + 'static, A>) {
+    fn pass(
+        self,
+    ) -> (
+        GraphGenerationNodeId,
+        Box<dyn FnOnce(&mut dyn Any, &Factory<B>, &mut ExecCtx<B>) + 'static, A>,
+    ) {
         match self {
             Callback::Pass { node, callback } => (node, callback),
             _ => unreachable!(),
@@ -120,6 +145,8 @@ pub struct Graph<'a, B: hal::Backend> {
     procedural: ProceduralBuilder<GfxSchedulerTypes<B>>,
     nodes: PrimaryMap<GraphGenerationNodeId, DynGraphBorrow>,
 
+    semaphores: HashMap<SemaphoreId, B::Semaphore>,
+
     cache: Arc<Cache<B>>,
 
     /// A bump allocator for the current Graph generation.
@@ -136,14 +163,22 @@ pub enum Resource<B: hal::Backend> {
     Image(GraphImage<B>),
     Buffer(B::Buffer),
 }
+impl<B: hal::Backend> Resource<B> {
+    fn image_ref(&self) -> &GraphImage<B> {
+        match self {
+            Resource::Image(image) => image,
+            _ => panic!(),
+        }
+    }
+}
 
 impl<'a, B: hal::Backend> Graph<'a, B> {
-
     pub fn new(factory: &'a Factory<B>) -> Self {
         Self {
             factory,
             procedural: ProceduralBuilder::new(),
             nodes: PrimaryMap::new(),
+            semaphores: HashMap::new(),
             cache: Arc::new(Cache::new(factory)),
             generation_alloc: Bump::new(),
         }
@@ -153,7 +188,11 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         &self.cache
     }
 
-    pub fn construct_node<N: Node<B>>(&mut self, node: &mut GraphBorrowable<N>, argument: N::Argument) -> N::Result {
+    pub fn construct_node<N: Node<B>>(
+        &mut self,
+        node: &mut GraphBorrowable<N>,
+        argument: N::Argument,
+    ) -> N::Result {
         let factory = &*self.factory;
 
         let mut node = node.take_borrow();
@@ -185,7 +224,7 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
     {
         self.procedural.commit(Callback::Pass {
             node,
-            callback: Box::new(exec)
+            callback: Box::new(exec),
         });
     }
 
@@ -194,20 +233,25 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         surface: GraphBorrow<rendy_wsi::Surface<B>>,
         node_id: GraphGenerationNodeId,
         image: ImageId,
-        result_callback: F
-    )
-    where
-        F: FnOnce(&mut dyn Any, Result<Option<hal::window::Suboptimal>, hal::window::PresentError>) + 'static,
+        result_callback: F,
+    ) where
+        F: FnOnce(&mut dyn Any, Result<Option<hal::window::Suboptimal>, hal::window::PresentError>)
+            + 'static,
     {
         let sync_point = self.procedural.sync_point_get(image);
         let semaphore_id = self.procedural.sync_point_to_semaphore(sync_point);
 
         self.procedural.start_standalone();
-        self.procedural.use_image(image, ImageUsage {
-            layout: hal::image::Layout::Present,
-            stages: hal::pso::PipelineStage::BOTTOM_OF_PIPE,
-            access: hal::image::Access::empty(),
-        }).unwrap();
+        self.procedural
+            .use_image(
+                image,
+                ImageUsage {
+                    layout: hal::image::Layout::Present,
+                    stages: hal::pso::PipelineStage::BOTTOM_OF_PIPE,
+                    access: hal::image::Access::empty(),
+                },
+            )
+            .unwrap();
         self.procedural.commit(Callback::Present {
             node: node_id,
             surface,
@@ -219,7 +263,11 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         self.procedural.mark_dead(image);
     }
 
-    pub fn make_shader_set(&mut self, source: ShaderSourceSet, spec_constants: SpecConstantSet) -> ShaderId {
+    pub fn make_shader_set(
+        &mut self,
+        source: ShaderSourceSet,
+        spec_constants: SpecConstantSet,
+    ) -> ShaderId {
         let key = Arc::new(ShaderSetKey {
             source,
             spec_constants,
@@ -229,17 +277,16 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
         self.cache.make_shader_set(self.factory, key, reflection)
     }
 
-    pub fn schedule(&mut self, pool: &mut B::CommandPool, queue: &mut Queue<B>) {
+    pub fn schedule(&mut self, frames: &mut Frames<B>, queue: &mut Queue<B>) {
         use hal::pool::CommandPool;
 
         self.procedural.postprocess();
-        //let scheduler_input = self.procedural.make_scheduler_input();
 
         let mut scheduler = Scheduler::new();
         scheduler.plan(&self.procedural);
 
-        let mut resources: BTreeMap<ResourceId, (Resource<B>, Option<B::Semaphore>)> = BTreeMap::new();
-        let mut semaphores: BTreeMap<SemaphoreId, B::Semaphore> = BTreeMap::new();
+        let mut resources: BTreeMap<ResourceId, (Resource<B>, Option<B::Semaphore>)> =
+            BTreeMap::new();
 
         for resource in scheduler.iter_live_resources() {
             let data = self.procedural.get_resource_info_mut(resource);
@@ -249,29 +296,31 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                         ImageSource::Owned => todo!(),
                         ImageSource::Provided { image, acquire, .. } => {
                             (image.take().unwrap(), acquire.take())
-                        },
+                        }
                     };
 
                     println!("{:?}", image_data.info());
 
                     resources.insert(resource, (Resource::Image(image), acquire));
-                },
+                }
                 ResourceKind::Buffer(buffer_data) => {
                     todo!()
-                },
+                }
                 ResourceKind::Alias(_) => unreachable!(),
             }
         }
 
-
         let mut schedule_iterator = ScheduleIterator::new();
+
+        let mut pool = frames.get_command_pool(self.factory);
+        let mut command_buffers = Vec::new();
 
         while let Some(current) = schedule_iterator.next(&scheduler) {
             let mut command_buffer = unsafe { pool.allocate_one(hal::command::Level::Primary) };
             unsafe {
                 command_buffer.begin(
                     hal::command::CommandBufferFlags::ONE_TIME_SUBMIT,
-                    hal::command::CommandBufferInheritanceInfo::default()
+                    hal::command::CommandBufferInheritanceInfo::default(),
                 );
             }
 
@@ -286,7 +335,12 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 command_buffer,
             };
 
-
+            self.record_barriers(
+                &scheduler,
+                &resources,
+                schedule_iterator.idx(),
+                &mut exec_ctx.command_buffer,
+            );
 
             match current {
                 Current::Pass(pass) => {
@@ -297,12 +351,11 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                         &mut exec_ctx.command_buffer,
                     );
 
-                    for (subpass_idx, (schedule_idx, advance)) in pass.schedule_entries.enumerate() {
+                    for (subpass_idx, (schedule_idx, advance)) in pass.schedule_entries.enumerate()
+                    {
                         let entity_id = scheduler.scheduled_order[schedule_idx].entity_id();
                         let callback_enum = self.procedural.remove_data(entity_id).unwrap();
                         let (node_id, callback) = callback_enum.pass();
-
-                        let sync_slot = &scheduler.sync_strategy.slots[schedule_idx];
 
                         exec_ctx.active_subpass = Some(SubpassData {
                             render_pass: render_pass_id,
@@ -314,7 +367,9 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                             // Continuing with the same render pass, call
                             // next_subpass on command buffer.
                             unsafe {
-                                exec_ctx.command_buffer.next_subpass(hal::command::SubpassContents::Inline);
+                                exec_ctx
+                                    .command_buffer
+                                    .next_subpass(hal::command::SubpassContents::Inline);
                             }
                         } else {
                             // End of render pass.
@@ -323,15 +378,23 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                             }
                         }
                     }
-                },
+                }
                 Current::General(general) => {
                     let entity_id = general.entity;
                     let callback_enum = self.procedural.remove_data(entity_id).unwrap();
 
                     match callback_enum {
-                        Callback::Present { node, mut surface, image, result_callback, semaphore } => {
+                        Callback::Present {
+                            node,
+                            mut surface,
+                            image,
+                            result_callback,
+                            semaphore,
+                        } => {
                             let image = match resources.remove(&image.into()).unwrap() {
-                                (Resource::Image(GraphImage::SwapchainImage(sc_image)), _) => sc_image,
+                                (Resource::Image(GraphImage::SwapchainImage(sc_image)), _) => {
+                                    sc_image
+                                }
                                 _ => panic!(),
                             };
 
@@ -339,15 +402,15 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                                 queue.raw().present(
                                     surface.raw_mut(),
                                     image,
-                                    semaphores.get_mut(&semaphore),
+                                    self.semaphores.get_mut(&semaphore),
                                 )
                             };
 
                             result_callback(&mut *self.nodes[node], result);
-                        },
+                        }
                         _ => panic!(),
                     }
-                },
+                }
             }
 
             let next_idx = schedule_iterator.next_idx();
@@ -359,9 +422,9 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 for signal in sync_slot.external_signal.iter() {
                     match signal {
                         ExternalSignal::Semaphore(semaphore_id) => {
-                            let semaphore = self.factory.create_semaphore().unwrap();
-                            semaphores.insert(*semaphore_id, semaphore);
-                        },
+                            let semaphore = frames.get_semaphore(self.factory);
+                            self.semaphores.insert(*semaphore_id, semaphore);
+                        }
                         ExternalSignal::Fence(fence_id) => todo!(),
                     }
                 }
@@ -369,13 +432,9 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 let signals = sync_slot
                     .external_signal
                     .iter()
-                    .filter_map(|sig| {
-                        match sig {
-                            ExternalSignal::Semaphore(semaphore_id) => {
-                                Some(&semaphores[semaphore_id])
-                            },
-                            _ => None,
-                        }
+                    .filter_map(|sig| match sig {
+                        ExternalSignal::Semaphore(semaphore_id) => Some(&self.semaphores[semaphore_id]),
+                        _ => None,
                     });
 
                 queue.raw().submit(
@@ -385,23 +444,73 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                     None,
                 );
             }
+
+            command_buffers.push(exec_ctx.command_buffer);
         }
 
-        queue.raw().wait_idle().unwrap();
-        std::thread::sleep(
-            std::time::Duration::new(10, 0)
-        );
+        let mut end_fence = frames.get_fence(self.factory);
+        unsafe {
+            queue.raw().submit(
+                std::iter::empty(),
+                std::iter::empty(),
+                std::iter::empty(),
+                Some(&mut end_fence),
+            );
+        }
+
+        {
+            let frame = frames.current();
+            frame.semaphores.extend(self.semaphores.drain().map(|(_k, v)| v));
+            frame.command_pools.push((pool, command_buffers));
+        }
+        frames.wait_fence(end_fence);
+
+        self.reset_generation();
+
+        //queue.raw().wait_idle().unwrap();
+        //std::thread::sleep(std::time::Duration::new(10, 0));
     }
 
     fn record_barriers(
         &self,
         scheduler: &Scheduler,
+        resources: &BTreeMap<ResourceId, (Resource<B>, Option<B::Semaphore>)>,
         sync_idx: usize,
+        buffer: &mut B::CommandBuffer,
     ) {
         let sync_slot = &scheduler.sync_strategy.slots[sync_idx];
         let barriers = &scheduler.sync_strategy.barriers[sync_slot.barrier_range.clone().unwrap()];
 
-        todo!()
+        for barrier in barriers {
+            let hal_barrier = match barrier.op {
+                BarrierOp::Barrier => {
+                    match barrier.kind.clone() {
+                        BarrierKind::Image {
+                            states, target, range, families,
+                        } => {
+                            let target = &resources[&target].0;
+
+                            hal::memory::Barrier::Image {
+                                states,
+                                target: target.image_ref().image(),
+                                range,
+                                families,
+                            }
+                        },
+                        _ => todo!(),
+                    }
+                },
+                _ => todo!(),
+            };
+
+            unsafe {
+                buffer.pipeline_barrier(
+                    barrier.stages.clone(),
+                    hal::memory::Dependencies::empty(),
+                    std::iter::once(hal_barrier),
+                );
+            }
+        }
     }
 
     fn begin_render_pass(
@@ -429,11 +538,10 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
 
         let render_pass = self.cache.get_render_pass(render_pass_id);
         let framebuffer = unsafe {
-            self.factory.device().create_framebuffer(
-                &*render_pass,
-                attachments_descr,
-                extent,
-            ).unwrap()
+            self.factory
+                .device()
+                .create_framebuffer(&*render_pass, attachments_descr, extent)
+                .unwrap()
         };
 
         let attachments = pass_data.attachment_data.iter().map(|a| {
@@ -442,7 +550,7 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
             let image_view: &B::ImageView = match item {
                 Resource::Image(GraphImage::SwapchainImage(swapchain_image)) => {
                     swapchain_image.borrow()
-                },
+                }
                 Resource::Image(GraphImage::Image(_)) => todo!(),
                 _ => unreachable!(),
             };
@@ -514,7 +622,11 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 };
 
                 if let Some(image_id) = attachments.depth {
-                    let usage_kind = scheduler.usage_kind(*entity, image_id.into()).unwrap().attachment_layout().unwrap();
+                    let usage_kind = scheduler
+                        .usage_kind(*entity, image_id.into())
+                        .unwrap()
+                        .attachment_layout()
+                        .unwrap();
 
                     let (idx, prev_used) = attachment_map.get_mut(&image_id.into()).unwrap();
                     assert!(!*prev_used);
@@ -524,7 +636,11 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 }
 
                 for image_id in attachments.color.iter().cloned() {
-                    let usage_kind = scheduler.usage_kind(*entity, image_id.into()).unwrap().attachment_layout().unwrap();
+                    let usage_kind = scheduler
+                        .usage_kind(*entity, image_id.into())
+                        .unwrap()
+                        .attachment_layout()
+                        .unwrap();
 
                     let (idx, prev_used) = attachment_map.get_mut(&image_id.into()).unwrap();
                     assert!(!*prev_used);
@@ -534,7 +650,11 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                 }
 
                 for image_id in attachments.input.iter().cloned() {
-                    let usage_kind = scheduler.usage_kind(*entity, image_id.into()).unwrap().attachment_layout().unwrap();
+                    let usage_kind = scheduler
+                        .usage_kind(*entity, image_id.into())
+                        .unwrap()
+                        .attachment_layout()
+                        .unwrap();
 
                     let (idx, prev_used) = attachment_map.get_mut(&image_id.into()).unwrap();
                     assert!(!*prev_used);
@@ -543,17 +663,15 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
                     desc_key.inputs.push((*idx, usage_kind));
                 }
 
-                desc_key.preserves.extend(
-                    attachment_map
-                        .values()
-                        .filter_map(|(idx, prev_used)| {
-                            if !prev_used {
-                                Some(*idx)
-                            } else {
-                                None
-                            }
-                        })
-                );
+                desc_key
+                    .preserves
+                    .extend(attachment_map.values().filter_map(|(idx, prev_used)| {
+                        if !prev_used {
+                            Some(*idx)
+                        } else {
+                            None
+                        }
+                    }));
 
                 for (_idx, prev_used) in attachment_map.values_mut() {
                     *prev_used = false;
@@ -575,11 +693,12 @@ impl<'a, B: hal::Backend> Graph<'a, B> {
     }
 
     fn reset_generation(&mut self) {
+        self.procedural.clear();
+        self.nodes.clear();
 
         // This MUST be called AFTER all allocated values are dropped.
         unsafe {
             self.generation_alloc.reset();
         }
     }
-
 }
