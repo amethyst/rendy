@@ -12,8 +12,9 @@ use rendy_core::hal;
 pub use crate::interface::EntityId;
 use crate::sync::SyncPoint;
 use crate::interface::{SemaphoreId, FenceId};
+use crate::resources::PartialFormat;
 
-/// Identifies a single entity uniquely in the scheduler.
+// /// Identifies a single entity uniquely in the scheduler.
 //#[derive(Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash)]
 //pub struct EntityId(u32);
 //entity_impl!(EntityId, "entity");

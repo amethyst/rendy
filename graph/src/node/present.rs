@@ -16,13 +16,6 @@ use hal::format::{Format, ChannelType};
 
 use crate::GraphBorrowable;
 
-pub struct Present<B: hal::Backend> {
-    swapchain_config: SwapchainConfig,
-    framebuffer_attachment: FramebufferAttachment,
-
-    surface: GraphBorrowable<Surface<B>>,
-}
-
 pub fn make_swapchain_config<B: hal::Backend>(
     factory: &Factory<B>,
     surface: &Surface<B>,
@@ -30,18 +23,6 @@ pub fn make_swapchain_config<B: hal::Backend>(
 ) -> (SwapchainConfig, FramebufferAttachment) {
     let caps = factory.get_surface_capabilities(&surface);
     let formats = factory.get_surface_formats(&surface);
-
-    //let image_count = 3
-    //    .min(*caps.image_count.end())
-    //    .max(*caps.image_count.start());
-
-    //let present_mode = match () {
-    //    _ if caps.present_modes.contains(PresentMode::FIFO) => PresentMode::FIFO,
-    //    _ if caps.present_modes.contains(PresentMode::MAILBOX) => PresentMode::MAILBOX,
-    //    _ if caps.present_modes.contains(PresentMode::RELAXED) => PresentMode::RELAXED,
-    //    _ if caps.present_modes.contains(PresentMode::IMMEDIATE) => PresentMode::IMMEDIATE,
-    //    _ => panic!("No known present modes found"),
-    //};
 
     let format = formats.map_or(Format::Rgba8Srgb, |formats| {
         formats
@@ -57,11 +38,21 @@ pub fn make_swapchain_config<B: hal::Backend>(
     (swapchain_config, framebuffer_attachment)
 }
 
+pub struct Present<B: hal::Backend> {
+    swapchain_config: SwapchainConfig,
+    framebuffer_attachment: FramebufferAttachment,
+
+    do_recreate: GraphBorrowable<bool>,
+    fallback_extent: Extent2D,
+
+    surface: GraphBorrowable<Surface<B>>,
+}
+
 impl<B: hal::Backend> Present<B> {
 
-    pub fn new(factory: &Factory<B>, mut surface: Surface<B>, extent: Extent2D) -> Self {
+    pub fn new(factory: &Factory<B>, mut surface: Surface<B>, fallback_extent: Extent2D) -> Self {
         let (swapchain_config, framebuffer_attachment) = make_swapchain_config(
-            factory, &surface, extent);
+            factory, &surface, fallback_extent);
 
         unsafe {
             surface.configure_swapchain(
@@ -74,8 +65,18 @@ impl<B: hal::Backend> Present<B> {
             swapchain_config,
             framebuffer_attachment,
 
+            do_recreate: GraphBorrowable::new(false),
+            fallback_extent,
+
             surface: GraphBorrowable::new(surface),
         }
+    }
+
+    pub fn set_fallback_extent(&mut self, fallback_extent: Extent2D) {
+        if self.fallback_extent != fallback_extent {
+            *self.do_recreate.borrow_mut() = true;
+        }
+        self.fallback_extent = fallback_extent;
     }
 
 }
@@ -91,32 +92,49 @@ impl<B: hal::Backend> Node<B> for Present<B> {
         in_image_id: ImageId,
     ) -> Result<(), ()> {
 
+        let do_recreate = self.do_recreate.borrow_mut();
+
         let sc_image = loop {
             let surface = self.surface.borrow_mut();
 
-            match unsafe { surface.acquire_image(!0) } {
-                Ok((sc_image, _suboptimal)) => break sc_image,
-                // Swapchain is out of date, we need to recreate and retry.
-                Err(hal::window::AcquireError::OutOfDate(_)) => (),
-                err => {
-                    err.unwrap();
-                    unreachable!();
-                },
+            // We have a scheduled recreate, skip aquisition for one iteration.
+            if !*do_recreate {
+                match unsafe { surface.acquire_image(!0) } {
+                    Ok((sc_image, suboptimal)) => {
+                        // If suboptimal, we continue with this image for this
+                        // present, but schedule a recreate on next present.
+                        if suboptimal.is_some() {
+                            *do_recreate = true;
+                        }
+
+                        break sc_image;
+                    },
+                    // Swapchain is out of date, we need to recreate and retry.
+                    Err(hal::window::AcquireError::OutOfDate(_)) => (),
+                    err => {
+                        err.unwrap();
+                        unreachable!();
+                    },
+                }
             }
+
+            println!("SWAPCHAIN RECREATE");
+
+            let suggested_extent = unsafe {
+                surface.extent(factory.physical())
+            };
+
+            let extent = if let Some(extent) = suggested_extent {
+                extent
+            } else {
+                println!("surface has no suggested extent, using fallback");
+                self.fallback_extent
+            };
 
             let (swapchain_config, framebuffer_attachment) = make_swapchain_config(
-                factory, surface, self.swapchain_config.extent);
+                factory, surface, extent);
             self.swapchain_config = swapchain_config;
             self.framebuffer_attachment = framebuffer_attachment;
-
-            // Is this still relevant? We might be able to remove the wait.
-            {
-                // Recreate swapchain when OutOfDate
-                // The code has to execute after match due to mutable aliasing issues.
-
-                // TODO: use retired swapchains once available in hal and remove that wait
-                factory.wait_idle().unwrap();
-            }
 
             unsafe {
                 surface.unconfigure_swapchain(factory.device());
@@ -126,6 +144,8 @@ impl<B: hal::Backend> Node<B> for Present<B> {
                     self.swapchain_config.clone(),
                 ).unwrap();
             }
+
+            *do_recreate = false;
         };
 
         let target_image_id = ctx.provide_image(
@@ -138,9 +158,7 @@ impl<B: hal::Backend> Node<B> for Present<B> {
                 )),
                 levels: 1,
                 format: self.framebuffer_attachment.format,
-                mode: ImageMode::DontCare {
-                    transient: false,
-                },
+                mode: ImageMode::DontCare,
             },
             GraphImage::SwapchainImage(sc_image),
             None,
@@ -157,9 +175,21 @@ impl<B: hal::Backend> Node<B> for Present<B> {
         // image. If the images are incompatible, this will panic.
         ctx.move_image(in_image_id, target_image_id);
 
+        let mut do_recreate = self.do_recreate.take_borrow();
+
         // Perform a present.
-        ctx.present(self.surface.take_borrow(), target_image_id, |node, result| {
-            println!("TODO handle present result {:?}", result);
+        ctx.present(self.surface.take_borrow(), target_image_id, move |_node, result| {
+            match result {
+                Ok(Some(_suboptimal)) => {
+                    println!("suboptimal on present, marking for recreate");
+                    // We want to recreate on next present.
+                    *do_recreate = true;
+                },
+                Ok(None) => (),
+                Err(err) => {
+                    println!("TODO swapchain present error! {:?}", err);
+                },
+            }
         });
 
         Ok(())

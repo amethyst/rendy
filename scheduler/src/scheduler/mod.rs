@@ -170,6 +170,11 @@ impl UsageKind {
     }
 }
 
+#[derive(Default, Clone)]
+pub(crate) struct ResourceAux {
+    format: Option<hal::format::Format>,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ScheduleAux {
     usage_num: u16,
@@ -183,7 +188,9 @@ pub(crate) struct ScheduleAux {
 ///
 pub struct Scheduler {
     //resource_aliases: BTreeMap<Resource, Resource>,
-     resource_schedule: NaturalScheduleMatrix<EntityId, ResourceId, ScheduleAux>,
+    resource_schedule: NaturalScheduleMatrix<EntityId, ResourceId, ScheduleAux>,
+
+    resources: SecondaryMap<ResourceId, ResourceAux>,
 
     // For every entity in the graph, this contains the set of other entities
     // that are strictly required to be scheduled before or after respectively,
@@ -221,6 +228,8 @@ impl Scheduler {
         Self {
             //resource_aliases: BTreeMap::new(),
             resource_schedule: NaturalScheduleMatrix::new(NaturalIndexMapping::new(), NaturalIndexMapping::new()),
+
+            resources: SecondaryMap::new(),
 
             for_cum_deps: SecondaryMap::new(),
             rev_cum_deps: SecondaryMap::new(),

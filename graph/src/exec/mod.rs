@@ -13,8 +13,7 @@ use crate::command2::{RenderPassId, HashableGraphicsPipelineDescr, HashablePrimi
 
 use hal::command::CommandBuffer;
 
-mod graphics_pipeline;
-pub use graphics_pipeline::{GraphicsPipelineBuilder, PrimitiveAssemblerKind};
+use crate::{GraphicsPipelineBuilder, PrimitiveAssemblerKind};
 
 #[derive(Debug, Clone)]
 pub(crate) struct SubpassData {

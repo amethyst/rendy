@@ -1,9 +1,3 @@
-//!
-//! The mighty triangle example.
-//! This examples shows colord triangle on white background.
-//! Nothing fancy. Just prove that `rendy` works.
-//!
-
 use std::borrow::Borrow;
 use std::sync::Arc;
 
@@ -13,7 +7,7 @@ use rendy::{
     graph::{
         graph::Graph, Cache, GraphBorrowable, GraphConstructCtx, GraphCtx as _,
         GraphicsPipelineBuilder, ImageId, ImageInfo, ImageMode, Node, PassEntityCtx as _, ShaderId,
-        ShaderSetKey,
+        ShaderSetKey, ImageInfoBuilder,
     },
     //graph::{render::*, Graph, GraphBuilder, GraphContext, NodeBuffer, NodeImage},
     hal::{self, device::Device, Backend},
@@ -122,50 +116,84 @@ impl<B: hal::Backend> Node<B> for DrawTriangle<B> {
         ctx: &mut GraphConstructCtx<B>,
         arg: (),
     ) -> Result<ImageId, ()> {
-        let image = ctx.create_image(ImageInfo {
-            kind: None,
-            levels: 1,
-            format: hal::format::Format::Bgra8Srgb,
-            mode: ImageMode::Clear {
-                clear: hal::command::ClearValue::default(),
-            },
-        });
 
-        let mut pass = ctx.pass();
-        pass.use_color(0, image, false).unwrap();
+        let depth_image = ctx.create_image(
+            ImageInfoBuilder::default()
+                .with_format(hal::format::Format::D32Sfloat)
+                .build()
+        );
 
-        let shader_id = self.shader_id;
-        let vbuf = self.vbuf.take_borrow();
+        let albeido_image = ctx.create_image(
+            ImageInfoBuilder::default()
+                .with_format(hal::format::Format::Rgba8Unorm)
+                .build()
+        );
 
-        pass.commit(move |node, factory, exec_ctx| {
-            exec_ctx.bind_graphics_pipeline(
-                shader_id,
-                GraphicsPipelineBuilder::default().add_blend_desc(hal::pso::ColorMask::all(), None),
-            );
+        let target_image = ctx.create_image(
+            ImageInfoBuilder::default()
+                .with_format(hal::format::Format::Bgra8Srgb)
+                .build()
+        );
 
-            let vbuf_raw = vbuf.raw();
-            exec_ctx
-                .bind_vertex_buffers(0, std::iter::once((vbuf_raw, hal::buffer::SubRange::WHOLE)));
+        // G-buffer pass
+        {
+            let mut pass = ctx.pass();
+            pass.use_depth(depth_image, true);
+            pass.use_color(0, albeido_image, false);
 
-            let rect = hal::pso::Rect {
-                x: 0,
-                y: 0,
-                w: 500,
-                h: 500,
-            };
-            exec_ctx.set_viewports(
-                0,
-                std::iter::once(hal::pso::Viewport {
-                    rect,
-                    depth: 0.0..1.0,
-                }),
-            );
-            exec_ctx.set_scissors(0, std::iter::once(rect));
+            pass.commit(move |node, factory, exec_ctx| {
+                ()
+            });
+        }
 
-            exec_ctx.draw(0..3, 0..1);
-        });
+        // Deferred rendering pass
+        {
+            let mut pass = ctx.pass();
+            pass.use_input(0, depth_image);
+            pass.use_input(1, albeido_image);
+            pass.use_color(0, target_image, false);
 
-        Ok(image)
+            pass.commit(move |node, factory, exec_ctx| {
+                ()
+            });
+        }
+
+
+        //let mut pass = ctx.pass();
+        //pass.use_color(0, image, false).unwrap();
+
+        //let shader_id = self.shader_id;
+        //let vbuf = self.vbuf.take_borrow();
+
+        //pass.commit(move |node, factory, exec_ctx| {
+        //    exec_ctx.bind_graphics_pipeline(
+        //        shader_id,
+        //        GraphicsPipelineBuilder::default().add_blend_desc(hal::pso::ColorMask::all(), None),
+        //    );
+
+        //    let vbuf_raw = vbuf.raw();
+        //    exec_ctx
+        //        .bind_vertex_buffers(0, std::iter::once((vbuf_raw, hal::buffer::SubRange::WHOLE)));
+
+        //    let rect = hal::pso::Rect {
+        //        x: 0,
+        //        y: 0,
+        //        w: 500,
+        //        h: 500,
+        //    };
+        //    exec_ctx.set_viewports(
+        //        0,
+        //        std::iter::once(hal::pso::Viewport {
+        //            rect,
+        //            depth: 0.0..1.0,
+        //        }),
+        //    );
+        //    exec_ctx.set_scissors(0, std::iter::once(rect));
+
+        //    exec_ctx.draw(0..3, 0..1);
+        //});
+
+        Ok(target_image)
     }
 }
 
@@ -189,7 +217,13 @@ fn run2<B: Backend>(
     use rendy::resource::Layout;
 
     let (width, height) = window.inner_size().into();
-    let fallback_extent = hal::window::Extent2D { width, height };
+    let suggested_extent = hal::window::Extent2D { width, height };
+    let surface_extent = unsafe {
+        surface
+            .extent(factory.physical())
+            .unwrap_or(suggested_extent)
+    };
+    println!("surface extent: {:?}", surface_extent);
 
     println!("families: {:?}", families);
 
@@ -210,7 +244,7 @@ fn run2<B: Backend>(
     let mut present = GraphBorrowable::new(rendy::graph::node::Present::new(
         &factory,
         surface,
-        fallback_extent,
+        surface_extent,
     ));
 
     let family = families.family_mut(family_id);

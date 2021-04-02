@@ -82,16 +82,6 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
         self.render_pass_spans.insert(RenderPassSpan::new(a, b));
     }
 
-    fn image_is_transient(&mut self, image: ImageId) -> bool {
-        self.resources[image.into()]
-            .kind
-            .image_ref()
-            .unwrap()
-            .info
-            .mode
-            .is_transient()
-    }
-
     fn handle_image_add_dep(&mut self, image: ImageId) {
         let entity = self.id();
         let num_uses = self.resources[image.into()]
@@ -108,11 +98,6 @@ impl<T: SchedulerTypes> ProceduralBuilder<T> {
                 .unwrap()
                 .last_use()
                 .unwrap();
-
-            // If the resource is transient, we need to add it to the render pass.
-            if self.image_is_transient(image) {
-                self.mark_render_pass(last_use, entity);
-            }
         }
     }
 }

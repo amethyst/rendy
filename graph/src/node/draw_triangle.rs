@@ -3,7 +3,7 @@ use hal::device::Device;
 
 use std::sync::Arc;
 
-use crate::{Node, GraphBorrowable};
+use crate::{Node, GraphBorrowable, GraphicsPipelineBuilder};
 use crate::graph::GraphConstructCtx;
 use crate::command2::{Cache, ShaderSetKey};
 //use crate::builder::{Node, GraphConstructCtx};
@@ -12,7 +12,6 @@ use crate::scheduler::{ImageId, interface::{PassEntityCtx, GraphCtx}, resources:
 use crate::parameter::{Parameter, ParameterStore};
 use crate::resource::{Buffer, BufferInfo, Escape};
 use crate::memory::Dynamic;
-use crate::exec::GraphicsPipelineBuilder;
 use rendy_shader::{ShaderKind, SourceLanguage, SourceShaderInfo, SpirvShader, ShaderId};
 use rendy_mesh::{PosColor, AsVertex};
 
@@ -112,7 +111,6 @@ impl<B: hal::Backend> Node<B> for DrawTriangle<B> {
             levels: 1,
             format: hal::format::Format::Bgra8Srgb,
             mode: ImageMode::Clear {
-                transient: false,
                 clear: hal::command::ClearValue::default(),
             }
         });

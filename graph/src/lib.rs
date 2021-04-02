@@ -31,7 +31,6 @@ pub use slice_buf::SliceBuf;
 
 //mod builder;
 mod exec;
-pub use exec::GraphicsPipelineBuilder;
 
 mod parameter;
 
@@ -47,6 +46,9 @@ pub use graph::{Node, GraphConstructCtx};
 
 mod frame;
 pub use frame::{Frame, Frames};
+
+mod builders;
+pub use builders::*;
 
 use rendy_core::hal;
 

@@ -1,6 +1,8 @@
 use rendy_core::hal;
 use super::sync::SyncPoint;
 
+mod format;
+pub use format::{PartialFormat, NumericFormat, DepthStencilComponents};
 
 /// A transient image is a framebuffer attachment used in a single render pass.
 /// They begin in a cleared or uninitialized state, and are read and written by
@@ -30,24 +32,12 @@ pub enum ImageMode {
     },
     /// Image contents left undefined. Fastest option if you expect to overwrite
     /// it all anyway.
-    DontCare {
-        transient: bool,
-    },
+    DontCare,
     /// Clear the image with the specified image when using it for the first
     /// time.
     Clear {
-        transient: bool,
         clear: hal::command::ClearValue,
     },
-}
-impl ImageMode {
-    pub fn is_transient(&self) -> bool {
-        match self {
-            ImageMode::Retain { .. } => false,
-            ImageMode::DontCare { transient, .. } => *transient,
-            ImageMode::Clear { transient, .. } => *transient,
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone)]
