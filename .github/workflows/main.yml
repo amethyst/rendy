@@ -34,7 +34,7 @@ jobs:
 
       - name: install ${{ matrix.toolchain }} toolchain
         id: install_toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v1.0.7
         with:
           toolchain: ${{ matrix.toolchain }}
           profile: minimal
