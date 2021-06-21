@@ -14,7 +14,7 @@ description = "Rendy's memory manager"
 serde-1 = ["serde", "gfx-hal/serde"]
 
 [dependencies]
-gfx-hal = "0.5"
+gfx-hal = "0.9"
 log = "0.4.11"
 hibitset = { version = "0.6.3", default-features = false }
 relevant = { version = "0.4.2", features = ["log"] }
