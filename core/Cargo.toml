@@ -37,7 +37,7 @@ thread_profiler = "0.3.0"
 raw-window-handle = "0.3.3"
 
 [target.'cfg(all(target_os = "windows", not(target_arch = "wasm32")))'.dependencies]
-gfx-backend-dx12 = { version = "0.5", optional = true }
+gfx-backend-dx12 = { version = "0.9", optional = true }
 
 [target.'cfg(any(all(not(target_arch = "wasm32"), target_os = "macos"), all(target_arch = "aarch64", target_os = "ios")))'.dependencies]
 gfx-backend-metal = { version = "0.5", optional = true }
