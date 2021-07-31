@@ -11,6 +11,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+#![allow(clippy::self_named_constructors)]
 use rendy_core as core;
 use rendy_descriptor as descriptor;
 use rendy_memory as memory;

@@ -42,6 +42,7 @@ where
     }
 
     /// Submit commands to the queue of the family.
+    /// # Safety
     /// Fence must be submitted.
     pub unsafe fn submit<'a>(
         &mut self,
@@ -101,6 +102,7 @@ where
     }
 
     /// Submit commands to the queue of the family.
+    /// # Safety
     /// Fence must be submitted.
     /// This version uses raw fence and doesn't increment epoch.
     pub unsafe fn submit_raw_fence<'a>(

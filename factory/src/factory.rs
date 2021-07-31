@@ -193,7 +193,7 @@ where
             log::trace!("Uploader disposed");
             self.blitter.dispose(&self.device);
             log::trace!("Blitter disposed");
-            std::ptr::read(&mut *self.resources).dispose(
+            std::ptr::read(&*self.resources).dispose(
                 &self.device,
                 self.heaps.get_mut(),
                 self.descriptor_allocator.get_mut(),
@@ -203,14 +203,14 @@ where
         }
 
         unsafe {
-            std::ptr::read(&mut *self.heaps)
+            std::ptr::read(&*self.heaps)
                 .into_inner()
                 .dispose(&self.device);
             log::trace!("Heaps disposed");
         }
 
         unsafe {
-            std::ptr::read(&mut *self.descriptor_allocator)
+            std::ptr::read(&*self.descriptor_allocator)
                 .into_inner()
                 .dispose(&self.device);
             log::trace!("Descriptor allocator disposed");

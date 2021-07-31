@@ -33,6 +33,7 @@ where
     }
 
     /// Get raw set
+    /// # Safety
     /// It must not be replaced.
     pub unsafe fn raw_mut(&mut self) -> &mut B::DescriptorSet {
         &mut self.raw
@@ -266,6 +267,7 @@ where
     }
 
     /// Destroy allocator instance.
+    /// # Safety
     /// All sets allocated from this allocator become invalid.
     pub unsafe fn dispose(mut self, device: &B::Device) {
         self.buckets

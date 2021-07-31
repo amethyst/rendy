@@ -396,9 +396,9 @@ where
 
     /// Recreate swapchain.
     ///
-    /// #Safety
+    /// # Safety
     ///
-    /// Current swapchain must be not in use.
+    /// Current swapchain must not be in use.
     pub unsafe fn recreate(
         &mut self,
         physical_device: &B::PhysicalDevice,

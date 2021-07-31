@@ -204,7 +204,7 @@ pub trait NodeDesc<B: Backend, T: ?Sized>: std::fmt::Debug + Sized + 'static {
     /// `resources` - set of transient resources managed by graph.
     ///               with barriers required for interface resources.
     ///
-    fn build<'a>(
+    fn build(
         self,
         ctx: &GraphContext<B>,
         factory: &mut Factory<B>,
@@ -355,7 +355,7 @@ pub trait NodeBuilder<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn dependencies(&self) -> Vec<NodeId>;
 
     /// Build node.
-    fn build<'a>(
+    fn build(
         self: Box<Self>,
         ctx: &GraphContext<B>,
         factory: &mut Factory<B>,

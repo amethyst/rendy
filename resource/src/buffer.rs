@@ -90,6 +90,7 @@ where
     }
 
     /// Dispose of buffer resource.
+    /// # Safety
     /// Deallocate memory block.
     pub unsafe fn dispose(self, device: &Device<B>, heaps: &mut Heaps<B>) {
         self.assert_device_owner(device);

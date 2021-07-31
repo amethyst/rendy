@@ -171,8 +171,8 @@ impl Guard {
             ref mut buffers,
             ref mut images,
         } = *self;
-        Any::downcast_mut(buffers)
-            .or_else(move || Any::downcast_mut(images))
+        <dyn Any>::downcast_mut(buffers)
+            .or_else(move || <dyn Any>::downcast_mut(images))
             .expect("`R` should be `Buffer` or `Image`")
     }
 }

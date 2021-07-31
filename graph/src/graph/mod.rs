@@ -464,7 +464,7 @@ where
         });
         log::trace!("Scheduled nodes execution {:#?}", chains);
 
-        let mut ctx = GraphContext::alloc(
+        let ctx = GraphContext::alloc(
             factory,
             &chains,
             &self.buffers,
@@ -498,14 +498,14 @@ where
                         let builder = node_descs[submission.node()].take().unwrap();
                         log::trace!("Build node {:#?}", builder);
                         let node = build_node(
-                            &mut ctx,
+                            &ctx,
                             builder,
                             factory,
                             families.family_by_index_mut(family.id().0),
                             queue.id().index(),
                             aux,
                             &chains,
-                            &submission,
+                            submission,
                         )
                         .map_err(GraphBuildError::Node)?;
                         log::debug!("Node built: {:#?}", node);
@@ -541,7 +541,7 @@ where
     }
 }
 
-fn build_node<'a, B: Backend, T: ?Sized>(
+fn build_node<B: Backend, T: ?Sized>(
     ctx: &GraphContext<B>,
     builder: Box<dyn NodeBuilder<B, T>>,
     factory: &mut Factory<B>,

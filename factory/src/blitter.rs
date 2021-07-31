@@ -496,7 +496,7 @@ where
             device.destroy_fence(initial.fence);
             pool.free_buffers(once(initial.command_buffer));
         });
-        self.next.drain(..).filter_map(|n| n).for_each(|next| {
+        self.next.drain(..).flatten().for_each(|next| {
             device.destroy_fence(next.fence);
             pool.free_buffers(once(next.command_buffer));
         });
