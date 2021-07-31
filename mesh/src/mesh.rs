@@ -244,7 +244,7 @@ impl<'a> MeshBuilder<'a> {
             )
             .map_err(UploadError::Create)?;
 
-        let mut buffer = factory
+        let buffer = factory
             .create_buffer(
                 BufferInfo {
                     size: buffer_size as _,
@@ -290,7 +290,7 @@ impl<'a> MeshBuilder<'a> {
                 index_type,
             }) => {
                 len = (indices.len() / index_stride(index_type)) as u32;
-                let mut buffer = factory
+                let buffer = factory
                     .create_buffer(
                         BufferInfo {
                             size: indices.len() as _,
@@ -303,9 +303,9 @@ impl<'a> MeshBuilder<'a> {
                 unsafe {
                     // New buffer can't be touched by device yet.
                     factory.upload_buffer(
-                        &mut buffer,
+                        &buffer,
                         0,
-                        &indices,
+                        indices,
                         None,
                         BufferState::new(queue)
                             .with_access(rendy_core::hal::buffer::Access::INDEX_BUFFER_READ)
@@ -320,7 +320,7 @@ impl<'a> MeshBuilder<'a> {
         unsafe {
             factory
                 .upload_from_staging_buffer(
-                    &mut buffer,
+                    &buffer,
                     0,
                     staging,
                     None,

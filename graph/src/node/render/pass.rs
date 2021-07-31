@@ -505,7 +505,7 @@ where
 
                         let surface = surface.take().expect("Render pass should be configured with Surface instance if at least one subpass uses surface attachment");
                         let surface_extent = unsafe {
-                            surface.extent(factory.physical()).unwrap_or(suggested_extent.expect("Must be set with surface"))
+                            surface.extent(factory.physical()).unwrap_or_else(|| suggested_extent.expect("Must be set with surface"))
                         };
 
                         log::debug!("Surface extent {:#?}", surface_extent);
@@ -1141,7 +1141,7 @@ where
             per_image,
         } = self;
 
-        let next = match target.next_image(&free_acquire) {
+        let next = match target.next_image(free_acquire) {
             Ok(next) => {
                 log::trace!("Presentable image acquired: {:#?}", next);
                 std::mem::swap(&mut per_image[next[0] as usize].acquire, free_acquire);
@@ -1173,7 +1173,7 @@ where
                                         index,
                                         rendy_core::hal::pass::Subpass {
                                             index: subpass_index as u8,
-                                            main_pass: &render_pass,
+                                            main_pass: render_pass,
                                         },
                                         aux,
                                     )
@@ -1208,10 +1208,10 @@ where
                     };
 
                     let mut pass_encoder = encoder.begin_render_pass_inline(
-                        &render_pass,
+                        render_pass,
                         &for_image.framebuffer,
                         area,
-                        &clears,
+                        clears,
                     );
 
                     subpasses
@@ -1224,7 +1224,7 @@ where
                                     index,
                                     rendy_core::hal::pass::Subpass {
                                         index: subpass_index as u8,
-                                        main_pass: &render_pass,
+                                        main_pass: render_pass,
                                     },
                                     aux,
                                 )
@@ -1355,7 +1355,7 @@ where
                                     index,
                                     rendy_core::hal::pass::Subpass {
                                         index: subpass_index as u8,
-                                        main_pass: &render_pass,
+                                        main_pass: render_pass,
                                     },
                                     aux,
                                 )
@@ -1385,7 +1385,7 @@ where
                 };
 
                 let mut pass_encoder =
-                    encoder.begin_render_pass_inline(&render_pass, framebuffer, area, &clears);
+                    encoder.begin_render_pass_inline(render_pass, framebuffer, area, clears);
 
                 subpasses
                     .iter_mut()
@@ -1397,7 +1397,7 @@ where
                                 index,
                                 rendy_core::hal::pass::Subpass {
                                     index: subpass_index as u8,
-                                    main_pass: &render_pass,
+                                    main_pass: render_pass,
                                 },
                                 aux,
                             )

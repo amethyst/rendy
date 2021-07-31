@@ -294,10 +294,7 @@ where
 
 fn match_kind(kind: Kind, view_kind: ViewKind, view_caps: ViewCapabilities) -> bool {
     match kind {
-        Kind::D1(..) => match view_kind {
-            ViewKind::D1 | ViewKind::D1Array => true,
-            _ => false,
-        },
+        Kind::D1(..) => matches!(view_kind, ViewKind::D1 | ViewKind::D1Array),
         Kind::D2(..) => match view_kind {
             ViewKind::D2 | ViewKind::D2Array => true,
             ViewKind::Cube => view_caps.contains(ViewCapabilities::KIND_CUBE),

@@ -11,6 +11,7 @@
     unused_import_braces,
     unused_qualifications
 )]
+#![allow(clippy::identity_op)]
 mod allocator;
 mod block;
 mod heaps;

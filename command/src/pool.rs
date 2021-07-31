@@ -97,6 +97,7 @@ where
     }
 
     /// Free buffers.
+    /// # Safety
     /// Buffers must be in droppable state.
     /// TODO: Validate buffers were allocated from this pool.
     pub unsafe fn free_buffers(

@@ -56,18 +56,12 @@ where
 
     /// Check if fence was submitted.
     pub fn is_submitted(&self) -> bool {
-        match self.state {
-            FenceState::Submitted(_) => true,
-            _ => false,
-        }
+        matches!(self.state, FenceState::Submitted(_))
     }
 
     /// Check if fence is signaled.
     pub fn is_signaled(&self) -> bool {
-        match self.state {
-            FenceState::Signaled => true,
-            _ => false,
-        }
+        matches!(self.state, FenceState::Signaled)
     }
 
     /// Check if fence is unsignaled.
@@ -106,8 +100,9 @@ where
     }
 
     /// Mark signaled fence as reset.
+    /// # Safety
     /// Panics if not signaled.
-    /// Becomes unsigneled.
+    /// Becomes unsignaled.
     /// Fence must be reset using raw fence value.
     pub unsafe fn mark_reset(&mut self) {
         match self.state {
@@ -119,6 +114,7 @@ where
     }
 
     /// Mark fence as signaled.
+    /// # Safety
     /// Panics if not submitted.
     /// Fence must be checked to be signaled using raw fence value.
     pub unsafe fn mark_signaled(&mut self) -> FenceEpoch {

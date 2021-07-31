@@ -141,7 +141,7 @@ pub trait SimpleGraphicsPipelineDesc<B: Backend, T: ?Sized>: std::fmt::Debug {
     fn load_shader_set(&self, factory: &mut Factory<B>, aux: &T) -> rendy_shader::ShaderSet<B>;
 
     /// Build pass instance.
-    fn build<'a>(
+    fn build(
         self,
         ctx: &GraphContext<B>,
         factory: &mut Factory<B>,

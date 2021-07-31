@@ -56,6 +56,7 @@ pub trait Shader {
 
     /// Create shader module.
     ///
+    /// # Safety
     /// Spir-V bytecode must adhere valid usage on this Vulkan spec page:
     /// https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/VkShaderModuleCreateInfo.html
     unsafe fn module<B>(
@@ -177,9 +178,7 @@ impl<B: Backend> ShaderSet<B> {
     }
 
     /// Returns the `GraphicsShaderSet` structure to provide all the runtime information needed to use the shaders in this set in rendy_core::hal.
-    pub fn raw<'a>(
-        &'a self,
-    ) -> Result<rendy_core::hal::pso::GraphicsShaderSet<'a, B>, ShaderError> {
+    pub fn raw(&self) -> Result<rendy_core::hal::pso::GraphicsShaderSet<B>, ShaderError> {
         Ok(rendy_core::hal::pso::GraphicsShaderSet {
             vertex: self
                 .shaders
@@ -450,9 +449,9 @@ pub struct ShaderStorage<B: Backend> {
 }
 impl<B: Backend> ShaderStorage<B> {
     /// Builds the `EntryPoint` structure used by rendy_core::hal to determine how to utilize this shader
-    pub fn get_entry_point<'a>(
-        &'a self,
-    ) -> Result<Option<rendy_core::hal::pso::EntryPoint<'a, B>>, ShaderError> {
+    pub fn get_entry_point(
+        &self,
+    ) -> Result<Option<rendy_core::hal::pso::EntryPoint<B>>, ShaderError> {
         Ok(Some(rendy_core::hal::pso::EntryPoint {
             entry: &self.entrypoint,
             module: self.module.as_ref().unwrap(),

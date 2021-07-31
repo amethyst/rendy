@@ -259,7 +259,7 @@ impl SpirvReflection {
         let cache = self
             .cache
             .as_ref()
-            .ok_or(ReflectError::CacheNotConstructued(self.stage()))?;
+            .ok_or_else(|| ReflectError::CacheNotConstructued(self.stage()))?;
         let mut attributes = smallvec::SmallVec::<[_; 64]>::new();
 
         for name in names {
@@ -293,7 +293,7 @@ impl SpirvReflection {
         let cache = self
             .cache
             .as_ref()
-            .ok_or(ReflectError::CacheNotConstructued(self.stage()))?;
+            .ok_or_else(|| ReflectError::CacheNotConstructued(self.stage()))?;
 
         let attributes = cache
             .vertices
@@ -490,12 +490,12 @@ where
     R: RangeBounds<U>,
 {
     (match range.start_bound() {
-        Bound::Included(ref start) => *start <= item,
-        Bound::Excluded(ref start) => *start < item,
+        Bound::Included(start) => start <= item,
+        Bound::Excluded(start) => start < item,
         Bound::Unbounded => true,
     }) && (match range.end_bound() {
-        Bound::Included(ref end) => item <= *end,
-        Bound::Excluded(ref end) => item < *end,
+        Bound::Included(end) => item <= end,
+        Bound::Excluded(end) => item < end,
         Bound::Unbounded => true,
     })
 }

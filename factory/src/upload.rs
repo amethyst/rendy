@@ -559,7 +559,7 @@ where
                 .flat_map(|[a, b]| once(a).chain(once(b))),
         );
 
-        pool.free_buffers(self.next.drain(..).filter_map(|n| n).flat_map(|next| {
+        pool.free_buffers(self.next.drain(..).flatten().flat_map(|next| {
             device.destroy_fence(next.fence);
             once(next.command_buffer).chain(once(next.barrier_buffer))
         }));
